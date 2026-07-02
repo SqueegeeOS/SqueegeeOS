@@ -1,49 +1,68 @@
 "use client";
 
-import { motion } from "framer-motion";
-import Image from "next/image";
+import { motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  buildWelcomeMessage,
-  getUnlockSequenceTotalMs,
-  UNLOCK_SEQUENCE_TIMING,
+  getUnlockTiming,
+  markMemberWelcomePending,
+  UNLOCK_WELCOME_COPY,
   type MembershipUnlockContext,
+  type UnlockTimingProfile,
 } from "@/lib/membership/unlock-sequence";
 import { playLockClickSound } from "@/lib/membership/unlock-sound";
-import { BrassLock } from "./brass-lock";
-import { GoldKey } from "./gold-key";
+import { ChromePadlock } from "./chrome-padlock";
+import { CrownKey } from "./crown-key";
 
 interface MembershipUnlockSequenceProps {
   context: MembershipUnlockContext;
+  timingProfile: UnlockTimingProfile;
   onComplete: () => void;
 }
 
-const easeLuxury = [0.22, 1, 0.36, 1] as const;
+const easeCinematic = [0.22, 1, 0.36, 1] as const;
+const easeSlow = [0.16, 1, 0.3, 1] as const;
+const easeBloom = [0.12, 0.8, 0.22, 1] as const;
+
+type CeremonyPhase =
+  | "fade"
+  | "lock"
+  | "keyApproach"
+  | "keyTurn"
+  | "unlock"
+  | "bloom"
+  | "welcomeOne"
+  | "welcomeBreath"
+  | "welcomeTwo"
+  | "exit";
 
 export function MembershipUnlockSequence({
   context,
+  timingProfile,
   onComplete,
 }: MembershipUnlockSequenceProps) {
-  const [phase, setPhase] = useState<
-    "fade" | "lock" | "key" | "turn" | "open" | "burst" | "portal"
-  >("fade");
+  const [phase, setPhase] = useState<CeremonyPhase>("fade");
   const [showSkip, setShowSkip] = useState(false);
-  const [reducedMotion, setReducedMotion] = useState(false);
+  const [liteEffects, setLiteEffects] = useState(false);
   const completedRef = useRef(false);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const reduceMotionHook = useReducedMotion();
+
+  const timing = getUnlockTiming(timingProfile);
+  const motionScale = timingProfile === "fast" ? 0.55 : 1;
 
   const finish = useCallback(() => {
     if (completedRef.current) return;
     completedRef.current = true;
     timersRef.current.forEach(clearTimeout);
+    markMemberWelcomePending();
     onComplete();
   }, [onComplete]);
 
   const skipToPortal = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
-    setPhase("portal");
-    window.setTimeout(finish, reducedMotion ? 200 : UNLOCK_SEQUENCE_TIMING.portalReveal);
-  }, [finish, reducedMotion]);
+    markMemberWelcomePending();
+    finish();
+  }, [finish]);
 
   const schedule = useCallback((fn: () => void, ms: number) => {
     const id = setTimeout(fn, ms);
@@ -51,188 +70,229 @@ export function MembershipUnlockSequence({
   }, []);
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const isReduced = mq.matches;
-    setReducedMotion(isReduced);
+    const isReduced =
+      reduceMotionHook ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    setLiteEffects(isMobile);
 
     if (isReduced) {
-      setPhase("portal");
+      markMemberWelcomePending();
       schedule(finish, 400);
       return () => timersRef.current.forEach(clearTimeout);
     }
 
-    const t = UNLOCK_SEQUENCE_TIMING;
+    const t = timing;
+    let elapsed = 0;
 
-    schedule(() => setPhase("lock"), t.fade);
-    schedule(() => setPhase("key"), t.fade + t.lockAppear + t.pauseBeforeKey);
-    schedule(
-      () => setPhase("turn"),
-      t.fade + t.lockAppear + t.pauseBeforeKey + t.keyGlide,
-    );
+    const chain = (next: CeremonyPhase, ms: number) => {
+      schedule(() => setPhase(next), elapsed);
+      elapsed += ms;
+    };
+
+    chain("lock", t.fade);
+    chain("keyApproach", t.lockAppear + t.pauseBeforeKey);
+    chain("keyTurn", t.keyApproach);
     schedule(() => {
       playLockClickSound();
-      setPhase("open");
-    }, t.fade + t.lockAppear + t.pauseBeforeKey + t.keyGlide + t.keyTurn);
-    schedule(
-      () => setPhase("burst"),
-      t.fade +
-        t.lockAppear +
-        t.pauseBeforeKey +
-        t.keyGlide +
-        t.keyTurn +
-        t.lockOpen,
-    );
-    schedule(
-      () => setPhase("portal"),
-      t.fade +
-        t.lockAppear +
-        t.pauseBeforeKey +
-        t.keyGlide +
-        t.keyTurn +
-        t.lockOpen +
-        t.lightBurst,
-    );
-    schedule(finish, getUnlockSequenceTotalMs());
-
+      setPhase("unlock");
+    }, elapsed);
+    elapsed += t.keyTurn;
+    chain("bloom", t.lockOpen);
+    chain("welcomeOne", t.lightBloom);
+    chain("welcomeBreath", t.welcomeOne);
+    chain("welcomeTwo", t.welcomeBreath);
+    chain("exit", t.welcomeTwo);
+    schedule(finish, elapsed + t.portalHandoff);
     schedule(() => setShowSkip(true), t.skipAvailableAfter);
 
     return () => timersRef.current.forEach(clearTimeout);
-  }, [finish, schedule]);
+  }, [finish, reduceMotionHook, schedule, timing]);
 
-  const showLockScene = phase !== "portal";
-  const lockOpen = phase === "open" || phase === "burst" || phase === "portal";
-  const showBurst = phase === "burst" || phase === "portal";
-  const showKey = phase !== "fade" && phase !== "lock" && phase !== "portal";
-  const keyTurning = phase === "turn" || phase === "open";
+  const lockOpen =
+    phase === "unlock" ||
+    phase === "bloom" ||
+    phase.startsWith("welcome") ||
+    phase === "exit";
+  const lightEscape = phase === "unlock" || phase === "bloom";
+  const showBloom =
+    phase === "bloom" || phase.startsWith("welcome") || phase === "exit";
+  const cameraPush =
+    phase === "bloom" || phase.startsWith("welcome") || phase === "exit";
+
+  const keyPhase =
+    phase === "fade" || phase === "lock"
+      ? "hidden"
+      : phase === "keyApproach"
+        ? "approach"
+        : phase === "keyTurn"
+          ? "turn"
+          : "insert";
+
+  const showCeremony = phase !== "exit";
+  const welcomeLine =
+    phase === "welcomeOne" || phase === "welcomeBreath"
+      ? UNLOCK_WELCOME_COPY.family
+      : phase === "welcomeTwo" || phase === "exit"
+        ? UNLOCK_WELCOME_COPY.care
+        : null;
 
   return (
     <div
-      className="fixed inset-0 z-[250] overflow-hidden bg-[#030303]"
+      className="fixed inset-0 z-[250] overflow-hidden bg-[#020202]"
       role="dialog"
       aria-modal="true"
-      aria-label="Membership welcome"
+      aria-label="Membership welcome ceremony"
     >
-      {showSkip && phase !== "portal" && (
-        <button
+      {showSkip && phase !== "exit" && (
+        <motion.button
           type="button"
           onClick={skipToPortal}
-          className="absolute right-5 top-[max(1rem,env(safe-area-inset-top))] z-50 min-h-[44px] rounded-full border border-white/15 px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-white/50 transition-colors hover:border-accent/40 hover:text-accent touch-manipulation"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.35, ease: easeCinematic }}
+          className="absolute right-4 top-[max(0.75rem,env(safe-area-inset-top))] z-50 flex min-h-[48px] items-center gap-2 rounded-full border border-white/30 bg-black/70 px-5 py-2.5 text-xs font-medium uppercase tracking-[0.16em] text-white shadow-[0_8px_32px_rgba(0,0,0,0.45)] backdrop-blur-md touch-manipulation hover:border-white/50 hover:bg-black/80 sm:right-6"
         >
-          Skip animation
-        </button>
+          Skip to portal
+          <span aria-hidden className="text-white/60">
+            →
+          </span>
+        </motion.button>
       )}
 
-      {/* Portal reveal layer */}
       <motion.div
-        className="absolute inset-0"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: phase === "portal" ? 1 : 0 }}
-        transition={{ duration: reducedMotion ? 0.3 : 0.7, ease: easeLuxury }}
-      >
-        <div className="absolute inset-0">
-          <Image
-            src={context.propertyHeroImage}
-            alt=""
-            fill
-            priority
-            className="object-cover opacity-40"
-            sizes="100vw"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/70 to-background" />
-        </div>
-
-        <div className="relative flex min-h-[100svh] flex-col items-center justify-center px-6 text-center">
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: easeLuxury, delay: 0.1 }}
-            className="font-serif text-4xl font-light tracking-tight text-foreground sm:text-5xl md:text-6xl"
-          >
-            {buildWelcomeMessage(context.homeownerFirstName)}
-          </motion.p>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: easeLuxury, delay: 0.35 }}
-            className="mt-4 text-[11px] uppercase tracking-[0.32em] text-accent"
-          >
-            {context.propertyName}
-          </motion.p>
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.55 }}
-            className="mt-8 max-w-sm text-sm leading-relaxed text-muted"
-          >
-            Your Homeowner Portal is ready. {context.planName} is now active.
-          </motion.p>
-        </div>
-      </motion.div>
-
-      {/* Lock ceremony layer */}
-      <motion.div
-        className="absolute inset-0 flex items-center justify-center"
-        animate={{ opacity: showLockScene ? 1 : 0 }}
-        transition={{ duration: 0.5 }}
+        className="absolute inset-0 flex items-center justify-center will-change-transform"
+        animate={{
+          opacity: showCeremony ? 1 : 0,
+          scale: cameraPush ? 1.03 : 1,
+        }}
+        transition={{
+          duration: reduceMotionHook ? 0.2 : 1.8 * motionScale,
+          ease: easeSlow,
+        }}
       >
         <motion.div
           initial={{ opacity: 0 }}
-          animate={{ opacity: phase === "fade" ? 0.3 : 1 }}
-          transition={{ duration: 0.4 }}
+          animate={{ opacity: phase === "fade" ? 0.4 : 1 }}
+          transition={{ duration: 0.9 * motionScale, ease: easeCinematic }}
           className="absolute inset-0 bg-black"
         />
 
-        <div className="relative flex h-48 w-48 items-center justify-center sm:h-56 sm:w-56">
+        {!liteEffects && (
+          <div
+            className="pointer-events-none absolute inset-0 opacity-25"
+            style={{
+              background:
+                "radial-gradient(ellipse at 50% 42%, rgba(255,245,230,0.06) 0%, transparent 58%)",
+            }}
+          />
+        )}
+
+        <div className="relative flex flex-col items-center justify-center">
           <motion.div
-            initial={{ opacity: 0, scale: 0.92 }}
+            initial={{ opacity: 0, scale: 0.96, y: 10 }}
             animate={{
               opacity: phase === "fade" ? 0 : 1,
-              scale: phase === "fade" ? 0.92 : 1,
+              scale: phase === "fade" ? 0.96 : 1,
+              y: phase === "fade" ? 10 : 0,
             }}
-            transition={{ duration: 0.65, ease: easeLuxury }}
+            transition={{ duration: 1.1 * motionScale, ease: easeCinematic }}
+            className="relative"
           >
-            <BrassLock open={lockOpen} className="h-36 w-auto sm:h-44" />
-          </motion.div>
-
-          {showKey && (
-            <motion.div
-              className="absolute left-1/2 top-1/2 z-10"
-              initial={{ x: 120, y: 40, opacity: 0 }}
-              animate={{
-                x: keyTurning ? -8 : 36,
-                y: keyTurning ? 8 : 20,
-                opacity: 1,
-              }}
-              transition={{
-                duration: keyTurning ? 0.35 : 0.55,
-                ease: easeLuxury,
-              }}
-            >
-              <GoldKey
-                rotating={keyTurning}
-                className="h-10 w-auto sm:h-12"
+            <ChromePadlock
+              open={lockOpen}
+              lightEscape={lightEscape && !liteEffects}
+              liteMode={liteEffects}
+              motionScale={motionScale}
+              className="h-40 w-auto sm:h-52 md:h-60"
+            />
+            <div className="absolute left-1/2 top-[58%] -translate-x-1/2">
+              <CrownKey
+                phase={keyPhase}
+                motionScale={motionScale}
+                className="h-24 w-auto sm:h-28"
               />
-            </motion.div>
-          )}
+            </div>
+          </motion.div>
         </div>
 
-        {showBurst && (
+        {showBloom && (
           <motion.div
             className="pointer-events-none absolute inset-0 flex items-center justify-center"
-            initial={{ opacity: 0, scale: 0.2 }}
-            animate={{ opacity: [0, 1, 0], scale: [0.2, 2.8, 3.2] }}
-            transition={{ duration: 0.55, ease: easeLuxury }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 1.2 * motionScale, ease: easeBloom }}
           >
-            <div
-              className="h-64 w-64 rounded-full sm:h-96 sm:w-96"
+            <motion.div
+              className="rounded-full will-change-[transform,opacity]"
+              initial={{ opacity: 0, scale: 0.4 }}
+              animate={{
+                opacity: liteEffects ? 0.55 : 0.72,
+                scale: liteEffects ? 2.4 : 3.2,
+              }}
+              transition={{ duration: 2.4 * motionScale, ease: easeBloom }}
               style={{
+                width: "min(90vw, 480px)",
+                height: "min(90vw, 480px)",
                 background:
-                  "radial-gradient(circle, rgba(212,184,122,0.55) 0%, rgba(212,184,122,0.15) 35%, transparent 70%)",
+                  "radial-gradient(circle, rgba(255,248,235,0.55) 0%, rgba(255,240,215,0.22) 32%, rgba(255,235,200,0.06) 55%, transparent 72%)",
               }}
             />
+            {!liteEffects && (
+              <motion.div
+                className="absolute rounded-full"
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 0.35, scale: 3.8 }}
+                transition={{ duration: 3 * motionScale, ease: easeBloom }}
+                style={{
+                  width: "min(95vw, 520px)",
+                  height: "min(95vw, 520px)",
+                  background:
+                    "radial-gradient(circle, rgba(255,252,245,0.18) 0%, transparent 65%)",
+                }}
+              />
+            )}
           </motion.div>
         )}
       </motion.div>
+
+      {welcomeLine && (
+        <div className="absolute inset-0 flex items-center justify-center px-6 sm:px-8">
+          <motion.div
+            key={
+              phase === "welcomeOne" || phase === "welcomeBreath"
+                ? "family"
+                : "care"
+            }
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: phase === "exit" ? 0 : 1, y: 0 }}
+            transition={{ duration: 1.1 * motionScale, ease: easeCinematic }}
+            className="max-w-2xl text-center"
+          >
+            <p className="font-serif text-2xl font-light leading-snug tracking-tight text-white/95 sm:text-4xl md:text-5xl">
+              {welcomeLine}
+            </p>
+            {(phase === "welcomeTwo" || phase === "exit") && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: phase === "exit" ? 0 : 0.7 }}
+                transition={{ delay: 0.5 * motionScale, duration: 0.9 }}
+                className="mt-6 text-[11px] uppercase tracking-[0.28em] text-white/45"
+              >
+                {context.propertyName}
+              </motion.p>
+            )}
+          </motion.div>
+        </div>
+      )}
+
+      <motion.div
+        className="pointer-events-none absolute inset-0 bg-[#faf8f5]"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: phase === "exit" ? 1 : 0 }}
+        transition={{ duration: 1.1 * motionScale, ease: easeSlow }}
+        aria-hidden
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, type HTMLMotionProps } from "framer-motion";
+import { motion, useReducedMotion, type HTMLMotionProps } from "framer-motion";
 import type { ReactNode } from "react";
 import { easePlan } from "./primitives";
 
@@ -24,9 +24,11 @@ export function PrimaryButton({
   className = "",
   ...props
 }: PrimaryButtonProps) {
+  const reduceMotion = useReducedMotion();
+
   return (
     <motion.button
-      whileTap={{ scale: 0.98 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.98 }}
       transition={{ duration: 0.25, ease: easePlan }}
       className={`group ${baseClassName} ${fullWidth ? "w-full sm:w-auto" : ""} ${className}`}
       {...props}
@@ -44,10 +46,12 @@ export function PrimaryLink({
   className = "",
   ...props
 }: PrimaryLinkProps) {
+  const reduceMotion = useReducedMotion();
+
   return (
     <motion.a
       href={href}
-      whileTap={{ scale: 0.98 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.98 }}
       transition={{ duration: 0.25, ease: easePlan }}
       className={`group ${baseClassName} ${fullWidth ? "w-full sm:inline-flex sm:w-auto" : "inline-flex"} ${className}`}
       {...props}

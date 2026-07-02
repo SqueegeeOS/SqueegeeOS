@@ -9,6 +9,8 @@ export {
   setPersistenceAdapterForTests,
 } from "./repository";
 
+export type { SaveHomeCarePlanResult } from "./repository";
+
 export {
   getActivePersistenceBackend,
   isCloudPersistenceConnected,

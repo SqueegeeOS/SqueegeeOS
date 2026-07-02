@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MemberPortalExperience } from "@/components/membership/member-portal-experience";
+import { MembershipUnlockProvider } from "@/components/membership/unlock-provider";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { canyonOaksHomeCarePlan } from "@/lib/home-care-plan/canyon-oaks";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
@@ -118,5 +119,9 @@ export default function MemberPortalPage() {
     );
   }
 
-  return <MemberPortalExperience data={planData} />;
+  return (
+    <MembershipUnlockProvider>
+      <MemberPortalExperience data={planData} />
+    </MembershipUnlockProvider>
+  );
 }

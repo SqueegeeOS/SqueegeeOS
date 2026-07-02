@@ -21,7 +21,7 @@ export const SQUEEGEEKING_FOUNDERS: FounderProfile[] = [
     slug: "noah-thomas",
     name: "Noah Thomas",
     role: "Founder & Visionary",
-    bio: "Squeegeeking was founded to raise the standard of exterior home care. Noah focuses on customer experience, systems, technology, long-term relationships, and building a company homeowners genuinely trust.",
+    bio: "SqueegeeKing was founded to raise the standard of exterior home care. Noah focuses on customer experience, systems, technology, long-term relationships, and building a company homeowners genuinely trust.",
     quote:
       "We don't just clean windows. We help homeowners care for their property year after year.",
     portraitPlaceholder: "founder",
@@ -33,7 +33,7 @@ export const SQUEEGEEKING_FOUNDERS: FounderProfile[] = [
     slug: "dasan-gramps",
     name: "Dasan Gramps",
     role: "Co-Founder & Chief Operations Officer",
-    bio: "Dasan has been one of Noah's closest friends since high school and later joined Squeegeeking to help build the company. He leads daily operations, crew standards, quality control, and helps ensure every customer receives a premium experience.",
+    bio: "Dasan has been one of Noah's closest friends since high school and later joined SqueegeeKing to help build the company. He leads daily operations, crew standards, quality control, and helps ensure every customer receives a premium experience.",
     quote: "Do it right. Keep improving. Take care of the customer.",
     portraitPlaceholder: "team",
     socialLinks: {},
@@ -44,7 +44,7 @@ export const SQUEEGEEKING_FOUNDERS: FounderProfile[] = [
 export const NOAH_PERSONAL_NOTE = {
   signoff: "Noah",
   title: "Founder & Visionary",
-  company: "Squeegeeking",
+  company: "SqueegeeKing",
 } as const;
 
 export function getFounderById(id: string): FounderProfile | undefined {

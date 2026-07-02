@@ -1,5 +1,6 @@
 "use client";
 
+import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { useState } from "react";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/canyon-oaks";
 import { saveMembershipAgreementMock } from "@/lib/membership/agreement";
@@ -303,7 +304,7 @@ export function MembershipSignatureStep({
           className="mt-1 h-5 w-5 shrink-0 rounded border-border accent-accent"
         />
         <span className="text-sm leading-relaxed text-foreground">
-          I agree to the Squeegeeking Home Care Membership terms.
+          I agree to the {CUSTOMER_BRAND.name} Home Care Membership terms.
         </span>
       </label>
 

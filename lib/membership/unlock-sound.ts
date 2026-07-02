@@ -1,4 +1,4 @@
-/** Subtle metallic click — Web Audio, no external asset required */
+/** Single weighted metallic release — Web Audio, no external asset */
 
 let audioContext: AudioContext | null = null;
 
@@ -17,35 +17,44 @@ export function playLockClickSound(): void {
 
     const now = ctx.currentTime;
 
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    const body = ctx.createOscillator();
+    const bodyGain = ctx.createGain();
+    body.type = "sine";
+    body.frequency.setValueAtTime(78, now);
+    body.frequency.exponentialRampToValueAtTime(38, now + 0.32);
+    bodyGain.gain.setValueAtTime(0.0001, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.24, now + 0.03);
+    bodyGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.5);
+    body.connect(bodyGain);
+    bodyGain.connect(ctx.destination);
+    body.start(now);
+    body.stop(now + 0.52);
 
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(1800, now);
-    osc.frequency.exponentialRampToValueAtTime(600, now + 0.08);
+    const bufferSize = ctx.sampleRate * 0.08;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+    }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
 
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.005);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+    const bandpass = ctx.createBiquadFilter();
+    bandpass.type = "bandpass";
+    bandpass.frequency.setValueAtTime(420, now);
+    bandpass.Q.setValueAtTime(0.7, now);
 
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.0001, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.07, now + 0.01);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
 
-    osc.start(now);
-    osc.stop(now + 0.15);
-
-    const click = ctx.createOscillator();
-    const clickGain = ctx.createGain();
-    click.type = "square";
-    click.frequency.setValueAtTime(3200, now + 0.02);
-    clickGain.gain.setValueAtTime(0.0001, now + 0.02);
-    clickGain.gain.exponentialRampToValueAtTime(0.04, now + 0.025);
-    clickGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);
-    click.connect(clickGain);
-    clickGain.connect(ctx.destination);
-    click.start(now + 0.02);
-    click.stop(now + 0.08);
+    noise.connect(bandpass);
+    bandpass.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(now);
+    noise.stop(now + 0.16);
   } catch {
-    // Audio optional — never block the sequence
+    // Audio optional
   }
 }

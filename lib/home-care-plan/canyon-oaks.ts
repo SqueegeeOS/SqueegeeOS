@@ -22,7 +22,7 @@ export const canyonOaksHomeCarePlan = {
     membershipRecommendation: "Preferred Care",
   },
   brand: {
-    company: "Squeegeeking",
+    company: "SqueegeeKing",
     tagline: "Premium Home Care.",
     craftedFor: "Crafted for Larry Buckley",
     footerLines: [

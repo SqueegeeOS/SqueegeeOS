@@ -1,5 +1,6 @@
 "use client";
 
+import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { motion } from "framer-motion";
 import { larryBuckley } from "../data";
 import { easeLuxury, fadeUp } from "../motion";
@@ -73,7 +74,7 @@ export function BecomeAMember() {
 
       <Reveal className="mt-20 text-center">
         <p className="font-serif text-lg font-light tracking-[0.2em] text-muted/60">
-          SqueegeeOS
+          {CUSTOMER_BRAND.name}
         </p>
         <p className="mt-2 text-[10px] uppercase tracking-[0.4em] text-muted/40">
           Crafted for {larryBuckley.fullName}

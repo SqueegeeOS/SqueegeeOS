@@ -1,5 +1,6 @@
 "use client";
 
+import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import type { FounderProfile } from "@/lib/team/types";
 import { SQUEEGEEKING_FOUNDERS } from "@/lib/team/founders";
 import { FounderProfileCard } from "./founder-profile-card";
@@ -19,7 +20,7 @@ export function MeetTheFounders({
   id = "founders",
   eyebrow = "Leadership",
   title = "Meet the founders.",
-  lead = "Founder-led and built in Chico — Squeegeeking is the real story of two friends committed to premium home care, long-term relationships, and a standard you can trust.",
+  lead = `Founder-led and built in Chico — ${CUSTOMER_BRAND.name} is the real story of two friends committed to premium home care, long-term relationships, and a standard you can trust.`,
   founders = SQUEEGEEKING_FOUNDERS,
   footerLine,
   className = "",
@@ -66,7 +67,7 @@ export function MeetTheFounders({
   return (
     <section
       id={id}
-      className={`border-t border-border bg-surface/30 px-5 py-24 sm:px-10 sm:py-32 lg:px-16 ${className}`}
+      className={`border-t border-border bg-surface/30 px-5 py-28 sm:px-10 sm:py-36 lg:px-16 ${className}`}
     >
       <div className="mx-auto max-w-6xl">{content}</div>
     </section>

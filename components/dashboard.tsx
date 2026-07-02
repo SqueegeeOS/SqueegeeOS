@@ -121,7 +121,7 @@ export function Dashboard() {
         variants={container}
         initial="hidden"
         animate="show"
-        className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-6 pb-16 pt-10 sm:px-10 sm:pb-20 sm:pt-14 lg:px-12"
+        className="relative mx-auto flex min-h-screen max-w-6xl flex-col overflow-x-hidden px-5 pb-20 pt-10 sm:px-10 sm:pb-24 sm:pt-14 lg:px-12"
       >
         <motion.header
           variants={fadeUp}

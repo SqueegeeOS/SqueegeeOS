@@ -39,6 +39,48 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  line-height: 1.5;
+}
+
+@keyframes member-portal-shimmer {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateX(-8%);
+  }
+  50% {
+    opacity: 0.55;
+    transform: translateX(8%);
+  }
+}
+
+.member-portal-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(
+    105deg,
+    transparent 38%,
+    rgba(255, 248, 235, 0.035) 48%,
+    rgba(255, 248, 235, 0.055) 52%,
+    transparent 62%
+  );
+  animation: member-portal-shimmer 12s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  .member-portal-shimmer::after {
+    animation: none;
+    opacity: 0.3;
+  }
 }
 
 ::selection {

@@ -383,44 +383,50 @@ Become a Member flow is designed for **Stripe Checkout redirect** — no card da
 
 ## Membership Unlock Sequence
 
-Signature ceremonial moment — the transition from customer to member after successful Stripe Checkout. Not a loading screen.
+Signature ceremonial moment — welcoming a new member into the SqueegeeKing family after successful Stripe Checkout. Not a loading screen. Not a web animation — an exclusive club unlock.
 
-**Design intent:** Apple · Rolex · Disney-level reveal. Minimal, premium, calm, luxurious. No explosions, gaming effects, or particle systems. Communicates: *"You now have access to something personal."*
+**Design intent:** Apple product reveal · luxury automotive delivery · opening a Rolex box. Slow, confident, cinematic. Brushed chrome lock, crown key, mechanical unlock, soft white light escape, camera push forward.
 
 ### Sequence
 
 | Phase | What happens |
 |-------|----------------|
 | 1 | Stripe Checkout succeeds |
-| 2 | Screen fades to nearly black |
-| 3 | Brass/champagne lock appears center — no text yet |
-| 4 | Brief pause; gold key glides in |
-| 5 | Key rotates naturally and inserts into lock |
-| 6 | Subtle metallic click (Web Audio) |
-| 7 | Key turns; lock clicks open |
-| 8 | Warm golden light bursts outward from inside the lock |
-| 9 | Light fills screen, then fades |
-| 10 | Homeowner Portal revealed — *"Welcome home, {firstName}."* with property fading in underneath |
+| 2 | Screen fades to black |
+| 3 | High-detail chrome padlock appears — brushed silver, machined depth |
+| 4 | Crown key approaches head-on (no sideways glide) |
+| 5 | Key inserts and rotates — mechanically correct |
+| 6 | Satisfying mechanical click (Web Audio) |
+| 7 | Shackle releases; soft white light escapes from keyhole |
+| 8 | Camera subtly pushes forward; light radiates outward |
+| 9 | *"Welcome to the SqueegeeKing Family."* |
+| 10 | *"Your home is now under our care."* |
+| 11 | White handoff → Member Portal with staggered privilege cards |
 
 ### Accessibility & timing
 
 | Rule | Implementation |
 |------|----------------|
-| `prefers-reduced-motion` | Skip lock ceremony; brief portal fade only |
-| Skip Animation | Button appears after **1 second** |
-| Max delay | Portal access within **~2–3 seconds** (skip or reduced motion) |
+| `prefers-reduced-motion` | Skip ceremony; portal loads with welcome copy |
+| Skip to portal | Obvious pill button after **1.5 seconds** |
+| First activation | Full (~11s) or fast (~5.6s) per `NEXT_PUBLIC_UNLOCK_TIMING` |
+| Return visits | **Skip ceremony** — straight to portal |
+| Replay | User opt-in from portal: "Watch welcome ceremony again" (always full) |
+| Mobile | Lite effects — no SVG noise filter, softer warm light bloom |
 
 ### Architecture
 
 | Piece | Location |
 |-------|----------|
-| Timing & context | `lib/membership/unlock-sequence.ts` |
-| Metallic click | `lib/membership/unlock-sound.ts` |
-| Lock & key SVG | `components/membership/unlock/brass-lock.tsx`, `gold-key.tsx` |
+| Timing, context, welcome copy | `lib/membership/unlock-sequence.ts` |
+| Member privileges copy | `lib/membership/member-privileges.ts` |
+| Mechanical click | `lib/membership/unlock-sound.ts` |
+| Chrome lock & crown key | `components/membership/unlock/chrome-padlock.tsx`, `crown-key.tsx` |
 | Full overlay | `components/membership/unlock/membership-unlock-sequence.tsx` |
+| Privilege cards | `components/membership/member-privilege-card.tsx` |
 | Provider & trigger | `components/membership/unlock-provider.tsx` |
-| Checkout trigger | `components/membership/membership-checkout-modal.tsx` → `beginMembershipUnlock()` |
-| Member Portal landing | `/homecare/{homeownerSlug}/{propertySlug}/portal` |
+| Member Portal | `components/membership/member-portal-experience.tsx` |
+| Checkout trigger | `membership-checkout-modal.tsx` → `beginMembershipUnlock()` |
 
 **Production:** After Stripe redirect return (`?session_id=`), verify session server-side, then trigger the same unlock sequence before routing to the portal.
 

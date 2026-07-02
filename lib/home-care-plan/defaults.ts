@@ -3,7 +3,7 @@ import { foundersAsPlanTeam } from "@/lib/team/founders";
 import type { HomeCarePlanData } from "./types";
 
 export const defaultHomeCareBrand = {
-  company: "Squeegeeking",
+  company: "SqueegeeKing",
   tagline: "Premium Home Care.",
   footerLines: [
     "Crafted with pride in Chico, California.",

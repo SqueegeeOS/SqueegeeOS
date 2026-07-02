@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
+import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { pwaConfig } from "@/lib/pwa/config";
 import "./globals.css";
 
@@ -20,7 +21,7 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Squeegeeking",
+  title: CUSTOMER_BRAND.name,
   description: pwaConfig.description,
   applicationName: pwaConfig.name,
   appleWebApp: {

@@ -48,6 +48,8 @@ export function CreateHomeCarePlanWizard({
     initialDraft ?? emptyHomeCarePlanDraft,
   );
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [saveNotice, setSaveNotice] = useState<string | null>(null);
 
   const previewPlan = useMemo(() => buildHomeCarePlanFromDraft(draft), [draft]);
 
@@ -119,17 +121,41 @@ export function CreateHomeCarePlanWizard({
 
   const handleGenerate = async () => {
     setIsGenerating(true);
-    const plan = buildHomeCarePlanFromDraft(draft);
-    await saveGeneratedHomeCarePlan(plan, draft);
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    router.push(getPlanPresentationPath(plan));
+    setGenerateError(null);
+    setSaveNotice(null);
+
+    try {
+      const plan = buildHomeCarePlanFromDraft(draft);
+      const outcome = await saveGeneratedHomeCarePlan(plan, draft);
+
+      if (outcome.usedCloudFallback) {
+        setSaveNotice(
+          outcome.cloudError
+            ? `Cloud save failed: ${outcome.cloudError} Plan saved in this browser and will open now.`
+            : "Cloud save failed. Plan saved in this browser and will open now.",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1400));
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      router.push(getPlanPresentationPath(plan));
+    } catch (error) {
+      console.error("[home-care-plan] Generate failed:", error);
+      setGenerateError(
+        error instanceof Error
+          ? error.message
+          : "Could not save this plan. Please try again.",
+      );
+      setIsGenerating(false);
+    }
   };
 
   return (
     <div className="relative min-h-screen bg-background">
       <AmbientGlow />
 
-      <div className="relative mx-auto max-w-2xl px-5 pb-28 pt-[max(2rem,env(safe-area-inset-top))] sm:px-8 sm:pb-32 sm:pt-14">
+      <div className="relative mx-auto max-w-2xl px-5 pb-32 pt-[max(2.5rem,env(safe-area-inset-top))] sm:px-8 sm:pb-36 sm:pt-16">
         <Reveal>
           <Link
             href={backHref}
@@ -141,8 +167,8 @@ export function CreateHomeCarePlanWizard({
 
         <Reveal delay={0.06} className="mt-8">
           <Eyebrow>Proposal Generator</Eyebrow>
-          <PageTitle className="mt-4">Create Home Care Plan</PageTitle>
-          <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
+          <PageTitle className="mt-5">Create Home Care Plan</PageTitle>
+          <p className="mt-5 max-w-lg text-base leading-relaxed text-muted">
             Enter homeowner and property details. Generate a personalized plan
             using the flagship presentation design.
           </p>
@@ -713,6 +739,26 @@ export function CreateHomeCarePlanWizard({
         </Reveal>
 
         <div className="fixed inset-x-0 bottom-0 border-t border-border bg-background/95 px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:static sm:mt-10 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-none">
+          {(generateError || saveNotice) && (
+            <div className="mx-auto mb-3 max-w-2xl space-y-2">
+              {generateError && (
+                <div
+                  role="alert"
+                  className="rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm leading-relaxed text-red-200"
+                >
+                  {generateError}
+                </div>
+              )}
+              {saveNotice && (
+                <div
+                  role="status"
+                  className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm leading-relaxed text-amber-100/90"
+                >
+                  {saveNotice}
+                </div>
+              )}
+            </div>
+          )}
           <div className="mx-auto flex max-w-2xl gap-3">
             {step > 0 && (
               <button
@@ -738,8 +784,8 @@ export function CreateHomeCarePlanWizard({
             >
               {step === homeCarePlanWizardSteps.length - 1
                 ? isGenerating
-                  ? "Generating…"
-                  : "Generate Home Care Plan"
+                  ? "Crafting plan…"
+                  : "Generate Plan"
                 : "Continue"}
             </button>
           </div>

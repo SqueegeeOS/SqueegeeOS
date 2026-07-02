@@ -22,10 +22,10 @@ export function PropertyHub() {
   );
 
   return (
-    <div className="relative min-h-screen bg-background">
+    <div className="relative min-h-screen overflow-x-hidden bg-background">
       <AmbientGlow />
 
-      <div className="relative mx-auto max-w-7xl px-6 pb-24 pt-12 sm:px-10 sm:pb-32 sm:pt-16 lg:px-14">
+      <div className="relative mx-auto max-w-7xl px-5 pb-28 pt-10 sm:px-10 sm:pb-32 sm:pt-16 lg:px-14">
         <Reveal>
           <div className="flex flex-col gap-6 border-b border-border pb-12 sm:pb-16 lg:flex-row lg:items-end lg:justify-between">
             <div>

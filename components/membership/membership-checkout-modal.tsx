@@ -1,6 +1,7 @@
 "use client";
 
-import { AnimatePresence, motion } from "framer-motion";
+import { CUSTOMER_BRAND } from "@/lib/brand/customer";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { easePlan } from "@/components/home-care-plan/ui/primitives";
 import {
@@ -34,7 +35,7 @@ const steps = [
 
 const agreementExcerpt = (propertyName: string) => `Home Care Membership Agreement
 
-This agreement establishes an ongoing stewardship relationship between you and Squeegeeking for your property at ${propertyName}.
+This agreement establishes an ongoing stewardship relationship between you and ${CUSTOMER_BRAND.name} for your property at ${propertyName}.
 
 Members receive scheduled inspections, priority scheduling, documented property history, and member pricing on additional services.
 
@@ -53,6 +54,7 @@ function NotActiveBadge() {
 export function MembershipCheckoutModal() {
   const { isOpen, closeCheckout, planData } = useMembershipCheckout();
   const { beginMembershipUnlock } = useMembershipUnlock();
+  const reduceMotion = useReducedMotion();
   const [step, setStep] = useState(0);
   const [selectedPlanId, setSelectedPlanId] =
     useState<MembershipPlanId>("preferred");
@@ -127,18 +129,19 @@ export function MembershipCheckoutModal() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-5"
+          transition={{ duration: reduceMotion ? 0.15 : 0.35 }}
+          className="fixed inset-0 z-[100] flex items-end justify-center bg-black/70 p-0 backdrop-blur-md sm:items-center sm:p-5"
           onClick={closeCheckout}
         >
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 48 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 40 }}
-            transition={{ duration: 0.4, ease: easePlan }}
+            exit={{ opacity: 0, y: reduceMotion ? 0 : 32 }}
+            transition={{ duration: reduceMotion ? 0.15 : 0.45, ease: easePlan }}
             onClick={(e) => e.stopPropagation()}
-            className="flex max-h-[92svh] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background sm:rounded-[2rem]"
+            className="flex max-h-[94svh] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background sm:max-h-[92svh] sm:rounded-[2rem]"
           >
-            <div className="border-b border-border px-5 py-5 sm:px-8">
+            <div className="border-b border-border px-5 py-6 sm:px-8">
               <div className="flex items-center justify-between gap-4">
                 <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-accent">
                   Become a Member
@@ -167,23 +170,39 @@ export function MembershipCheckoutModal() {
               )}
             </div>
 
-            <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-8 sm:py-8">
+            <div className="flex-1 overflow-y-auto px-5 py-7 sm:px-8 sm:py-8">
               {phase === "redirecting" && (
-                <div className="py-8 text-center">
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className="py-10 text-center"
+                >
                   <NotActiveBadge />
                   <p className="mt-8 font-serif text-2xl font-light text-foreground">
-                    Redirecting to Stripe Checkout…
+                    Preparing secure checkout…
                   </p>
-                  <p className="mt-4 text-sm text-muted">
-                    In production, you would be sent to Stripe&apos;s secure
-                    page to complete payment. This is a mock redirect only.
+                  <p className="mt-4 text-sm leading-relaxed text-muted">
+                    You&apos;ll complete payment on Stripe&apos;s secure page.
                   </p>
-                  <div className="mx-auto mt-8 h-8 w-8 animate-spin rounded-full border-2 border-border border-t-accent" />
-                </div>
+                  <motion.p
+                    animate={reduceMotion ? undefined : { opacity: [0.4, 1, 0.4] }}
+                    transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                    className="mt-8 text-[11px] uppercase tracking-[0.28em] text-accent"
+                  >
+                    One moment
+                  </motion.p>
+                </motion.div>
               )}
 
               {phase === "steps" && (
-                <>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={step}
+                    initial={reduceMotion ? false : { opacity: 0, x: 12 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={reduceMotion ? undefined : { opacity: 0, x: -12 }}
+                    transition={{ duration: 0.3, ease: easePlan }}
+                  >
                   {step === 0 && (
                     <div className="space-y-4">
                       <h2 className="font-serif text-2xl font-light text-foreground">
@@ -277,7 +296,7 @@ export function MembershipCheckoutModal() {
                           checkout.stripe.com
                         </p>
                         <p className="mt-3 text-xs text-muted">
-                          Card entry happens on Stripe — never in Squeegeeking
+                          Card entry happens on Stripe — never in {CUSTOMER_BRAND.name}
                         </p>
                       </div>
                     </div>
@@ -346,7 +365,8 @@ export function MembershipCheckoutModal() {
                       </div>
                     </div>
                   )}
-                </>
+                  </motion.div>
+                </AnimatePresence>
               )}
             </div>
 
@@ -374,7 +394,7 @@ export function MembershipCheckoutModal() {
                     className="min-h-[52px] flex-[2] rounded-full bg-accent text-sm font-medium tracking-[0.12em] text-background disabled:opacity-40"
                   >
                     {step === steps.length - 1
-                      ? "Continue to Secure Checkout"
+                      ? "Secure Checkout"
                       : "Continue"}
                   </button>
                 </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useReducedMotion } from "framer-motion";
 import { PrimaryButton } from "./ui/primary-button";
 import { useMembershipCheckout } from "@/components/membership/checkout-context";
 
@@ -11,6 +12,7 @@ export function MobileCtaBar({
   label: string;
 }) {
   const [visible, setVisible] = useState(false);
+  const reduceMotion = useReducedMotion();
   const { openCheckout } = useMembershipCheckout();
 
   useEffect(() => {
@@ -24,9 +26,9 @@ export function MobileCtaBar({
 
   return (
     <div
-      className={`fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md transition-transform duration-500 ease-out md:hidden ${
+      className={`fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/95 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-4 backdrop-blur-md md:hidden ${
         visible ? "translate-y-0" : "translate-y-full"
-      }`}
+      } ${reduceMotion ? "" : "transition-transform duration-500 ease-out"}`}
       aria-hidden={!visible}
     >
       <PrimaryButton type="button" onClick={openCheckout}>

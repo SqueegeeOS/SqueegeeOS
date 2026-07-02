@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useInView } from "framer-motion";
+import { motion, useInView, useReducedMotion } from "framer-motion";
 import { useRef, type ReactNode } from "react";
 import { fadeUp } from "@/lib/property/motion";
 
@@ -24,17 +24,22 @@ export function Reveal({
 }) {
   const ref = useRef(null);
   const inView = useInView(ref, { once: true, margin: "-60px" });
+  const reduceMotion = useReducedMotion();
 
   return (
     <motion.div
       ref={ref}
-      initial="hidden"
-      animate={inView ? "visible" : "hidden"}
+      initial={reduceMotion ? false : "hidden"}
+      animate={reduceMotion ? undefined : inView ? "visible" : "hidden"}
       variants={{
         hidden: fadeUp.hidden,
         visible: {
           ...fadeUp.visible,
-          transition: { ...fadeUp.visible.transition, delay },
+          transition: {
+            ...fadeUp.visible.transition,
+            delay: reduceMotion ? 0 : delay,
+            duration: reduceMotion ? 0.15 : fadeUp.visible.transition.duration,
+          },
         },
       }}
       className={className}
@@ -46,7 +51,7 @@ export function Reveal({
 
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <p className="text-[11px] font-medium uppercase tracking-[0.38em] text-accent">
+    <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-accent sm:tracking-[0.32em]">
       {children}
     </p>
   );

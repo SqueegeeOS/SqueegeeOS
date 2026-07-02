@@ -8,44 +8,82 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { MembershipUnlockContext } from "@/lib/membership/unlock-sequence";
-import { buildMemberPortalPath } from "@/lib/membership/unlock-sequence";
+import type {
+  MembershipUnlockContext,
+  UnlockPlaybackOptions,
+  UnlockTimingProfile,
+} from "@/lib/membership/unlock-sequence";
+import {
+  buildMemberPortalPath,
+  markMemberWelcomePending,
+  markUnlockCeremonySeen,
+  resolveUnlockPlayback,
+} from "@/lib/membership/unlock-sequence";
 import { MembershipUnlockSequence } from "./unlock/membership-unlock-sequence";
 
+interface ActiveUnlock {
+  context: MembershipUnlockContext;
+  profile: UnlockTimingProfile;
+}
+
 interface MembershipUnlockContextValue {
-  beginMembershipUnlock: (context: MembershipUnlockContext) => void;
+  beginMembershipUnlock: (
+    context: MembershipUnlockContext,
+    options?: UnlockPlaybackOptions,
+  ) => void;
 }
 
 const UnlockContext = createContext<MembershipUnlockContextValue | null>(null);
 
 export function MembershipUnlockProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [unlockContext, setUnlockContext] =
-    useState<MembershipUnlockContext | null>(null);
+  const [activeUnlock, setActiveUnlock] = useState<ActiveUnlock | null>(null);
+
+  const navigateToPortal = useCallback(
+    (context: MembershipUnlockContext) => {
+      router.push(
+        buildMemberPortalPath(context.homeownerSlug, context.propertySlug),
+      );
+    },
+    [router],
+  );
 
   const beginMembershipUnlock = useCallback(
-    (context: MembershipUnlockContext) => {
-      setUnlockContext(context);
+    (context: MembershipUnlockContext, options?: UnlockPlaybackOptions) => {
+      const playback = resolveUnlockPlayback(context, options);
+
+      if (playback.action === "skip") {
+        markMemberWelcomePending();
+        navigateToPortal(context);
+        return;
+      }
+
+      setActiveUnlock({ context, profile: playback.profile });
     },
-    [],
+    [navigateToPortal],
   );
 
   const handleComplete = useCallback(() => {
-    if (!unlockContext) return;
-    const path = buildMemberPortalPath(
-      unlockContext.homeownerSlug,
-      unlockContext.propertySlug,
+    if (!activeUnlock) return;
+    markUnlockCeremonySeen(
+      activeUnlock.context.homeownerSlug,
+      activeUnlock.context.propertySlug,
     );
-    setUnlockContext(null);
+    const path = buildMemberPortalPath(
+      activeUnlock.context.homeownerSlug,
+      activeUnlock.context.propertySlug,
+    );
+    setActiveUnlock(null);
     router.push(path);
-  }, [router, unlockContext]);
+  }, [activeUnlock, router]);
 
   return (
     <UnlockContext.Provider value={{ beginMembershipUnlock }}>
       {children}
-      {unlockContext && (
+      {activeUnlock && (
         <MembershipUnlockSequence
-          context={unlockContext}
+          context={activeUnlock.context}
+          timingProfile={activeUnlock.profile}
           onComplete={handleComplete}
         />
       )}
