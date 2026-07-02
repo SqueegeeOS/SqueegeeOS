@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   EMPLOYEE_BRAND_NAME,
   EMPLOYEE_NAV_ITEMS,
@@ -18,6 +18,8 @@ interface EmployeeNavProps {
 export function EmployeeNav({ pathname }: EmployeeNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const backItem = getMobileBackItem(pathname, "employee");
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const openMenu = useCallback(() => setMenuOpen(true), []);
 
   return (
     <>
@@ -58,10 +60,11 @@ export function EmployeeNav({ pathname }: EmployeeNavProps) {
 
           <button
             type="button"
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:border-accent/30 touch-manipulation lg:hidden"
+            className="relative z-[2] flex h-11 w-11 items-center justify-center rounded-full border border-border text-foreground transition-colors hover:border-accent/30 touch-manipulation lg:hidden"
             aria-label="Open menu"
             aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(true)}
+            aria-controls="mobile-site-menu"
+            onClick={openMenu}
           >
             <span className="flex flex-col gap-1.5" aria-hidden>
               <span className="block h-px w-5 bg-current" />
@@ -73,7 +76,7 @@ export function EmployeeNav({ pathname }: EmployeeNavProps) {
 
       <MobileMenu
         open={menuOpen}
-        onClose={() => setMenuOpen(false)}
+        onClose={closeMenu}
         pathname={pathname}
         items={EMPLOYEE_NAV_ITEMS}
         brandName={EMPLOYEE_BRAND_NAME}

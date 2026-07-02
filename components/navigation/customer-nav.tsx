@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import {
   CUSTOMER_MEMBER_PORTAL,
   CUSTOMER_PRIMARY_NAV,
@@ -32,6 +32,8 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
   const lightText = immersive && !scrolled;
   const session = getNavigationSession();
   const backItem = getMobileBackItem(pathname, "customer");
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+  const openMenu = useCallback(() => setMenuOpen(true), []);
 
   const headerSurface = elevated
     ? lightText
@@ -45,7 +47,7 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
         className={`fixed inset-x-0 top-0 z-[60] border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${headerSurface}`}
         style={{ height: "var(--site-nav-height)" }}
       >
-        <div className="mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
+        <div className="relative z-[1] mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
           <Link
             href={ROUTES.home}
             className={`min-h-[44px] py-2 font-serif text-lg font-light tracking-[0.16em] transition-colors duration-300 hover:opacity-90 sm:text-xl ${
@@ -91,14 +93,15 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
 
           <button
             type="button"
-            className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-300 touch-manipulation lg:hidden ${
+            className={`relative z-[2] flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-300 touch-manipulation lg:hidden ${
               lightText
                 ? "border-white/20 text-white/90 hover:border-white/35"
                 : "border-border/80 text-foreground hover:border-accent/30"
             }`}
             aria-label="Open menu"
             aria-expanded={menuOpen}
-            onClick={() => setMenuOpen(true)}
+            aria-controls="mobile-site-menu"
+            onClick={openMenu}
           >
             <span className="flex flex-col gap-1.5" aria-hidden>
               <span className="block h-px w-5 bg-current" />
@@ -110,7 +113,7 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
 
       <MobileMenu
         open={menuOpen}
-        onClose={() => setMenuOpen(false)}
+        onClose={closeMenu}
         pathname={pathname}
         items={[...CUSTOMER_PRIMARY_NAV, ...CUSTOMER_TAIL_NAV]}
         portalItem={session ? null : CUSTOMER_MEMBER_PORTAL}
@@ -119,7 +122,6 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
         brandHref={ROUTES.home}
         backItem={backItem}
         activePath={pathname}
-        light={lightText}
       />
     </>
   );
