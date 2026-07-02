@@ -1,0 +1,25 @@
+.plan-root {
+  --font-handwritten: var(--font-caveat), cursive;
+}
+
+.plan-handwritten {
+  font-family: var(--font-handwritten);
+}
+
+.plan-experience {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Prevent iOS text size auto-adjust from breaking layouts */
+.plan-experience {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-experience {
+    scroll-behavior: auto;
+  }
+}

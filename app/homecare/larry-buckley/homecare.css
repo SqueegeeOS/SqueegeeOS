@@ -1,0 +1,18 @@
+.homecare-root {
+  scroll-behavior: smooth;
+}
+
+.homecare-experience {
+  overflow-x: hidden;
+}
+
+.homecare-experience ::selection {
+  background: rgba(201, 184, 150, 0.25);
+  color: #f5f2eb;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .homecare-root {
+    scroll-behavior: auto;
+  }
+}

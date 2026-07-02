@@ -1,0 +1,54 @@
+---
+description: SqueegeeOS long-term product architecture and build principles
+alwaysApply: true
+---
+
+# SqueegeeOS Architecture
+
+**Mission:** Luxury home care platform — not a window cleaning CRM. Document the **life of a property**, not jobs.
+
+## Product flow
+
+```
+Marketing Website → Home Care Assessment → Homeowner Portal → Property Hub → Property Dashboard → Property Timeline → Visits → Photos → AI Intelligence
+```
+
+Property Hub is where employee and homeowner journeys converge. Timeline is the spine; visits and photos feed it; AI enriches everything downstream.
+
+**PWA:** Squeegeeking.net → member login → Add to Home Screen. Design customer pages mobile-first.
+
+## Modules
+
+Employee Dashboard · Technician App · Customer Home Care Portal · AI Engine · Property Timeline · Membership System · Proposal Generator · Photo Library · Annual Home Care Review · Admin Dashboard
+
+## Core model
+
+- **Homeowner** → many **Properties** (each fully independent)
+- **Property** owns: Home Care Score, Membership, Timeline, Photo Library, AI summaries, technician notes, recommendations, services, proposals, documents, agreements, before/after photos, visit history, access info, custom notes
+- **Property Timeline** is critical: every visit auto-creates an entry (date, technician, photos, notes, AI summary, services, score changes, recommendations, customer summary)
+
+## Technician flow
+
+Arrive → tap property → upload photos → check services → quick notes → Finish Visit. AI handles notes, summary, score, recommendations, follow-up email/text, portal update.
+
+## Customer portal
+
+Apple Photos × luxury real estate portfolio. Property-specific routes: `/homecare/[homeowner]/[property]`. Dark luxury aesthetic.
+
+## People & team content
+
+**All customer-facing people must be real Squeegeeking team members or clearly marked portrait placeholders. Never stock photos or fictional names.**
+
+- Founders: Noah Thomas, Dasan Gramps — `lib/team/founders.ts`
+- Portraits: `public/team/{slug}/portrait-*.webp` — auto-replaces placeholders site-wide
+- Components: `components/team/` (`FounderPortrait`, `FounderProfileCard`, `MeetTheFounders`)
+
+## Nav (built)
+
+`/` ↔ `/properties` ↔ `/properties/[slug]` ↔ `/properties/[slug]/home-care-plan`
+
+## Before building
+
+1. Where in the **product flow**? 2. Which module? 3. Property-scoped? 4. Feeds the Timeline? 5. Luxury stewardship (not contractor SaaS)? 6. Thin slice only?
+
+Full spec: `docs/ARCHITECTURE.md`
