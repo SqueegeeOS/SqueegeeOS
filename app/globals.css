@@ -9,6 +9,9 @@
   --surface: #111111;
   --surface-elevated: #161616;
   --border: #ffffff12;
+  --site-nav-height: 3.5rem;
+  --site-breadcrumb-height: 0px;
+  --site-chrome-offset: var(--site-nav-height);
 }
 
 @theme inline {

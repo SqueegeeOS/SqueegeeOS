@@ -36,23 +36,12 @@ export function PropertyDashboard({ property }: { property: Property }) {
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,transparent_0%,#060606_72%)]" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-6 sm:px-10 lg:px-14">
+        <div
+          className="relative mx-auto max-w-7xl px-6 sm:px-10 lg:px-14"
+          style={{ paddingTop: "var(--site-chrome-offset)" }}
+        >
           <div className="-mt-48 sm:-mt-56">
-            <Reveal>
-              <Link
-                href="/properties"
-                className="text-[11px] uppercase tracking-[0.3em] text-muted transition-colors hover:text-accent"
-              >
-                ← All Properties
-              </Link>
-            </Reveal>
-
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, ease: easeLuxury, delay: 0.1 }}
-              className="mt-8"
-            >
+            <Reveal delay={0.05} className="mt-8">
               <div className="flex flex-wrap items-center gap-3">
                 <span className="rounded-full border border-border bg-surface/80 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.24em] text-muted backdrop-blur-sm">
                   {property.type}
@@ -67,7 +56,7 @@ export function PropertyDashboard({ property }: { property: Property }) {
               <p className="mt-4 text-base tracking-wide text-muted sm:text-lg">
                 {fullAddress}
               </p>
-            </motion.div>
+            </Reveal>
 
             <Reveal delay={0.15} className="mt-10 max-w-3xl">
               <p className="text-base leading-relaxed text-foreground/75 sm:text-lg sm:leading-relaxed">

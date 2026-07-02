@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
+import { SiteNavigation } from "@/components/navigation/site-navigation";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { pwaConfig } from "@/lib/pwa/config";
 import "./globals.css";
@@ -55,7 +56,10 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full antialiased`}
     >
-      <body className="min-h-full overflow-x-hidden">{children}</body>
+      <body className="min-h-full overflow-x-hidden">
+        <SiteNavigation />
+        {children}
+      </body>
     </html>
   );
 }

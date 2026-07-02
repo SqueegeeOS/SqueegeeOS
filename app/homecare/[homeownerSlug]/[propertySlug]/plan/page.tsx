@@ -128,7 +128,7 @@ export default function GeneratedHomeCarePlanPage() {
 
   return (
     <>
-      <div className="fixed left-0 right-0 top-0 z-50 flex items-center justify-between gap-4 border-b border-border/60 bg-background/90 px-4 py-2 backdrop-blur-sm sm:px-6">
+      <div className="fixed left-0 right-0 top-[var(--site-chrome-offset)] z-50 flex items-center justify-between gap-4 border-b border-border/60 bg-background/90 px-4 py-2 backdrop-blur-sm sm:px-6">
         {loadedFromLocalFallback ? (
           <div className="flex flex-wrap items-center gap-2">
             <LocalStorageFallbackNotice />
@@ -149,7 +149,7 @@ export default function GeneratedHomeCarePlanPage() {
           Edit in builder
         </Link>
       </div>
-      <div className="pt-10">
+      <div className="pt-[var(--site-chrome-offset)]">
         <HomeCarePlanExperience data={planData} />
       </div>
     </>

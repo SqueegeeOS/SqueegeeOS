@@ -49,27 +49,6 @@ const cards = [
   },
 ] as const;
 
-function LogoMark() {
-  return (
-    <div className="flex items-center gap-3.5">
-      <div className="relative flex h-11 w-11 items-center justify-center rounded-2xl border border-border bg-surface-elevated">
-        <div className="absolute inset-[3px] rounded-[13px] border border-accent/20" />
-        <span className="font-serif text-lg font-light tracking-[0.2em] text-accent">
-          S
-        </span>
-      </div>
-      <div className="flex flex-col">
-        <span className="font-serif text-xl font-light tracking-[0.18em] text-foreground">
-          SqueegeeOS
-        </span>
-        <span className="text-[10px] font-medium uppercase tracking-[0.35em] text-muted">
-          Employee
-        </span>
-      </div>
-    </div>
-  );
-}
-
 function DashboardCard({
   label,
   value,
@@ -121,23 +100,9 @@ export function Dashboard() {
         variants={container}
         initial="hidden"
         animate="show"
-        className="relative mx-auto flex min-h-screen max-w-6xl flex-col overflow-x-hidden px-5 pb-20 pt-10 sm:px-10 sm:pb-24 sm:pt-14 lg:px-12"
+        className="relative mx-auto flex min-h-screen max-w-6xl flex-col overflow-x-hidden px-5 pb-20 sm:px-10 sm:pb-24 lg:px-12"
+        style={{ paddingTop: "calc(var(--site-chrome-offset) + 1.5rem)" }}
       >
-        <motion.header
-          variants={fadeUp}
-          className="mb-16 flex items-start justify-between gap-6 sm:mb-20 lg:mb-24"
-        >
-          <LogoMark />
-          <nav>
-            <Link
-              href="/properties"
-              className="text-[11px] font-medium uppercase tracking-[0.28em] text-muted transition-colors hover:text-accent"
-            >
-              Properties
-            </Link>
-          </nav>
-        </motion.header>
-
         <main className="flex flex-1 flex-col">
           <motion.section variants={fadeUp} className="mb-14 sm:mb-16 lg:mb-20">
             <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.35em] text-accent">

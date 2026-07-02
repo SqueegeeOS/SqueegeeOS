@@ -155,17 +155,11 @@ export function CreateHomeCarePlanWizard({
     <div className="relative min-h-screen bg-background">
       <AmbientGlow />
 
-      <div className="relative mx-auto max-w-2xl px-5 pb-32 pt-[max(2.5rem,env(safe-area-inset-top))] sm:px-8 sm:pb-36 sm:pt-16">
-        <Reveal>
-          <Link
-            href={backHref}
-            className="text-[11px] uppercase tracking-[0.28em] text-muted transition-colors hover:text-accent"
-          >
-            {backLabel}
-          </Link>
-        </Reveal>
-
-        <Reveal delay={0.06} className="mt-8">
+      <div
+        className="relative mx-auto max-w-2xl px-5 pb-32 sm:px-8 sm:pb-36"
+        style={{ paddingTop: "calc(var(--site-chrome-offset) + 1.25rem)" }}
+      >
+        <Reveal delay={0.06} className="mt-2">
           <Eyebrow>Proposal Generator</Eyebrow>
           <PageTitle className="mt-5">Create Home Care Plan</PageTitle>
           <p className="mt-5 max-w-lg text-base leading-relaxed text-muted">

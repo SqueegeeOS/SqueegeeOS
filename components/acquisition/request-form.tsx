@@ -22,6 +22,7 @@ function ThankYouScreen({ firstName }: { firstName: string }) {
   return (
     <motion.div
       className="relative min-h-screen overflow-x-hidden bg-background px-5 py-28 sm:px-10 sm:py-32"
+      style={{ paddingTop: "var(--site-chrome-offset)" }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.7, ease: easeLuxury }}
@@ -79,15 +80,12 @@ export function RequestForm() {
       <div className="relative min-h-screen overflow-x-hidden bg-background pb-24">
         <AmbientGlow />
 
-        <div className="relative mx-auto max-w-xl px-5 pt-[max(2.5rem,env(safe-area-inset-top))] sm:px-0 sm:pt-20">
+        <div
+          className="relative mx-auto max-w-xl px-5 sm:px-0"
+          style={{ paddingTop: "var(--site-chrome-offset)" }}
+        >
           <Reveal>
-            <Link
-              href="/"
-              className="inline-block min-h-[44px] py-2 text-[11px] uppercase tracking-[0.26em] text-muted transition-colors hover:text-accent"
-            >
-              ← {CUSTOMER_BRAND.name}
-            </Link>
-            <div className="mt-12">
+            <div className="pt-8 sm:pt-12">
               <Eyebrow>Request Your Plan</Eyebrow>
             </div>
             <h1 className="mt-6 font-serif text-[2rem] font-light leading-[1.1] tracking-tight text-foreground sm:text-4xl">

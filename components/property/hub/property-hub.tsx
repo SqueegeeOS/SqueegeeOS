@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import Link from "next/link";
 import { homeowner } from "@/lib/property/mock-data";
 import { stagger } from "@/lib/property/motion";
 import { PropertyCard } from "./property-card";
@@ -25,7 +24,10 @@ export function PropertyHub() {
     <div className="relative min-h-screen overflow-x-hidden bg-background">
       <AmbientGlow />
 
-      <div className="relative mx-auto max-w-7xl px-5 pb-28 pt-10 sm:px-10 sm:pb-32 sm:pt-16 lg:px-14">
+      <div
+        className="relative mx-auto max-w-7xl px-5 pb-28 sm:px-10 sm:pb-32 lg:px-14"
+        style={{ paddingTop: "calc(var(--site-chrome-offset) + 1.5rem)" }}
+      >
         <Reveal>
           <div className="flex flex-col gap-6 border-b border-border pb-12 sm:pb-16 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -94,12 +96,6 @@ export function PropertyHub() {
           <p className="font-serif text-sm font-light tracking-[0.25em] text-muted/50">
             SqueegeeOS Property Hub
           </p>
-          <Link
-            href="/employee"
-            className="mt-4 inline-block text-[11px] uppercase tracking-[0.3em] text-muted transition-colors hover:text-accent"
-          >
-            ← Employee Dashboard
-          </Link>
         </Reveal>
       </div>
     </div>

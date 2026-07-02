@@ -46,13 +46,7 @@ export function PublicLanding() {
           <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/60 to-background" />
         </div>
 
-        <header className="relative z-10 px-5 pt-[max(1.25rem,env(safe-area-inset-top))] sm:px-10">
-          <p className="font-serif text-lg font-light tracking-[0.18em] text-foreground/90 sm:text-xl">
-            {CUSTOMER_BRAND.name}
-          </p>
-        </header>
-
-        <div className="relative z-10 flex flex-1 flex-col justify-end px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] sm:px-10 sm:pb-20 lg:px-16">
+        <div className="relative z-10 flex flex-1 flex-col justify-end px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[var(--site-nav-height)] sm:px-10 sm:pb-20 lg:px-16">
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 24 }}
             animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
