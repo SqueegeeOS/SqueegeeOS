@@ -14,6 +14,8 @@ export const ROUTES = {
   properties: "/properties",
   requests: "/employee/requests",
   settings: "/employee/settings",
+  admin: "/admin",
+  adminOurStory: "/admin/our-story",
 } as const;
 
 export interface NavItem {

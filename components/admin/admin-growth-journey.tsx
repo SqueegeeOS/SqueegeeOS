@@ -109,6 +109,11 @@ export function AdminGrowthJourney({ tiers }: AdminGrowthJourneyProps) {
                         }`}
                       >
                         {milestone.label}
+                        {milestone.achieved && milestone.achievedByLegacy && (
+                          <span className="ml-2 text-[9px] uppercase tracking-[0.14em] text-muted/70">
+                            · Legacy
+                          </span>
+                        )}
                       </span>
                     </motion.li>
                   );

@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import type { CeoScoreboard } from "@/lib/admin/ceo-scoreboard";
+import type { OperatingSnapshot } from "@/lib/admin/growth-journey";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
 
 const easeLuxury = [0.22, 1, 0.36, 1] as const;
@@ -41,48 +42,76 @@ function ProgressBar({
   );
 }
 
+function LedgerRow({
+  label,
+  legacy,
+  operatingSystem,
+  company,
+  format = "currency",
+}: {
+  label: string;
+  legacy: number;
+  operatingSystem: number;
+  company: number;
+  format?: "currency" | "count";
+}) {
+  const fmt = (value: number) =>
+    format === "currency" ? formatCurrency(value) : String(value);
+
+  return (
+    <tr className="border-b border-border/40 last:border-0">
+      <td className="px-4 py-3 pr-3 text-sm text-muted">{label}</td>
+      <td className="px-4 py-3 pr-3 text-right font-serif text-base font-light text-muted">
+        {fmt(legacy)}
+      </td>
+      <td className="px-4 py-3 pr-3 text-right font-serif text-base font-light text-accent">
+        {fmt(operatingSystem)}
+      </td>
+      <td className="px-4 py-3 text-right font-serif text-base font-light text-foreground">
+        {fmt(company)}
+      </td>
+    </tr>
+  );
+}
+
+function ledgerRows(
+  legacy: OperatingSnapshot,
+  os: OperatingSnapshot,
+  company: OperatingSnapshot,
+) {
+  return [
+    { label: "Lifetime Revenue", legacy: legacy.lifetimeRevenue, os: os.lifetimeRevenue, company: company.lifetimeRevenue, format: "currency" as const },
+    { label: "Lifetime ARR", legacy: legacy.lifetimeArr, os: os.lifetimeArr, company: company.lifetimeArr, format: "currency" as const },
+    { label: "Closed Jobs", legacy: legacy.closedJobsCount, os: os.closedJobsCount, company: company.closedJobsCount, format: "count" as const },
+    { label: "Homes Protected", legacy: legacy.homesProtected, os: os.homesProtected, company: company.homesProtected, format: "count" as const },
+    { label: "Members", legacy: legacy.membersProtected, os: os.membersProtected, company: company.membersProtected, format: "count" as const },
+  ];
+}
+
 export function AdminCeoScoreboard({
   scoreboard,
   awaitingData = false,
 }: AdminCeoScoreboardProps) {
   const reduceMotion = useReducedMotion();
+  const { ledger } = scoreboard;
+  const rows = ledgerRows(ledger.legacy, ledger.operatingSystem, ledger.company);
 
-  const primaryMetrics = [
+  const monthlyMetrics = [
     {
       label: "Revenue Collected",
       value: formatCurrency(scoreboard.revenueCollected),
-      sub: "This month",
+      sub: "Operating System · this month",
     },
     {
       label: "ARR Generated",
       value: formatCurrency(scoreboard.arrGenerated),
-      sub: "This month",
+      sub: "Operating System · this month",
     },
     {
       label: "Monthly Sales Performance",
       value: formatCurrency(scoreboard.monthlySalesPerformance),
-      sub: "Business value created",
+      sub: "OS business value · this month",
       accent: true,
-    },
-    {
-      label: "Lifetime Revenue",
-      value: formatCurrency(scoreboard.lifetimeRevenue),
-      sub: "All time",
-    },
-  ];
-
-  const protectionMetrics = [
-    {
-      label: "Homes Protected",
-      value: String(scoreboard.homesProtected),
-    },
-    {
-      label: "Members Protected",
-      value: String(scoreboard.membersProtected),
-    },
-    {
-      label: "Lifetime ARR",
-      value: formatCurrency(scoreboard.lifetimeArr),
     },
   ];
 
@@ -98,9 +127,13 @@ export function AdminCeoScoreboard({
         <p className="text-[10px] uppercase tracking-[0.32em] text-accent">
           CEO Scoreboard
         </p>
+        <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+          Legacy honors what you built. Operating System tracks every sale logged
+          forward. Company totals are the honest sum — never faked.
+        </p>
 
-        <div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          {primaryMetrics.map((metric, index) => (
+        <div className="mt-7 grid gap-4 sm:grid-cols-3">
+          {monthlyMetrics.map((metric, index) => (
             <motion.div
               key={metric.label}
               initial={reduceMotion ? false : { opacity: 0, y: 10 }}
@@ -125,11 +158,38 @@ export function AdminCeoScoreboard({
               <p className="mt-1 text-xs text-muted/75">{metric.sub}</p>
               {awaitingData && (
                 <span className="mt-2 inline-flex rounded-full border border-border/80 bg-background/50 px-2 py-0.5 text-[9px] uppercase tracking-[0.16em] text-muted/80">
-                  Awaiting Data
+                  Awaiting OS data
                 </span>
               )}
             </motion.div>
           ))}
+        </div>
+
+        <div className="mt-8 overflow-x-auto rounded-[1.25rem] border border-border/60">
+          <table className="min-w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-border/60 bg-background/30 text-[10px] uppercase tracking-[0.18em] text-muted">
+                <th className="px-4 py-3 font-medium">Metric</th>
+                <th className="px-4 py-3 text-right font-medium">Legacy</th>
+                <th className="px-4 py-3 text-right font-medium">
+                  Operating System
+                </th>
+                <th className="px-4 py-3 text-right font-medium">Company</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <LedgerRow
+                  key={row.label}
+                  label={row.label}
+                  legacy={row.legacy}
+                  operatingSystem={row.os}
+                  company={row.company}
+                  format={row.format}
+                />
+              ))}
+            </tbody>
+          </table>
         </div>
 
         <div className="mt-6 grid gap-5 border-t border-border/60 pt-6 lg:grid-cols-2">
@@ -143,19 +203,6 @@ export function AdminCeoScoreboard({
             progress={scoreboard.monthlyGoalProgress.progress}
             detail={`${formatCurrency(scoreboard.monthlyGoalProgress.current)} of ${formatCurrency(scoreboard.monthlyGoalProgress.target)} goal`}
           />
-        </div>
-
-        <div className="mt-6 grid gap-3 border-t border-border/60 pt-6 sm:grid-cols-3">
-          {protectionMetrics.map((metric) => (
-            <div key={metric.label} className="px-1">
-              <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
-                {metric.label}
-              </p>
-              <p className="mt-1 font-serif text-xl font-light text-foreground">
-                {metric.value}
-              </p>
-            </div>
-          ))}
         </div>
       </motion.article>
 
@@ -199,7 +246,8 @@ export function AdminCeoScoreboard({
                   initial={{ strokeDashoffset: 2 * Math.PI * 34 }}
                   animate={{
                     strokeDashoffset:
-                      2 * Math.PI * 34 * (1 - scoreboard.businessHealthScore / 100),
+                      2 * Math.PI * 34 *
+                      (1 - scoreboard.businessHealthScore / 100),
                   }}
                   transition={{ duration: 1.2, ease: easeLuxury }}
                 />

@@ -27,7 +27,7 @@ export function AdminCurrentMission({ missions }: AdminCurrentMissionProps) {
         ))}
       </ul>
       <p className="mt-5 border-t border-border/50 pt-4 text-[10px] uppercase tracking-[0.16em] text-muted/70">
-        Auto-generated · AI coaching coming soon
+        Updated as the company moves forward
       </p>
     </article>
   );

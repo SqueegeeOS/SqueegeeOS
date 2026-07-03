@@ -69,7 +69,7 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
           Owner Access
         </p>
         <h1 className="mt-4 font-serif text-3xl font-light text-foreground sm:text-4xl">
-          SqueegeeKing Command Center
+          SqueegeeKing Headquarters
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-muted">
           Private access for Noah Thomas and Dasan Gramps.
@@ -120,7 +120,7 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
             disabled={submitting || (!privateBeta && pin.trim().length === 0)}
             className="flex min-h-[52px] w-full items-center justify-center rounded-full border border-accent/30 bg-accent px-6 text-sm font-medium tracking-[0.12em] text-background transition-opacity hover:opacity-95 disabled:opacity-50"
           >
-            {privateBeta ? "Enter Command Center" : "Unlock Command Center"}
+            {privateBeta ? "Enter headquarters" : "Unlock headquarters"}
           </button>
         </form>
 

@@ -1,13 +1,14 @@
 import {
   ARR_MILESTONE_LADDER,
   DEFAULT_MONTHLY_SALES_GOAL,
+  computeBusinessLedger,
   computeGrowthJourney,
-  type OperatingContext,
-  type OperatingSnapshot,
-  computeOperatingSnapshot,
   formatArrMilestoneLabel,
   getNextArrMilestone,
+  type BusinessLedger,
+  type OperatingContext,
 } from "./growth-journey";
+import { legacyBaselineHasHistory } from "./legacy-baseline";
 
 export interface ProgressMetric {
   label: string;
@@ -17,13 +18,10 @@ export interface ProgressMetric {
 }
 
 export interface CeoScoreboard {
+  ledger: BusinessLedger;
   revenueCollected: number;
   arrGenerated: number;
   monthlySalesPerformance: number;
-  lifetimeRevenue: number;
-  lifetimeArr: number;
-  homesProtected: number;
-  membersProtected: number;
   arrProgress: ProgressMetric;
   monthlyGoalProgress: ProgressMetric;
   businessHealthScore: number;
@@ -36,7 +34,7 @@ function clampProgress(current: number, target: number): number {
 }
 
 function computeBusinessHealth(
-  snapshot: OperatingSnapshot,
+  ledger: BusinessLedger,
   context: OperatingContext,
 ): { score: number; explanation: string } {
   const journey = computeGrowthJourney(context);
@@ -51,86 +49,95 @@ function computeBusinessHealth(
   const journeyProgress =
     totalMilestones > 0 ? achievedMilestones / totalMilestones : 0;
 
+  const os = ledger.operatingSystem;
+  const company = ledger.company;
+
   const monthlyGoalRatio = Math.min(
     1,
-    snapshot.monthlySalesPerformance / DEFAULT_MONTHLY_SALES_GOAL,
+    os.monthlySalesPerformance / DEFAULT_MONTHLY_SALES_GOAL,
   );
   const recurringRatio =
-    snapshot.lifetimeRevenue > 0
-      ? Math.min(1, snapshot.lifetimeArr / (snapshot.lifetimeRevenue * 2))
+    company.lifetimeRevenue > 0
+      ? Math.min(1, company.lifetimeArr / (company.lifetimeRevenue * 2))
       : 0;
-  const membershipRatio = Math.min(1, snapshot.membersProtected / 25);
+  const membershipRatio = Math.min(1, company.membersProtected / 25);
   const pipelinePenalty = Math.min(15, context.pendingRequests * 3);
+  const legacyHonorBonus = legacyBaselineHasHistory(context.legacyBaseline)
+    ? 8
+    : 0;
 
   const rawScore =
-    journeyProgress * 35 +
+    journeyProgress * 30 +
     monthlyGoalRatio * 25 +
-    recurringRatio * 20 +
-    membershipRatio * 15 +
-    (snapshot.closedJobsCount > 0 ? 5 : 0) -
+    recurringRatio * 18 +
+    membershipRatio * 12 +
+    legacyHonorBonus +
+    (os.closedJobsCount > 0 ? 5 : 0) -
     pipelinePenalty;
 
   const score = Math.max(0, Math.min(100, Math.round(rawScore)));
 
   let explanation: string;
-  if (snapshot.closedJobsCount === 0) {
+  if (legacyBaselineHasHistory(context.legacyBaseline) && os.closedJobsCount === 0) {
     explanation =
-      "Your cockpit is ready. Log your first sale to activate revenue momentum.";
+      "Your legacy is honored. Log sales in the Operating System to track forward momentum.";
+  } else if (os.closedJobsCount === 0) {
+    explanation =
+      "Record your legacy baseline and log OS sales to activate the full command center.";
   } else if (monthlyGoalRatio < 0.5) {
     explanation =
-      "Monthly sales performance is building. Focus on closing jobs and memberships this month.";
+      "Operating System sales are building this month. Legacy plus new logged jobs shape company totals.";
   } else if (recurringRatio < 0.3) {
     explanation =
-      "Cash is flowing. Growing recurring memberships will strengthen long-term business value.";
+      "Cash is flowing through the OS. Growing recurring memberships strengthens long-term value.";
   } else if (context.pendingRequests > 2) {
     explanation =
-      "Strong foundation. Clear pending requests to keep pipeline velocity high.";
+      "Strong company foundation. Clear pending requests to keep pipeline velocity high.";
   } else if (score >= 75) {
     explanation =
-      "Healthy momentum across revenue, recurring value, and customer protection.";
+      "Healthy momentum — legacy honored, Operating System tracking forward with clarity.";
   } else if (score >= 50) {
     explanation =
-      "Solid progress. Push toward the next Growth Journey milestone to accelerate.";
+      "Solid progress across legacy and OS. Every logged sale adds to the true company story.";
   } else {
     explanation =
-      "Early stage with clear runway. Every closed job compounds your trajectory.";
+      "Early OS chapter with legacy intact. Every forward sale compounds your trajectory.";
   }
 
   return { score, explanation };
 }
 
-export function computeCeoScoreboard(
-  context: OperatingContext,
-  snapshot: OperatingSnapshot = computeOperatingSnapshot(context),
-): CeoScoreboard {
-  const nextArr = getNextArrMilestone(snapshot.lifetimeArr);
-  const arrTarget = nextArr?.target ?? ARR_MILESTONE_LADDER[ARR_MILESTONE_LADDER.length - 1];
+export function computeCeoScoreboard(context: OperatingContext): CeoScoreboard {
+  const ledger = computeBusinessLedger(context);
+  const os = ledger.operatingSystem;
+  const company = ledger.company;
+
+  const nextArr = getNextArrMilestone(company.lifetimeArr);
+  const arrTarget =
+    nextArr?.target ?? ARR_MILESTONE_LADDER[ARR_MILESTONE_LADDER.length - 1];
   const arrLabel = nextArr
     ? formatArrMilestoneLabel(nextArr.target)
     : "$1M+ ARR";
 
-  const health = computeBusinessHealth(snapshot, context);
+  const health = computeBusinessHealth(ledger, context);
 
   return {
-    revenueCollected: snapshot.monthlyRevenueCollected,
-    arrGenerated: snapshot.monthlyArrGenerated,
-    monthlySalesPerformance: snapshot.monthlySalesPerformance,
-    lifetimeRevenue: snapshot.lifetimeRevenue,
-    lifetimeArr: snapshot.lifetimeArr,
-    homesProtected: snapshot.homesProtected,
-    membersProtected: snapshot.membersProtected,
+    ledger,
+    revenueCollected: os.monthlyRevenueCollected,
+    arrGenerated: os.monthlyArrGenerated,
+    monthlySalesPerformance: os.monthlySalesPerformance,
     arrProgress: {
-      label: `Progress to ${arrLabel}`,
-      current: snapshot.lifetimeArr,
+      label: `Company ARR · Progress to ${arrLabel}`,
+      current: company.lifetimeArr,
       target: arrTarget,
-      progress: clampProgress(snapshot.lifetimeArr, arrTarget),
+      progress: clampProgress(company.lifetimeArr, arrTarget),
     },
     monthlyGoalProgress: {
-      label: "Monthly Goal Progress",
-      current: snapshot.monthlySalesPerformance,
+      label: "Operating System · Monthly Goal",
+      current: os.monthlySalesPerformance,
       target: DEFAULT_MONTHLY_SALES_GOAL,
       progress: clampProgress(
-        snapshot.monthlySalesPerformance,
+        os.monthlySalesPerformance,
         DEFAULT_MONTHLY_SALES_GOAL,
       ),
     },

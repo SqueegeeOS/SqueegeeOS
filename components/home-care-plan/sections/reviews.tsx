@@ -1,8 +1,7 @@
 "use client";
 
-import { ReviewsSection } from "@/components/reviews/reviews-section";
-import type { HomeCarePlanData } from "@/lib/home-care-plan/canyon-oaks";
+import { GoogleReviewsSection } from "@/components/reviews/google-reviews-section";
 
-export function Reviews({ data }: { data: HomeCarePlanData }) {
-  return <ReviewsSection data={data.reviews} />;
+export function Reviews() {
+  return <GoogleReviewsSection featuredLimit={2} />;
 }

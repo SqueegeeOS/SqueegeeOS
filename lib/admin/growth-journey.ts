@@ -1,4 +1,5 @@
 import type { ClosedJob } from "./closed-jobs-types";
+import type { LegacyBaseline } from "./legacy-baseline";
 import {
   filterJobsByPeriod,
   getArrValue,
@@ -9,29 +10,20 @@ export type GrowthJourneyTierId =
   | "foundation"
   | "momentum"
   | "market_leader"
-  | "legacy";
+  | "dynasty";
 
 export interface GrowthMilestone {
   id: string;
   label: string;
   achieved: boolean;
+  /** True when earned before SqueegeeKing OS */
+  achievedByLegacy?: boolean;
 }
 
 export interface GrowthJourneyTier {
   id: GrowthJourneyTierId;
   label: string;
   milestones: GrowthMilestone[];
-}
-
-export interface OperatingContext {
-  closedJobs: ClosedJob[];
-  activeMembers: number;
-  homeCarePlansCreated: number;
-  pendingRequests: number;
-  fiveStarReviews?: number;
-  hasEmployee?: boolean;
-  hasCompanyTruck?: boolean;
-  multiCityExpansion?: boolean;
 }
 
 export interface OperatingSnapshot {
@@ -46,6 +38,23 @@ export interface OperatingSnapshot {
   membershipsSold: number;
 }
 
+export interface BusinessLedger {
+  legacy: OperatingSnapshot;
+  operatingSystem: OperatingSnapshot;
+  company: OperatingSnapshot;
+  osLaunchedDate: string;
+  legacyConfigured: boolean;
+}
+
+export interface OperatingContext {
+  closedJobs: ClosedJob[];
+  activeMembers: number;
+  homeCarePlansCreated: number;
+  pendingRequests: number;
+  legacyBaseline: LegacyBaseline;
+  osLaunchedDate: string;
+}
+
 export const ARR_MILESTONE_LADDER = [
   5_000, 10_000, 25_000, 100_000, 500_000, 1_000_000,
 ] as const;
@@ -53,20 +62,28 @@ export const ARR_MILESTONE_LADDER = [
 export const DEFAULT_MONTHLY_SALES_GOAL = 10_000;
 export const DEFAULT_MONTHLY_JOBS_GOAL = 5;
 
-export function computeOperatingSnapshot(
-  context: OperatingContext,
-): OperatingSnapshot {
-  const { closedJobs, activeMembers, homeCarePlansCreated } = context;
-  const currentMonthJobs = filterJobsByPeriod(closedJobs, "current_month");
+export function filterOperatingSystemJobs(
+  jobs: ClosedJob[],
+  osLaunchedDate: string,
+): ClosedJob[] {
+  return jobs.filter((job) => {
+    const closedOn = job.closedDate;
+    const createdOn = job.createdAt.slice(0, 10);
+    return closedOn >= osLaunchedDate || createdOn >= osLaunchedDate;
+  });
+}
 
-  const lifetimeRevenue = closedJobs.reduce(
+function snapshotFromJobs(
+  jobs: ClosedJob[],
+  homesProtected: number,
+): OperatingSnapshot {
+  const currentMonthJobs = filterJobsByPeriod(jobs, "current_month");
+
+  const lifetimeRevenue = jobs.reduce(
     (sum, job) => sum + getImmediateRevenue(job),
     0,
   );
-  const lifetimeArr = closedJobs.reduce(
-    (sum, job) => sum + getArrValue(job),
-    0,
-  );
+  const lifetimeArr = jobs.reduce((sum, job) => sum + getArrValue(job), 0);
   const monthlyRevenueCollected = currentMonthJobs.reduce(
     (sum, job) => sum + getImmediateRevenue(job),
     0,
@@ -75,9 +92,6 @@ export function computeOperatingSnapshot(
     (sum, job) => sum + getArrValue(job),
     0,
   );
-  const uniqueHomes = new Set(
-    closedJobs.map((job) => job.propertyAddress.trim().toLowerCase()),
-  ).size;
 
   return {
     lifetimeRevenue,
@@ -85,67 +99,224 @@ export function computeOperatingSnapshot(
     monthlyRevenueCollected,
     monthlyArrGenerated,
     monthlySalesPerformance: monthlyRevenueCollected + monthlyArrGenerated,
-    homesProtected: Math.max(homeCarePlansCreated, uniqueHomes),
-    membersProtected: activeMembers,
-    closedJobsCount: closedJobs.length,
-    membershipsSold: closedJobs.filter(
+    homesProtected,
+    membersProtected: jobs.filter(
+      (job) => job.saleType === "recurring_membership",
+    ).length,
+    closedJobsCount: jobs.length,
+    membershipsSold: jobs.filter(
       (job) => job.saleType === "recurring_membership",
     ).length,
   };
 }
 
+function snapshotFromLegacyBaseline(
+  baseline: LegacyBaseline,
+): OperatingSnapshot {
+  return {
+    lifetimeRevenue: baseline.lifetimeRevenue,
+    lifetimeArr: baseline.lifetimeArr,
+    monthlyRevenueCollected: 0,
+    monthlyArrGenerated: 0,
+    monthlySalesPerformance: 0,
+    homesProtected: baseline.homesServed || baseline.homesProtected,
+    membersProtected: baseline.recurringCustomers || baseline.activeMembers,
+    closedJobsCount: baseline.closedJobs,
+    membershipsSold: baseline.membershipsSold,
+  };
+}
+
+function mergeSnapshots(
+  legacy: OperatingSnapshot,
+  operatingSystem: OperatingSnapshot,
+): OperatingSnapshot {
+  return {
+    lifetimeRevenue: legacy.lifetimeRevenue + operatingSystem.lifetimeRevenue,
+    lifetimeArr: legacy.lifetimeArr + operatingSystem.lifetimeArr,
+    monthlyRevenueCollected: operatingSystem.monthlyRevenueCollected,
+    monthlyArrGenerated: operatingSystem.monthlyArrGenerated,
+    monthlySalesPerformance: operatingSystem.monthlySalesPerformance,
+    homesProtected: legacy.homesProtected + operatingSystem.homesProtected,
+    membersProtected:
+      legacy.membersProtected + operatingSystem.membershipsSold,
+    closedJobsCount:
+      legacy.closedJobsCount + operatingSystem.closedJobsCount,
+    membershipsSold:
+      legacy.membershipsSold + operatingSystem.membershipsSold,
+  };
+}
+
+export function computeBusinessLedger(context: OperatingContext): BusinessLedger {
+  const osJobs = filterOperatingSystemJobs(
+    context.closedJobs,
+    context.osLaunchedDate,
+  );
+  const osUniqueHomes = new Set(
+    osJobs.map((job) => job.propertyAddress.trim().toLowerCase()),
+  ).size;
+  const osHomesProtected = osUniqueHomes;
+
+  const legacy = snapshotFromLegacyBaseline(context.legacyBaseline);
+  const operatingSystem = snapshotFromJobs(osJobs, osHomesProtected);
+  const company = mergeSnapshots(legacy, operatingSystem);
+
+  return {
+    legacy,
+    operatingSystem,
+    company,
+    osLaunchedDate: context.osLaunchedDate,
+    legacyConfigured: context.legacyBaseline.configured,
+  };
+}
+
+/** @deprecated Use computeBusinessLedger */
+export function computeOperatingSnapshot(
+  context: OperatingContext,
+): OperatingSnapshot {
+  return computeBusinessLedger(context).company;
+}
+
+function checkNumericMilestone(
+  companyValue: number,
+  legacyValue: number,
+  threshold: number,
+): { achieved: boolean; achievedByLegacy: boolean } {
+  const achieved = companyValue >= threshold;
+  return {
+    achieved,
+    achievedByLegacy: achieved && legacyValue >= threshold,
+  };
+}
+
 function checkMilestone(
   id: string,
-  snapshot: OperatingSnapshot,
+  company: OperatingSnapshot,
+  legacy: OperatingSnapshot,
+  operatingSystem: OperatingSnapshot,
   context: OperatingContext,
-): boolean {
-  const reviews = context.fiveStarReviews ?? 0;
+): { achieved: boolean; achievedByLegacy: boolean } {
+  const baseline = context.legacyBaseline;
 
   switch (id) {
     case "first_closed_job":
-      return snapshot.closedJobsCount >= 1;
+      return checkNumericMilestone(
+        company.closedJobsCount,
+        legacy.closedJobsCount,
+        1,
+      );
     case "first_recurring_membership":
-      return snapshot.membershipsSold >= 1;
+      return checkNumericMilestone(
+        company.membershipsSold,
+        legacy.membershipsSold,
+        1,
+      );
     case "lifetime_revenue_1k":
-      return snapshot.lifetimeRevenue >= 1_000;
+      return checkNumericMilestone(
+        company.lifetimeRevenue,
+        legacy.lifetimeRevenue,
+        1_000,
+      );
     case "arr_5k":
-      return snapshot.lifetimeArr >= 5_000;
+      return checkNumericMilestone(company.lifetimeArr, legacy.lifetimeArr, 5_000);
     case "homes_10":
-      return snapshot.homesProtected >= 10;
+      return checkNumericMilestone(
+        company.homesProtected,
+        legacy.homesProtected,
+        10,
+      );
     case "members_25":
-      return snapshot.membersProtected >= 25;
+      return checkNumericMilestone(
+        company.membersProtected,
+        legacy.membersProtected,
+        25,
+      );
     case "monthly_sales_10k":
-      return snapshot.monthlySalesPerformance >= 10_000;
+      return {
+        achieved: operatingSystem.monthlySalesPerformance >= 10_000,
+        achievedByLegacy: false,
+      };
     case "lifetime_revenue_50k":
-      return snapshot.lifetimeRevenue >= 50_000;
+      return checkNumericMilestone(
+        company.lifetimeRevenue,
+        legacy.lifetimeRevenue,
+        50_000,
+      );
     case "arr_25k":
-      return snapshot.lifetimeArr >= 25_000;
+      return checkNumericMilestone(
+        company.lifetimeArr,
+        legacy.lifetimeArr,
+        25_000,
+      );
     case "closed_jobs_100":
-      return snapshot.closedJobsCount >= 100;
+      return checkNumericMilestone(
+        company.closedJobsCount,
+        legacy.closedJobsCount,
+        100,
+      );
     case "reviews_100":
-      return reviews >= 100;
+      return {
+        achieved: baseline.googleReviews >= 100,
+        achievedByLegacy: baseline.googleReviews >= 100,
+      };
     case "members_100":
-      return snapshot.membersProtected >= 100;
+      return checkNumericMilestone(
+        company.membersProtected,
+        legacy.membersProtected,
+        100,
+      );
     case "arr_100k":
-      return snapshot.lifetimeArr >= 100_000;
+      return checkNumericMilestone(
+        company.lifetimeArr,
+        legacy.lifetimeArr,
+        100_000,
+      );
     case "lifetime_revenue_250k":
-      return snapshot.lifetimeRevenue >= 250_000;
+      return checkNumericMilestone(
+        company.lifetimeRevenue,
+        legacy.lifetimeRevenue,
+        250_000,
+      );
     case "homes_500":
-      return snapshot.homesProtected >= 500;
+      return checkNumericMilestone(
+        company.homesProtected,
+        legacy.homesProtected,
+        500,
+      );
     case "first_employee":
-      return context.hasEmployee === true;
+      return {
+        achieved: baseline.hasEmployee,
+        achievedByLegacy: baseline.hasEmployee,
+      };
     case "first_company_truck":
-      return context.hasCompanyTruck === true;
+      return {
+        achieved: baseline.hasCompanyTruck,
+        achievedByLegacy: baseline.hasCompanyTruck,
+      };
     case "members_500":
-      return snapshot.membersProtected >= 500;
+      return checkNumericMilestone(
+        company.membersProtected,
+        legacy.membersProtected,
+        500,
+      );
     case "arr_500k":
-      return snapshot.lifetimeArr >= 500_000;
+      return checkNumericMilestone(
+        company.lifetimeArr,
+        legacy.lifetimeArr,
+        500_000,
+      );
     case "lifetime_revenue_1m":
-      return snapshot.lifetimeRevenue >= 1_000_000;
+      return checkNumericMilestone(
+        company.lifetimeRevenue,
+        legacy.lifetimeRevenue,
+        1_000_000,
+      );
     case "multi_city_expansion":
-      return context.multiCityExpansion === true;
+      return {
+        achieved: baseline.multiCityExpansion,
+        achievedByLegacy: baseline.multiCityExpansion,
+      };
     default:
-      return false;
+      return { achieved: false, achievedByLegacy: false };
   }
 }
 
@@ -190,8 +361,8 @@ const TIER_DEFINITIONS: Array<{
     ],
   },
   {
-    id: "legacy",
-    label: "Legacy",
+    id: "dynasty",
+    label: "Dynasty",
     milestoneIds: [
       { id: "members_500", label: "500 Members" },
       { id: "arr_500k", label: "$500,000 ARR" },
@@ -202,16 +373,26 @@ const TIER_DEFINITIONS: Array<{
 ];
 
 export function computeGrowthJourney(context: OperatingContext): GrowthJourneyTier[] {
-  const snapshot = computeOperatingSnapshot(context);
+  const ledger = computeBusinessLedger(context);
 
   return TIER_DEFINITIONS.map((tier) => ({
     id: tier.id,
     label: tier.label,
-    milestones: tier.milestoneIds.map((item) => ({
-      id: item.id,
-      label: item.label,
-      achieved: checkMilestone(item.id, snapshot, context),
-    })),
+    milestones: tier.milestoneIds.map((item) => {
+      const result = checkMilestone(
+        item.id,
+        ledger.company,
+        ledger.legacy,
+        ledger.operatingSystem,
+        context,
+      );
+      return {
+        id: item.id,
+        label: item.label,
+        achieved: result.achieved,
+        achievedByLegacy: result.achievedByLegacy,
+      };
+    }),
   }));
 }
 

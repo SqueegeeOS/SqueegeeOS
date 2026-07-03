@@ -1,4 +1,4 @@
-import { squeegeekingGoogleReviews } from "@/lib/reviews/mock-data";
+import { emptyPlanReviews } from "@/lib/reviews/plan-placeholder";
 import { foundersAsPlanTeam } from "@/lib/team/founders";
 import type { HomeCarePlanData } from "./types";
 
@@ -59,7 +59,7 @@ export function buildCareJourney(propertyName: string) {
   ];
 }
 
-export const defaultPlanReviews = squeegeekingGoogleReviews;
+export const defaultPlanReviews = emptyPlanReviews;
 
 export const defaultHeroImage =
   "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=1920&q=85";

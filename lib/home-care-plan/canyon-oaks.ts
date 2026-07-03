@@ -1,5 +1,5 @@
-import { squeegeekingGoogleReviews } from "@/lib/reviews/mock-data";
 import { foundersAsPlanTeam, NOAH_PERSONAL_NOTE } from "@/lib/team/founders";
+import { emptyPlanReviews } from "@/lib/reviews/plan-placeholder";
 import type { HomeCarePlanData } from "./types";
 
 export const canyonOaksHomeCarePlan = {
@@ -213,7 +213,7 @@ export const canyonOaksHomeCarePlan = {
     },
   ],
   team: foundersAsPlanTeam(),
-  reviews: squeegeekingGoogleReviews,
+  reviews: emptyPlanReviews,
   closing: {
     headline: "Begin stewarding Canyon Oaks the way it deserves.",
     subline: "Your plan is ready. We're honored to care for your home.",

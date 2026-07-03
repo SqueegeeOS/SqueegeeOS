@@ -49,7 +49,7 @@ function HomeCarePlanContent({ data }: { data: HomeCarePlanData }) {
       <Divider />
       <MeetYourTeam data={data} />
       <Divider />
-      <Reviews data={data} />
+      <Reviews />
       <BecomeAMember data={data} />
       <MobileCtaBar phone={data.closing.phone} label={data.closing.cta} />
       <MembershipCheckoutModal />

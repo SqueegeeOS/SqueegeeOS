@@ -302,14 +302,23 @@ Shared UI: `components/team/` (`FounderPortrait`, `FounderProfileCard`, `MeetThe
 
 ---
 
-## Google Reviews (future integration)
+## Google Reviews
 
-Live reviews will replace mock data in `lib/reviews/mock-data.ts`.
+Live reviews load from **`GET /api/reviews/google`** (server-only). The client never sees API keys.
 
-| Priority | API | Use case |
-|----------|-----|----------|
-| **Primary** | Google Business Profile API | Squeegeeking's own reviews (requires API access approval) |
-| **Fallback** | Google Places API — Place Details | Public rating + review preview |
+| Item | Detail |
+|------|--------|
+| **Stage 1 (current)** | Google Places API — Place Details (`GOOGLE_MAPS_API_KEY`, `GOOGLE_PLACE_ID`) |
+| **Stage 2 (planned)** | Google Business Profile API — owned-business review management, replies, and full review sync |
+| **Cache** | 8 hours (`unstable_cache` + route `revalidate`) |
+| **Fallback** | Approved client testimonials — clearly labeled, never fake counts |
+
+**Server env vars (never `NEXT_PUBLIC`):**
+
+```
+GOOGLE_MAPS_API_KEY=
+GOOGLE_PLACE_ID=
+```
 
 **Data shape** (`lib/reviews/types.ts`):
 
@@ -320,14 +329,23 @@ interface Review {
   rating: number;
   reviewText: string;
   reviewDate: string;
+  relativeDate?: string;
   profilePhotoUrl?: string;
   source: "Google";
 }
 ```
 
-**UI:** `components/reviews/reviews-section.tsx` accepts `ReviewsData` — swap mock for `fetchSqueegeekingReviews()` when API is connected (`lib/reviews/fetch-reviews.ts`).
+**UI:** `components/reviews/google-reviews-section.tsx` fetches `/api/reviews/google` and renders `ReviewsSection`.
+
+### Stage 2 — Google Business Profile API upgrade path
+
+1. Apply for [Google Business Profile API access](https://developers.google.com/my-business/content/prereqs) (requires verified business ownership).
+2. Replace `lib/reviews/google-places.ts` fetch with GBP `accounts.locations.reviews.list`.
+3. Keep the same `ReviewsData` shape and `/api/reviews/google` contract so the frontend stays unchanged.
+4. Benefits: full review corpus, owner responses, review metadata, no 5-review Places preview cap.
 
 ---
+
 
 ## Progressive Web App (PWA)
 
@@ -502,7 +520,19 @@ Fields: `customer_name`, `property_address`, `sale_amount`, `sale_type`, `recurr
 
 Without the table, closed jobs save to **browser localStorage** only.
 
-### Growth Journey & CEO Scoreboard
+### Legacy vs Operating System
+
+The Command Center distinguishes two histories:
+
+| Layer | Meaning |
+|-------|---------|
+| **Legacy** | What Noah built before SqueegeeKing OS — honored via baseline (localStorage), never faked |
+| **Operating System** | Closed jobs logged since OS launch — forward-only ledger |
+| **Company** | Honest sum of Legacy + OS — used for milestones and ARR progress |
+
+Record legacy once via **Honor Your Legacy** in the sidebar. Growth Journey tier **Dynasty** (formerly mislabeled Legacy) is aspirational — company milestones check combined totals and mark **· Legacy** when earned pre-OS.
+
+---
 
 | Feature | Detail |
 |---------|--------|

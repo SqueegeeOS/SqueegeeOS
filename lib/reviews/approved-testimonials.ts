@@ -1,18 +1,18 @@
 import type { ReviewsData } from "./types";
 
 /**
- * Sample Google reviews for layout and development.
- * Replace with live data from Google Business Profile API.
- * Reviewer names are illustrative — not stock photos or impersonated people.
+ * Manually approved testimonials — used only when live Google reviews
+ * are unavailable. Never presented as live Google review counts.
  */
-export const squeegeekingGoogleReviews: ReviewsData = {
-  totalCount: 127,
-  averageRating: 5,
+export const approvedClientTestimonials: ReviewsData = {
+  totalCount: 0,
+  averageRating: 0,
   source: "Google",
   isSampleData: true,
+  attribution: "Approved client testimonials",
   reviews: [
     {
-      id: "google-1",
+      id: "testimonial-1",
       reviewerName: "Homeowner, Chico",
       rating: 5,
       reviewText:
@@ -22,7 +22,7 @@ export const squeegeekingGoogleReviews: ReviewsData = {
       location: "Chico",
     },
     {
-      id: "google-2",
+      id: "testimonial-2",
       reviewerName: "Member, Canyon Oaks",
       rating: 5,
       reviewText:
@@ -32,7 +32,7 @@ export const squeegeekingGoogleReviews: ReviewsData = {
       location: "Chico",
     },
     {
-      id: "google-3",
+      id: "testimonial-3",
       reviewerName: "Preferred Care Member",
       rating: 5,
       reviewText:
