@@ -34,17 +34,18 @@ export function SiteNavigation() {
 
   return (
     <>
-      {mode === "employee" ? (
-        <EmployeeNav pathname={pathname} />
-      ) : (
-        <CustomerNav pathname={pathname} />
-      )}
+      {mode !== "hidden" &&
+        (mode === "employee" ? (
+          <EmployeeNav pathname={pathname} />
+        ) : (
+          <CustomerNav pathname={pathname} />
+        ))}
 
-      {hasBreadcrumbs && (
+      {mode !== "hidden" && hasBreadcrumbs && (
         <Breadcrumbs items={breadcrumbs} overlay={overlay && mode === "customer"} />
       )}
 
-      {floatingBack && <FloatingBack config={floatingBack} />}
+      {mode !== "hidden" && floatingBack && <FloatingBack config={floatingBack} />}
     </>
   );
 }

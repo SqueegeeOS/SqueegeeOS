@@ -21,8 +21,12 @@ export interface FloatingBackConfig {
 }
 
 const EMPLOYEE_PREFIXES = ["/employee", "/properties"];
+const HIDDEN_PREFIXES = ["/admin"];
 
 export function getNavigationMode(pathname: string): NavigationMode {
+  if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return "hidden";
+  }
   if (EMPLOYEE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return "employee";
   }

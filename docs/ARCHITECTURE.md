@@ -471,13 +471,67 @@ Signature step supports **typed** or **drawn** signatures (canvas pad, mobile-fr
 | Membership System | Status badges only | Property Hub cards |
 | Photo Library | Counts only | Property Hub cards |
 | Annual Home Care Review | Not started | — |
-| Admin Dashboard | Not started | — |
+| Admin Command Center | **Built** (PIN + sales tracker) | `/admin`, `closed_jobs` table |
 | Marketing Website | Not started | — |
 | Home Care Assessment | Not started | — |
 
 ---
 
-## Recommended Next Build
+## Admin Command Center (`/admin`)
+
+Private owner page for **Noah Thomas** and **Dasan Gramps** — executive revenue room with Closed Jobs / Sales Tracker.
+
+| Item | Detail |
+|------|--------|
+| Route | `/admin` |
+| Access | Temporary PIN via `NEXT_PUBLIC_ADMIN_PIN` |
+| Private beta | If PIN unset → beta entry + mock/local ledger |
+| APIs | `GET /api/admin/overview`, `GET|POST /api/admin/closed-jobs` |
+| Session | Browser `sessionStorage`, 8-hour TTL |
+| Nav | Hidden from public site navigation |
+
+**Security note (required):** PIN gate is private beta only. Replace with Supabase Auth before real customer data is exposed.
+
+### Closed Jobs table
+
+Run in Supabase SQL Editor:
+
+`lib/persistence/supabase/migrations/002_closed_jobs.sql`
+
+Fields: `customer_name`, `property_address`, `sale_amount`, `sale_type`, `recurring_frequency`, `service_category`, `closed_date`, `notes`, `created_by`, `status`, `created_at`.
+
+Without the table, closed jobs save to **browser localStorage** and merge with demo seed data.
+
+### Revenue model (per closed job)
+
+Every closed job produces two numbers:
+
+| Metric | Rule |
+|--------|------|
+| **Immediate Revenue** | `sale_amount` — cash collected at close (one-time and recurring) |
+| **ARR Generated** | Annual contract value for recurring memberships only; one-time = $0 |
+
+**ARR multipliers:** Monthly ×12 · Quarterly ×4 · Bi-Annual ×2 · Annual ×1
+
+**Monthly Sales Performance** = Immediate Revenue + ARR Generated (the headline metric Noah celebrates).
+
+Example: $400 one-time + $325 bi-annual membership → Collected $725 · ARR $650 · Performance **$1,375**
+
+### Dashboard filters
+
+`Current Month` · `Last 30 Days` · `Year` · `All Time` — applied to hero metrics, ledger, and closed jobs table. Growth charts use the last 12 months of all closed jobs.
+
+### Monthly ledger columns
+
+Month · Revenue Collected · ARR Generated · Monthly Sales Performance · Jobs Closed · Memberships Sold · Average Ticket · New Customers
+
+| Metric | Rule |
+|--------|------|
+| Average ticket | Revenue collected ÷ jobs closed in period |
+| New customers | Unique customer names in period |
+| Close rate | Placeholder until CRM connects |
+
+---
 
 **Current priority:** Home Care Plan V1 production quality — polished enough for Noah to send to a real customer. Then PWA manifest + Add to Home Screen onboarding.
 
