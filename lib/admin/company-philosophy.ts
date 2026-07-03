@@ -1,3 +1,8 @@
+export interface PhilosophyPrinciple {
+  id: string;
+  text: string;
+}
+
 /** Permanent company constitution — never edited in the UI. */
 export const WHY_WE_EXIST: PhilosophyPrinciple[] = [
   {
