@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { MOCK_CLOSED_JOBS } from "@/lib/admin/mock-closed-jobs";
 import {
   createLocalClosedJob,
   validateClosedJobInput,
@@ -21,25 +20,10 @@ export async function GET(request: Request) {
 
   const supabaseResult = await listClosedJobsFromSupabase();
 
-  if (supabaseResult.jobs.length > 0) {
-    return NextResponse.json({
-      jobs: supabaseResult.jobs,
-      storage: "supabase",
-      warning: supabaseResult.error,
-    });
-  }
-
-  if (supabaseResult.error) {
-    return NextResponse.json({
-      jobs: MOCK_CLOSED_JOBS,
-      storage: "local",
-      warning: supabaseResult.error,
-    });
-  }
-
   return NextResponse.json({
-    jobs: MOCK_CLOSED_JOBS,
-    storage: "local",
+    jobs: supabaseResult.jobs,
+    storage: supabaseResult.jobs.length > 0 ? "supabase" : "local",
+    warning: supabaseResult.error,
   });
 }
 

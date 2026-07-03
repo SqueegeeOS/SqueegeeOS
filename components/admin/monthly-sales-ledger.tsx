@@ -2,18 +2,23 @@
 
 import type { MonthlyLedgerEntry } from "@/lib/admin/closed-jobs-types";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
+import { AdminEmptySalesState } from "./admin-empty-sales-state";
 
 interface MonthlySalesLedgerProps {
   entries: MonthlyLedgerEntry[];
+  totalJobCount: number;
 }
 
-export function MonthlySalesLedger({ entries }: MonthlySalesLedgerProps) {
+export function MonthlySalesLedger({
+  entries,
+  totalJobCount,
+}: MonthlySalesLedgerProps) {
+  if (totalJobCount === 0) {
+    return <AdminEmptySalesState />;
+  }
+
   if (entries.length === 0) {
-    return (
-      <p className="text-sm text-muted">
-        No closed jobs in this period. Log a sale or widen the filter.
-      </p>
-    );
+    return <AdminEmptySalesState variant="filtered" />;
   }
 
   return (

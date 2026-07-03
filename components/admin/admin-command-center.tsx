@@ -308,7 +308,10 @@ export function AdminCommandCenter() {
             description="Revenue collected, ARR generated, and monthly sales performance for the selected period."
             delay={0.14}
           >
-            <MonthlySalesLedger entries={ledger} />
+            <MonthlySalesLedger
+              entries={ledger}
+              totalJobCount={dashboard.closedJobs.length}
+            />
           </AdminSection>
         </div>
 
@@ -319,7 +322,10 @@ export function AdminCommandCenter() {
             description="Every sale with immediate revenue and annual contract value."
             delay={0.16}
           >
-            <RecentClosedJobsTable jobs={filteredJobs} />
+            <RecentClosedJobsTable
+              jobs={filteredJobs}
+              totalJobCount={dashboard.closedJobs.length}
+            />
           </AdminSection>
         </div>
 

@@ -1,5 +1,4 @@
 import { MOCK_INCOMING_REQUESTS } from "@/lib/admin/mock-data";
-import { MOCK_CLOSED_JOBS } from "@/lib/admin/mock-closed-jobs";
 import type {
   AdminDashboardData,
   ClosedJob,
@@ -103,6 +102,25 @@ async function loadMembershipOverview(): Promise<MembershipRevenueOverview> {
   }
 }
 
+function resolveClosedJobsSource(
+  supabaseCount: number,
+  localCount: number,
+): AdminDashboardData["dataSources"]["closedJobs"] {
+  if (supabaseCount > 0 && localCount > 0) return "mixed";
+  if (supabaseCount > 0) return "supabase";
+  if (localCount > 0) return "local";
+  return isSupabaseConfigured() ? "supabase" : "local";
+}
+
+function resolveStorage(
+  supabaseCount: number,
+  localCount: number,
+): "supabase" | "local" {
+  if (supabaseCount > 0) return "supabase";
+  if (localCount > 0) return "local";
+  return isSupabaseConfigured() ? "supabase" : "local";
+}
+
 export async function buildAdminDashboard(
   clientJobs: ClosedJob[] = [],
   privateBeta: boolean,
@@ -110,24 +128,12 @@ export async function buildAdminDashboard(
   const platformCounts = await loadPlatformCounts();
   const membership = await loadMembershipOverview();
   const supabaseJobs = await listClosedJobsFromSupabase();
-
-  let closedJobs: ClosedJob[];
-  let storage: "supabase" | "local";
-  let closedJobsSource: AdminDashboardData["dataSources"]["closedJobs"];
-
-  if (supabaseJobs.jobs.length > 0) {
-    closedJobs = mergeClosedJobs(supabaseJobs.jobs, clientJobs);
-    storage = "supabase";
-    closedJobsSource = clientJobs.length > 0 ? "mixed" : "supabase";
-  } else if (clientJobs.length > 0) {
-    closedJobs = mergeClosedJobs(clientJobs, MOCK_CLOSED_JOBS);
-    storage = "local";
-    closedJobsSource = "mixed";
-  } else {
-    closedJobs = MOCK_CLOSED_JOBS;
-    storage = "local";
-    closedJobsSource = "mock";
-  }
+  const closedJobs = mergeClosedJobs(supabaseJobs.jobs, clientJobs);
+  const closedJobsSource = resolveClosedJobsSource(
+    supabaseJobs.jobs.length,
+    clientJobs.length,
+  );
+  const storage = resolveStorage(supabaseJobs.jobs.length, clientJobs.length);
 
   const currentMonthJobs = filterJobsByPeriod(closedJobs, "current_month");
   const executive = computeExecutiveStats(currentMonthJobs, platformCounts);
@@ -140,7 +146,7 @@ export async function buildAdminDashboard(
     membership,
     dataSources: {
       closedJobs: closedJobsSource,
-      executive: closedJobsSource === "mock" ? "mock" : "mixed",
+      executive: closedJobsSource,
       membership: membership.source,
     },
     storage,

@@ -500,7 +500,7 @@ Run in Supabase SQL Editor:
 
 Fields: `customer_name`, `property_address`, `sale_amount`, `sale_type`, `recurring_frequency`, `service_category`, `closed_date`, `notes`, `created_by`, `status`, `created_at`.
 
-Without the table, closed jobs save to **browser localStorage** and merge with demo seed data.
+Without the table, closed jobs save to **browser localStorage** only.
 
 ### Revenue model (per closed job)
 

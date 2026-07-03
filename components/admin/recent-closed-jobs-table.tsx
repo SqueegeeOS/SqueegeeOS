@@ -7,16 +7,23 @@ import {
   formatRecurringFrequency,
   getArrValue,
 } from "@/lib/admin/sales-calculations";
+import { AdminEmptySalesState } from "./admin-empty-sales-state";
 
 interface RecentClosedJobsTableProps {
   jobs: ClosedJob[];
+  totalJobCount: number;
 }
 
-export function RecentClosedJobsTable({ jobs }: RecentClosedJobsTableProps) {
+export function RecentClosedJobsTable({
+  jobs,
+  totalJobCount,
+}: RecentClosedJobsTableProps) {
+  if (totalJobCount === 0) {
+    return <AdminEmptySalesState />;
+  }
+
   if (jobs.length === 0) {
-    return (
-      <p className="text-sm text-muted">No closed jobs in this period.</p>
-    );
+    return <AdminEmptySalesState variant="filtered" />;
   }
 
   return (
