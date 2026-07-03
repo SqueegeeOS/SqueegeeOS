@@ -193,6 +193,43 @@ export async function fetchGooglePlaceReviewsWithCredentials(
   );
 }
 
+export async function fetchPlaceRatingSummary(
+  apiKey: string,
+  placeId: string,
+): Promise<{ rating?: number; reviewCount?: number; businessName?: string }> {
+  const trimmedKey = apiKey.trim();
+  const trimmedPlaceId = normalizePlaceId(placeId);
+  if (!trimmedKey || !trimmedPlaceId) return {};
+
+  try {
+    const fromNew = await fetchGooglePlacesNew(trimmedPlaceId, trimmedKey);
+    if (fromNew) {
+      return {
+        rating: fromNew.data.averageRating,
+        reviewCount: fromNew.data.totalCount,
+        businessName: fromNew.businessName,
+      };
+    }
+  } catch {
+    // try legacy
+  }
+
+  try {
+    const fromLegacy = await fetchGooglePlacesLegacy(trimmedPlaceId, trimmedKey);
+    if (fromLegacy) {
+      return {
+        rating: fromLegacy.data.averageRating,
+        reviewCount: fromLegacy.data.totalCount,
+        businessName: fromLegacy.businessName,
+      };
+    }
+  } catch {
+    return {};
+  }
+
+  return {};
+}
+
 export async function fetchGooglePlaceReviews(): Promise<ReviewsData> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY?.trim();
   const placeId = process.env.GOOGLE_PLACE_ID?.trim();

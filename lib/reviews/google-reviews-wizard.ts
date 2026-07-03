@@ -6,6 +6,8 @@ export interface GoogleReviewsWizardState {
   businessName: string;
   mapsUrl: string;
   searchQuery: string;
+  searchPhone: string;
+  searchWebsite: string;
   testPassed: boolean;
   lastRating: number | null;
   lastReviewCount: number | null;
@@ -16,7 +18,9 @@ export const DEFAULT_WIZARD_STATE: GoogleReviewsWizardState = {
   placeId: "",
   businessName: "",
   mapsUrl: "",
-  searchQuery: "SqueegeeKing Chico, CA",
+  searchQuery: "SqueegeeKing",
+  searchPhone: "",
+  searchWebsite: "squeegeeking.net",
   testPassed: false,
   lastRating: null,
   lastReviewCount: null,
@@ -30,6 +34,12 @@ export const GOOGLE_CONSOLE_LINKS = {
     "https://console.cloud.google.com/marketplace/product/google/places.googleapis.com",
   credentials: "https://console.cloud.google.com/apis/credentials",
   billing: "https://console.cloud.google.com/billing",
+  businessProfileApi:
+    "https://console.cloud.google.com/marketplace/product/google/mybusinessbusinessinformation.googleapis.com",
+  businessAccountApi:
+    "https://console.cloud.google.com/marketplace/product/google/mybusinessaccountmanagement.googleapis.com",
+  oauthConsent:
+    "https://console.cloud.google.com/apis/credentials/consent",
 } as const;
 
 export const WIZARD_STEPS = [
