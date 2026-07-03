@@ -5,12 +5,14 @@ export interface GoogleReviewsWizardState {
   placeId: string;
   businessName: string;
   mapsUrl: string;
+  pendingShareUrl: string;
   searchQuery: string;
   searchPhone: string;
   searchWebsite: string;
   testPassed: boolean;
   lastRating: number | null;
   lastReviewCount: number | null;
+  diagnosticMode: boolean;
 }
 
 export const DEFAULT_WIZARD_STATE: GoogleReviewsWizardState = {
@@ -18,12 +20,14 @@ export const DEFAULT_WIZARD_STATE: GoogleReviewsWizardState = {
   placeId: "",
   businessName: "",
   mapsUrl: "",
+  pendingShareUrl: "",
   searchQuery: "SqueegeeKing",
   searchPhone: "",
   searchWebsite: "squeegeeking.net",
   testPassed: false,
   lastRating: null,
   lastReviewCount: null,
+  diagnosticMode: true,
 };
 
 export const GOOGLE_CONSOLE_LINKS = {

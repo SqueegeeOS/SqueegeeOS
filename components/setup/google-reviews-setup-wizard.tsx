@@ -11,6 +11,8 @@ import {
 } from "@/lib/reviews/business-connect";
 import type { GoogleReviewsTestResult } from "@/lib/reviews/place-id-resolver";
 import type { PlaceSearchCandidate } from "@/lib/reviews/place-id-resolver";
+import type { PlacesSearchDiagnostic } from "@/lib/reviews/places-search-debug";
+import type { ResolveUrlDiagnostic } from "@/lib/reviews/resolve-url-debug";
 import {
   buildEnvLocalSnippet,
   buildVercelInstructions,
@@ -200,6 +202,144 @@ function BusinessCandidateList({
   );
 }
 
+function SearchDiagnosticsPanel({
+  searchDiagnostic,
+  resolveDiagnostic,
+  serverEnvKeyPresent,
+}: {
+  searchDiagnostic: PlacesSearchDiagnostic | null;
+  resolveDiagnostic: ResolveUrlDiagnostic | null;
+  serverEnvKeyPresent?: boolean;
+}) {
+  if (!searchDiagnostic && !resolveDiagnostic) return null;
+
+  return (
+    <div className="space-y-4 rounded-[1.25rem] border border-amber-500/25 bg-amber-500/[0.04] p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-amber-600">
+          Search diagnostics
+        </p>
+        <p className="text-xs text-muted">
+          GOOGLE_MAPS_API_KEY on server:{" "}
+          <span className="text-foreground">
+            {serverEnvKeyPresent ?? searchDiagnostic?.serverEnvKeyPresent
+              ? "present"
+              : "missing"}
+          </span>
+        </p>
+      </div>
+
+      {searchDiagnostic && (
+        <div className="space-y-3 text-xs text-muted">
+          <p>
+            API key source:{" "}
+            <span className="text-foreground">{searchDiagnostic.apiKeySource}</span>
+            {searchDiagnostic.apiKeyMasked
+              ? ` · masked: ${searchDiagnostic.apiKeyMasked}`
+              : ""}
+          </p>
+          <div>
+            <p className="text-foreground/90">Queries sent to Google</p>
+            <ul className="mt-2 list-disc space-y-1 pl-5">
+              {searchDiagnostic.queriesAttempted.map((query) => (
+                <li key={query}>{query}</li>
+              ))}
+            </ul>
+          </div>
+          <p>
+            Merged candidates:{" "}
+            <span className="text-foreground">
+              {searchDiagnostic.mergedCandidateCount}
+            </span>
+          </p>
+          {searchDiagnostic.mergedCandidates.length > 0 && (
+            <div className="overflow-x-auto rounded-xl border border-border/60 bg-background/40">
+              <table className="min-w-full text-left text-[11px]">
+                <thead className="border-b border-border/60 text-muted">
+                  <tr>
+                    <th className="px-3 py-2 font-normal">Name</th>
+                    <th className="px-3 py-2 font-normal">Reviews</th>
+                    <th className="px-3 py-2 font-normal">Rating</th>
+                    <th className="px-3 py-2 font-normal">Website</th>
+                    <th className="px-3 py-2 font-normal">Phone</th>
+                    <th className="px-3 py-2 font-normal">SAB</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {searchDiagnostic.mergedCandidates.map((candidate) => (
+                    <tr key={candidate.placeId} className="border-b border-border/40">
+                      <td className="px-3 py-2 text-foreground">{candidate.name}</td>
+                      <td className="px-3 py-2">{candidate.reviewCount ?? "—"}</td>
+                      <td className="px-3 py-2">{candidate.rating ?? "—"}</td>
+                      <td className="px-3 py-2">{candidate.website ?? "—"}</td>
+                      <td className="px-3 py-2">{candidate.phone ?? "—"}</td>
+                      <td className="px-3 py-2">
+                        {candidate.isServiceAreaBusiness ? "yes" : "no"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {searchDiagnostic.attempts.map((attempt, index) => (
+            <details
+              key={`${attempt.api}-${attempt.query}-${index}`}
+              className="rounded-lg border border-border/50 bg-background/30 px-3 py-2"
+            >
+              <summary className="cursor-pointer text-foreground/90">
+                {attempt.api} · “{attempt.query}” · {attempt.rawCandidateCount}{" "}
+                raw · HTTP {attempt.httpStatus}
+                {attempt.googleStatus ? ` · ${attempt.googleStatus}` : ""}
+              </summary>
+              {attempt.errorMessage && (
+                <p className="mt-2 text-amber-700">{attempt.errorMessage}</p>
+              )}
+              {attempt.requestSummary && (
+                <p className="mt-2 break-all font-mono text-[10px] text-muted">
+                  {attempt.requestSummary}
+                </p>
+              )}
+            </details>
+          ))}
+          {searchDiagnostic.notes.length > 0 && (
+            <ul className="list-disc space-y-1 pl-5 text-amber-700">
+              {searchDiagnostic.notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {resolveDiagnostic && (
+        <div className="space-y-2 border-t border-border/50 pt-4 text-xs text-muted">
+          <p className="text-foreground/90">Share link resolve</p>
+          <p>Input: {resolveDiagnostic.inputUrl}</p>
+          <p>Resolved: {resolveDiagnostic.resolvedUrl}</p>
+          <p>
+            Place ID:{" "}
+            <span className="text-foreground">
+              {resolveDiagnostic.placeId ?? "not found"}
+            </span>
+          </p>
+          {resolveDiagnostic.businessNameHint && (
+            <p>Name hint: {resolveDiagnostic.businessNameHint}</p>
+          )}
+          {resolveDiagnostic.redirectChain.length > 1 && (
+            <p>Redirects: {resolveDiagnostic.redirectChain.join(" → ")}</p>
+          )}
+          {resolveDiagnostic.notes.map((note) => (
+            <p key={note} className="text-amber-700">
+              {note}
+            </p>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function GoogleReviewsSetupWizard() {
   const searchParams = useSearchParams();
   const [stepIndex, setStepIndex] = useState(0);
@@ -217,6 +357,11 @@ export function GoogleReviewsSetupWizard() {
   const [testResult, setTestResult] = useState<GoogleReviewsTestResult | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [searchDiagnostic, setSearchDiagnostic] =
+    useState<PlacesSearchDiagnostic | null>(null);
+  const [resolveDiagnostic, setResolveDiagnostic] =
+    useState<ResolveUrlDiagnostic | null>(null);
+  const [serverEnvKeyPresent, setServerEnvKeyPresent] = useState(false);
 
   const step = WIZARD_STEPS[stepIndex];
   const findStepIndex = WIZARD_STEPS.findIndex((item) => item.id === "find");
@@ -417,10 +562,6 @@ export function GoogleReviewsSetupWizard() {
 
   const runBusinessSearch = useCallback(
     async (serviceAreaMode: boolean) => {
-      if (!state.apiKey.trim()) {
-        setStatusMessage("Enter your API key on step 4 first.");
-        return;
-      }
       if (
         !state.searchQuery.trim() &&
         !state.searchPhone.trim() &&
@@ -432,6 +573,7 @@ export function GoogleReviewsSetupWizard() {
 
       setSearching(true);
       setStatusMessage(null);
+      setResolveDiagnostic(null);
       try {
         const response = await fetch("/api/admin/google-reviews/search", {
           method: "POST",
@@ -442,16 +584,30 @@ export function GoogleReviewsSetupWizard() {
             phone: state.searchPhone,
             website: state.searchWebsite,
             serviceAreaMode,
+            diagnostic: state.diagnosticMode,
           }),
         });
         if (!response.ok) throw new Error("Search failed");
-        const json = (await response.json()) as { results: PlaceSearchCandidate[] };
+        const json = (await response.json()) as {
+          results: PlaceSearchCandidate[];
+          diagnostic?: PlacesSearchDiagnostic;
+        };
         setSearchResults(json.results);
+        if (json.diagnostic) {
+          setSearchDiagnostic(json.diagnostic);
+          setServerEnvKeyPresent(json.diagnostic.serverEnvKeyPresent);
+        }
+        if (!json.diagnostic?.apiKeyMasked && json.diagnostic?.apiKeySource === "none") {
+          setStatusMessage(
+            "No API key available. Paste your key in step 4 or set GOOGLE_MAPS_API_KEY in Vercel.",
+          );
+          return;
+        }
         if (json.results.length === 0) {
           setStatusMessage(
             serviceAreaMode
-              ? "No service-area matches yet. Double-check your business name, phone, or website — or paste your Google share link in Option B."
-              : "No results. Try “I have a Service Area Business” if you hide your address on Google.",
+              ? "No service-area matches yet. Check diagnostics below, paste your Google share link, or save it as pending."
+              : "No results. Try “I have a Service Area Business” or check diagnostics below.",
           );
         } else if (json.results.length === 1) {
           setStatusMessage(
@@ -470,6 +626,7 @@ export function GoogleReviewsSetupWizard() {
     },
     [
       state.apiKey,
+      state.diagnosticMode,
       state.searchPhone,
       state.searchQuery,
       state.searchWebsite,
@@ -491,79 +648,133 @@ export function GoogleReviewsSetupWizard() {
     [connectBusiness],
   );
 
-  const handleResolveUrl = useCallback(async () => {
-    if (!state.mapsUrl.trim()) return;
-    if (!state.apiKey.trim()) {
-      setStatusMessage("Enter your API key on step 4 first — we need it to look up your business.");
-      return;
-    }
+  const handleResolveUrl = useCallback(
+    async (options?: { pendingOnly?: boolean }) => {
+      const url = options?.pendingOnly ? state.pendingShareUrl : state.mapsUrl;
+      if (!url.trim()) return;
 
-    setResolving(true);
-    setStatusMessage(null);
-    setSearchResults([]);
-    try {
-      const response = await fetch("/api/admin/google-reviews/resolve-url", {
-        method: "POST",
-        headers: getAdminRequestHeaders(),
-        body: JSON.stringify({
-          url: state.mapsUrl,
-          apiKey: state.apiKey,
-          phone: state.searchPhone,
-          website: state.searchWebsite,
-        }),
-      });
-      if (!response.ok) throw new Error("Could not resolve URL");
-      const json = (await response.json()) as {
-        placeId: string | null;
-        resolvedUrl: string;
-        found: boolean;
-        needsSelection?: boolean;
-        candidates?: PlaceSearchCandidate[];
-        businessNameHint?: string | null;
-        method?: "url" | "search" | "none";
-      };
-
-      if (json.candidates?.length) {
-        setSearchResults(json.candidates);
-      }
-
-      if (json.found && json.placeId) {
-        const match =
-          json.candidates?.find((item) => item.placeId === json.placeId) ??
-          json.candidates?.[0];
-        update({
-          placeId: json.placeId,
-          businessName: match?.name ?? json.businessNameHint ?? state.businessName,
-          testPassed: false,
+      setResolving(true);
+      setStatusMessage(null);
+      if (!options?.pendingOnly) setSearchResults([]);
+      try {
+        const endpoint = state.diagnosticMode
+          ? "/api/admin/google-reviews/resolve-url/debug"
+          : "/api/admin/google-reviews/resolve-url";
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+          body: JSON.stringify({
+            url,
+            apiKey: state.apiKey,
+            phone: state.searchPhone,
+            website: state.searchWebsite,
+            query: state.searchQuery,
+            pendingOnly: Boolean(options?.pendingOnly),
+          }),
         });
-        setStatusMessage(
-          json.method === "search"
-            ? `Found ${match?.name ?? "your business"} via Google search.`
-            : "Found your business from that link.",
-        );
-        return;
-      }
+        if (!response.ok) throw new Error("Could not resolve URL");
+        const json = (await response.json()) as {
+          placeId: string | null;
+          resolvedUrl?: string;
+          found: boolean;
+          needsSelection?: boolean;
+          candidates?: PlaceSearchCandidate[];
+          businessNameHint?: string | null;
+          method?: "url" | "search" | "none";
+          resolveDiagnostic?: ResolveUrlDiagnostic;
+          searchDiagnostic?: PlacesSearchDiagnostic;
+          serverEnvKeyPresent?: boolean;
+        };
 
-      if (json.needsSelection && json.candidates?.length) {
+        if (json.resolveDiagnostic) setResolveDiagnostic(json.resolveDiagnostic);
+        if (json.searchDiagnostic) setSearchDiagnostic(json.searchDiagnostic);
+        if (json.serverEnvKeyPresent !== undefined) {
+          setServerEnvKeyPresent(json.serverEnvKeyPresent);
+        }
+
+        if (json.candidates?.length) {
+          setSearchResults(json.candidates);
+        }
+
+        if (options?.pendingOnly) {
+          setStatusMessage(
+            json.found && json.placeId
+              ? "Pending share link resolved to a Place ID — connect below."
+              : "Share link saved as pending. Diagnostics below show what Google returned.",
+          );
+          if (json.found && json.placeId) {
+            update({
+              placeId: json.placeId,
+              businessName:
+                json.candidates?.[0]?.name ??
+                json.businessNameHint ??
+                state.businessName,
+              testPassed: false,
+            });
+          }
+          return;
+        }
+
+        if (json.found && json.placeId) {
+          const match =
+            json.candidates?.find((item) => item.placeId === json.placeId) ??
+            json.candidates?.[0];
+          update({
+            placeId: json.placeId,
+            businessName: match?.name ?? json.businessNameHint ?? state.businessName,
+            testPassed: false,
+          });
+          setStatusMessage(
+            json.method === "search"
+              ? `Found ${match?.name ?? "your business"} via Google search.`
+              : "Found your business from that link.",
+          );
+          return;
+        }
+
+        if (json.needsSelection && json.candidates?.length) {
+          setStatusMessage(
+            json.businessNameHint
+              ? `We found possible matches for “${json.businessNameHint}”. Pick yours below.`
+              : "We found possible matches. Pick your business below.",
+          );
+          return;
+        }
+
         setStatusMessage(
           json.businessNameHint
-            ? `We found possible matches for “${json.businessNameHint}”. Pick yours below.`
-            : "We found possible matches. Pick your business below.",
+            ? `Could not confirm your business from that link. Try searching for “${json.businessNameHint}” or save the link as pending.`
+            : "Could not find your business from that link. Try search or save the link as pending.",
         );
-        return;
+      } catch {
+        setStatusMessage(
+          "Could not resolve that URL. Save it as pending to inspect diagnostics.",
+        );
+      } finally {
+        setResolving(false);
       }
+    },
+    [
+      state.apiKey,
+      state.businessName,
+      state.diagnosticMode,
+      state.mapsUrl,
+      state.pendingShareUrl,
+      state.searchPhone,
+      state.searchQuery,
+      state.searchWebsite,
+      update,
+    ],
+  );
 
-      setStatusMessage(
-        json.businessNameHint
-          ? `Could not confirm your business from that link. Try searching for “${json.businessNameHint}” in Option A.`
-          : "Could not find your business from that link. Try Option A — search by name.",
-      );
-    } catch {
-      setStatusMessage("Could not resolve that URL. Try searching by business name in Option A.");
-    } finally {
-      setResolving(false);
+  const handleSavePendingShareUrl = useCallback(() => {
+    if (!state.mapsUrl.trim()) {
+      setStatusMessage("Paste a Google share link first.");
+      return;
     }
-  }, [state.apiKey, state.businessName, state.mapsUrl, state.searchPhone, state.searchWebsite, update]);
+    update({ pendingShareUrl: state.mapsUrl.trim() });
+    void handleResolveUrl({ pendingOnly: true });
+  }, [handleResolveUrl, state.mapsUrl, update]);
 
   const handleTest = useCallback(async () => {
     await runTest();
@@ -817,6 +1028,24 @@ export function GoogleReviewsSetupWizard() {
                 I have a Service Area Business
               </button>
             </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  checked={state.diagnosticMode}
+                  onChange={(e) => update({ diagnosticMode: e.target.checked })}
+                  className="rounded border-border"
+                />
+                Show search diagnostics
+              </label>
+            </div>
+            {state.diagnosticMode && (
+              <SearchDiagnosticsPanel
+                searchDiagnostic={searchDiagnostic}
+                resolveDiagnostic={resolveDiagnostic}
+                serverEnvKeyPresent={serverEnvKeyPresent}
+              />
+            )}
             {searchResults.length > 0 && (
               <BusinessCandidateList
                 candidates={searchResults}
@@ -850,7 +1079,20 @@ export function GoogleReviewsSetupWizard() {
                     >
                       {resolving ? "Finding…" : "Find my business"}
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSavePendingShareUrl()}
+                      disabled={resolving}
+                      className="shrink-0 rounded-full border border-amber-500/30 px-5 py-3 text-[10px] uppercase tracking-[0.18em] text-amber-700 hover:border-amber-500/50 disabled:opacity-50"
+                    >
+                      Save pending &amp; debug
+                    </button>
                   </div>
+                  {state.pendingShareUrl && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      Pending share link saved: {state.pendingShareUrl}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-muted">Advanced: Place ID (rarely needed)</p>
@@ -886,7 +1128,7 @@ export function GoogleReviewsSetupWizard() {
             <button
               type="button"
               onClick={() => void handleTest()}
-              disabled={testing || !state.apiKey || !state.placeId}
+              disabled={testing || !state.placeId || (!state.apiKey && !serverEnvKeyPresent)}
               className="rounded-full border border-accent/30 bg-accent/[0.12] px-6 py-3.5 text-[10px] uppercase tracking-[0.2em] text-accent disabled:opacity-50"
             >
               {testing ? "Testing…" : "Test connection"}
@@ -985,6 +1227,7 @@ export function GoogleReviewsSetupWizard() {
     copyText,
     connectBusiness,
     handleResolveUrl,
+    handleSavePendingShareUrl,
     handleSearch,
     handleServiceAreaSearch,
     handleTest,
@@ -996,9 +1239,12 @@ export function GoogleReviewsSetupWizard() {
     oauthEmail,
     connectingPlaceId,
     resolving,
+    resolveDiagnostic,
+    searchDiagnostic,
     searchResults,
     searching,
     selectBusiness,
+    serverEnvKeyPresent,
     state,
     step.id,
     testResult,

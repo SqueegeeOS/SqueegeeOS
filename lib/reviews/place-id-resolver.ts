@@ -1,3 +1,5 @@
+import { CHICO_SEARCH_BIAS } from "./places-search-config";
+
 const PLACE_ID_PATTERN = /ChIJ[A-Za-z0-9_-]{10,}/g;
 const MAX_REDIRECTS = 12;
 
@@ -148,7 +150,8 @@ export function extractBusinessNameFromHtml(html: string): string | null {
 
 async function followRedirectsToFinalUrl(
   startUrl: string,
-): Promise<{ finalUrl: string; html: string | null }> {
+): Promise<{ finalUrl: string; html: string | null; chain: string[] }> {
+  const chain: string[] = [startUrl];
   let current = startUrl;
   let html: string | null = null;
 
@@ -167,18 +170,21 @@ async function followRedirectsToFinalUrl(
       headers: fetchHeaders,
     });
     current = initial.url || startUrl;
+    if (!chain.includes(current)) chain.push(current);
     const initialType = initial.headers.get("content-type") ?? "";
     if (initialType.includes("text/html")) {
       html = await initial.text();
       const redirectTarget = extractRedirectTarget(html, current);
       if (redirectTarget && redirectTarget !== current) {
         current = redirectTarget;
+        chain.push(current);
         html = null;
       } else {
-        return { finalUrl: current, html };
+        return { finalUrl: current, html, chain };
       }
     } else if (current !== startUrl) {
-      return { finalUrl: current, html: null };
+      if (!chain.includes(current)) chain.push(current);
+      return { finalUrl: current, html: null, chain };
     }
   } catch {
     // Fall through to manual redirect handling.
@@ -201,6 +207,7 @@ async function followRedirectsToFinalUrl(
       if (!location) break;
       try {
         current = new URL(location, current).toString();
+        if (!chain.includes(current)) chain.push(current);
         html = null;
         continue;
       } catch {
@@ -220,15 +227,22 @@ async function followRedirectsToFinalUrl(
       const redirectTarget = extractRedirectTarget(html, finalUrl);
       if (redirectTarget && redirectTarget !== finalUrl) {
         current = redirectTarget;
+        if (!chain.includes(current)) chain.push(current);
         html = null;
         continue;
       }
     }
 
-    return { finalUrl, html };
+    if (!chain.includes(finalUrl)) chain.push(finalUrl);
+    return { finalUrl, html, chain };
   }
 
-  return { finalUrl: current, html };
+  if (!chain.includes(current)) chain.push(current);
+  return { finalUrl: current, html, chain };
+}
+
+export async function followRedirectsToFinalUrlForDebug(startUrl: string) {
+  return followRedirectsToFinalUrl(startUrl);
 }
 
 export interface PlaceSearchCandidate {
@@ -251,7 +265,7 @@ export interface BusinessSearchInput {
   serviceAreaMode?: boolean;
 }
 
-interface NewPlaceRecord {
+export interface NewPlaceRecord {
   id?: string;
   name?: string;
   displayName?: { text?: string };
@@ -346,7 +360,7 @@ function buildLocationLabelFromPlace(
   };
 }
 
-function mapNewPlaceToCandidate(place: NewPlaceRecord): PlaceSearchCandidate | null {
+export function mapNewPlaceToCandidate(place: NewPlaceRecord): PlaceSearchCandidate | null {
   const rawId = place.id ?? place.name ?? "";
   const placeId = rawId.startsWith("places/")
     ? rawId.slice("places/".length)
@@ -398,16 +412,32 @@ export function buildBusinessSearchQueries(input: BusinessSearchInput): string[]
   const name = input.name?.trim();
   const phone = input.phone?.trim();
   const website = input.website ? normalizeWebsiteQuery(input.website) : "";
+  const spacedName = name
+    ? name.replace(/([a-z])([A-Z])/g, "$1 $2").trim()
+    : "";
 
   if (phone) queries.push(phone);
   if (website) {
     queries.push(website);
     if (name) queries.push(`${name} ${website}`);
+    if (spacedName && spacedName !== name) {
+      queries.push(`${spacedName} ${website}`);
+    }
   }
   if (name) {
     queries.push(name);
+    if (spacedName && spacedName !== name) queries.push(spacedName);
+    queries.push(`${name} Chico`);
+    if (spacedName && spacedName !== name) {
+      queries.push(`${spacedName} Chico`);
+    }
+    queries.push(`${name} Chico CA`);
     if (input.serviceAreaMode) {
       queries.push(`${name} service area business`);
+      queries.push(`${name} window cleaning Chico`);
+      if (spacedName && spacedName !== name) {
+        queries.push(`${spacedName} window cleaning Chico CA`);
+      }
     }
   }
 
@@ -421,23 +451,24 @@ export async function searchGooglePlacesMulti(
   const trimmedKey = apiKey.trim();
   if (!trimmedKey) return [];
 
-  let results: PlaceSearchCandidate[] = [];
+  const merged = new Map<string, PlaceSearchCandidate>();
+
+  const absorb = (items: PlaceSearchCandidate[]) => {
+    for (const item of items) {
+      if (!merged.has(item.placeId)) merged.set(item.placeId, item);
+    }
+  };
 
   const phone = input.phone?.trim();
   if (phone) {
-    results = [...results, ...(await searchGooglePlacesByPhone(trimmedKey, phone))];
+    absorb(await searchGooglePlacesByPhone(trimmedKey, phone));
   }
 
   for (const query of buildBusinessSearchQueries(input)) {
-    results = [
-      ...results,
-      ...(await searchGooglePlaces(trimmedKey, query, {
-        serviceAreaMode: input.serviceAreaMode,
-      })),
-    ];
+    absorb(await searchGooglePlaces(trimmedKey, query, input));
   }
 
-  return dedupeCandidates(results).slice(0, 8);
+  return dedupeCandidates([...merged.values()]).slice(0, 10);
 }
 
 export interface ResolveGoogleBusinessResult {
@@ -562,19 +593,52 @@ export interface SearchGooglePlacesOptions {
   serviceAreaMode?: boolean;
 }
 
+function buildNewSearchBody(query: string, serviceAreaMode?: boolean) {
+  const radius = serviceAreaMode
+    ? CHICO_SEARCH_BIAS.radiusMeters * 1.5
+    : CHICO_SEARCH_BIAS.radiusMeters;
+
+  return {
+    textQuery: query,
+    pageSize: 10,
+    languageCode: "en",
+    regionCode: "US",
+    locationBias: {
+      circle: {
+        center: {
+          latitude: CHICO_SEARCH_BIAS.latitude,
+          longitude: CHICO_SEARCH_BIAS.longitude,
+        },
+        radius,
+      },
+    },
+  };
+}
+
 export async function searchGooglePlaces(
   apiKey: string,
   query: string,
-  options?: SearchGooglePlacesOptions,
+  options?: SearchGooglePlacesOptions | BusinessSearchInput,
 ): Promise<PlaceSearchCandidate[]> {
   const trimmedKey = apiKey.trim();
   const trimmedQuery = query.trim();
   if (!trimmedKey || !trimmedQuery) return [];
 
-  const fromNew = await searchGooglePlacesNew(trimmedKey, trimmedQuery, options);
-  if (fromNew.length > 0) return fromNew;
+  const serviceAreaMode =
+    options && "serviceAreaMode" in options
+      ? options.serviceAreaMode
+      : options?.serviceAreaMode;
 
-  return searchGooglePlacesLegacy(trimmedKey, trimmedQuery);
+  const merged = new Map<string, PlaceSearchCandidate>();
+  const absorb = (items: PlaceSearchCandidate[]) => {
+    for (const item of items) merged.set(item.placeId, item);
+  };
+
+  absorb(await searchGooglePlacesNew(trimmedKey, trimmedQuery, serviceAreaMode));
+  absorb(await searchGooglePlacesLegacy(trimmedKey, trimmedQuery, serviceAreaMode));
+  absorb(await searchFindPlaceFromText(trimmedKey, trimmedQuery, serviceAreaMode));
+
+  return [...merged.values()];
 }
 
 async function searchGooglePlacesByPhone(
@@ -633,8 +697,9 @@ async function searchGooglePlacesByPhone(
 async function searchGooglePlacesNew(
   apiKey: string,
   query: string,
-  _options?: SearchGooglePlacesOptions,
+  serviceAreaMode?: boolean,
 ): Promise<PlaceSearchCandidate[]> {
+  const body = buildNewSearchBody(query, serviceAreaMode);
   const response = await fetch(
     "https://places.googleapis.com/v1/places:searchText",
     {
@@ -657,11 +722,7 @@ async function searchGooglePlacesNew(
           "places.userRatingCount",
         ].join(","),
       },
-      body: JSON.stringify({
-        textQuery: query,
-        pageSize: 10,
-        languageCode: "en",
-      }),
+      body: JSON.stringify(body),
       cache: "no-store",
     },
   );
@@ -676,15 +737,85 @@ async function searchGooglePlacesNew(
     .filter((item): item is PlaceSearchCandidate => item !== null);
 }
 
+async function searchFindPlaceFromText(
+  apiKey: string,
+  query: string,
+  serviceAreaMode?: boolean,
+): Promise<PlaceSearchCandidate[]> {
+  const url = new URL(
+    "https://maps.googleapis.com/maps/api/place/findplacefromtext/json",
+  );
+  url.searchParams.set("input", query);
+  url.searchParams.set("inputtype", "textquery");
+  url.searchParams.set(
+    "fields",
+    "place_id,name,formatted_address,rating,user_ratings_total,business_status,types",
+  );
+  url.searchParams.set("key", apiKey);
+  url.searchParams.set(
+    "locationbias",
+    `circle:${serviceAreaMode ? CHICO_SEARCH_BIAS.radiusMeters * 1.5 : CHICO_SEARCH_BIAS.radiusMeters}@${CHICO_SEARCH_BIAS.latitude},${CHICO_SEARCH_BIAS.longitude}`,
+  );
+
+  try {
+    const response = await fetch(url.toString(), { cache: "no-store" });
+    if (!response.ok) return [];
+
+    const payload = (await response.json()) as {
+      status: string;
+      candidates?: Array<{
+        place_id?: string;
+        name?: string;
+        formatted_address?: string;
+        rating?: number;
+        user_ratings_total?: number;
+      }>;
+    };
+
+    if (payload.status !== "OK" || !payload.candidates?.length) return [];
+
+    return payload.candidates
+      .filter((item) => Boolean(item.place_id))
+      .map((item) => {
+        const location = buildLocationLabelFromPlace(
+          { formattedAddress: item.formatted_address },
+          item.formatted_address,
+        );
+        return {
+          placeId: item.place_id!,
+          name: item.name ?? "Unknown business",
+          ...location,
+          rating: item.rating,
+          reviewCount: item.user_ratings_total,
+        };
+      });
+  } catch {
+    return [];
+  }
+}
+
 async function searchGooglePlacesLegacy(
   apiKey: string,
   query: string,
+  serviceAreaMode?: boolean,
 ): Promise<PlaceSearchCandidate[]> {
   const url = new URL(
     "https://maps.googleapis.com/maps/api/place/textsearch/json",
   );
   url.searchParams.set("query", query);
   url.searchParams.set("key", apiKey);
+  url.searchParams.set(
+    "location",
+    `${CHICO_SEARCH_BIAS.latitude},${CHICO_SEARCH_BIAS.longitude}`,
+  );
+  url.searchParams.set(
+    "radius",
+    String(
+      serviceAreaMode
+        ? CHICO_SEARCH_BIAS.radiusMeters * 1.5
+        : CHICO_SEARCH_BIAS.radiusMeters,
+    ),
+  );
 
   const response = await fetch(url.toString(), { cache: "no-store" });
   if (!response.ok) return [];
