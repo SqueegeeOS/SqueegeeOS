@@ -20,6 +20,7 @@ import {
 } from "@/lib/admin/sales-calculations";
 import { clearAdminSession } from "@/lib/admin/pin";
 import { ROUTES } from "@/lib/navigation/config";
+import { AdminCockpitSidebar } from "./admin-cockpit-sidebar";
 import { AdminHeroMetrics } from "./admin-hero-metrics";
 import { AdminRevenueCharts } from "./admin-revenue-charts";
 import { AdminSection } from "./admin-section";
@@ -92,17 +93,17 @@ export function AdminCommandCenter() {
           filterJobsByPeriod(closedJobs, "current_month"),
         ),
         membership: {
-          active: 2,
-          pending: 1,
+          active: 0,
+          pending: 0,
           canceled: 0,
-          estimatedMrr: 1840,
-          popularTier: "Preferred Membership",
-          source: "mock",
+          estimatedMrr: 0,
+          popularTier: "—",
+          source: "supabase",
         },
         dataSources: {
-          closedJobs: "local",
-          executive: "local",
-          membership: "mock",
+          closedJobs: localJobs.length > 0 ? "local" : "supabase",
+          executive: localJobs.length > 0 ? "local" : "supabase",
+          membership: "supabase",
         },
         storage: "local",
         supabaseConnected: false,
@@ -164,6 +165,8 @@ export function AdminCommandCenter() {
     );
   }
 
+  const isEmptySlate = dashboard.closedJobs.length === 0;
+
   const platformStatCards = [
     {
       label: "Revenue Collected",
@@ -182,7 +185,6 @@ export function AdminCommandCenter() {
     },
     { label: "Pending Requests", value: String(stats.pendingRequests) },
     { label: "Signed Agreements", value: String(stats.signedAgreements) },
-    { label: "Close Rate", value: stats.closeRatePlaceholder },
   ];
 
   const quickActions = [
@@ -196,6 +198,128 @@ export function AdminCommandCenter() {
     { label: "Open Supabase Health", href: "/api/persistence/health", external: true },
     { label: "Open Live Website", href: ROUTES.home },
   ];
+
+  const topBar = (
+    <div className="flex flex-wrap items-center gap-3">
+      <span className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-muted">
+        {dashboard.storage === "supabase" ? "Cloud ledger" : "Local ledger"}
+      </span>
+      {dashboard.privateBeta && (
+        <span className="rounded-full border border-accent/25 bg-accent/[0.06] px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-accent">
+          Private beta
+        </span>
+      )}
+      <button
+        type="button"
+        onClick={() => {
+          clearAdminSession();
+          window.location.reload();
+        }}
+        className="rounded-full border border-border px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-muted transition-colors hover:border-accent/30 hover:text-accent"
+      >
+        Lock Command Center
+      </button>
+    </div>
+  );
+
+  const sidebar = (
+    <AdminCockpitSidebar
+      closedJobs={dashboard.closedJobs}
+      activeMembers={stats.activeMembers}
+      homeCarePlansCreated={stats.homeCarePlansCreated}
+      showTodaysFocus={isEmptySlate}
+    />
+  );
+
+  if (isEmptySlate) {
+    return (
+      <div className="relative min-h-[100svh] overflow-x-hidden bg-background pb-32">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(201,184,150,0.1),transparent_58%)]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_right,rgba(201,184,150,0.04),transparent_45%)]" />
+
+        <div className="relative mx-auto max-w-7xl px-5 py-12 sm:px-8 sm:py-16 lg:px-10 lg:py-20">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+            <p className="text-[10px] uppercase tracking-[0.32em] text-accent">
+              Owner Command Center
+            </p>
+            {topBar}
+          </div>
+
+          <div className="mt-14 xl:grid xl:grid-cols-[1.42fr_0.88fr] xl:items-start xl:gap-16">
+            <div className="space-y-14">
+              <motion.header
+                initial={reduceMotion ? false : { opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 1, ease: easeLuxury }}
+                className="max-w-2xl"
+              >
+                <h1 className="font-serif text-4xl font-light leading-[1.08] text-foreground sm:text-6xl lg:text-[4.25rem]">
+                  Welcome, Noah &amp; Dasan.
+                </h1>
+                <p className="mt-8 text-base leading-[1.75] text-muted sm:text-lg">
+                  Every great company starts with its first customer.
+                  <br className="hidden sm:block" />
+                  Your command center is ready.
+                  <br className="hidden sm:block" />
+                  Log your first completed job to begin building the history of
+                  SqueegeeKing.
+                </p>
+              </motion.header>
+
+              <AdminHeroMetrics stats={stats} awaitingData />
+
+              <AdminRevenueCharts
+                revenueCollected={chartSeries.revenueCollected}
+                arrGenerated={chartSeries.arrGenerated}
+                monthlySalesPerformance={chartSeries.monthlySalesPerformance}
+              />
+
+              <AdminSection
+                id="closed-jobs"
+                eyebrow="Begin Here"
+                title="Log your first completed sale"
+                description="One minute from the field. The moment you save, your command center comes alive."
+                delay={0.1}
+              >
+                <ClosedJobsForm onLogged={() => void loadDashboard({ silent: true })} />
+              </AdminSection>
+
+              <AdminSection
+                eyebrow="Platform Pulse"
+                title="Living business metrics"
+                description="Real numbers only — every metric starts at zero until you build it."
+                delay={0.14}
+              >
+                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                  {platformStatCards.map((card, index) => (
+                    <AdminStatCard
+                      key={card.label}
+                      {...card}
+                      index={index}
+                      awaitingData
+                    />
+                  ))}
+                </div>
+              </AdminSection>
+            </div>
+
+            <aside className="mt-14 xl:sticky xl:top-10 xl:mt-0">{sidebar}</aside>
+          </div>
+
+          <motion.footer
+            initial={reduceMotion ? false : { opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.8 }}
+            className="mt-20 rounded-[1.5rem] border border-border/70 bg-surface/40 px-5 py-4 text-xs leading-relaxed text-muted sm:px-6"
+          >
+            Closed jobs: {dashboard.dataSources.closedJobs} · Executive stats:{" "}
+            {dashboard.dataSources.executive} · Membership:{" "}
+            {dashboard.dataSources.membership}.
+          </motion.footer>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-[100svh] overflow-x-hidden bg-background pb-24">
@@ -223,75 +347,55 @@ export function AdminCommandCenter() {
               closed job — updated the moment you log a sale.
             </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-muted">
-              {dashboard.storage === "supabase" ? "Cloud ledger" : "Local / demo ledger"}
-            </span>
-            {dashboard.privateBeta && (
-              <span className="rounded-full border border-accent/25 bg-accent/[0.06] px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-accent">
-                Private beta
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                clearAdminSession();
-                window.location.reload();
-              }}
-              className="rounded-full border border-border px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-muted transition-colors hover:border-accent/30 hover:text-accent"
-            >
-              Lock Command Center
-            </button>
-          </div>
+          {topBar}
         </motion.header>
 
         <div className="mt-8">
           <RevenuePeriodFilterBar value={periodFilter} onChange={setPeriodFilter} />
         </div>
 
-        <div className="mt-8">
-          <AdminSection
-            eyebrow="Executive Overview"
-            title={PERIOD_SECTION_LABELS[periodFilter]}
-            description="Immediate revenue plus ARR generated — the full picture of business value created."
-            delay={0.05}
-          >
-            <AdminHeroMetrics stats={stats} />
-          </AdminSection>
+        <div className="mt-10 xl:grid xl:grid-cols-[1.42fr_0.88fr] xl:items-start xl:gap-12">
+          <div className="space-y-10">
+            <AdminSection
+              eyebrow="Executive Overview"
+              title={PERIOD_SECTION_LABELS[periodFilter]}
+              description="Immediate revenue plus ARR generated — the full picture of business value created."
+              delay={0.05}
+            >
+              <AdminHeroMetrics stats={stats} />
+            </AdminSection>
+
+            <AdminSection
+              eyebrow="Growth Trends"
+              title="Revenue intelligence"
+              description="Twelve-month trajectory across cash collected, ARR, and total sales performance."
+              delay={0.08}
+            >
+              <AdminRevenueCharts
+                revenueCollected={chartSeries.revenueCollected}
+                arrGenerated={chartSeries.arrGenerated}
+                monthlySalesPerformance={chartSeries.monthlySalesPerformance}
+              />
+            </AdminSection>
+
+            <AdminSection
+              eyebrow="Platform Pulse"
+              title="Living business metrics"
+              description="Platform health alongside sales performance for the selected period."
+              delay={0.1}
+            >
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+                {platformStatCards.map((card, index) => (
+                  <AdminStatCard key={card.label} {...card} index={index} />
+                ))}
+              </div>
+            </AdminSection>
+          </div>
+
+          <aside className="mt-10 xl:sticky xl:top-10 xl:mt-0">{sidebar}</aside>
         </div>
 
-        <div className="mt-8">
-          <AdminSection
-            eyebrow="Growth Trends"
-            title="Revenue intelligence"
-            description="Twelve-month trajectory across cash collected, ARR, and total sales performance."
-            delay={0.08}
-          >
-            <AdminRevenueCharts
-              revenueCollected={chartSeries.revenueCollected}
-              arrGenerated={chartSeries.arrGenerated}
-              monthlySalesPerformance={chartSeries.monthlySalesPerformance}
-            />
-          </AdminSection>
-        </div>
-
-        <div className="mt-8">
-          <AdminSection
-            eyebrow="Platform Pulse"
-            title="Living business metrics"
-            description="Platform health alongside sales performance for the selected period."
-            delay={0.1}
-          >
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-              {platformStatCards.map((card, index) => (
-                <AdminStatCard key={card.label} {...card} index={index} />
-              ))}
-            </div>
-          </AdminSection>
-        </div>
-
-        <div className="mt-8 grid gap-6 xl:grid-cols-[1fr_1.1fr]">
+        <div className="mt-10 grid gap-6 xl:grid-cols-[1fr_1.1fr]">
           <AdminSection
             id="closed-jobs"
             eyebrow="Closed Jobs"
@@ -315,7 +419,7 @@ export function AdminCommandCenter() {
           </AdminSection>
         </div>
 
-        <div className="mt-8">
+        <div className="mt-10">
           <AdminSection
             eyebrow="Recent Activity"
             title="Closed jobs"
@@ -329,7 +433,7 @@ export function AdminCommandCenter() {
           </AdminSection>
         </div>
 
-        <div className="mt-8">
+        <div className="mt-10">
           <AdminSection
             eyebrow="Membership Revenue"
             title="Membership overview"
@@ -340,7 +444,7 @@ export function AdminCommandCenter() {
           </AdminSection>
         </div>
 
-        <div className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="mt-10 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <AdminSection
             eyebrow="Founder Notes"
             title="Private notes for Noah & Dasan"

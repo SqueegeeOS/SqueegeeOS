@@ -188,7 +188,7 @@ export function computeExecutiveStats(
     homeCarePlansCreated: platformCounts?.homeCarePlansCreated ?? 0,
     pendingRequests: platformCounts?.pendingRequests ?? 0,
     signedAgreements: platformCounts?.signedAgreements ?? 0,
-    closeRatePlaceholder: "Track manually",
+    closeRatePlaceholder: "—",
   };
 }
 

@@ -1,4 +1,3 @@
-import { MOCK_INCOMING_REQUESTS } from "@/lib/admin/mock-data";
 import type {
   AdminDashboardData,
   ClosedJob,
@@ -17,6 +16,22 @@ import {
 } from "@/lib/persistence/supabase/client";
 import { listClosedJobsFromSupabase } from "./closed-jobs-server";
 
+const EMPTY_PLATFORM_COUNTS = {
+  activeMembers: 0,
+  homeCarePlansCreated: 0,
+  pendingRequests: 0,
+  signedAgreements: 0,
+};
+
+const EMPTY_MEMBERSHIP: MembershipRevenueOverview = {
+  active: 0,
+  pending: 0,
+  canceled: 0,
+  estimatedMrr: 0,
+  popularTier: "—",
+  source: "supabase",
+};
+
 function countOrZero(value: number | null | undefined): number {
   return value ?? 0;
 }
@@ -27,15 +42,7 @@ async function loadPlatformCounts(): Promise<{
   pendingRequests: number;
   signedAgreements: number;
 }> {
-  const defaults = {
-    activeMembers: 2,
-    homeCarePlansCreated: 3,
-    pendingRequests: MOCK_INCOMING_REQUESTS.filter((r) => r.status === "new")
-      .length,
-    signedAgreements: 2,
-  };
-
-  if (!isSupabaseConfigured()) return defaults;
+  if (!isSupabaseConfigured()) return EMPTY_PLATFORM_COUNTS;
 
   try {
     const supabase = createServerSupabaseClient();
@@ -45,39 +52,26 @@ async function loadPlatformCounts(): Promise<{
       supabase.from("memberships").select("status, plan_name"),
     ]);
 
-    const activeMembers =
-      membershipsRes.data?.filter((row) => row.status === "active").length ?? 0;
-
     return {
-      activeMembers: activeMembers || defaults.activeMembers,
-      homeCarePlansCreated:
-        countOrZero(plansRes.count) || defaults.homeCarePlansCreated,
-      pendingRequests: defaults.pendingRequests,
-      signedAgreements:
-        countOrZero(agreementsRes.count) || defaults.signedAgreements,
+      activeMembers:
+        membershipsRes.data?.filter((row) => row.status === "active").length ?? 0,
+      homeCarePlansCreated: countOrZero(plansRes.count),
+      pendingRequests: 0,
+      signedAgreements: countOrZero(agreementsRes.count),
     };
   } catch {
-    return defaults;
+    return EMPTY_PLATFORM_COUNTS;
   }
 }
 
 async function loadMembershipOverview(): Promise<MembershipRevenueOverview> {
-  const fallback: MembershipRevenueOverview = {
-    active: 2,
-    pending: 1,
-    canceled: 0,
-    estimatedMrr: 1840,
-    popularTier: "Preferred Membership",
-    source: "mock",
-  };
-
-  if (!isSupabaseConfigured()) return fallback;
+  if (!isSupabaseConfigured()) return EMPTY_MEMBERSHIP;
 
   try {
     const supabase = createServerSupabaseClient();
     const { data } = await supabase.from("memberships").select("status, plan_name");
 
-    if (!data?.length) return fallback;
+    if (!data?.length) return EMPTY_MEMBERSHIP;
 
     const tierCounts = data.reduce<Record<string, number>>((acc, row) => {
       const key = row.plan_name ?? "Unknown";
@@ -91,14 +85,13 @@ async function loadMembershipOverview(): Promise<MembershipRevenueOverview> {
         (row) => row.status === "pending_checkout" || row.status === "inactive",
       ).length,
       canceled: data.filter((row) => row.status === "cancelled").length,
-      estimatedMrr: fallback.estimatedMrr,
+      estimatedMrr: 0,
       popularTier:
-        Object.entries(tierCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ??
-        fallback.popularTier,
+        Object.entries(tierCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—",
       source: "mixed",
     };
   } catch {
-    return fallback;
+    return EMPTY_MEMBERSHIP;
   }
 }
 

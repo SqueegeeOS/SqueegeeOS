@@ -8,9 +8,21 @@ const easeLuxury = [0.22, 1, 0.36, 1] as const;
 
 interface AdminHeroMetricsProps {
   stats: ExecutiveStats;
+  awaitingData?: boolean;
 }
 
-export function AdminHeroMetrics({ stats }: AdminHeroMetricsProps) {
+function AwaitingDataBadge() {
+  return (
+    <span className="mt-3 inline-flex rounded-full border border-border/80 bg-background/50 px-2.5 py-1 text-[9px] uppercase tracking-[0.2em] text-muted/80">
+      Awaiting Data
+    </span>
+  );
+}
+
+export function AdminHeroMetrics({
+  stats,
+  awaitingData = false,
+}: AdminHeroMetricsProps) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -28,10 +40,14 @@ export function AdminHeroMetrics({ stats }: AdminHeroMetricsProps) {
         <p className="mt-4 font-serif text-5xl font-light tracking-tight text-foreground sm:text-7xl">
           {formatCurrency(stats.monthlySalesPerformance)}
         </p>
-        <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">
-          Revenue collected plus annual recurring value generated — the number that
-          reflects the true value you built this period.
-        </p>
+        {awaitingData ? (
+          <AwaitingDataBadge />
+        ) : (
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted">
+            Revenue collected plus annual recurring value generated — the number
+            that reflects the true value you built this period.
+          </p>
+        )}
         <div className="mt-8 grid gap-4 border-t border-border/60 pt-6 sm:grid-cols-2">
           <div>
             <p className="text-[10px] uppercase tracking-[0.22em] text-muted">
@@ -60,7 +76,7 @@ export function AdminHeroMetrics({ stats }: AdminHeroMetricsProps) {
           {
             label: "Average Ticket",
             value: formatCurrency(stats.averageTicket),
-            detail: "Based on revenue collected",
+            detail: awaitingData ? undefined : "Based on revenue collected",
           },
         ].map((item, index) => (
           <motion.div
@@ -80,8 +96,12 @@ export function AdminHeroMetrics({ stats }: AdminHeroMetricsProps) {
             <p className="mt-3 font-serif text-3xl font-light text-foreground">
               {item.value}
             </p>
-            {item.detail && (
-              <p className="mt-2 text-xs text-muted/80">{item.detail}</p>
+            {awaitingData ? (
+              <AwaitingDataBadge />
+            ) : (
+              item.detail && (
+                <p className="mt-2 text-xs text-muted/80">{item.detail}</p>
+              )
             )}
           </motion.div>
         ))}

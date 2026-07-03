@@ -9,9 +9,16 @@ interface AdminStatCardProps {
   value: string;
   detail?: string;
   index: number;
+  awaitingData?: boolean;
 }
 
-export function AdminStatCard({ label, value, detail, index }: AdminStatCardProps) {
+export function AdminStatCard({
+  label,
+  value,
+  detail,
+  index,
+  awaitingData = false,
+}: AdminStatCardProps) {
   const reduceMotion = useReducedMotion();
 
   return (
@@ -30,8 +37,14 @@ export function AdminStatCard({ label, value, detail, index }: AdminStatCardProp
       <p className="mt-5 font-serif text-4xl font-light tracking-tight text-foreground sm:text-5xl">
         {value}
       </p>
-      {detail && (
-        <p className="mt-3 text-sm leading-relaxed text-muted/90">{detail}</p>
+      {awaitingData ? (
+        <span className="mt-3 inline-flex rounded-full border border-border/80 bg-background/50 px-2.5 py-1 text-[9px] uppercase tracking-[0.2em] text-muted/80">
+          Awaiting Data
+        </span>
+      ) : (
+        detail && (
+          <p className="mt-3 text-sm leading-relaxed text-muted/90">{detail}</p>
+        )
       )}
     </motion.article>
   );

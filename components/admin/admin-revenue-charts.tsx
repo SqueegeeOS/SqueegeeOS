@@ -53,7 +53,9 @@ export function RevenueLineChart({
         <p className="text-[10px] uppercase tracking-[0.22em] text-muted">
           {title}
         </p>
-        <p className="mt-6 text-sm text-muted">Log sales to see this trend.</p>
+        <p className="mt-6 text-sm leading-relaxed text-muted">
+          Your growth story begins with the first sale.
+        </p>
       </div>
     );
   }
