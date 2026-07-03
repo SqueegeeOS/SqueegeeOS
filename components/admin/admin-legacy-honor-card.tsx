@@ -4,8 +4,8 @@ import { useState, type ChangeEvent } from "react";
 import type { LegacyBaseline } from "@/lib/admin/legacy-baseline";
 import {
   buildDefaultLegacyMilestones,
-  saveLegacyBaseline,
 } from "@/lib/admin/legacy-baseline";
+import { persistHeadquartersProfile } from "@/lib/admin/headquarters-profile-client";
 import { LegacyBiography } from "./legacy-biography";
 
 const inputClassName =
@@ -36,8 +36,13 @@ export function AdminLegacyHonorCard({
 }: AdminLegacyHonorCardProps) {
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState<LegacyBaseline>(baseline);
+  const [saving, setSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (saving) return;
+    setSaving(true);
+    setSaveMessage(null);
     const draft: LegacyBaseline = {
       ...form,
       configured: true,
@@ -50,9 +55,15 @@ export function AdminLegacyHonorCard({
       ...draft,
       legacyMilestones: buildDefaultLegacyMilestones(draft),
     };
-    saveLegacyBaseline(next);
-    onSaved(next);
+    const sync = await persistHeadquartersProfile(next);
+    onSaved(sync.baseline);
+    setSaveMessage(
+      sync.source === "supabase" || sync.source === "migrated"
+        ? "Saved to Cloud Headquarters."
+        : sync.warning ?? "Saved on this device only.",
+    );
     setEditing(false);
+    setSaving(false);
   };
 
   if (!editing && baseline.onboardingComplete) {
@@ -178,14 +189,18 @@ export function AdminLegacyHonorCard({
         ))}
       </div>
 
-      <div className="mt-6 flex gap-3">
+      <div className="mt-6 flex flex-wrap items-center gap-3">
         <button
           type="button"
-          onClick={handleSave}
-          className="rounded-full border border-accent/30 bg-accent/[0.08] px-5 py-2.5 text-[10px] uppercase tracking-[0.2em] text-accent"
+          onClick={() => void handleSave()}
+          disabled={saving}
+          className="rounded-full border border-accent/30 bg-accent/[0.08] px-5 py-2.5 text-[10px] uppercase tracking-[0.2em] text-accent disabled:opacity-50"
         >
-          Seal archive
+          {saving ? "Saving…" : "Seal archive"}
         </button>
+        {saveMessage && (
+          <p className="text-xs text-muted">{saveMessage}</p>
+        )}
         {baseline.onboardingComplete && (
           <button
             type="button"

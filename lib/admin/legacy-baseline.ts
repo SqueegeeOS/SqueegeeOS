@@ -97,6 +97,12 @@ function normalizeBaseline(parsed: Partial<LegacyBaseline>): LegacyBaseline {
   };
 }
 
+export function normalizeLegacyBaseline(
+  parsed: Partial<LegacyBaseline>,
+): LegacyBaseline {
+  return normalizeBaseline(parsed);
+}
+
 export function loadLegacyBaseline(): LegacyBaseline {
   if (typeof window === "undefined") return EMPTY_LEGACY_BASELINE;
 
@@ -110,8 +116,14 @@ export function loadLegacyBaseline(): LegacyBaseline {
   }
 }
 
-export function saveLegacyBaseline(baseline: LegacyBaseline): void {
-  if (typeof window === "undefined") return;
+export function saveLocalLegacyBaseline(baseline: LegacyBaseline): LegacyBaseline {
+  if (typeof window === "undefined") {
+    return normalizeBaseline({
+      ...baseline,
+      configured: true,
+      updatedAt: new Date().toISOString(),
+    });
+  }
 
   const normalized = normalizeBaseline({
     ...baseline,
@@ -126,6 +138,13 @@ export function saveLegacyBaseline(baseline: LegacyBaseline): void {
   if (normalized.onboardingComplete) {
     localStorage.setItem(FOUNDER_ONBOARDING_KEY, "true");
   }
+
+  return normalized;
+}
+
+/** Local browser cache only — prefer persistHeadquartersProfile for cloud sync. */
+export function saveLegacyBaseline(baseline: LegacyBaseline): void {
+  saveLocalLegacyBaseline(baseline);
 }
 
 export function isFounderOnboardingComplete(): boolean {

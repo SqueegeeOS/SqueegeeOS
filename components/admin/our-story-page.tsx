@@ -4,7 +4,8 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { ensureOsLaunchedDate } from "@/lib/admin/business-timeline";
-import { loadLegacyBaseline } from "@/lib/admin/legacy-baseline";
+import { syncHeadquartersProfile } from "@/lib/admin/headquarters-profile-client";
+import type { LegacyBaseline } from "@/lib/admin/legacy-baseline";
 import { buildOurStory } from "@/lib/admin/our-story";
 import { computeOsTimeline } from "@/lib/admin/os-timeline";
 import { isAdminUnlocked } from "@/lib/admin/pin";
@@ -17,14 +18,40 @@ export function OurStoryPage() {
   const reduceMotion = useReducedMotion();
   const [ready, setReady] = useState(false);
   const [unlocked, setUnlocked] = useState(false);
+  const [legacyBaseline, setLegacyBaseline] = useState<LegacyBaseline | null>(
+    null,
+  );
 
   useEffect(() => {
-    setUnlocked(isAdminUnlocked());
-    setReady(true);
+    let cancelled = false;
+
+    async function loadStory() {
+      const pinUnlocked = isAdminUnlocked();
+      setUnlocked(pinUnlocked);
+
+      if (pinUnlocked) {
+        const sync = await syncHeadquartersProfile();
+        if (!cancelled) {
+          setLegacyBaseline(sync.baseline);
+          setReady(true);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setReady(true);
+      }
+    }
+
+    void loadStory();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const story = useMemo(() => {
-    const baseline = loadLegacyBaseline();
+    if (!legacyBaseline) return [];
     const closedJobs = loadLocalClosedJobs();
     const osEvents = computeOsTimeline({
       osLaunchedDate: ensureOsLaunchedDate(),
@@ -32,8 +59,8 @@ export function OurStoryPage() {
       homeCarePlansCreated: 0,
       signedAgreements: 0,
     });
-    return buildOurStory({ legacyBaseline: baseline, osEvents });
-  }, [ready]);
+    return buildOurStory({ legacyBaseline, osEvents });
+  }, [legacyBaseline]);
 
   if (!ready) {
     return (
@@ -55,6 +82,14 @@ export function OurStoryPage() {
         >
           Enter headquarters
         </Link>
+      </div>
+    );
+  }
+
+  if (!legacyBaseline) {
+    return (
+      <div className="flex min-h-[100svh] items-center justify-center bg-background text-muted">
+        Opening Our Story…
       </div>
     );
   }

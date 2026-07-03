@@ -5,6 +5,10 @@ import { AdminCommandCenter } from "@/components/admin/admin-command-center";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { FounderOnboarding } from "@/components/admin/founder-onboarding";
 import {
+  syncHeadquartersProfile,
+  type HeadquartersSyncResult,
+} from "@/lib/admin/headquarters-profile-client";
+import {
   isFounderOnboardingComplete,
   loadLegacyBaseline,
   type LegacyBaseline,
@@ -17,20 +21,52 @@ export function AdminExperience() {
   const [legacyBaseline, setLegacyBaseline] =
     useState<LegacyBaseline | null>(null);
   const [onboardingComplete, setOnboardingComplete] = useState(false);
+  const [syncResult, setSyncResult] = useState<HeadquartersSyncResult | null>(
+    null,
+  );
 
-  const handleUnlock = useCallback(() => setUnlocked(true), []);
+  const applySyncResult = useCallback((result: HeadquartersSyncResult) => {
+    setLegacyBaseline(result.baseline);
+    setOnboardingComplete(result.baseline.onboardingComplete);
+    setSyncResult(result);
+  }, []);
+
+  const runCloudSync = useCallback(async () => {
+    const result = await syncHeadquartersProfile();
+    applySyncResult(result);
+    return result;
+  }, [applySyncResult]);
 
   useEffect(() => {
-    setUnlocked(isAdminUnlocked());
+    const initiallyUnlocked = isAdminUnlocked();
+    setUnlocked(initiallyUnlocked);
+
+    if (initiallyUnlocked) {
+      void runCloudSync().finally(() => setReady(true));
+      return;
+    }
+
     setLegacyBaseline(loadLegacyBaseline());
     setOnboardingComplete(isFounderOnboardingComplete());
     setReady(true);
-  }, []);
+  }, [runCloudSync]);
 
-  const handleOnboardingComplete = useCallback((baseline: LegacyBaseline) => {
-    setLegacyBaseline(baseline);
-    setOnboardingComplete(true);
-  }, []);
+  const handleUnlock = useCallback(() => {
+    setUnlocked(true);
+    setReady(false);
+    void runCloudSync().finally(() => setReady(true));
+  }, [runCloudSync]);
+
+  const handleOnboardingComplete = useCallback(
+    (baseline: LegacyBaseline, sync?: HeadquartersSyncResult) => {
+      setLegacyBaseline(baseline);
+      setOnboardingComplete(true);
+      if (sync) {
+        setSyncResult(sync);
+      }
+    },
+    [],
+  );
 
   if (!ready) {
     return (
@@ -48,5 +84,10 @@ export function AdminExperience() {
     return <FounderOnboarding onComplete={handleOnboardingComplete} />;
   }
 
-  return <AdminCommandCenter initialLegacyBaseline={legacyBaseline} />;
+  return (
+    <AdminCommandCenter
+      initialLegacyBaseline={legacyBaseline}
+      headquartersSync={syncResult}
+    />
+  );
 }

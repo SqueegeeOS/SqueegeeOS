@@ -8,8 +8,11 @@ import {
   DEFAULT_FOUNDERS,
   EMPTY_LEGACY_BASELINE,
   buildDefaultLegacyMilestones,
-  saveLegacyBaseline,
 } from "@/lib/admin/legacy-baseline";
+import {
+  persistHeadquartersProfile,
+  type HeadquartersSyncResult,
+} from "@/lib/admin/headquarters-profile-client";
 import { ensureOsLaunchedDate } from "@/lib/admin/business-timeline";
 import { buildLegacyStory } from "@/lib/admin/legacy-story";
 
@@ -24,13 +27,17 @@ const labelClassName =
 type PreserveStep = "welcome" | "facts" | "founders" | "ceremony";
 
 interface FounderOnboardingProps {
-  onComplete: (baseline: LegacyBaseline) => void;
+  onComplete: (
+    baseline: LegacyBaseline,
+    sync?: HeadquartersSyncResult,
+  ) => void;
 }
 
 export function FounderOnboarding({ onComplete }: FounderOnboardingProps) {
   const reduceMotion = useReducedMotion();
   const [step, setStep] = useState<PreserveStep>("welcome");
   const [form, setForm] = useState<LegacyBaseline>(EMPTY_LEGACY_BASELINE);
+  const [saving, setSaving] = useState(false);
 
   const ceremonyStory = useMemo(() => {
     const draft = {
@@ -41,7 +48,9 @@ export function FounderOnboarding({ onComplete }: FounderOnboardingProps) {
     return buildLegacyStory(draft);
   }, [form]);
 
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    if (saving) return;
+    setSaving(true);
     ensureOsLaunchedDate();
     const draft: LegacyBaseline = {
       ...form,
@@ -56,8 +65,9 @@ export function FounderOnboarding({ onComplete }: FounderOnboardingProps) {
       ...draft,
       legacyMilestones: buildDefaultLegacyMilestones(draft),
     };
-    saveLegacyBaseline(saved);
-    onComplete(saved);
+    const sync = await persistHeadquartersProfile(saved);
+    onComplete(sync.baseline, sync);
+    setSaving(false);
   };
 
   if (step === "welcome") {
@@ -264,10 +274,11 @@ export function FounderOnboarding({ onComplete }: FounderOnboardingProps) {
           initial={reduceMotion ? false : { opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: reduceMotion ? 0 : 0.8, duration: 0.7, ease: easeLuxury }}
-          onClick={handleComplete}
-          className="mt-14 rounded-full border border-accent/30 bg-accent/[0.1] px-8 py-4 text-[10px] uppercase tracking-[0.24em] text-accent"
+          onClick={() => void handleComplete()}
+          disabled={saving}
+          className="mt-14 rounded-full border border-accent/30 bg-accent/[0.1] px-8 py-4 text-[10px] uppercase tracking-[0.24em] text-accent disabled:opacity-50"
         >
-          Enter headquarters
+          {saving ? "Saving to cloud…" : "Enter headquarters"}
         </motion.button>
       </motion.div>
     </div>

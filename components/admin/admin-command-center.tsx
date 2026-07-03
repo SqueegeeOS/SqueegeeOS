@@ -34,6 +34,8 @@ import {
 import { HEADQUARTERS_PURPOSE } from "@/lib/admin/company-philosophy";
 import { computeOsTimeline } from "@/lib/admin/os-timeline";
 import { ROUTES } from "@/lib/navigation/config";
+import type { HeadquartersSyncResult } from "@/lib/admin/headquarters-profile-client";
+import { HeadquartersCloudStatus } from "./headquarters-cloud-status";
 import { AdminCeoScoreboard } from "./admin-ceo-scoreboard";
 import { AdminCockpitSidebar } from "./admin-cockpit-sidebar";
 import { AdminCurrentMission } from "./admin-current-mission";
@@ -57,8 +59,10 @@ const easeLuxury = [0.22, 1, 0.36, 1] as const;
 
 export function AdminCommandCenter({
   initialLegacyBaseline,
+  headquartersSync,
 }: {
   initialLegacyBaseline?: LegacyBaseline | null;
+  headquartersSync?: HeadquartersSyncResult | null;
 }) {
   const reduceMotion = useReducedMotion();
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
@@ -258,6 +262,13 @@ export function AdminCommandCenter({
 
   const topBar = (
     <div className="flex flex-wrap items-center gap-3">
+      {headquartersSync && (
+        <HeadquartersCloudStatus
+          source={headquartersSync.source}
+          cloudAvailable={headquartersSync.cloudAvailable}
+          warning={headquartersSync.warning}
+        />
+      )}
       <span className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-muted">
         {dashboard.storage === "supabase" ? "Cloud ledger" : "Local ledger"}
       </span>
