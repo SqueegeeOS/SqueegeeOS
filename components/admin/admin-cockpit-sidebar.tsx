@@ -2,15 +2,17 @@
 
 import { useMemo } from "react";
 import type { ClosedJob } from "@/lib/admin/closed-jobs-types";
-import { computeCompanyMilestones } from "@/lib/admin/milestones";
+import { computeCurrentMissions } from "@/lib/admin/current-mission";
+import type { OperatingContext } from "@/lib/admin/growth-journey";
 import { AdminBusinessTimeline } from "./admin-business-timeline";
-import { AdminCompanyMilestones } from "./admin-company-milestones";
+import { AdminCurrentMission } from "./admin-current-mission";
 import { AdminTodaysFocusCard } from "./admin-todays-focus-card";
 
 interface AdminCockpitSidebarProps {
   closedJobs: ClosedJob[];
   activeMembers: number;
   homeCarePlansCreated: number;
+  pendingRequests: number;
   showTodaysFocus?: boolean;
 }
 
@@ -18,22 +20,25 @@ export function AdminCockpitSidebar({
   closedJobs,
   activeMembers,
   homeCarePlansCreated,
+  pendingRequests,
   showTodaysFocus = false,
 }: AdminCockpitSidebarProps) {
-  const milestones = useMemo(
-    () =>
-      computeCompanyMilestones({
-        closedJobs,
-        activeMembers,
-        homeCarePlansCreated,
-      }),
-    [closedJobs, activeMembers, homeCarePlansCreated],
+  const context = useMemo<OperatingContext>(
+    () => ({
+      closedJobs,
+      activeMembers,
+      homeCarePlansCreated,
+      pendingRequests,
+    }),
+    [closedJobs, activeMembers, homeCarePlansCreated, pendingRequests],
   );
+
+  const missions = useMemo(() => computeCurrentMissions(context), [context]);
 
   return (
     <div className="space-y-6">
       {showTodaysFocus && <AdminTodaysFocusCard />}
-      <AdminCompanyMilestones milestones={milestones} />
+      <AdminCurrentMission missions={missions} />
       <AdminBusinessTimeline />
     </div>
   );

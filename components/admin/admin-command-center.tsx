@@ -19,9 +19,12 @@ import {
   mergeClosedJobs,
 } from "@/lib/admin/sales-calculations";
 import { clearAdminSession } from "@/lib/admin/pin";
+import { computeCeoScoreboard } from "@/lib/admin/ceo-scoreboard";
+import { computeGrowthJourney } from "@/lib/admin/growth-journey";
 import { ROUTES } from "@/lib/navigation/config";
+import { AdminCeoScoreboard } from "./admin-ceo-scoreboard";
 import { AdminCockpitSidebar } from "./admin-cockpit-sidebar";
-import { AdminHeroMetrics } from "./admin-hero-metrics";
+import { AdminGrowthJourney } from "./admin-growth-journey";
 import { AdminRevenueCharts } from "./admin-revenue-charts";
 import { AdminSection } from "./admin-section";
 import { AdminStatCard } from "./admin-stat-card";
@@ -157,7 +160,27 @@ export function AdminCommandCenter() {
     return computeRevenueChartSeries(dashboard.closedJobs);
   }, [dashboard]);
 
-  if (loading || !dashboard || !stats || !chartSeries) {
+  const operatingContext = useMemo(() => {
+    if (!dashboard) return null;
+    return {
+      closedJobs: dashboard.closedJobs,
+      activeMembers: dashboard.executive.activeMembers,
+      homeCarePlansCreated: dashboard.executive.homeCarePlansCreated,
+      pendingRequests: dashboard.executive.pendingRequests,
+    };
+  }, [dashboard]);
+
+  const scoreboard = useMemo(() => {
+    if (!operatingContext) return null;
+    return computeCeoScoreboard(operatingContext);
+  }, [operatingContext]);
+
+  const growthJourney = useMemo(() => {
+    if (!operatingContext) return null;
+    return computeGrowthJourney(operatingContext);
+  }, [operatingContext]);
+
+  if (loading || !dashboard || !stats || !chartSeries || !scoreboard || !growthJourney) {
     return (
       <div className="flex min-h-[100svh] items-center justify-center bg-background text-muted">
         Loading command center…
@@ -227,6 +250,7 @@ export function AdminCommandCenter() {
       closedJobs={dashboard.closedJobs}
       activeMembers={stats.activeMembers}
       homeCarePlansCreated={stats.homeCarePlansCreated}
+      pendingRequests={stats.pendingRequests}
       showTodaysFocus={isEmptySlate}
     />
   );
@@ -266,7 +290,16 @@ export function AdminCommandCenter() {
                 </p>
               </motion.header>
 
-              <AdminHeroMetrics stats={stats} awaitingData />
+              <AdminCeoScoreboard scoreboard={scoreboard} awaitingData />
+
+              <AdminSection
+                eyebrow="Growth Journey"
+                title="Building something meaningful"
+                description="Every milestone marks real progress — from first job to market leader."
+                delay={0.06}
+              >
+                <AdminGrowthJourney tiers={growthJourney} />
+              </AdminSection>
 
               <AdminRevenueCharts
                 revenueCollected={chartSeries.revenueCollected}
@@ -350,26 +383,32 @@ export function AdminCommandCenter() {
           {topBar}
         </motion.header>
 
-        <div className="mt-8">
+        <div className="mt-10">
+          <AdminCeoScoreboard scoreboard={scoreboard} />
+        </div>
+
+        <div className="mt-10">
           <RevenuePeriodFilterBar value={periodFilter} onChange={setPeriodFilter} />
+        </div>
+
+        <div className="mt-10">
+          <AdminSection
+            eyebrow="Growth Journey"
+            title="Your path forward"
+            description="Foundation to Legacy — each tier unlocks as the business earns it."
+            delay={0.04}
+          >
+            <AdminGrowthJourney tiers={growthJourney} />
+          </AdminSection>
         </div>
 
         <div className="mt-10 xl:grid xl:grid-cols-[1.42fr_0.88fr] xl:items-start xl:gap-12">
           <div className="space-y-10">
             <AdminSection
-              eyebrow="Executive Overview"
-              title={PERIOD_SECTION_LABELS[periodFilter]}
-              description="Immediate revenue plus ARR generated — the full picture of business value created."
-              delay={0.05}
-            >
-              <AdminHeroMetrics stats={stats} />
-            </AdminSection>
-
-            <AdminSection
               eyebrow="Growth Trends"
               title="Revenue intelligence"
               description="Twelve-month trajectory across cash collected, ARR, and total sales performance."
-              delay={0.08}
+              delay={0.06}
             >
               <AdminRevenueCharts
                 revenueCollected={chartSeries.revenueCollected}
@@ -381,10 +420,10 @@ export function AdminCommandCenter() {
             <AdminSection
               eyebrow="Platform Pulse"
               title="Living business metrics"
-              description="Platform health alongside sales performance for the selected period."
-              delay={0.1}
+              description={`${PERIOD_SECTION_LABELS[periodFilter]} — platform health alongside sales.`}
+              delay={0.08}
             >
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {platformStatCards.map((card, index) => (
                   <AdminStatCard key={card.label} {...card} index={index} />
                 ))}

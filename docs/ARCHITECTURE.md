@@ -502,7 +502,17 @@ Fields: `customer_name`, `property_address`, `sale_amount`, `sale_type`, `recurr
 
 Without the table, closed jobs save to **browser localStorage** only.
 
-### Revenue model (per closed job)
+### Growth Journey & CEO Scoreboard
+
+| Feature | Detail |
+|---------|--------|
+| **CEO Scoreboard** | Revenue collected, ARR, monthly sales performance, lifetime revenue, ARR/monthly goal progress, homes & members protected, business health score (0–100) |
+| **Growth Journey** | Four tiers — Foundation, Momentum, Market Leader, Legacy — auto-checked as milestones are earned |
+| **Current Mission** | Auto-generated action items from dashboard gaps (AI coaching planned) |
+| **Business timeline** | Business started date + days building (localStorage, first visit) |
+
+Manual milestones (employee, truck, multi-city, reviews) unlock when tracked in context — ready for future fields.
+
 
 Every closed job produces two numbers:
 
