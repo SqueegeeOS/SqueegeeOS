@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import type { GoogleReviewsApiResponse, ReviewsSectionProps } from "@/lib/reviews/types";
+import type { ReviewsSectionProps } from "@/lib/reviews/types";
+import { useGoogleReviewsClient } from "@/lib/reviews/use-google-reviews-client";
 import { ReviewsSection } from "./reviews-section";
 import { ReviewsSectionSkeleton } from "./reviews-section-skeleton";
 
@@ -17,36 +17,7 @@ export function GoogleReviewsSection({
   title,
   featuredLimit = 3,
 }: GoogleReviewsSectionProps) {
-  const [response, setResponse] = useState<GoogleReviewsApiResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      try {
-        const res = await fetch("/api/reviews/google");
-        if (!res.ok) throw new Error("Failed to load reviews");
-        const json = (await res.json()) as GoogleReviewsApiResponse;
-        if (!cancelled) setResponse(json);
-      } catch {
-        if (!cancelled) {
-          setResponse({
-            status: "unavailable",
-            data: null,
-            message: "Google reviews temporarily unavailable.",
-          });
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { response, loading } = useGoogleReviewsClient();
 
   if (loading) {
     return <ReviewsSectionSkeleton />;

@@ -50,7 +50,7 @@ export function OurStoryPage() {
           Our Story is for founders only.
         </p>
         <Link
-          href={ROUTES.admin}
+          href={ROUTES.hq}
           className="rounded-full border border-accent/30 px-6 py-3 text-[10px] uppercase tracking-[0.2em] text-accent"
         >
           Enter headquarters
@@ -66,7 +66,7 @@ export function OurStoryPage() {
       <div className="relative mx-auto max-w-3xl px-5 py-14 sm:px-8 sm:py-20">
         <header className="border-b border-border/60 pb-12">
           <Link
-            href={ROUTES.admin}
+            href={ROUTES.hq}
             className="text-[10px] uppercase tracking-[0.22em] text-muted transition-colors hover:text-accent"
           >
             ← Headquarters

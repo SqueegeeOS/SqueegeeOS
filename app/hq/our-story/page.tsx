@@ -7,6 +7,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function AdminOurStoryRoute() {
+export default function HqOurStoryRoute() {
   return <OurStoryPage />;
 }

@@ -14,8 +14,13 @@ export const ROUTES = {
   properties: "/properties",
   requests: "/employee/requests",
   settings: "/employee/settings",
-  admin: "/admin",
-  adminOurStory: "/admin/our-story",
+  hq: "/hq",
+  hqOurStory: "/hq/our-story",
+  experience: "/experience",
+  experienceUnlock: "/experience/unlock",
+  experienceRequestTransition: "/experience/request-transition",
+  experienceHeadquartersArrival: "/experience/headquarters-arrival",
+  setupGoogleReviews: "/setup/google-reviews",
 } as const;
 
 export interface NavItem {

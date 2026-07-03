@@ -17,7 +17,7 @@ export function AdminCockpitSidebar({
     <div className="space-y-6">
       <FounderJournal compact />
       <Link
-        href={ROUTES.adminOurStory}
+        href={ROUTES.hqOurStory}
         className="block rounded-[1.75rem] border border-border/70 bg-surface/40 p-6 text-center transition-colors hover:border-accent/25 sm:p-7"
       >
         <p className="text-[10px] uppercase tracking-[0.24em] text-accent">

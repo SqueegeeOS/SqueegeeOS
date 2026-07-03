@@ -160,29 +160,4 @@ export const larryBuckley = {
         "One team that knows your property, your preferences, and your standards.",
     },
   ],
-  reviews: {
-    count: 127,
-    rating: 5,
-    isSample: true,
-    featured: [
-      {
-        quote:
-          "They treated our home with real care. Every detail mattered.",
-        author: "Homeowner, Chico",
-        location: "Chico",
-      },
-      {
-        quote:
-          "I've never seen a care report this thoughtful. It changed how we think about our home.",
-        author: "Member, Bidwell Park",
-        location: "Chico",
-      },
-      {
-        quote:
-          "Preferred Care paid for itself in the first year. Not a single surprise repair.",
-        author: "Preferred Care Member",
-        location: "Chico",
-      },
-    ],
-  },
 } as const;

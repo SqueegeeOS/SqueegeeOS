@@ -1,4 +1,3 @@
-import { GOOGLE_REVIEWS_CACHE_SECONDS } from "./config";
 import type { Review, ReviewsData } from "./types";
 
 /** Legacy Places Details — review object */
@@ -12,6 +11,7 @@ interface GoogleLegacyReview {
 }
 
 interface GoogleLegacyPlaceResult {
+  name?: string;
   rating?: number;
   user_ratings_total?: number;
   reviews?: GoogleLegacyReview[];
@@ -36,6 +36,8 @@ interface GoogleNewReview {
 }
 
 interface GoogleNewPlaceResponse {
+  id?: string;
+  displayName?: { text?: string };
   rating?: number;
   userRatingCount?: number;
   reviews?: GoogleNewReview[];
@@ -77,7 +79,7 @@ function buildReviewsData(
   rating: number,
   totalCount: number,
   reviews: Review[],
-  fetchedAt: string,
+  businessName?: string,
 ): ReviewsData {
   return {
     totalCount,
@@ -86,24 +88,36 @@ function buildReviewsData(
     reviews: reviews.filter((review) => review.reviewText.length > 0),
     isLive: true,
     isCached: false,
-    fetchedAt,
-    attribution: "Based on Google reviews.",
+    fetchedAt: new Date().toISOString(),
+    attribution: businessName
+      ? `Based on Google reviews for ${businessName}.`
+      : "Based on Google reviews.",
   };
 }
 
-async function fetchGooglePlacesNew(
+export function normalizePlaceId(placeId: string): string {
+  const trimmed = placeId.trim();
+  if (trimmed.startsWith("places/")) {
+    return trimmed.slice("places/".length);
+  }
+  return trimmed;
+}
+
+export async function fetchGooglePlacesNew(
   placeId: string,
   apiKey: string,
-): Promise<ReviewsData | null> {
+): Promise<{ data: ReviewsData; businessName?: string } | null> {
+  const normalizedId = normalizePlaceId(placeId);
   const response = await fetch(
-    `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`,
+    `https://places.googleapis.com/v1/places/${encodeURIComponent(normalizedId)}`,
     {
       headers: {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": apiKey,
-        "X-Goog-FieldMask": "rating,userRatingCount,reviews",
+        "X-Goog-FieldMask":
+          "id,displayName,rating,userRatingCount,reviews",
       },
-      next: { revalidate: GOOGLE_REVIEWS_CACHE_SECONDS },
+      cache: "no-store",
     },
   );
 
@@ -112,41 +126,70 @@ async function fetchGooglePlacesNew(
   const payload = (await response.json()) as GoogleNewPlaceResponse;
   if (payload.error) return null;
 
-  const fetchedAt = new Date().toISOString();
-  return buildReviewsData(
+  const businessName = payload.displayName?.text;
+  const data = buildReviewsData(
     payload.rating ?? 0,
     payload.userRatingCount ?? 0,
     (payload.reviews ?? []).map(mapNewReview),
-    fetchedAt,
+    businessName,
   );
+
+  return { data, businessName };
 }
 
-async function fetchGooglePlacesLegacy(
+export async function fetchGooglePlacesLegacy(
   placeId: string,
   apiKey: string,
-): Promise<ReviewsData | null> {
+): Promise<{ data: ReviewsData; businessName?: string } | null> {
   const url = new URL(
     "https://maps.googleapis.com/maps/api/place/details/json",
   );
-  url.searchParams.set("place_id", placeId);
-  url.searchParams.set("fields", "rating,user_ratings_total,reviews");
+  url.searchParams.set("place_id", normalizePlaceId(placeId));
+  url.searchParams.set("fields", "name,rating,user_ratings_total,reviews");
   url.searchParams.set("key", apiKey);
 
-  const response = await fetch(url.toString(), {
-    next: { revalidate: GOOGLE_REVIEWS_CACHE_SECONDS },
-  });
+  const response = await fetch(url.toString(), { cache: "no-store" });
 
   if (!response.ok) return null;
 
   const payload = (await response.json()) as GoogleLegacyPlaceResponse;
   if (payload.status !== "OK" || !payload.result) return null;
 
-  const fetchedAt = new Date().toISOString();
-  return buildReviewsData(
+  const businessName = payload.result.name;
+  const data = buildReviewsData(
     payload.result.rating ?? 0,
     payload.result.user_ratings_total ?? 0,
     (payload.result.reviews ?? []).map(mapLegacyReview),
-    fetchedAt,
+    businessName,
+  );
+
+  return { data, businessName };
+}
+
+export async function fetchGooglePlaceReviewsWithCredentials(
+  apiKey: string,
+  placeId: string,
+): Promise<{ data: ReviewsData; businessName?: string }> {
+  const trimmedKey = apiKey.trim();
+  const trimmedPlaceId = normalizePlaceId(placeId);
+
+  if (!trimmedKey || !trimmedPlaceId) {
+    throw new Error("API key and Place ID are required");
+  }
+
+  const fromNewApi = await fetchGooglePlacesNew(trimmedPlaceId, trimmedKey);
+  if (
+    fromNewApi &&
+    (fromNewApi.data.totalCount > 0 || fromNewApi.data.reviews.length > 0)
+  ) {
+    return fromNewApi;
+  }
+
+  const fromLegacyApi = await fetchGooglePlacesLegacy(trimmedPlaceId, trimmedKey);
+  if (fromLegacyApi) return fromLegacyApi;
+
+  throw new Error(
+    "Unable to load reviews. Check that Places API is enabled and the Place ID is correct.",
   );
 }
 
@@ -158,13 +201,6 @@ export async function fetchGooglePlaceReviews(): Promise<ReviewsData> {
     throw new Error("Google reviews not configured");
   }
 
-  const fromNewApi = await fetchGooglePlacesNew(placeId, apiKey);
-  if (fromNewApi && (fromNewApi.totalCount > 0 || fromNewApi.reviews.length > 0)) {
-    return fromNewApi;
-  }
-
-  const fromLegacyApi = await fetchGooglePlacesLegacy(placeId, apiKey);
-  if (fromLegacyApi) return fromLegacyApi;
-
-  throw new Error("Unable to load Google reviews");
+  const result = await fetchGooglePlaceReviewsWithCredentials(apiKey, placeId);
+  return result.data;
 }

@@ -40,6 +40,7 @@ import { AdminCurrentMission } from "./admin-current-mission";
 import { AdminDualTimelines } from "./admin-dual-timelines";
 import { AdminFreedomMeter } from "./admin-freedom-meter";
 import { AdminGrowthJourney } from "./admin-growth-journey";
+import { AdminLiveGoogleReviews } from "./admin-live-google-reviews";
 import { AdminLegacyHonorCard } from "./admin-legacy-honor-card";
 import { AdminRevenueCharts } from "./admin-revenue-charts";
 import { AdminSection } from "./admin-section";
@@ -243,7 +244,7 @@ export function AdminCommandCenter({
   ];
 
   const quickActions = [
-    { label: "Our Story", href: ROUTES.adminOurStory },
+    { label: "Our Story", href: ROUTES.hqOurStory },
     { label: "Create Home Care Plan", href: ROUTES.createPlan },
     { label: "View Properties", href: ROUTES.properties },
     { label: "View Requests", href: ROUTES.requests },
@@ -332,8 +333,9 @@ export function AdminCommandCenter({
           <p className="text-[10px] uppercase tracking-[0.3em] text-muted">
             Where are we today?
           </p>
-          <div className="mt-6">
+          <div className="mt-6 space-y-6">
             <AdminCeoScoreboard scoreboard={scoreboard} />
+            <AdminLiveGoogleReviews />
           </div>
         </div>
 

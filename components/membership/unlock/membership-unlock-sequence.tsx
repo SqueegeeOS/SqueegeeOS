@@ -17,6 +17,8 @@ interface MembershipUnlockSequenceProps {
   context: MembershipUnlockContext;
   timingProfile: UnlockTimingProfile;
   onComplete: () => void;
+  /** Lab preview — skips session/localStorage side effects */
+  previewMode?: boolean;
 }
 
 const easeCinematic = [0.22, 1, 0.36, 1] as const;
@@ -39,6 +41,7 @@ export function MembershipUnlockSequence({
   context,
   timingProfile,
   onComplete,
+  previewMode = false,
 }: MembershipUnlockSequenceProps) {
   const [phase, setPhase] = useState<CeremonyPhase>("fade");
   const [showSkip, setShowSkip] = useState(false);
@@ -54,15 +57,21 @@ export function MembershipUnlockSequence({
     if (completedRef.current) return;
     completedRef.current = true;
     timersRef.current.forEach(clearTimeout);
-    markMemberWelcomePending();
+    if (!previewMode) {
+      markMemberWelcomePending();
+    }
     onComplete();
-  }, [onComplete]);
+  }, [onComplete, previewMode]);
 
   const skipToPortal = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
-    markMemberWelcomePending();
-    finish();
-  }, [finish]);
+    if (completedRef.current) return;
+    completedRef.current = true;
+    if (!previewMode) {
+      markMemberWelcomePending();
+    }
+    onComplete();
+  }, [onComplete, previewMode]);
 
   const schedule = useCallback((fn: () => void, ms: number) => {
     const id = setTimeout(fn, ms);
@@ -77,7 +86,9 @@ export function MembershipUnlockSequence({
     setLiteEffects(isMobile);
 
     if (isReduced) {
-      markMemberWelcomePending();
+      if (!previewMode) {
+        markMemberWelcomePending();
+      }
       schedule(finish, 400);
       return () => timersRef.current.forEach(clearTimeout);
     }
@@ -107,7 +118,7 @@ export function MembershipUnlockSequence({
     schedule(() => setShowSkip(true), t.skipAvailableAfter);
 
     return () => timersRef.current.forEach(clearTimeout);
-  }, [finish, reduceMotionHook, schedule, timing]);
+  }, [finish, previewMode, reduceMotionHook, schedule, timing]);
 
   const lockOpen =
     phase === "unlock" ||
