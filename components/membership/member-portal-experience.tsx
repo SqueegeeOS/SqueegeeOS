@@ -15,8 +15,18 @@ import {
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import { useMembershipUnlock } from "@/components/membership/unlock-provider";
 import { MemberPrivilegeCard } from "./member-privilege-card";
+import { MembershipActiveBadge } from "./membership-active-badge";
+import {
+  MemberAddOnServices,
+  MemberCareSummary,
+} from "./member-care-summary";
+import { resolveMemberPortalStatus } from "@/lib/membership/member-portal-status";
 
 const easeLuxury = [0.16, 1, 0.3, 1] as const;
+
+/** Daedalus reveal — portal card stagger after unlock ceremony */
+const REVEAL_STAGGER_S = 0.08;
+const REVEAL_RISE_PX = 20;
 
 interface MemberPortalExperienceProps {
   data: HomeCarePlanData;
@@ -37,7 +47,9 @@ function PortalCard({
   fromUnlock?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
-  const baseDelay = fromUnlock ? 1.1 : 0.4;
+  const baseDelay = fromUnlock ? 0.05 : 0.4;
+  const stagger = fromUnlock ? REVEAL_STAGGER_S : 0.14;
+  const rise = fromUnlock ? REVEAL_RISE_PX : 8;
   const className = `flex min-h-[60px] items-center justify-between rounded-2xl border px-5 py-5 transition-colors ${
     comingSoon
       ? "border-border/60 bg-surface/50 opacity-60"
@@ -45,11 +57,11 @@ function PortalCard({
   }`;
 
   const motionProps = {
-    initial: reduceMotion ? false : { opacity: 0, y: 8 },
+    initial: reduceMotion ? false : { opacity: 0, y: rise },
     animate: { opacity: 1, y: 0 },
     transition: {
-      duration: reduceMotion ? 0.15 : 1.1,
-      delay: reduceMotion ? 0 : baseDelay + index * 0.14,
+      duration: reduceMotion ? 0.15 : fromUnlock ? 0.55 : 1.1,
+      delay: reduceMotion ? 0 : baseDelay + index * stagger,
       ease: easeLuxury,
     },
     style: {
@@ -76,7 +88,7 @@ function PortalCard({
 
 export function MemberPortalExperience({
   data,
-  planName = "Preferred Membership",
+  planName,
 }: MemberPortalExperienceProps) {
   const planPath = `/homecare/${data.homeowner.slug}/${data.property.slug}/plan`;
   const reduceMotion = useReducedMotion();
@@ -91,7 +103,12 @@ export function MemberPortalExperience({
     );
   }, [data.homeowner.slug, data.property.slug]);
 
-  const entranceBase = fromUnlock ? 0.9 : 0.25;
+  const entranceBase = fromUnlock ? 0.05 : 0.25;
+  const careStatus = resolveMemberPortalStatus(
+    data,
+    planName ? { planName } : undefined,
+  );
+  const displayPlanName = careStatus.planName;
 
   return (
     <div className="min-h-[100svh] overflow-x-hidden bg-background text-foreground">
@@ -121,7 +138,7 @@ export function MemberPortalExperience({
         </motion.div>
 
         <div className="relative flex min-h-[52vh] flex-col justify-end px-5 pb-14 pt-28 sm:min-h-[58vh] sm:px-10 sm:pb-16">
-          <motion.p
+          <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
@@ -129,10 +146,13 @@ export function MemberPortalExperience({
               ease: easeLuxury,
               delay: reduceMotion ? 0 : entranceBase,
             }}
-            className="text-[10px] uppercase tracking-[0.28em] text-accent"
+            className="flex flex-wrap items-center gap-3"
           >
-            Member Portal
-          </motion.p>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
+              Member Portal
+            </p>
+            <MembershipActiveBadge variant="hero" />
+          </motion.div>
           <motion.h1
             initial={reduceMotion ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -170,7 +190,7 @@ export function MemberPortalExperience({
             }}
             className="mt-3 text-[10px] uppercase tracking-[0.22em] text-white/45"
           >
-            {data.property.name} · {planName}
+            {data.property.name} · {careStatus.planName}
           </motion.p>
         </div>
       </div>
@@ -188,8 +208,20 @@ export function MemberPortalExperience({
         >
           {fromUnlock
             ? "Everything here has been prepared for you. Your home is in capable hands."
-            : "Your membership is active. Everything below has been prepared for your home."}
+            : "Your membership is active. Your care schedule and member pricing are below."}
         </motion.p>
+
+        <MemberCareSummary
+          status={careStatus}
+          propertySlug={data.property.slug}
+          entranceDelay={entranceBase + 0.35}
+        />
+
+        <MemberAddOnServices
+          status={careStatus}
+          propertySlug={data.property.slug}
+          entranceDelay={entranceBase + 0.5}
+        />
 
         <div className="mt-10 space-y-4">
           <PortalCard href={planPath} index={0} fromUnlock={fromUnlock}>
@@ -222,7 +254,7 @@ export function MemberPortalExperience({
               }}
               onClick={() =>
                 beginMembershipUnlock(
-                  unlockContextFromPlanData(data, planName),
+                  unlockContextFromPlanData(data, displayPlanName),
                   { forceReplay: true, profile: "full" },
                 )
               }

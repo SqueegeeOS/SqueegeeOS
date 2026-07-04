@@ -20,8 +20,6 @@ export function StatusPulse({
   useEffect(() => {
     if (!active || reduceMotion) return;
     setPulseKey((k) => k + 1);
-    emitSound("data.refresh");
-    emitSound("status.pulse");
   }, [active, reduceMotion]);
 
   return (
@@ -30,10 +28,10 @@ export function StatusPulse({
         <motion.span
           key={pulseKey}
           aria-hidden
-          className="pointer-events-none absolute -inset-1 rounded-[inherit] border border-accent/25"
-          initial={{ opacity: 0.55, scale: 0.98 }}
-          animate={{ opacity: 0, scale: 1.04 }}
-          transition={{ duration: 1.8, ease: [0.16, 1, 0.3, 1] }}
+          className="pointer-events-none absolute -inset-px rounded-[inherit] border border-accent/20"
+          initial={{ opacity: 0.35 }}
+          animate={{ opacity: 0 }}
+          transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
         />
       )}
       {children}

@@ -46,7 +46,10 @@ import {
   HeadlineReveal,
   LineReveal,
 } from "@/components/motion/typography-reveal";
-import { headquartersGreeting } from "@/lib/motion/boot-sequence";
+import {
+  headquartersWelcomeLine,
+  type MotionProfile,
+} from "@/lib/motion/boot-sequence";
 import {
   HeadquartersCloudStatus,
   HeadquartersStatusCard,
@@ -74,9 +77,11 @@ import { MorningBriefSection } from "./morning-brief";
 export function AdminCommandCenter({
   initialLegacyBaseline,
   headquartersSync,
+  motionProfile = "none",
 }: {
   initialLegacyBaseline?: LegacyBaseline | null;
   headquartersSync?: HeadquartersSyncResult | null;
+  motionProfile?: MotionProfile;
 }) {
   const { response: googleReviewsResponse } = useGoogleReviewsClient();
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
@@ -325,11 +330,11 @@ export function AdminCommandCenter({
   );
 
   return (
-    <BootProvider>
-      <AmbientFieldScoped>
+    <BootProvider profile={motionProfile}>
+      <AmbientFieldScoped variant="minimal">
         <div className="relative min-h-[100svh] overflow-x-hidden pb-24">
           <div className="relative mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14 lg:px-10">
-            <BootLayer layer="navigation">
+            <BootLayer layer="navigation" subtle>
               <header className="flex flex-col gap-6 border-b border-border/70 pb-10 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.32em] text-muted">
@@ -340,25 +345,22 @@ export function AdminCommandCenter({
                   </p>
                   <HeadlineReveal
                     as="h1"
-                    text={headquartersGreeting("Noah")}
+                    mode="line"
+                    text={headquartersWelcomeLine()}
                     className="mt-4 font-serif text-4xl font-light leading-[1.05] text-foreground sm:text-6xl"
-                    delay={0.12}
-                    wordDelay={0.055}
+                    delay={motionProfile === "full" ? 0.1 : 0}
                   />
                   <LineReveal
                     className="mt-4 max-w-2xl text-base leading-relaxed text-muted sm:text-lg"
-                    delay={0.48}
+                    delay={motionProfile === "full" ? 0.22 : 0}
                   >
-                    Welcome back, Dasan. Your company is alive. Let&apos;s
-                    continue building it today.
+                    Your company is alive. Let&apos;s continue building it
+                    today.
                   </LineReveal>
                   {showOsAwaitingBanner && (
-                    <LineReveal
-                      className="mt-4 text-sm text-muted/80"
-                      delay={0.72}
-                    >
+                    <p className="mt-4 text-sm text-muted/80">
                       The Operating System is ready for its first logged sale.
-                    </LineReveal>
+                    </p>
                   )}
                 </div>
                 {topBar}
@@ -540,7 +542,7 @@ export function AdminCommandCenter({
           </AdminSection>
         </div>
 
-        <BootLayer layer="footer">
+        <BootLayer layer="footer" subtle>
           <footer className="mt-10 space-y-4 rounded-[1.5rem] border border-border/70 bg-surface/40 px-5 py-4 text-xs leading-relaxed text-muted sm:px-6">
             <p className="text-[10px] uppercase tracking-[0.2em] text-muted/50">
               {PLATFORM_BRAND.poweredByLabel}

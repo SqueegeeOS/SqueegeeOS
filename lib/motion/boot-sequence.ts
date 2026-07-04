@@ -1,44 +1,65 @@
 /**
- * Headquarters boot choreography — nothing appears all at once.
- * The page should feel like a luxury OS booting.
+ * Headquarters boot choreography — restrained, hierarchical, fast enough to work daily.
  */
 export const HQ_BOOT_LAYERS = {
   ambient: 0,
-  glow: 0.14,
-  navigation: 0.32,
-  greeting: 0.48,
-  heroTitle: 0.68,
-  heroSubtitle: 0.88,
-  morningBrief: 1.08,
-  statCards: 1.32,
-  charts: 1.58,
-  reviews: 1.52,
-  missions: 1.78,
-  sidebar: 1.42,
-  sections: 1.95,
-  footer: 2.35,
-  settle: 2.6,
+  navigation: 0.08,
+  morningBrief: 0.18,
+  reviews: 0.22,
+  statCards: 0.28,
+  charts: 0.34,
+  missions: 0.38,
+  sections: 0.42,
+  footer: 0.48,
+  settle: 0.55,
+} as const;
+
+/** After arrival ceremony — metrics only, no repeated hero theater. */
+export const HQ_BOOT_LAYERS_SETTLE = {
+  ambient: 0,
+  navigation: 0,
+  morningBrief: 0.06,
+  reviews: 0.08,
+  statCards: 0.1,
+  charts: 0.14,
+  missions: 0.16,
+  sections: 0.18,
+  footer: 0,
+  settle: 0.22,
 } as const;
 
 export type BootLayerKey = keyof typeof HQ_BOOT_LAYERS;
 
-export const HQ_BOOT_DURATION_MS = 2800;
+export type MotionProfile = "full" | "settle" | "none";
+
+export const HQ_BOOT_DURATION_MS = 1600;
+export const HQ_BOOT_DURATION_SETTLE_MS = 450;
 
 export function bootLayerDelay(
   layer: BootLayerKey,
   staggerIndex = 0,
-  reducedMotion = false,
+  profile: MotionProfile = "full",
 ): number {
-  if (reducedMotion) return 0;
-  return HQ_BOOT_LAYERS[layer] + staggerIndex * 0.075;
+  if (profile === "none") return 0;
+
+  const table =
+    profile === "settle" ? HQ_BOOT_LAYERS_SETTLE : HQ_BOOT_LAYERS;
+  const stagger = profile === "settle" ? 0.04 : 0.055;
+  return table[layer] + staggerIndex * stagger;
 }
 
-/** Time-aware greeting for HQ unlock */
-export function headquartersGreeting(firstName = "Noah"): string {
+export function bootDurationMs(profile: MotionProfile): number {
+  if (profile === "none") return 0;
+  if (profile === "settle") return HQ_BOOT_DURATION_SETTLE_MS;
+  return HQ_BOOT_DURATION_MS;
+}
+
+/** Single welcome line for HQ — both founders, one voice. */
+export function headquartersWelcomeLine(): string {
   const hour = new Date().getHours();
-  if (hour < 12) return `Good morning, ${firstName}.`;
-  if (hour < 17) return `Good afternoon, ${firstName}.`;
-  return `Good evening, ${firstName}.`;
+  if (hour < 12) return "Good morning, Noah & Dasan.";
+  if (hour < 17) return "Good afternoon, Noah & Dasan.";
+  return "Good evening, Noah & Dasan.";
 }
 
 export const HQ_SESSION_BOOT_KEY = "squeegeeking:hq-session-booted";

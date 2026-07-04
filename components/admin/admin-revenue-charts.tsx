@@ -4,9 +4,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import type { ChartPoint } from "@/lib/admin/closed-jobs-types";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
-import { spring } from "@/lib/motion/system";
+import { riseSubtle, spring } from "@/lib/motion/system";
 import { useBootLayerDelay } from "@/components/motion/boot-provider";
-import { CursorSurface } from "@/components/motion/cursor-surface";
 import { CountValue } from "@/components/motion/count-value";
 
 interface RevenueLineChartProps {
@@ -81,8 +80,11 @@ export function RevenueLineChart({
   }
 
   return (
-    <CursorSurface
-      as="div"
+    <motion.div
+      initial={reduceMotion ? false : "hidden"}
+      animate="visible"
+      variants={riseSubtle}
+      transition={{ delay }}
       className="rounded-[1.5rem] border border-border/80 bg-gradient-to-b from-surface/70 to-background/20 p-5 sm:p-6"
     >
       <div className="flex items-start justify-between gap-4">
@@ -125,7 +127,7 @@ export function RevenueLineChart({
               pathLength: drawReady ? 1 : 0,
               opacity: drawReady ? 1 : 0.4,
             }}
-            transition={{ ...spring.draw, delay: delay + 0.08 }}
+            transition={{ ...spring.draw, delay: delay + 0.06 }}
           />
         </svg>
         <div className="mt-3 flex justify-between gap-2 text-[10px] uppercase tracking-[0.16em] text-muted/70">
@@ -134,7 +136,7 @@ export function RevenueLineChart({
           ))}
         </div>
       </div>
-    </CursorSurface>
+    </motion.div>
   );
 }
 

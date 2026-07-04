@@ -2,33 +2,51 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
-import { headlineWord } from "@/lib/motion/system";
+import { headlineLine, headlineWord, spring } from "@/lib/motion/system";
 
 export function HeadlineReveal({
   text,
   className = "",
   delay = 0,
-  wordDelay = 0.055,
+  wordDelay = 0.04,
   as: Tag = "span",
+  mode = "line",
 }: {
   text: string;
   className?: string;
   delay?: number;
   wordDelay?: number;
   as?: "h1" | "h2" | "h3" | "span" | "p";
+  /** Prefer `line` for product UI; `word` only for ceremonies. */
+  mode?: "line" | "word";
 }) {
   const reduceMotion = useReducedMotion();
-  const words = text.split(/\s+/).filter(Boolean);
 
   if (reduceMotion) {
     const Static = Tag;
     return <Static className={className}>{text}</Static>;
   }
 
+  if (mode === "line") {
+    const MotionTag = motion[Tag as "span"];
+    return (
+      <MotionTag
+        className={className}
+        variants={headlineLine}
+        initial="hidden"
+        animate="visible"
+        transition={{ delay }}
+      >
+        {text}
+      </MotionTag>
+    );
+  }
+
+  const words = text.split(/\s+/).filter(Boolean);
   const MotionTag = motion[Tag as "span"];
 
   return (
-    <MotionTag className={className} aria-label={text}>
+    <MotionTag className={className}>
       {words.map((word, index) => (
         <motion.span
           key={`${word}-${index}`}
@@ -37,8 +55,7 @@ export function HeadlineReveal({
           animate="visible"
           transition={{ delay: delay + index * wordDelay }}
           className="inline-block"
-          style={{ marginRight: "0.28em" }}
-          aria-hidden
+          style={{ marginRight: "0.25em" }}
         >
           {word}
         </motion.span>
@@ -65,9 +82,9 @@ export function LineReveal({
   return (
     <motion.p
       className={className}
-      initial={{ opacity: 0, filter: "blur(8px)", y: 6 }}
-      animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-      transition={{ delay, duration: 0.85, ease: [0.16, 1, 0.3, 1] }}
+      initial={{ opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay, ...spring.settle }}
     >
       {children}
     </motion.p>

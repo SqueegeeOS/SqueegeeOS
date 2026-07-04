@@ -18,6 +18,7 @@ import {
   type LegacyBaseline,
 } from "@/lib/admin/legacy-baseline";
 import { isAdminUnlocked } from "@/lib/admin/pin";
+import type { MotionProfile } from "@/lib/motion/boot-sequence";
 import {
   markHeadquartersBootComplete,
   shouldRunHeadquartersBoot,
@@ -34,6 +35,8 @@ export function AdminExperience() {
   );
   const [importingDraft, setImportingDraft] = useState(false);
   const [showArrival, setShowArrival] = useState(false);
+  const [hqMotionProfile, setHqMotionProfile] = useState<MotionProfile>("none");
+  const [hqVisible, setHqVisible] = useState(false);
 
   const applySyncResult = useCallback((result: HeadquartersSyncResult) => {
     setLegacyBaseline(result.baseline);
@@ -69,7 +72,15 @@ export function AdminExperience() {
 
   useEffect(() => {
     if (!ready || !onboardingComplete) return;
-    setShowArrival(shouldRunHeadquartersBoot());
+    const runArrival = shouldRunHeadquartersBoot();
+    setShowArrival(runArrival);
+    if (runArrival) {
+      setHqVisible(false);
+      setHqMotionProfile("settle");
+    } else {
+      setHqVisible(true);
+      setHqMotionProfile("none");
+    }
   }, [onboardingComplete, ready]);
 
   const handleOnboardingComplete = useCallback(
@@ -99,6 +110,8 @@ export function AdminExperience() {
   const handleArrivalComplete = useCallback(() => {
     markHeadquartersBootComplete();
     setShowArrival(false);
+    setHqVisible(true);
+    setHqMotionProfile("settle");
   }, []);
 
   if (!ready) {
@@ -179,10 +192,13 @@ export function AdminExperience() {
           onImport={() => void handleImportDraft()}
         />
       )}
-      <AdminCommandCenter
-        initialLegacyBaseline={legacyBaseline}
-        headquartersSync={syncResult}
-      />
+      {hqVisible && (
+        <AdminCommandCenter
+          initialLegacyBaseline={legacyBaseline}
+          headquartersSync={syncResult}
+          motionProfile={hqMotionProfile}
+        />
+      )}
     </>
   );
 }

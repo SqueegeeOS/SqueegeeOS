@@ -2,9 +2,8 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
-import { navigationEnter } from "@/lib/motion/system";
+import { riseSubtle } from "@/lib/motion/system";
 import { useBootLayerDelay } from "@/components/motion/boot-provider";
-import { CursorSurface } from "@/components/motion/cursor-surface";
 
 export function AdminSection({
   eyebrow,
@@ -14,7 +13,6 @@ export function AdminSection({
   layer = "sections",
   index = 0,
   id,
-  interactive = true,
 }: {
   eyebrow: string;
   title: string;
@@ -23,37 +21,31 @@ export function AdminSection({
   layer?: "sections" | "morningBrief" | "missions";
   index?: number;
   id?: string;
-  interactive?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const delay = useBootLayerDelay(layer, index);
 
   return (
-    <CursorSurface
-      as="section"
-      disabled={!interactive}
+    <motion.section
       id={id}
+      initial={reduceMotion ? false : "hidden"}
+      animate="visible"
+      variants={riseSubtle}
+      transition={{ delay }}
       className="rounded-[2rem] border border-border/80 bg-surface/55 p-6 backdrop-blur-sm sm:p-8"
     >
-      <motion.div
-        initial={reduceMotion ? false : "hidden"}
-        animate="visible"
-        variants={navigationEnter}
-        transition={{ delay }}
-      >
-        <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
-          {eyebrow}
+      <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 font-serif text-2xl font-light text-foreground sm:text-3xl">
+        {title}
+      </h2>
+      {description && (
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
+          {description}
         </p>
-        <h2 className="mt-3 font-serif text-2xl font-light text-foreground sm:text-3xl">
-          {title}
-        </h2>
-        {description && (
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
-            {description}
-          </p>
-        )}
-        <div className="mt-6">{children}</div>
-      </motion.div>
-    </CursorSurface>
+      )}
+      <div className="mt-6">{children}</div>
+    </motion.section>
   );
 }

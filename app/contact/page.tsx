@@ -9,6 +9,37 @@ export const metadata: Metadata = {
   description: `Reach ${CUSTOMER_BRAND.name} in ${CUSTOMER_BRAND.location}.`,
 };
 
-export default function ContactPage() {
-  return <ContactPageContent phone={SQUEEGEEKING_PHONE} />;
+export default function ContactPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    topic?: string;
+    property?: string;
+    service?: string;
+  }>;
+}) {
+  return (
+    <ContactPageWrapper searchParams={searchParams} />
+  );
+}
+
+async function ContactPageWrapper({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    topic?: string;
+    property?: string;
+    service?: string;
+  }>;
+}) {
+  const params = searchParams ? await searchParams : undefined;
+
+  return (
+    <ContactPageContent
+      phone={SQUEEGEEKING_PHONE}
+      topic={params?.topic ?? null}
+      propertySlug={params?.property ?? null}
+      serviceId={params?.service ?? null}
+    />
+  );
 }

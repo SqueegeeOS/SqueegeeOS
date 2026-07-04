@@ -6,7 +6,8 @@ import Link from "next/link";
 import { CUSTOMER_BRAND, CUSTOMER_CTAS } from "@/lib/brand/customer";
 import { sampleHomeCarePlanPath } from "@/lib/acquisition/types";
 import { MeetTheFounders } from "@/components/team/meet-the-founders";
-import { AmbientGlow, Eyebrow, Reveal, easeLuxury } from "./ui";
+import { CursorSpotlightPage } from "@/components/motion/cursor-spotlight";
+import { Eyebrow, Reveal, easeLuxury } from "./ui";
 
 const pillars = [
   {
@@ -30,9 +31,7 @@ export function PublicLanding() {
   const reduceMotion = useReducedMotion();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-background">
-      <AmbientGlow />
-
+    <CursorSpotlightPage intensity="bright">
       <section className="relative flex min-h-[100svh] flex-col">
         <div className="absolute inset-0">
           <Image
@@ -152,6 +151,6 @@ export function PublicLanding() {
           Team Login
         </Link>
       </footer>
-    </div>
+    </CursorSpotlightPage>
   );
 }

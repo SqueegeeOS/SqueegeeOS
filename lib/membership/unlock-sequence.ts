@@ -1,18 +1,20 @@
 /**
- * Membership Unlock Sequence — ceremonial transition from customer to member.
- * Cinematic, slow, confident. Triggered after successful Stripe Checkout.
+ * Membership Unlock Sequence — Daedalus Motion Spec v1.
+ * Triggered after successful Stripe Checkout.
  */
 
+import {
+  getDaedalusTotalMs,
+  scaleDaedalusPhases,
+} from "./unlock-daedalus";
+
 export type UnlockSequencePhase =
-  | "fade"
-  | "lock"
-  | "keyApproach"
-  | "keyTurn"
-  | "unlock"
-  | "burst"
-  | "welcomeOne"
-  | "welcomeTwo"
-  | "portal"
+  | "approach"
+  | "insert"
+  | "turn"
+  | "release"
+  | "bloom"
+  | "reveal"
   | "done";
 
 export type UnlockTimingProfile = "full" | "fast";
@@ -38,37 +40,11 @@ export type UnlockPlayback =
   | { action: "ceremony"; profile: UnlockTimingProfile }
   | { action: "skip" };
 
-/** ~11s — first-time signature moment (default) */
-export const UNLOCK_TIMING_FULL = {
-  fade: 800,
-  lockAppear: 1200,
-  pauseBeforeKey: 700,
-  keyApproach: 1500,
-  keyTurn: 1000,
-  lockOpen: 900,
-  lightBloom: 2000,
-  welcomeOne: 2200,
-  welcomeBreath: 1400,
-  welcomeTwo: 2600,
-  portalHandoff: 900,
-  skipAvailableAfter: 1500,
-} as const;
+/** Daedalus v1 — 4000ms full ceremony */
+export const UNLOCK_TIMING_FULL = scaleDaedalusPhases(1);
 
-/** ~5.6s — production fast mode for real customers */
-export const UNLOCK_TIMING_FAST = {
-  fade: 350,
-  lockAppear: 500,
-  pauseBeforeKey: 300,
-  keyApproach: 650,
-  keyTurn: 500,
-  lockOpen: 400,
-  lightBloom: 700,
-  welcomeOne: 900,
-  welcomeBreath: 600,
-  welcomeTwo: 1100,
-  portalHandoff: 400,
-  skipAvailableAfter: 1500,
-} as const;
+/** ~2200ms — same choreography, compressed */
+export const UNLOCK_TIMING_FAST = scaleDaedalusPhases(0.55);
 
 export const UNLOCK_WELCOME_COPY = {
   family: "Welcome to the SqueegeeKing Family.",
@@ -83,25 +59,12 @@ export function getUnlockTiming(profile: UnlockTimingProfile) {
 }
 
 export function getUnlockSequenceTotalMs(profile: UnlockTimingProfile): number {
-  const t = getUnlockTiming(profile);
-  return (
-    t.fade +
-    t.lockAppear +
-    t.pauseBeforeKey +
-    t.keyApproach +
-    t.keyTurn +
-    t.lockOpen +
-    t.lightBloom +
-    t.welcomeOne +
-    t.welcomeBreath +
-    t.welcomeTwo +
-    t.portalHandoff
-  );
+  return getDaedalusTotalMs(profile);
 }
 
 /**
- * Production timing: set NEXT_PUBLIC_UNLOCK_TIMING=fast on Vercel for ~5–6s ceremony.
- * Default (unset or "full") keeps the ~11s signature moment.
+ * Production timing: set NEXT_PUBLIC_UNLOCK_TIMING=fast on Vercel for ~2.2s ceremony.
+ * Default (unset or "full") keeps the 4s Daedalus v1 spec.
  */
 export function getProductionUnlockTimingProfile(): UnlockTimingProfile {
   const value = process.env.NEXT_PUBLIC_UNLOCK_TIMING;

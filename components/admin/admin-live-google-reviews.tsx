@@ -8,10 +8,9 @@ import { useGoogleReviewsClient } from "@/lib/reviews/use-google-reviews-client"
 import { buildReviewsTitle } from "@/components/reviews/review-card";
 import { ROUTES } from "@/lib/navigation/config";
 import { useBootLayerDelay } from "@/components/motion/boot-provider";
-import { CursorSurface } from "@/components/motion/cursor-surface";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { StatusPulse } from "@/components/motion/status-pulse";
-import { materialize } from "@/lib/motion/system";
+import { riseSubtle } from "@/lib/motion/system";
 
 interface ProductionPlaceStatus {
   configured: boolean;
@@ -82,97 +81,93 @@ export function AdminLiveGoogleReviews() {
 
   return (
     <StatusPulse active={freshPulse}>
-      <CursorSurface
-        as="article"
+      <motion.article
+        initial={reduceMotion ? false : "hidden"}
+        animate="visible"
+        variants={riseSubtle}
+        transition={{ delay }}
         className="rounded-[1.75rem] border border-border/60 bg-background/30 px-6 py-5 sm:px-7"
       >
-        <motion.div
-          initial={reduceMotion ? false : "hidden"}
-          animate="visible"
-          variants={materialize}
-          transition={{ delay }}
-        >
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
-              Google Reviews
-            </p>
-            <span
-              className={`rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.16em] ${
-                wrongPlace
-                  ? "border-amber-500/40 text-amber-700"
-                  : isLive
-                    ? "border-accent/30 text-accent"
-                    : "border-border text-muted/70"
-              }`}
-            >
-              {wrongPlace
-                ? "Wrong place?"
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
+            Google Reviews
+          </p>
+          <span
+            className={`rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.16em] ${
+              wrongPlace
+                ? "border-amber-500/40 text-amber-700"
                 : isLive
-                  ? "Live"
-                  : response?.status ?? "unavailable"}
-            </span>
-          </div>
+                  ? "border-accent/30 text-accent"
+                  : "border-border text-muted/70"
+            }`}
+          >
+            {wrongPlace
+              ? "Wrong place?"
+              : isLive
+                ? "Live"
+                : response?.status ?? "unavailable"}
+          </span>
+        </div>
 
-          {wrongPlace && production?.mismatchReason && (
-            <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3 text-xs leading-relaxed text-amber-900">
-              <p className="font-medium text-amber-950">
-                Connected Place may not be SqueegeeKing
-              </p>
-              <p className="mt-1">
-                Production{" "}
-                <code className="text-[10px]">GOOGLE_PLACE_ID</code> resolves to{" "}
-                <strong>{production.businessName ?? "unknown"}</strong>
-                {production.rating != null && production.reviewCount != null
-                  ? ` (${production.rating.toFixed(1)} stars · ${production.reviewCount} reviews)`
-                  : ""}
-                . Expected ~5.0 stars and ~116 reviews for SqueegeeKing.
-              </p>
-              {production.placeId && (
-                <p className="mt-2 font-mono text-[10px] text-amber-950/80">
-                  {production.placeId}
-                </p>
-              )}
-              <Link
-                href={ROUTES.setupGoogleReviews}
-                className="mt-3 inline-block text-[10px] uppercase tracking-[0.18em] text-amber-950 underline"
-              >
-                Reconnect via Google Business OAuth →
-              </Link>
-            </div>
-          )}
-
-          {isLive && data ? (
-            <>
-              <p className="mt-3 font-serif text-3xl font-light text-foreground">
-                {buildReviewsTitle(data)}
-              </p>
-              {production?.businessName && (
-                <p className="mt-2 text-sm text-foreground/85">
-                  {production.businessName}
-                </p>
-              )}
-              <p className="mt-2 text-xs leading-relaxed text-muted">
-                Pulled from Google Places — same source as the website and Home
-                Care Plans. Cached up to 8 hours.
-              </p>
-            </>
-          ) : (
-            <p className="mt-3 text-sm leading-relaxed text-muted">
-              {response?.message ?? "Google reviews temporarily unavailable."}
-              {!isLive && (
-                <span className="mt-3 block">
-                  <Link
-                    href={ROUTES.setupGoogleReviews}
-                    className="text-[10px] uppercase tracking-[0.18em] text-accent hover:underline"
-                  >
-                    Open Google Reviews setup wizard →
-                  </Link>
-                </span>
-              )}
+        {wrongPlace && (
+          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.06] px-4 py-3 text-xs leading-relaxed text-amber-900">
+            <p className="font-medium text-amber-950">
+              Connected Place may not be SqueegeeKing
             </p>
-          )}
-        </motion.div>
-      </CursorSurface>
+            <p className="mt-1">
+              Production{" "}
+              <code className="text-[10px]">GOOGLE_PLACE_ID</code> resolves to{" "}
+              <strong>{production.businessName ?? "unknown"}</strong>
+              {production.rating != null && production.reviewCount != null
+                ? ` (${production.rating.toFixed(1)} stars · ${production.reviewCount} reviews)`
+                : ""}
+              . Expected ~5.0 stars and ~116 reviews for SqueegeeKing.
+            </p>
+            {production.placeId && (
+              <p className="mt-2 font-mono text-[10px] text-amber-950/80">
+                {production.placeId}
+              </p>
+            )}
+            <Link
+              href={ROUTES.setupGoogleReviews}
+              className="mt-3 inline-block text-[10px] uppercase tracking-[0.18em] text-amber-950 underline"
+            >
+              Reconnect via Google Business OAuth →
+            </Link>
+          </div>
+        )}
+
+        {isLive && data ? (
+          <>
+            <p className="mt-3 font-serif text-3xl font-light text-foreground">
+              {buildReviewsTitle(data)}
+            </p>
+            {production?.businessName && (
+              <p className="mt-2 text-sm text-foreground/85">
+                {production.businessName}
+              </p>
+            )}
+            <p className="mt-2 text-xs leading-relaxed text-muted">
+              Pulled from Google Places — same source as the website and Home
+              Care Plans. Cached up to 8 hours.
+            </p>
+          </>
+        ) : (
+          <p className="mt-3 text-sm leading-relaxed text-muted">
+            {response?.message ?? "Google reviews temporarily unavailable."}
+            {!isLive && (
+              <span className="mt-3 block">
+                <Link
+                  href={ROUTES.setupGoogleReviews}
+                  className="text-[10px] uppercase tracking-[0.18em] text-accent hover:underline"
+                >
+                  Open Google Reviews setup wizard →
+                </Link>
+              </span>
+            )}
+          </p>
+        )}
+      </motion.article>
     </StatusPulse>
   );
 }

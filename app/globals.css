@@ -47,6 +47,28 @@ body {
   line-height: 1.5;
 }
 
+@keyframes active-pulse-ring {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+.motion-active-pulse-ring {
+  animation: active-pulse-ring 2.8s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-active-pulse-ring {
+    animation: none;
+  }
+}
+
 @keyframes member-portal-shimmer {
   0%,
   100% {
@@ -91,10 +113,11 @@ body {
 .motion-mouse-glow {
   background: radial-gradient(
     640px circle at var(--mouse-x, 50%) var(--mouse-y, 40%),
-    rgba(201, 184, 150, 0.07),
-    transparent 48%
+    rgba(255, 248, 235, 0.08),
+    rgba(201, 184, 150, 0.04) 28%,
+    transparent 52%
   );
-  transition: background 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .motion-caret {

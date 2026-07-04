@@ -1,5 +1,6 @@
 "use client";
 
+import { MembershipActiveBadge } from "@/components/membership/membership-active-badge";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -159,13 +160,14 @@ export function MobileMenu({
                 aria-current={
                   isActiveNavItem(activePath, portalItem.href) ? "page" : undefined
                 }
-                className={`flex min-h-[44px] w-full items-center justify-center rounded-full border text-[10px] uppercase tracking-[0.2em] transition-all duration-300 touch-manipulation ${
+                className={`flex min-h-[44px] w-full items-center justify-center gap-2.5 rounded-full border text-[10px] uppercase tracking-[0.2em] transition-all duration-300 touch-manipulation ${
                   isActiveNavItem(activePath, portalItem.href)
                     ? "border-accent/45 bg-accent/[0.06] text-accent"
                     : "border-accent/30 text-accent/85 hover:border-accent/45"
                 }`}
               >
-                {portalItem.label}
+                <span>{portalItem.label}</span>
+                <MembershipActiveBadge variant="navLight" className="py-0.5" />
               </Link>
             </div>
           )}

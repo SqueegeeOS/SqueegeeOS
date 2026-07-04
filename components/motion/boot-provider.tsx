@@ -11,13 +11,15 @@ import {
 } from "react";
 import { useReducedMotion } from "framer-motion";
 import {
+  bootDurationMs,
   bootLayerDelay,
-  HQ_BOOT_DURATION_MS,
   type BootLayerKey,
+  type MotionProfile,
 } from "@/lib/motion/boot-sequence";
 import { emitSound } from "@/lib/motion/sound-events";
 
 interface BootContextValue {
+  profile: MotionProfile;
   booting: boolean;
   complete: boolean;
   layerDelay: (layer: BootLayerKey, staggerIndex?: number) => number;
@@ -25,13 +27,20 @@ interface BootContextValue {
 
 const BootContext = createContext<BootContextValue | null>(null);
 
-export function BootProvider({ children }: { children: ReactNode }) {
+export function BootProvider({
+  children,
+  profile = "full",
+}: {
+  children: ReactNode;
+  profile?: MotionProfile;
+}) {
   const reduceMotion = useReducedMotion();
-  const [booting, setBooting] = useState(!reduceMotion);
-  const [complete, setComplete] = useState(!!reduceMotion);
+  const effectiveProfile: MotionProfile = reduceMotion ? "none" : profile;
+  const [booting, setBooting] = useState(effectiveProfile !== "none");
+  const [complete, setComplete] = useState(effectiveProfile === "none");
 
   useEffect(() => {
-    if (reduceMotion) {
+    if (effectiveProfile === "none") {
       setBooting(false);
       setComplete(true);
       return;
@@ -40,24 +49,32 @@ export function BootProvider({ children }: { children: ReactNode }) {
     setBooting(true);
     setComplete(false);
 
+    const duration = bootDurationMs(effectiveProfile);
     const timer = window.setTimeout(() => {
       setBooting(false);
       setComplete(true);
-      emitSound("boot.complete");
-    }, HQ_BOOT_DURATION_MS);
+      if (effectiveProfile === "full") {
+        emitSound("boot.complete");
+      }
+    }, duration);
 
     return () => window.clearTimeout(timer);
-  }, [reduceMotion]);
+  }, [effectiveProfile]);
 
   const layerDelay = useCallback(
     (layer: BootLayerKey, staggerIndex = 0) =>
-      bootLayerDelay(layer, staggerIndex, !!reduceMotion),
-    [reduceMotion],
+      bootLayerDelay(layer, staggerIndex, effectiveProfile),
+    [effectiveProfile],
   );
 
   const value = useMemo(
-    () => ({ booting, complete, layerDelay }),
-    [booting, complete, layerDelay],
+    () => ({
+      profile: effectiveProfile,
+      booting,
+      complete,
+      layerDelay,
+    }),
+    [booting, complete, effectiveProfile, layerDelay],
   );
 
   return (
@@ -69,10 +86,10 @@ export function useBoot(): BootContextValue {
   const ctx = useContext(BootContext);
   if (!ctx) {
     return {
+      profile: "none",
       booting: false,
       complete: true,
-      layerDelay: (layer, staggerIndex = 0) =>
-        bootLayerDelay(layer, staggerIndex, true),
+      layerDelay: () => 0,
     };
   }
   return ctx;

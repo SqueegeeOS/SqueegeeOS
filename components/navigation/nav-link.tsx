@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { MembershipActiveBadge } from "@/components/membership/membership-active-badge";
 
 interface NavLinkProps {
   href: string;
@@ -29,7 +30,7 @@ export function NavLink({
         href={href}
         onClick={onClick}
         aria-current={active ? "page" : undefined}
-        className={`inline-flex min-h-[34px] items-center rounded-full border px-3.5 py-1.5 text-[10px] uppercase tracking-[0.2em] transition-all duration-300 touch-manipulation ${
+        className={`inline-flex min-h-[34px] items-center gap-2.5 rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.2em] transition-all duration-300 touch-manipulation ${
           active
             ? "border-accent/45 bg-accent/[0.06] text-accent shadow-[0_0_20px_rgba(201,184,150,0.12)]"
             : light
@@ -37,7 +38,11 @@ export function NavLink({
               : "border-accent/30 text-accent/85 hover:border-accent/45 hover:bg-accent/[0.04]"
         } ${className}`}
       >
-        {label}
+        <span>{label}</span>
+        <MembershipActiveBadge
+          variant={light ? "nav" : "navLight"}
+          className="py-0.5"
+        />
       </Link>
     );
   }
