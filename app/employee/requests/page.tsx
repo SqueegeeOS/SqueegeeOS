@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { EmployeePlaceholderPage } from "@/components/navigation/employee-placeholder-page";
 import { ROUTES } from "@/lib/navigation/config";
+import { platformPageTitle } from "@/lib/brand/platform";
 
 export const metadata: Metadata = {
-  title: "Requests | SqueegeeOS",
+  title: platformPageTitle("Requests"),
   description: "Incoming homeowner requests and plan inquiries.",
 };
 

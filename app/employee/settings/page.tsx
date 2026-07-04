@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { EmployeePlaceholderPage } from "@/components/navigation/employee-placeholder-page";
+import { platformPageTitle } from "@/lib/brand/platform";
 
 export const metadata: Metadata = {
-  title: "Settings | SqueegeeOS",
+  title: platformPageTitle("Settings"),
   description: "Employee preferences and platform settings.",
 };
 

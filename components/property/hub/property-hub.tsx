@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import { homeowner } from "@/lib/property/mock-data";
 import { stagger } from "@/lib/property/motion";
 import { PropertyCard } from "./property-card";
@@ -94,7 +95,7 @@ export function PropertyHub() {
 
         <Reveal delay={0.2} className="mt-16 text-center sm:mt-20">
           <p className="font-serif text-sm font-light tracking-[0.25em] text-muted/50">
-            SqueegeeOS Property Hub
+            {PLATFORM_BRAND.poweredByLabel}
           </p>
         </Reveal>
       </div>

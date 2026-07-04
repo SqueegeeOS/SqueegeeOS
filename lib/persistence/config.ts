@@ -6,6 +6,7 @@
  * - NEXT_PUBLIC_SUPABASE_ENABLED=true
  * - NEXT_PUBLIC_PERSISTENCE_BACKEND=supabase (default when enabled)
  */
+import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import { isSupabaseConfigured } from "./supabase/client";
 
 export const PERSISTENCE_CONFIG = {
@@ -37,6 +38,6 @@ export const PERSISTENCE_UI_COPY = {
   localBadge: "Local Storage Only",
   localFallback:
     "Loaded from local browser cache — cloud copy not found for this plan.",
-  cloudConnected: "Saved to SqueegeeOS cloud",
+  cloudConnected: `Saved to ${PLATFORM_BRAND.name} cloud`,
   cloudBadge: "Cloud Storage",
 } as const;

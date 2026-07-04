@@ -11,6 +11,24 @@ export function isGoogleBusinessOAuthConfigured(): boolean {
   );
 }
 
+export function getGoogleOAuthConfigStatus(): {
+  clientIdConfigured: boolean;
+  clientSecretConfigured: boolean;
+  configured: boolean;
+} {
+  const clientIdConfigured = Boolean(
+    process.env.GOOGLE_OAUTH_CLIENT_ID?.trim(),
+  );
+  const clientSecretConfigured = Boolean(
+    process.env.GOOGLE_OAUTH_CLIENT_SECRET?.trim(),
+  );
+  return {
+    clientIdConfigured,
+    clientSecretConfigured,
+    configured: clientIdConfigured && clientSecretConfigured,
+  };
+}
+
 export function getGoogleOAuthClientId(): string {
   const id = process.env.GOOGLE_OAUTH_CLIENT_ID?.trim();
   if (!id) throw new Error("GOOGLE_OAUTH_CLIENT_ID is not configured");

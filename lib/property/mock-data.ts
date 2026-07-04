@@ -2,7 +2,7 @@ import type { PropertyHubContext } from "./types";
 
 export const propertyHubContext: PropertyHubContext = {
   company: {
-    name: "SqueegeeOS",
+    name: "SqueegeeKing",
     slug: "squeegeeos",
   },
   homeowner: {

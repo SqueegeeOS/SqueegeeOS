@@ -34,6 +34,7 @@ import { HEADQUARTERS_PURPOSE } from "@/lib/admin/company-philosophy";
 import { computeOsTimeline } from "@/lib/admin/os-timeline";
 import { ROUTES } from "@/lib/navigation/config";
 import type { HeadquartersSyncResult } from "@/lib/admin/headquarters-profile-client";
+import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import { buildMorningBrief } from "@/lib/concierge/build-morning-brief";
 import { toGoogleReviewsSnapshot } from "@/lib/concierge/rules";
 import { useGoogleReviewsClient } from "@/lib/reviews/use-google-reviews-client";
@@ -336,6 +337,9 @@ export function AdminCommandCenter({
             <p className="text-[10px] uppercase tracking-[0.32em] text-muted">
               SqueegeeKing Headquarters
             </p>
+            <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-muted/60">
+              {PLATFORM_BRAND.poweredByLabel}
+            </p>
             <h1 className="mt-4 font-serif text-4xl font-light leading-[1.05] text-foreground sm:text-6xl">
               Welcome back, Noah &amp; Dasan.
             </h1>
@@ -532,6 +536,9 @@ export function AdminCommandCenter({
           transition={{ delay: 0.3, duration: 0.8 }}
           className="mt-10 space-y-4 rounded-[1.5rem] border border-border/70 bg-surface/40 px-5 py-4 text-xs leading-relaxed text-muted sm:px-6"
         >
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted/50">
+            {PLATFORM_BRAND.poweredByLabel}
+          </p>
           <p className="max-w-2xl text-muted/60 italic">
             {HEADQUARTERS_PURPOSE}
           </p>

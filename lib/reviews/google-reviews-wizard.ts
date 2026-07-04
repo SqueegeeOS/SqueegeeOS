@@ -37,6 +37,8 @@ export const GOOGLE_CONSOLE_LINKS = {
   placesApiLegacy:
     "https://console.cloud.google.com/marketplace/product/google/places.googleapis.com",
   credentials: "https://console.cloud.google.com/apis/credentials",
+  oauthCreateClient:
+    "https://console.cloud.google.com/apis/credentials/oauthclient",
   billing: "https://console.cloud.google.com/billing",
   businessProfileApi:
     "https://console.cloud.google.com/marketplace/product/google/mybusinessbusinessinformation.googleapis.com",

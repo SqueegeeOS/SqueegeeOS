@@ -1,5 +1,6 @@
 import { sampleHomeCarePlanPath } from "@/lib/acquisition/types";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
+import { PLATFORM_BRAND } from "@/lib/brand/platform";
 
 export const SITE_NAV_HEIGHT = "3.5rem";
 
@@ -63,4 +64,4 @@ export const EMPLOYEE_NAV_ITEMS: NavItem[] = [
 ];
 
 export const CUSTOMER_BRAND_NAME = CUSTOMER_BRAND.name;
-export const EMPLOYEE_BRAND_NAME = "SqueegeeOS";
+export const EMPLOYEE_BRAND_NAME = PLATFORM_BRAND.name;

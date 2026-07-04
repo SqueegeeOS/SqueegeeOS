@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { PropertyHub } from "@/components/property/hub/property-hub";
+import { platformPageTitle } from "@/lib/brand/platform";
 
 export const metadata: Metadata = {
-  title: "Property Hub | SqueegeeOS",
+  title: platformPageTitle("Property Hub"),
   description:
     "The central hub for every property — scores, timelines, archives, and living digital history.",
 };

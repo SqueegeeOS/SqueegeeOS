@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { Dashboard } from "@/components/dashboard";
+import { platformPageTitle } from "@/lib/brand/platform";
 
 export const metadata: Metadata = {
-  title: "Employee Dashboard | SqueegeeOS",
+  title: platformPageTitle("Employee Dashboard"),
 };
 
 export default function EmployeePage() {

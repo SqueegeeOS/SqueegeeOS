@@ -13,6 +13,7 @@ import type { GoogleReviewsTestResult } from "@/lib/reviews/place-id-resolver";
 import type { PlaceSearchCandidate } from "@/lib/reviews/place-id-resolver";
 import type { PlacesSearchDiagnostic } from "@/lib/reviews/places-search-debug";
 import type { ResolveUrlDiagnostic } from "@/lib/reviews/resolve-url-debug";
+import { GoogleOAuthSetupGuide } from "@/components/setup/google-oauth-setup-guide";
 import {
   buildEnvLocalSnippet,
   buildVercelInstructions,
@@ -420,6 +421,11 @@ export function GoogleReviewsSetupWizard() {
   const [searchResults, setSearchResults] = useState<PlaceSearchCandidate[]>([]);
   const [managedBusinesses, setManagedBusinesses] = useState<BusinessConnectOption[]>([]);
   const [oauthConfigured, setOauthConfigured] = useState(false);
+  const [oauthClientIdConfigured, setOauthClientIdConfigured] = useState(false);
+  const [oauthClientSecretConfigured, setOauthClientSecretConfigured] =
+    useState(false);
+  const [oauthRedirectUri, setOauthRedirectUri] = useState("");
+  const [oauthChecking, setOauthChecking] = useState(false);
   const [oauthConnected, setOauthConnected] = useState(false);
   const [oauthEmail, setOauthEmail] = useState<string | null>(null);
   const [loadingManaged, setLoadingManaged] = useState(false);
@@ -553,24 +559,40 @@ export function GoogleReviewsSetupWizard() {
     }
   }, []);
 
-  const loadOAuthStatus = useCallback(async () => {
+  const loadOAuthStatus = useCallback(async (options?: { silent?: boolean }) => {
+    if (!options?.silent) setOauthChecking(true);
     try {
       const response = await fetch("/api/admin/google-reviews/oauth/status", {
         headers: getAdminRequestHeaders(),
         cache: "no-store",
       });
-      if (!response.ok) return;
+      if (!response.ok) return null;
       const json = (await response.json()) as {
         configured: boolean;
         connected: boolean;
         email?: string | null;
+        redirectUri?: string;
+        clientIdConfigured?: boolean;
+        clientSecretConfigured?: boolean;
       };
-      setOauthConfigured(json.configured);
+      setOauthConfigured((wasConfigured) => {
+        if (!wasConfigured && json.configured) {
+          setStatusMessage(
+            "Google sign-in is ready. Click Sign in with Google Business below.",
+          );
+        }
+        return json.configured;
+      });
+      setOauthClientIdConfigured(Boolean(json.clientIdConfigured));
+      setOauthClientSecretConfigured(Boolean(json.clientSecretConfigured));
+      if (json.redirectUri) setOauthRedirectUri(json.redirectUri);
       setOauthConnected(json.connected);
       setOauthEmail(json.email ?? null);
       return json;
     } catch {
       return null;
+    } finally {
+      if (!options?.silent) setOauthChecking(false);
     }
   }, []);
 
@@ -699,6 +721,14 @@ export function GoogleReviewsSetupWizard() {
       });
     }
   }, [loadManagedBusinesses, loadOAuthStatus, loadProductionPlaceStatus, step.id]);
+
+  useEffect(() => {
+    if (step.id !== "find" || oauthConfigured) return;
+    const interval = window.setInterval(() => {
+      void loadOAuthStatus({ silent: true });
+    }, 8000);
+    return () => window.clearInterval(interval);
+  }, [loadOAuthStatus, oauthConfigured, step.id]);
 
   const runBusinessSearch = useCallback(
     async (serviceAreaMode: boolean) => {
@@ -1110,15 +1140,18 @@ export function GoogleReviewsSetupWizard() {
                   )}
                 </div>
               ) : (
-                <p className="mt-4 text-xs leading-relaxed text-muted">
-                  Google Business sign-in is not configured on this server yet.
-                  Add{" "}
-                  <code className="text-foreground/80">GOOGLE_OAUTH_CLIENT_ID</code>{" "}
-                  and{" "}
-                  <code className="text-foreground/80">GOOGLE_OAUTH_CLIENT_SECRET</code>{" "}
-                  in Vercel, enable the Business Profile APIs above, and
-                  redeploy.
-                </p>
+                <GoogleOAuthSetupGuide
+                  redirectUri={
+                    oauthRedirectUri ||
+                    "https://YOUR_DOMAIN/api/admin/google-reviews/oauth/callback"
+                  }
+                  clientIdConfigured={oauthClientIdConfigured}
+                  clientSecretConfigured={oauthClientSecretConfigured}
+                  checking={oauthChecking}
+                  copied={copied}
+                  onCopy={(label, text) => void copyText(label, text)}
+                  onCheckAgain={() => void loadOAuthStatus()}
+                />
               )}
             </div>
 
@@ -1449,6 +1482,10 @@ export function GoogleReviewsSetupWizard() {
     loadingManaged,
     managedBusinesses,
     oauthConfigured,
+    oauthClientIdConfigured,
+    oauthClientSecretConfigured,
+    oauthRedirectUri,
+    oauthChecking,
     oauthConnected,
     oauthEmail,
     pendingConnect,

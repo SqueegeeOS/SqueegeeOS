@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CreateHomeCarePlanWizardFromProperty } from "@/components/home-care-plan/create/create-home-care-plan-wizard";
+import { platformPageTitle, PLATFORM_BRAND } from "@/lib/brand/platform";
 import { propertyHubContext } from "@/lib/property/mock-data";
 import { getPropertyBySlug } from "@/lib/property/types";
 
@@ -15,11 +16,11 @@ export async function generateMetadata({
   const property = getPropertyBySlug(propertyHubContext, slug);
 
   if (!property) {
-    return { title: "Home Care Plan | SqueegeeOS" };
+    return { title: platformPageTitle("Home Care Plan") };
   }
 
   return {
-    title: `Create Home Care Plan — ${property.name} | SqueegeeOS`,
+    title: `Create Home Care Plan — ${property.name} | ${PLATFORM_BRAND.name}`,
     description: `Generate a bespoke Home Care Plan proposal for ${property.name}.`,
   };
 }

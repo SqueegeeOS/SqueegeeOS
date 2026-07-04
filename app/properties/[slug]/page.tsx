@@ -5,6 +5,7 @@ import {
   getAllPropertySlugs,
   getPropertyBySlug,
 } from "@/lib/property/types";
+import { platformPageTitle, PLATFORM_BRAND } from "@/lib/brand/platform";
 import { propertyHubContext } from "@/lib/property/mock-data";
 
 interface PropertyPageProps {
@@ -22,11 +23,11 @@ export async function generateMetadata({
   const property = getPropertyBySlug(propertyHubContext, slug);
 
   if (!property) {
-    return { title: "Property Not Found | SqueegeeOS" };
+    return { title: platformPageTitle("Property Not Found") };
   }
 
   return {
-    title: `${property.name} | SqueegeeOS`,
+    title: `${property.name} | ${PLATFORM_BRAND.name}`,
     description: property.narrative,
   };
 }

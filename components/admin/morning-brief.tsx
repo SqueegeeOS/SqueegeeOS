@@ -1,6 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import type { MorningBrief } from "@/lib/concierge/types";
 
 const easeLuxury = [0.22, 1, 0.36, 1] as const;
@@ -11,7 +12,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   reputation: "Reputation",
   operations: "Operations",
   membership: "Membership",
-  platform: "Platform",
+  platform: "HomeAtlas",
 };
 
 function InsightCard({
@@ -64,20 +65,20 @@ export function MorningBriefSection({ brief }: { brief: MorningBrief }) {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-[10px] uppercase tracking-[0.32em] text-accent">
-            HOMEIQ
+            {PLATFORM_BRAND.morningBriefEyebrow}
           </p>
           <h2
             id="morning-brief-heading"
             className="mt-3 font-serif text-2xl font-light text-foreground sm:text-3xl"
           >
-            Morning Brief
+            {PLATFORM_BRAND.morningBriefTitle}
           </h2>
           <p className="mt-2 text-sm text-muted">
-            What needs attention today.
+            What {PLATFORM_BRAND.conciergeCodename} noticed for today.
           </p>
         </div>
         <p className="text-[10px] uppercase tracking-[0.18em] text-muted/70">
-          Rule-based · v0.1
+          {PLATFORM_BRAND.conciergeCodename} · rule-based · v0.1
         </p>
       </div>
 
