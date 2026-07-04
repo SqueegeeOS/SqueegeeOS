@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import type { MemberHomeDashboardView } from "@/lib/membership/member-home-dashboard-data";
+import { formatTierPrice } from "@/lib/membership/tier-config";
 
 const easeLuxury = [0.16, 1, 0.3, 1] as const;
 
@@ -76,6 +77,40 @@ export function MemberHomeDashboard({
         </h1>
       </header>
 
+      {dashboard.totalSaved > 0 && (
+        <DashboardPanel title="Total saved with your plan">
+          <p className="font-serif text-4xl font-light text-accent sm:text-5xl">
+            {formatTierPrice(dashboard.totalSaved)}
+          </p>
+          {dashboard.savedThisYear > 0 && (
+            <p className="mt-2 text-sm text-foreground/90">
+              {formatTierPrice(dashboard.savedThisYear)} saved this year
+            </p>
+          )}
+          {dashboard.savingsLines.length > 0 && (
+            <ul className="mt-4 space-y-2 border-t border-border/60 pt-4 text-sm">
+              {dashboard.savingsLines.map((line) => (
+                <li
+                  key={line.label}
+                  className="flex justify-between gap-4 text-muted"
+                >
+                  <span>{line.label}</span>
+                  <span className="tabular-nums text-foreground">
+                    {formatTierPrice(line.amount)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-3 text-xs text-muted">{dashboard.savingsFootnote}</p>
+          {dashboard.savingsSource === "plan" && (
+            <p className="mt-1 text-[10px] uppercase tracking-[0.18em] text-muted/80">
+              Estimated
+            </p>
+          )}
+        </DashboardPanel>
+      )}
+
       <DashboardPanel title="Your Home">
         <p className="font-serif text-xl font-light text-foreground sm:text-2xl">
           {dashboard.propertyName}
@@ -98,15 +133,33 @@ export function MemberHomeDashboard({
       </DashboardPanel>
 
       <DashboardPanel title="Property Health">
-        <div className="space-y-5">
-          {dashboard.propertyHealth.map((score) => (
-            <HealthBar
-              key={score.label}
-              label={score.label}
-              percent={score.percent}
-            />
-          ))}
-        </div>
+        {dashboard.homeHealth?.overallScore != null && (
+          <p className="mb-4 font-serif text-3xl font-light text-accent">
+            {dashboard.homeHealth.overallScore}%
+            <span className="ml-2 text-sm text-muted">overall care score</span>
+          </p>
+        )}
+        {dashboard.propertyHealth.length > 0 ? (
+          <div className="space-y-5">
+            {dashboard.propertyHealth.map((score) => (
+              <HealthBar
+                key={score.label}
+                label={score.label}
+                percent={score.percent}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm leading-relaxed text-muted">
+            Your home health summary will appear here after your first visit.
+          </p>
+        )}
+        <Link
+          href={dashboard.homeHealthHref}
+          className="mt-4 inline-flex text-[10px] uppercase tracking-[0.18em] text-accent hover:opacity-80"
+        >
+          View home health →
+        </Link>
       </DashboardPanel>
 
       {dashboard.addOnDiscountPercent != null && (

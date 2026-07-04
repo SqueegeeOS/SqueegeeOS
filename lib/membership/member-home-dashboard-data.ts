@@ -3,6 +3,11 @@ import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import { ADDON_DISCOUNT_FINE_PRINT } from "./tier-config";
 import type { MemberPortalStatus } from "./member-portal-status";
 import type { MemberMembershipView } from "./resolve-member-membership";
+import type { CustomerHealthView, HealthScore } from "@/lib/health/types";
+import {
+  buildMemberSavingsSummary,
+  type MemberSavingsLine,
+} from "./member-savings-tracker";
 
 export interface PropertyHealthScore {
   label: string;
@@ -22,6 +27,13 @@ export interface MemberHomeDashboardView {
   bookAddOnHref: string;
   viewHistoryHref: string;
   agreementHref: string;
+  totalSaved: number;
+  savedThisYear: number;
+  savingsLines: MemberSavingsLine[];
+  savingsSource: "live" | "plan";
+  savingsFootnote: string;
+  homeHealth: CustomerHealthView | null;
+  homeHealthHref: string;
 }
 
 function parseFlexibleDate(value: string): Date | null {
@@ -71,6 +83,26 @@ export function formatNextVisitScheduled(
   return `Scheduled ${monthDay}`;
 }
 
+export function healthScoresToPanel(
+  latest: CustomerHealthView | null,
+): PropertyHealthScore[] {
+  if (!latest) return [];
+
+  const rows: Array<[string, HealthScore | null]> = [
+    ["Windows", latest.windowHealth],
+    ["Screens", latest.screenHealth],
+    ["Hard Water", latest.hardWaterRisk],
+  ];
+
+  return rows
+    .filter((entry): entry is [string, HealthScore] => entry[1] !== null)
+    .map(([label, score]) => ({
+      label,
+      percent: Math.round((score / 5) * 100),
+    }));
+}
+
+/** @deprecated Use recorded health checks — never invent scores for members. */
 export function resolvePropertyHealthScores(
   data: HomeCarePlanData,
 ): PropertyHealthScore[] {
@@ -146,6 +178,8 @@ export function buildMemberHomeDashboardView(
     portalData?: MemberPortalData | null;
     planPath: string;
     referenceDate?: Date;
+    homeHealth?: CustomerHealthView | null;
+    homeHealthHref?: string;
   },
 ): MemberHomeDashboardView {
   const reference = options.referenceDate ?? new Date();
@@ -153,6 +187,11 @@ export function buildMemberHomeDashboardView(
     data,
     options.portalData,
     careStatus,
+  );
+  const savings = buildMemberSavingsSummary(
+    membership,
+    options.portalData,
+    reference,
   );
 
   return {
@@ -163,12 +202,21 @@ export function buildMemberHomeDashboardView(
     planLabel: `${careStatus.cadenceLabel} Plan`,
     lastVisitLabel: formatLastVisitRelative(lastVisitDate, reference),
     nextVisitLabel: resolveNextVisitLabel(careStatus, membership),
-    propertyHealth: resolvePropertyHealthScores(data),
+    propertyHealth: healthScoresToPanel(options.homeHealth ?? null),
     addOnDiscountPercent: careStatus.addOnDiscountPercent,
     discountFinePrint: "Active while payments current",
     bookAddOnHref: "#member-addons",
     viewHistoryHref: `${options.planPath}#journey`,
     agreementHref: `${options.planPath}#join`,
+    totalSaved: savings.totalSaved,
+    savedThisYear: savings.savedThisYear,
+    savingsLines: savings.lines,
+    savingsSource: savings.source,
+    savingsFootnote: savings.footnote,
+    homeHealth: options.homeHealth ?? null,
+    homeHealthHref:
+      options.homeHealthHref ??
+      `${options.planPath.replace(/\/plan$/, "/portal/home-health")}`,
   };
 }
 

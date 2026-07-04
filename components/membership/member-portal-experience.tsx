@@ -10,6 +10,7 @@ import {
   unlockContextFromPlanData,
   UNLOCK_WELCOME_COPY,
 } from "@/lib/membership/unlock-sequence";
+import type { CustomerHealthView } from "@/lib/health/types";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import { useMembershipUnlock } from "@/components/membership/unlock-provider";
@@ -41,6 +42,8 @@ interface MemberPortalExperienceProps {
   portalData?: MemberPortalData | null;
   planName?: string;
   fromUnlock?: boolean;
+  homeHealth?: CustomerHealthView | null;
+  homeHealthHref?: string;
 }
 
 function PortalCard({
@@ -101,6 +104,8 @@ export function MemberPortalExperience({
   portalData,
   planName,
   fromUnlock = false,
+  homeHealth = null,
+  homeHealthHref,
 }: MemberPortalExperienceProps) {
   const planPath = `/homecare/${data.homeowner.slug}/${data.property.slug}/plan`;
   const reduceMotion = useReducedMotion();
@@ -128,11 +133,15 @@ export function MemberPortalExperience({
       })
     : null;
   const portalPath = `/homecare/${data.homeowner.slug}/${data.property.slug}/portal`;
+  const resolvedHomeHealthHref =
+    homeHealthHref ?? `${portalPath}/home-health`;
   const returningMember = !fromUnlock;
   const homeDashboard = returningMember
     ? buildMemberHomeDashboardView(data, careStatus, membership, {
         portalData,
         planPath,
+        homeHealth,
+        homeHealthHref: resolvedHomeHealthHref,
       })
     : null;
 
@@ -309,7 +318,18 @@ export function MemberPortalExperience({
             </span>
           </PortalCard>
 
-          <PortalCard index={1} comingSoon fromUnlock={fromUnlock}>
+          <PortalCard
+            href={resolvedHomeHealthHref}
+            index={1}
+            fromUnlock={fromUnlock}
+          >
+            <span className="font-serif text-lg font-light">Home Health</span>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-accent">
+              View
+            </span>
+          </PortalCard>
+
+          <PortalCard index={2} comingSoon fromUnlock={fromUnlock}>
             <span className="font-serif text-lg font-light text-muted">
               Documents & Agreements
             </span>

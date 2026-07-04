@@ -1,7 +1,7 @@
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 
-export const sampleHomeCarePlanPath =
-  "/homecare/larry-buckley/canyon-oaks-residence/plan";
+/** @deprecated Demo sample plan removed — use /request */
+export const sampleHomeCarePlanPath = "/request";
 
 export const serviceOptions = [
   "Window Cleaning",

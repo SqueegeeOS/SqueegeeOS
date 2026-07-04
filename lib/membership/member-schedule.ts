@@ -24,6 +24,7 @@ export interface MemberScheduleView {
   completedCount: number;
   yearToDateInvested: number;
   ytdSavings?: number;
+  totalSaved?: number;
 }
 
 const MONTHS = [

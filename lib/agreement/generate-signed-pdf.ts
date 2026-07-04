@@ -13,6 +13,7 @@ import {
   SQUEEGEEKING_TIERS,
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
+import { MEMBERSHIP_BILLING_FINE_PRINT } from "@/lib/agreement/agreement-content";
 import type { AgreementKind } from "@/lib/agreement/one-time-agreement";
 import {
   ONE_TIME_AGREEMENT_TITLE,
@@ -136,6 +137,12 @@ async function buildProgrammaticAgreement(
       `ANNUAL VALUE INCLUDED: $${QUARTERLY_INCLUDED_TREATMENT_ANNUAL} in RainBlock ($${RAINBLOCK_RETAIL_VALUE}/visit) + Hard Water ($${HARDWATER_RETAIL_VALUE}/visit) treatments`,
       9,
     );
+  }
+
+  y -= 12;
+  draw("TERMS — BILLING & PAYMENT", 10, true);
+  for (const line of MEMBERSHIP_BILLING_FINE_PRINT.split("\n")) {
+    draw(line, 8);
   }
 
   y -= 12;

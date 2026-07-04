@@ -8,6 +8,7 @@ import {
   MembershipUnlockProvider,
   UNLOCK_CEREMONY_REQUEST,
 } from "@/components/membership/unlock-provider";
+import type { CustomerHealthView } from "@/lib/health/types";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import {
@@ -21,6 +22,8 @@ interface MemberPortalPageClientProps {
   portalData: MemberPortalData | null;
   homeownerSlug: string;
   propertySlug: string;
+  homeHealth?: CustomerHealthView | null;
+  homeHealthHref?: string;
 }
 
 export function MemberPortalPageClient({
@@ -28,6 +31,8 @@ export function MemberPortalPageClient({
   portalData,
   homeownerSlug,
   propertySlug,
+  homeHealth = null,
+  homeHealthHref,
 }: MemberPortalPageClientProps) {
   return (
     <MembershipUnlockProvider>
@@ -36,6 +41,8 @@ export function MemberPortalPageClient({
         portalData={portalData}
         homeownerSlug={homeownerSlug}
         propertySlug={propertySlug}
+        homeHealth={homeHealth}
+        homeHealthHref={homeHealthHref}
       />
     </MembershipUnlockProvider>
   );
@@ -46,6 +53,8 @@ function MemberPortalWithCeremony({
   portalData,
   homeownerSlug,
   propertySlug,
+  homeHealth = null,
+  homeHealthHref,
 }: MemberPortalPageClientProps) {
   const [fromUnlock, setFromUnlock] = useState(false);
   const [showCeremony, setShowCeremony] = useState(false);
@@ -89,6 +98,8 @@ function MemberPortalWithCeremony({
         data={planData}
         portalData={portalData}
         fromUnlock={fromUnlock}
+        homeHealth={homeHealth}
+        homeHealthHref={homeHealthHref}
       />
     </>
   );

@@ -8,6 +8,6 @@ export const CUSTOMER_BRAND = {
 export const CUSTOMER_CTAS = {
   requestPlan: "Get My Home Care Plan",
   requestPlanHint: "Takes about 60 seconds",
-  samplePlan: "View Sample Plan",
+  samplePlan: "View Sample Plan", // unused — demo retired
   becomeMember: "Become a Member",
 } as const;

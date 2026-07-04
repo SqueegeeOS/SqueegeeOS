@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 import {
-  CUSTOMER_MEMBER_PORTAL,
   CUSTOMER_PRIMARY_NAV,
   CUSTOMER_TAIL_NAV,
   CUSTOMER_BRAND_NAME,
@@ -70,15 +69,7 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
 
             {session ? (
               <UserAccountMenu session={session} light={lightText} />
-            ) : (
-              <NavLink
-                href={CUSTOMER_MEMBER_PORTAL.href}
-                label={CUSTOMER_MEMBER_PORTAL.label}
-                active={isActiveNavItem(pathname, CUSTOMER_MEMBER_PORTAL.href)}
-                variant="portal"
-                light={lightText}
-              />
-            )}
+            ) : null}
 
             {CUSTOMER_TAIL_NAV.map((item) => (
               <NavLink
@@ -116,7 +107,7 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
         onClose={closeMenu}
         pathname={pathname}
         items={[...CUSTOMER_PRIMARY_NAV, ...CUSTOMER_TAIL_NAV]}
-        portalItem={session ? null : CUSTOMER_MEMBER_PORTAL}
+        portalItem={null}
         accountSession={session}
         brandName={CUSTOMER_BRAND_NAME}
         brandHref={ROUTES.home}

@@ -1,6 +1,4 @@
 import { ROUTES } from "@/lib/navigation/config";
-import { propertyHubContext } from "@/lib/property/mock-data";
-import { getPropertyBySlug } from "@/lib/property/types";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import { SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 
@@ -124,19 +122,11 @@ function resolvePlanName(data: HomeCarePlanData, planNameOverride?: string): str
   );
 }
 
-function resolveLastVisitService(
-  homeownerSlug: string,
-  propertySlug: string,
-): string | null {
-  const property = getPropertyBySlug(propertyHubContext, propertySlug);
-  if (!property || propertyHubContext.homeowner.slug !== homeownerSlug) {
-    return null;
-  }
-  const latest = property.recentTimeline[0];
-  return latest?.title ?? null;
+function resolveLastVisitService(_data: HomeCarePlanData): string | null {
+  return null;
 }
 
-/** Portal care summary — mock/property-hub backed until production membership API. */
+/** Portal care summary from plan data and optional production membership API. */
 export function resolveMemberPortalStatus(
   data: HomeCarePlanData,
   options?: { planName?: string; forceNoNextVisit?: boolean },
@@ -145,18 +135,8 @@ export function resolveMemberPortalStatus(
   const cadence = inferMembershipCadence(planName);
   const discountPercent = MEMBER_ADD_ON_DISCOUNT[cadence] ?? null;
 
-  const hubProperty = getPropertyBySlug(propertyHubContext, data.property.slug);
-  const hubMatches =
-    hubProperty &&
-    propertyHubContext.homeowner.slug === data.homeowner.slug;
-
-  const lastVisit =
-    (hubMatches && hubProperty.lastVisit) || data.property.lastVisit || null;
-
-  const nextVisit =
-    options?.forceNoNextVisit || !hubMatches
-      ? null
-      : hubProperty.nextScheduledVisit;
+  const lastVisit = data.property.lastVisit || null;
+  const nextVisit = options?.forceNoNextVisit ? null : null;
 
   const addOns = MEMBER_ADD_ON_CATALOG.map((addon) => ({
     ...addon,
@@ -169,10 +149,7 @@ export function resolveMemberPortalStatus(
     cadenceLabel: CADENCE_LABEL[cadence],
     serviceSummary: SERVICE_SUMMARY[cadence],
     lastVisit,
-    lastVisitService: resolveLastVisitService(
-      data.homeowner.slug,
-      data.property.slug,
-    ),
+    lastVisitService: resolveLastVisitService(data),
     nextVisit,
     addOnDiscountPercent: discountPercent,
     addOns,

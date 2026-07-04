@@ -24,6 +24,7 @@ import {
   type MemberScheduleView,
 } from "./member-schedule";
 import { formatServiceTypeLabel } from "./service-labels";
+import { buildMemberSavingsSummary } from "./member-savings-tracker";
 
 function formatVisitDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -129,14 +130,14 @@ export function buildMembershipViewFromSupabase(
     portalData.profile.memberSince ??
     new Date().toISOString();
 
-  const schedule: MemberScheduleView = buildScheduleFromAppointments({
+  const scheduleBase: MemberScheduleView = buildScheduleFromAppointments({
     appointments: portalData.appointments,
     monthlyPrice,
     referenceDate,
     ytdSavings: portalData.ytdSavings.savings,
   });
 
-  return {
+  const membershipDraft: MemberMembershipView = {
     tier,
     tierName: tierDef.name,
     tierTagline: tierDef.tagline,
@@ -145,17 +146,22 @@ export function buildMembershipViewFromSupabase(
     memberSinceLabel: memberSinceDuration(memberSince, referenceDate),
     squareFootage,
     monthlyPrice,
-    value: {
-      ...value,
-      annualDelta:
-        portalData.ytdSavings.savings > 0
-          ? -portalData.ytdSavings.savings
-          : value.annualDelta,
-    },
-    schedule,
+    value,
+    schedule: scheduleBase,
     priorityBooking: tierDef.priorityBooking,
     dedicatedTech: tierDef.dedicatedTech,
     homeReportCard: tierDef.homeReportCard,
+  };
+
+  const savings = buildMemberSavingsSummary(membershipDraft, portalData, referenceDate);
+
+  return {
+    ...membershipDraft,
+    schedule: {
+      ...scheduleBase,
+      ytdSavings: savings.savedThisYear,
+      totalSaved: savings.totalSaved,
+    },
   };
 }
 

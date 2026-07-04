@@ -5,6 +5,7 @@ import {
   ONE_TIME_AGREEMENT_TITLE,
   ONE_TIME_SERVICE_SCOPE,
 } from "@/lib/agreement/one-time-agreement";
+import { MEMBERSHIP_BILLING_FINE_PRINT } from "@/lib/agreement/agreement-content";
 
 interface AgreementModalProps {
   pdfUrl: string;
@@ -82,11 +83,28 @@ export function AgreementModal({
               </p>
             </div>
           ) : (
-            <iframe
-              src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
-              className="h-full min-h-[50vh] w-full border-0"
-              title={title}
-            />
+            <>
+              <div className="space-y-3 border-b border-border p-6 text-sm leading-relaxed text-foreground">
+                <p className="font-medium uppercase tracking-[0.12em] text-muted">
+                  Billing &amp; payment
+                </p>
+                {MEMBERSHIP_BILLING_FINE_PRINT.split("\n\n")
+                  .slice(1)
+                  .join("\n\n")
+                  .split("\n")
+                  .filter(Boolean)
+                  .map((line) => (
+                    <p key={line} className="text-muted">
+                      {line}
+                    </p>
+                  ))}
+              </div>
+              <iframe
+                src={`${pdfUrl}#toolbar=0&navpanes=0&scrollbar=1`}
+                className="h-full min-h-[50vh] w-full border-0"
+                title={title}
+              />
+            </>
           )}
         </div>
 

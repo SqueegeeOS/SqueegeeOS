@@ -1,13 +1,21 @@
 import type { Metadata } from "next";
+import { WorkInProgressPage } from "@/components/ui/work-in-progress";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
-import { HomeCarePlanExperience } from "@/components/home-care-plan/experience";
 
 export const metadata: Metadata = {
-  title: `Your Home Care Plan — Larry Buckley | ${CUSTOMER_BRAND.name}`,
-  description:
-    "A personalized maintenance strategy created exclusively for the Canyon Oaks Residence.",
+  title: `Home Care Plan | ${CUSTOMER_BRAND.name}`,
+  description: "Personalized home care plans are delivered after your property inspection.",
 };
 
 export default function CanyonOaksHomeCarePlanPage() {
-  return <HomeCarePlanExperience />;
+  return (
+    <WorkInProgressPage
+      title="Sample plans are retired."
+      description="This demo presentation has been removed. Your real Home Care Plan will be shared with you privately after inspection — with pricing and recommendations specific to your home."
+      primaryHref="/request"
+      primaryLabel="Start with a request"
+      secondaryHref="/"
+      secondaryLabel="Back to home"
+    />
+  );
 }

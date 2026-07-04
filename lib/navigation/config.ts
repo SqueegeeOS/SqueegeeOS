@@ -1,4 +1,3 @@
-import { sampleHomeCarePlanPath } from "@/lib/acquisition/types";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { PLATFORM_BRAND } from "@/lib/brand/platform";
 
@@ -8,8 +7,6 @@ export const ROUTES = {
   home: "/",
   request: "/request",
   contact: "/contact",
-  samplePlan: sampleHomeCarePlanPath,
-  samplePortal: "/homecare/larry-buckley/canyon-oaks-residence/portal",
   employeeHome: "/employee",
   createPlan: "/employee/home-care-plan/create",
   properties: "/properties",
@@ -41,23 +38,15 @@ export interface NavItem {
 export const CUSTOMER_PRIMARY_NAV: NavItem[] = [
   { label: "Home", href: ROUTES.home },
   { label: "Request Plan", href: ROUTES.request },
-  { label: "Sample Plan", href: ROUTES.samplePlan },
 ];
-
-export const CUSTOMER_MEMBER_PORTAL: NavItem = {
-  label: "Member Portal",
-  href: ROUTES.samplePortal,
-  variant: "portal",
-};
 
 export const CUSTOMER_TAIL_NAV: NavItem[] = [
   { label: "Contact", href: ROUTES.contact },
 ];
 
-/** @deprecated Use CUSTOMER_PRIMARY_NAV + CUSTOMER_MEMBER_PORTAL + CUSTOMER_TAIL_NAV */
+/** @deprecated Use CUSTOMER_PRIMARY_NAV + CUSTOMER_TAIL_NAV */
 export const CUSTOMER_NAV_ITEMS: NavItem[] = [
   ...CUSTOMER_PRIMARY_NAV,
-  CUSTOMER_MEMBER_PORTAL,
   ...CUSTOMER_TAIL_NAV,
 ];
 

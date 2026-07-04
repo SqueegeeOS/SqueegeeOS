@@ -3,6 +3,7 @@ import {
   buildMemberAnnualSchedule,
   type MemberScheduleView,
 } from "./member-schedule";
+import { buildMemberSavingsSummary } from "./member-savings-tracker";
 import {
   calculateMembershipPrice,
   inferMembershipTierId,
@@ -40,8 +41,10 @@ function resolveSquareFootage(data: HomeCarePlanData): number {
 }
 
 function resolveMemberSince(data: HomeCarePlanData): Date {
-  if (data.homeowner.slug === "larry-buckley") {
-    return new Date("2024-03-01");
+  const signedAt = data.property.lastVisit;
+  if (signedAt) {
+    const parsed = new Date(signedAt);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
   }
   return new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
 }
@@ -79,14 +82,14 @@ export function resolveMemberMembershipView(
   const value = summarizeMembershipValue(tier, squareFootage);
   const memberSince = resolveMemberSince(data);
 
-  const schedule = buildMemberAnnualSchedule({
+  const scheduleBase: MemberScheduleView = buildMemberAnnualSchedule({
     tier,
     monthlyPrice,
     referenceDate: options?.referenceDate,
     dedicatedTech: tierDef.dedicatedTech ? "Marcus" : null,
   });
 
-  return {
+  const membershipDraft: MemberMembershipView = {
     tier,
     tierName: tierDef.name,
     tierTagline: tierDef.tagline,
@@ -96,9 +99,24 @@ export function resolveMemberMembershipView(
     squareFootage,
     monthlyPrice,
     value,
-    schedule,
+    schedule: scheduleBase,
     priorityBooking: tierDef.priorityBooking,
     dedicatedTech: tierDef.dedicatedTech,
     homeReportCard: tierDef.homeReportCard,
+  };
+
+  const savings = buildMemberSavingsSummary(
+    membershipDraft,
+    null,
+    options?.referenceDate,
+  );
+
+  return {
+    ...membershipDraft,
+    schedule: {
+      ...scheduleBase,
+      ytdSavings: savings.savedThisYear,
+      totalSaved: savings.totalSaved,
+    },
   };
 }

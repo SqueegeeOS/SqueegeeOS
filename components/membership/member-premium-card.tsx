@@ -158,6 +158,14 @@ export function MemberPremiumCard({
                 <dt className="text-muted">Services completed</dt>
                 <dd className="text-foreground">{schedule.completedCount}</dd>
               </div>
+              {schedule.totalSaved != null && schedule.totalSaved > 0 && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted">Total saved</dt>
+                  <dd className="font-serif text-lg font-light text-accent">
+                    {formatTierPrice(schedule.totalSaved)}
+                  </dd>
+                </div>
+              )}
               {schedule.ytdSavings != null && schedule.ytdSavings > 0 && (
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted">Saved this year</dt>

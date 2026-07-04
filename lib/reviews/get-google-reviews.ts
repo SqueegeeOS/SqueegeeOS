@@ -1,5 +1,4 @@
 import { unstable_cache } from "next/cache";
-import { approvedClientTestimonials } from "./approved-testimonials";
 import { GOOGLE_REVIEWS_CACHE_SECONDS, isGoogleReviewsConfigured } from "./config";
 import { fetchGooglePlaceReviews } from "./google-places";
 import type { GoogleReviewsApiResponse } from "./types";
@@ -13,9 +12,15 @@ const getCachedGoogleReviews = unstable_cache(
 export async function getGoogleReviewsResponse(): Promise<GoogleReviewsApiResponse> {
   if (!isGoogleReviewsConfigured()) {
     return {
-      status: "fallback",
-      data: approvedClientTestimonials,
-      message: "Google reviews not configured — showing approved testimonials.",
+      status: "unavailable",
+      data: {
+        totalCount: 0,
+        averageRating: 0,
+        source: "Google",
+        reviews: [],
+        attribution: "Google reviews not configured",
+      },
+      message: "Google reviews are not configured yet.",
     };
   }
 
@@ -36,7 +41,12 @@ export async function getGoogleReviewsResponse(): Promise<GoogleReviewsApiRespon
 
     return {
       status: "unavailable",
-      data: approvedClientTestimonials,
+      data: {
+        totalCount: 0,
+        averageRating: 0,
+        source: "Google",
+        reviews: [],
+      },
       message,
     };
   }

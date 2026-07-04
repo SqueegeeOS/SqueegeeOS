@@ -30,12 +30,20 @@ export interface MemberPortalYTDSavings {
   paid: number;
 }
 
+export interface MemberPortalLifetimeSavings {
+  savings: number;
+  retail: number;
+  paid: number;
+  entries: MemberSavingsEntry[];
+}
+
 export interface MemberPortalData {
   profile: MemberProfile;
   property: PropertyRecord;
   appointments: MemberAppointmentSummary[];
   nextAppointment: MemberAppointmentSummary | null;
   ytdSavings: MemberPortalYTDSavings;
+  lifetimeSavings: MemberPortalLifetimeSavings;
   observations: ServiceObservationView[];
   membershipPlanName: string;
   monthlyRate: number;
@@ -287,14 +295,31 @@ export async function getMemberPortalDataBySlugs(
     null;
 
   const yearStart = `${new Date().getFullYear()}-01-01T00:00:00Z`;
-  const { data: savingsRows } = await supabase
-    .from("member_savings_transactions")
-    .select("saved_cents, regular_price_cents, member_price_cents, service_type, occurred_at")
-    .eq("member_profile_id", profile.id)
-    .gte("occurred_at", yearStart);
 
-  const savingsHistory = ((savingsRows ?? []) as SavingsRow[]).map(mapSavingsRow);
-  const ytdSavings = savingsHistory.reduce<MemberPortalYTDSavings>(
+  const { data: allSavingsRows } = await supabase
+    .from("member_savings_transactions")
+    .select(
+      "saved_cents, regular_price_cents, member_price_cents, service_type, occurred_at",
+    )
+    .eq("member_profile_id", profile.id)
+    .order("occurred_at", { ascending: false });
+
+  const allSavingsEntries = ((allSavingsRows ?? []) as SavingsRow[]).map(
+    mapSavingsRow,
+  );
+
+  const lifetimeSavings = allSavingsEntries.reduce<MemberPortalLifetimeSavings>(
+    (acc, row) => ({
+      savings: acc.savings + row.saved,
+      retail: acc.retail + row.regularPrice,
+      paid: acc.paid + row.memberPrice,
+      entries: acc.entries,
+    }),
+    { savings: 0, retail: 0, paid: 0, entries: allSavingsEntries },
+  );
+
+  const ytdEntries = allSavingsEntries.filter((row) => row.date >= yearStart);
+  const ytdSavings = ytdEntries.reduce<MemberPortalYTDSavings>(
     (acc, row) => ({
       savings: acc.savings + row.saved,
       retail: acc.retail + row.regularPrice,
@@ -318,7 +343,7 @@ export async function getMemberPortalDataBySlugs(
     homeownerRow,
     profile,
     membershipRow,
-    savingsHistory,
+    allSavingsEntries,
     appointments,
     nextAppointment,
     propertyRow.id,
@@ -330,6 +355,7 @@ export async function getMemberPortalDataBySlugs(
     appointments,
     nextAppointment,
     ytdSavings,
+    lifetimeSavings,
     observations,
     membershipPlanName: membershipRow?.plan_name ?? "Preferred Care",
     monthlyRate: membershipRow

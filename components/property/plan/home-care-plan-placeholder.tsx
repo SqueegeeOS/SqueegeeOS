@@ -92,36 +92,19 @@ export function HomeCarePlanPlaceholder({ property }: { property: Property }) {
         </Reveal>
 
         <Reveal delay={0.26} className="mt-12">
-          {property.slug === "canyon-oaks-residence" ? (
-            <Link href="/homecare/larry-buckley/canyon-oaks-residence/plan">
-              <motion.div
-                whileHover={{ scale: 1.01, y: -2 }}
-                transition={{ duration: 0.3, ease: easeLuxury }}
-                className="group rounded-[2rem] border border-accent/30 bg-accent px-8 py-6 text-center"
-              >
-                <p className="font-serif text-xl font-light text-background">
-                  View Customer Presentation
-                </p>
-                <p className="mt-3 text-sm text-background/70">
-                  Open the flagship Home Care Plan crafted for Larry Buckley
-                </p>
-              </motion.div>
-            </Link>
-          ) : (
-            <motion.div
-              whileHover={{ scale: 1.01 }}
-              transition={{ duration: 0.3, ease: easeLuxury }}
-              className="rounded-[2rem] border border-border bg-surface px-8 py-6 text-center"
-            >
-              <p className="font-serif text-xl font-light text-foreground">
-                Proposal generation coming soon
-              </p>
-              <p className="mt-3 text-sm text-muted">
-                This will create a luxury, property-specific Home Care Plan for
-                your customer.
-              </p>
-            </motion.div>
-          )}
+          <motion.div
+            whileHover={{ scale: 1.01 }}
+            transition={{ duration: 0.3, ease: easeLuxury }}
+            className="rounded-[2rem] border border-border bg-surface px-8 py-6 text-center"
+          >
+            <p className="font-serif text-xl font-light text-foreground">
+              Presentation not generated yet
+            </p>
+            <p className="mt-3 text-sm text-muted">
+              Create a Home Care Plan from the employee dashboard when this
+              property is ready.
+            </p>
+          </motion.div>
         </Reveal>
       </div>
     </div>

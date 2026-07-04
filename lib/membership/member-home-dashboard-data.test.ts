@@ -4,7 +4,7 @@ import {
   buildMemberHomeDashboardView,
   formatLastVisitRelative,
   formatNextVisitScheduled,
-  resolvePropertyHealthScores,
+  healthScoresToPanel,
 } from "./member-home-dashboard-data";
 import { resolveMemberPortalStatus } from "./member-portal-status";
 import { resolveMemberMembershipView } from "./resolve-member-membership";
@@ -19,13 +19,20 @@ describe("member home dashboard", () => {
     );
   });
 
-  it("derives glass and frame health from plan findings", () => {
-    const scores = resolvePropertyHealthScores(canyonOaksHomeCarePlan);
-    expect(scores).toHaveLength(2);
-    expect(scores[0]?.label).toBe("Glass");
-    expect(scores[1]?.label).toBe("Frames");
-    expect(scores[0]?.percent).toBe(82);
-    expect(scores[1]?.percent).toBe(74);
+  it("maps recorded health checks to dashboard bars", () => {
+    const scores = healthScoresToPanel({
+      visitDate: "2026-07-04",
+      overallScore: 84,
+      windowHealth: 4,
+      screenHealth: 5,
+      hardWaterRisk: 3,
+      customerNote: null,
+    });
+    expect(scores).toHaveLength(3);
+    expect(scores[0]?.label).toBe("Windows");
+    expect(scores[0]?.percent).toBe(80);
+    expect(scores[1]?.percent).toBe(100);
+    expect(scores[2]?.percent).toBe(60);
   });
 
   it("builds dashboard view from portal status and membership", () => {
@@ -43,5 +50,8 @@ describe("member home dashboard", () => {
     expect(view.addOnDiscountPercent).toBe(25);
     expect(view.bookAddOnHref).toBe("#member-addons");
     expect(view.viewHistoryHref).toContain("#journey");
+    expect(view.totalSaved).toBeGreaterThan(0);
+    expect(view.savedThisYear).toBeGreaterThan(0);
+    expect(view.propertyHealth).toHaveLength(0);
   });
 });

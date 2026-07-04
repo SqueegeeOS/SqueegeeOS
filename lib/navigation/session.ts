@@ -8,11 +8,10 @@ export interface NavigationSession {
   signOutLabel?: string;
 }
 
-/** Authenticated member menu — ready for auth provider */
+/** Authenticated member menu — wired when real portal URLs exist per member */
 export const AUTHENTICATED_MEMBER_MENU: NavItem[] = [
-  { label: "Dashboard", href: ROUTES.samplePortal },
-  { label: "Properties", href: ROUTES.samplePlan },
-  { label: "Settings", href: ROUTES.contact },
+  { label: "Member Portal", href: ROUTES.request, variant: "portal" },
+  { label: "Contact", href: ROUTES.contact },
 ];
 
 /**

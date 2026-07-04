@@ -290,10 +290,6 @@ export function AdminCommandCenter({
     { label: "Create Home Care Plan", href: ROUTES.createPlan },
     { label: "View Properties", href: ROUTES.properties },
     { label: "View Requests", href: ROUTES.requests },
-    {
-      label: "View Member Portal Sample",
-      href: "/homecare/larry-buckley/canyon-oaks-residence/portal",
-    },
     { label: "Open Supabase Health", href: "/api/persistence/health", external: true },
     { label: "Open Live Website", href: ROUTES.home },
   ];

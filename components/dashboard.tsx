@@ -29,23 +29,27 @@ const fadeUp = {
 const cards = [
   {
     label: "Today's Members",
-    value: "12",
-    detail: "Active homeowners today",
+    value: "—",
+    detail: "Connect live membership data to see active members",
+    pending: true,
   },
   {
     label: "Today's Revenue",
-    value: "$4,280",
-    detail: "Collected across visits",
+    value: "—",
+    detail: "Log closed jobs or connect billing to track revenue",
+    pending: true,
   },
   {
     label: "Upcoming Visits",
-    value: "8",
-    detail: "Scheduled for the week",
+    value: "—",
+    detail: "Scheduling integration coming soon",
+    pending: true,
   },
   {
     label: "Pending Home Care Plans",
-    value: "3",
-    detail: "Awaiting your signature",
+    value: "—",
+    detail: "Plans appear here after you generate them",
+    pending: true,
   },
 ] as const;
 
@@ -54,11 +58,13 @@ function DashboardCard({
   value,
   detail,
   index,
+  pending,
 }: {
   label: string;
   value: string;
   detail: string;
   index: number;
+  pending?: boolean;
 }) {
   return (
     <motion.article
@@ -73,7 +79,9 @@ function DashboardCard({
       <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-muted">
         {label}
       </p>
-      <p className="mt-6 font-serif text-5xl font-light tracking-tight text-foreground sm:text-6xl">
+      <p className={`mt-6 font-serif text-5xl font-light tracking-tight sm:text-6xl ${
+        pending ? "text-muted" : "text-foreground"
+      }`}>
         {value}
       </p>
       <p className="mt-4 max-w-[18rem] text-sm leading-relaxed text-muted">
@@ -106,14 +114,14 @@ export function Dashboard() {
         <main className="flex flex-1 flex-col">
           <motion.section variants={fadeUp} className="mb-14 sm:mb-16 lg:mb-20">
             <p className="mb-5 text-[11px] font-medium uppercase tracking-[0.35em] text-accent">
-              Thursday, July 2
+              Employee dashboard
             </p>
             <h1 className="max-w-3xl font-serif text-5xl font-light leading-[1.05] tracking-tight text-foreground sm:text-6xl lg:text-7xl">
-              Good Morning, Noah.
+              Your command center.
             </h1>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted sm:mt-8 sm:text-xl sm:leading-relaxed">
-              Today you&apos;re helping homeowners protect their greatest
-              investment.
+              Metrics below stay empty until real data is connected — no demo
+              numbers.
             </p>
           </motion.section>
 

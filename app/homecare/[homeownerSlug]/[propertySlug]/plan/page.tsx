@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { HomeCarePlanExperience } from "@/components/home-care-plan/experience";
 import { LocalStorageNotice, LocalStorageFallbackNotice } from "@/components/persistence/local-storage-notice";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
-import { canyonOaksHomeCarePlan } from "@/lib/home-care-plan/canyon-oaks";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import { loadGeneratedHomeCarePlan } from "@/lib/persistence";
 
@@ -77,16 +76,7 @@ export default function GeneratedHomeCarePlanPage() {
         }
       }
 
-      if (
-        homeownerSlug === canyonOaksHomeCarePlan.homeowner.slug &&
-        propertySlug === canyonOaksHomeCarePlan.property.slug
-      ) {
-        setPlanData(canyonOaksHomeCarePlan);
-        setLoadedFromLocalFallback(false);
-      } else {
-        setPlanData(null);
-      }
-
+      setPlanData(null);
       setIsLoading(false);
     }
 

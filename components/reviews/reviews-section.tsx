@@ -59,17 +59,16 @@ export function ReviewsSection({
 }: ReviewsSectionProps) {
   const displayed = featured ?? selectFeaturedReviews(data);
 
-  if (displayed.length === 0 && apiStatus === "unavailable") {
+  if (displayed.length === 0) {
     return (
       <Section id="reviews" className="bg-surface/30">
-        <div className="text-center">
+        <div className="mx-auto max-w-xl text-center">
           <Eyebrow>Reviews</Eyebrow>
-          <SectionTitle className="mx-auto mt-6">Customer Reviews</SectionTitle>
-          <ReviewsAttribution
-            data={data}
-            apiStatus={apiStatus}
-            apiMessage={apiMessage}
-          />
+          <SectionTitle className="mx-auto mt-6">Customer reviews</SectionTitle>
+          <p className="mt-5 text-sm leading-relaxed text-muted">
+            {apiMessage ??
+              "Google reviews are not available yet. We will not show placeholder testimonials."}
+          </p>
         </div>
       </Section>
     );

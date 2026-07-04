@@ -40,21 +40,23 @@ export const STRIPE_CHECKOUT_ENABLED = false;
 /**
  * Stripe Checkout will handle:
  * - Card on file setup (Payment Method saved to Customer)
- * - Initial membership payment (if applicable for plan)
- * - Recurring subscription billing (for monthly plans)
+ * - Monthly charge on the 1st for that month's visit
+ * - Service scheduled and performed during the billed month
  */
 export const stripeCheckoutCapabilities = [
   {
+    title: "Monthly billing",
+    description:
+      "Your card is charged on the 1st of each month for that month's membership visit.",
+  },
+  {
     title: "Card on file",
-    description: "Securely save your payment method for future visits.",
+    description: "Securely save your payment method for automatic monthly billing.",
   },
   {
-    title: "Initial payment",
-    description: "First membership charge collected at checkout when required.",
-  },
-  {
-    title: "Recurring billing",
-    description: "Monthly plans renew automatically — cancel anytime.",
+    title: "Service timing",
+    description:
+      "Visits are scheduled and completed during the same calendar month as payment.",
   },
 ] as const;
 

@@ -4,7 +4,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { CUSTOMER_CTAS } from "@/lib/brand/customer";
-import { sampleHomeCarePlanPath } from "@/lib/acquisition/types";
 import { Eyebrow, easeLuxury } from "@/components/marketing/ui";
 
 const HERO_IMAGE =
@@ -54,12 +53,9 @@ export function HeroSection() {
             >
               {CUSTOMER_CTAS.requestPlan}
             </Link>
-            <Link
-              href={sampleHomeCarePlanPath}
-              className="flex min-h-[52px] items-center justify-center rounded-full border border-border bg-surface/80 px-8 text-sm font-medium tracking-[0.1em] text-foreground backdrop-blur-sm touch-manipulation transition-colors hover:border-accent/30"
-            >
-              {CUSTOMER_CTAS.samplePlan}
-            </Link>
+            <p className="text-center text-[11px] tracking-[0.14em] text-foreground/55 sm:text-left">
+              {CUSTOMER_CTAS.requestPlanHint}
+            </p>
           </div>
         </motion.div>
       </div>

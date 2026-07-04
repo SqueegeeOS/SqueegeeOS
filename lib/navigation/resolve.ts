@@ -1,5 +1,3 @@
-import { propertyHubContext } from "@/lib/property/mock-data";
-import { getPropertyBySlug } from "@/lib/property/types";
 import { canyonOaksHomeCarePlan } from "@/lib/home-care-plan/canyon-oaks";
 import {
   EMPLOYEE_BRAND_NAME,
@@ -122,8 +120,7 @@ function getPropertyBreadcrumbs(pathname: string): Breadcrumb[] {
   if (!match) return crumbs;
 
   const [, slug, subpath] = match;
-  const property = getPropertyBySlug(propertyHubContext, slug);
-  const propertyName = property?.name ?? formatSlug(slug);
+  const propertyName = formatSlug(slug);
 
   crumbs.push({
     label: propertyName,
