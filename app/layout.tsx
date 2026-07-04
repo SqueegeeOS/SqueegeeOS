@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { SiteNavigation } from "@/components/navigation/site-navigation";
+import { AppPricingSettingsProvider } from "@/components/pricing/app-pricing-settings-provider";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { pwaConfig } from "@/lib/pwa/config";
 import "./globals.css";
@@ -57,8 +58,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="min-h-full overflow-x-hidden">
-        <SiteNavigation />
-        {children}
+        <AppPricingSettingsProvider>
+          <SiteNavigation />
+          {children}
+        </AppPricingSettingsProvider>
       </body>
     </html>
   );

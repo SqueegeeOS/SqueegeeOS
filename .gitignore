@@ -20,6 +20,9 @@
 # production
 /build
 
+# local dev data (presentations fallback store, etc.)
+/.data/
+
 # misc
 .DS_Store
 *.pem

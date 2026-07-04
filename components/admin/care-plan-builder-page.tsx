@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { FadePriceBlock, RollingPrice } from "@/components/admin/pricing-motion";
+import { useCompanySettings } from "@/components/pricing/pricing-settings-provider";
 import { isAdminUnlocked } from "@/lib/admin/pin";
 import { buildCopyQuote, formatDollars } from "@/lib/pricing/format";
 import type { CareFrequency } from "@/lib/pricing/types";
 import {
   calculateWindowCarePricing,
+  getMaxSqft,
+  getMinSqft,
   getPricingComparison,
-  MAX_SQFT,
-  MIN_SQFT,
   PRICING_SQFT_PRESETS,
   validateInput,
 } from "@/lib/pricing/window-care-pricing";
@@ -29,40 +30,54 @@ const pillIdle =
 
 export function CarePlanBuilderPage() {
   const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const { settings } = useCompanySettings();
+  const minSqft = getMinSqft(settings);
+  const maxSqft = getMaxSqft(settings);
   const [frequency, setFrequency] = useState<CareFrequency>("quarterly");
   const [sqft, setSqft] = useState(2500);
   const [includeInterior, setIncludeInterior] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  const clampedSqft = Math.min(MAX_SQFT, Math.max(MIN_SQFT, sqft || MIN_SQFT));
+  const clampedSqft = Math.min(maxSqft, Math.max(minSqft, sqft || minSqft));
 
   const validationError = useMemo(
     () =>
-      validateInput({
-        squareFeet: sqft,
-        frequency,
-        includeInterior,
-      }),
-    [sqft, frequency, includeInterior],
+      validateInput(
+        {
+          squareFeet: sqft,
+          frequency,
+          includeInterior,
+        },
+        settings,
+      ),
+    [sqft, frequency, includeInterior, settings],
   );
 
   const pricing = useMemo(() => {
     if (validationError) return null;
-    return calculateWindowCarePricing({
-      squareFeet: clampedSqft,
-      frequency,
-      includeInterior,
-    });
-  }, [clampedSqft, frequency, includeInterior, validationError]);
+    return calculateWindowCarePricing(
+      {
+        squareFeet: clampedSqft,
+        frequency,
+        includeInterior,
+      },
+      undefined,
+      settings,
+    );
+  }, [clampedSqft, frequency, includeInterior, validationError, settings]);
 
   const comparison = useMemo(() => {
     if (validationError) return null;
-    return getPricingComparison({
-      squareFeet: clampedSqft,
-      frequency,
-      includeInterior,
-    });
-  }, [clampedSqft, frequency, includeInterior, validationError]);
+    return getPricingComparison(
+      {
+        squareFeet: clampedSqft,
+        frequency,
+        includeInterior,
+      },
+      undefined,
+      settings,
+    );
+  }, [clampedSqft, frequency, includeInterior, validationError, settings]);
 
   const recurringPrice = includeInterior
     ? pricing?.interiorExteriorMemberPrice ?? 0
@@ -80,7 +95,7 @@ export function CarePlanBuilderPage() {
 
   const handleSqftChange = (raw: number) => {
     if (raw < 0) {
-      setSqft(MIN_SQFT);
+      setSqft(minSqft);
       return;
     }
     setSqft(raw);
@@ -156,8 +171,8 @@ export function CarePlanBuilderPage() {
               <input
                 id="sqft-input"
                 type="number"
-                min={MIN_SQFT}
-                max={MAX_SQFT}
+                min={minSqft}
+                max={maxSqft}
                 step={100}
                 value={sqft}
                 onChange={(event) =>
@@ -172,8 +187,8 @@ export function CarePlanBuilderPage() {
             )}
             <input
               type="range"
-              min={MIN_SQFT}
-              max={MAX_SQFT}
+              min={minSqft}
+              max={maxSqft}
               step={100}
               value={clampedSqft}
               onChange={(event) => setSqft(Number(event.target.value))}

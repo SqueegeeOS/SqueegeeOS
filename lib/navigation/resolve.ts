@@ -20,11 +20,18 @@ export interface FloatingBackConfig {
   bottomClass?: string;
 }
 
-const EMPLOYEE_PREFIXES = ["/employee", "/properties"];
+const EMPLOYEE_PREFIXES = ["/employee", "/properties", "/presentations"];
 const HIDDEN_PREFIXES = ["/hq", "/admin"];
+
+function isPresentationPresentMode(pathname: string): boolean {
+  return /^\/presentations\/[^/]+\/present$/.test(pathname);
+}
 
 export function getNavigationMode(pathname: string): NavigationMode {
   if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+    return "hidden";
+  }
+  if (isPresentationPresentMode(pathname)) {
     return "hidden";
   }
   if (EMPLOYEE_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
@@ -62,6 +69,10 @@ export function getBreadcrumbs(pathname: string): Breadcrumb[] {
 
   if (pathname.startsWith("/homecare/")) {
     return getHomecareBreadcrumbs(pathname);
+  }
+
+  if (pathname.startsWith("/presentations")) {
+    return getPresentationBreadcrumbs(pathname);
   }
 
   return [];
@@ -149,9 +160,40 @@ function getHomecareBreadcrumbs(pathname: string): Breadcrumb[] {
   return crumbs;
 }
 
+function getPresentationBreadcrumbs(pathname: string): Breadcrumb[] {
+  const crumbs: Breadcrumb[] = [
+    { label: "Employee", href: ROUTES.employeeHome },
+    { label: "Presentations", href: ROUTES.presentations },
+  ];
+
+  if (pathname === ROUTES.presentations) {
+    return [
+      { label: "Employee", href: ROUTES.employeeHome },
+      { label: "Presentations" },
+    ];
+  }
+
+  const editMatch = pathname.match(/^\/presentations\/([^/]+)\/edit$/);
+  if (editMatch) {
+    crumbs.push({ label: "Edit Presentation" });
+    return crumbs;
+  }
+
+  return crumbs;
+}
+
 export function getFloatingBack(pathname: string): FloatingBackConfig | null {
   if (pathname === ROUTES.createPlan) {
     return { href: ROUTES.employeeHome, label: "Back to Dashboard" };
+  }
+
+  if (pathname === ROUTES.presentations) {
+    return { href: ROUTES.employeeHome, label: "Back to Dashboard" };
+  }
+
+  const presentationEditMatch = pathname.match(/^\/presentations\/[^/]+\/edit$/);
+  if (presentationEditMatch) {
+    return { href: ROUTES.presentations, label: "Back to Presentations" };
   }
 
   const propertyPlanMatch = pathname.match(

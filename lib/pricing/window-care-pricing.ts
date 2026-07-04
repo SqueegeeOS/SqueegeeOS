@@ -7,9 +7,9 @@
  * @see docs/ATLAS_PRICING_ENGINE.md
  */
 import {
-  COMPANY_SETTINGS,
-  MAX_SQFT,
-  MIN_SQFT,
+  DEFAULT_COMPANY_SETTINGS,
+  normalizeCompanySettings,
+  type CompanySettings,
 } from "./company-settings";
 import type {
   CareFrequency,
@@ -19,6 +19,15 @@ import type {
   PricingRecommendation,
   PropertyContext,
 } from "./types";
+
+export {
+  DEFAULT_COMPANY_SETTINGS,
+  normalizeCompanySettings,
+  perThousandFromRate,
+  settingsFromPerThousandSqft,
+  validateCompanySettings,
+} from "./company-settings";
+export type { CompanySettings } from "./company-settings";
 
 export type {
   CareFrequency,
@@ -32,9 +41,6 @@ export type {
   ServiceScope,
 } from "./types";
 
-export { COMPANY_SETTINGS, MIN_SQFT, MAX_SQFT } from "./company-settings";
-export type { CompanySettings } from "./company-settings";
-
 const FREQUENCY_LABELS: Record<CareFrequency, string> = {
   quarterly: "Every 3 Months",
   bi_annual: "Every 6 Months",
@@ -42,15 +48,29 @@ const FREQUENCY_LABELS: Record<CareFrequency, string> = {
 
 export const PRICING_SQFT_PRESETS = [1000, 1400, 1500, 2500, 3000] as const;
 
-export function validateInput(input: PricingInput): string | null {
+export function getMinSqft(settings: CompanySettings = DEFAULT_COMPANY_SETTINGS): number {
+  return settings.minimumQuoteSqft;
+}
+
+export function getMaxSqft(settings: CompanySettings = DEFAULT_COMPANY_SETTINGS): number {
+  return settings.maximumQuoteSqft;
+}
+
+export function validateInput(
+  input: PricingInput,
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
+): string | null {
+  const min = settings.minimumQuoteSqft;
+  const max = settings.maximumQuoteSqft;
+
   if (!input.squareFeet || input.squareFeet <= 0) {
     return "Square footage must be greater than zero.";
   }
-  if (input.squareFeet < MIN_SQFT) {
-    return `Minimum square footage is ${MIN_SQFT}.`;
+  if (input.squareFeet < min) {
+    return `Minimum square footage is ${min}.`;
   }
-  if (input.squareFeet > MAX_SQFT) {
-    return `Maximum square footage is ${MAX_SQFT}.`;
+  if (input.squareFeet > max) {
+    return `Maximum square footage is ${max}.`;
   }
   return null;
 }
@@ -58,23 +78,25 @@ export function validateInput(input: PricingInput): string | null {
 export function calculateExteriorPrice(
   sqft: number,
   frequency: CareFrequency,
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
 ): number {
-  return Math.round(sqft * COMPANY_SETTINGS.rates[frequency].ratePerSqft);
+  return Math.round(sqft * settings.rates[frequency].ratePerSqft);
 }
 
-export function calculateInteriorExteriorPrice(exteriorPrice: number): number {
-  return Math.round(exteriorPrice * COMPANY_SETTINGS.interiorMultiplier);
+export function calculateInteriorExteriorPrice(
+  exteriorPrice: number,
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
+): number {
+  return Math.round(exteriorPrice * settings.interiorMultiplier);
 }
 
-export function calculateOneTimePrice(memberPrice: number): number {
-  return Math.round(memberPrice + COMPANY_SETTINGS.oneTimePremium);
+export function calculateOneTimePrice(
+  memberPrice: number,
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
+): number {
+  return Math.round(memberPrice + settings.oneTimePremium);
 }
 
-/**
- * Atlas Pricing Engine v2 — returns advisory reasoning when property
- * intelligence and recommendation models are connected.
- * v1 ignores `context`; signature is stable for v2.
- */
 export function buildPricingRecommendation(
   _input: PricingInput,
   _output: Omit<PricingOutput, "recommendation">,
@@ -86,22 +108,28 @@ export function buildPricingRecommendation(
 export function calculateWindowCarePricing(
   input: PricingInput,
   context?: PropertyContext,
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
 ): PricingOutput {
-  const rateConfig = COMPANY_SETTINGS.rates[input.frequency];
+  const resolved = normalizeCompanySettings(settings);
+  const rateConfig = resolved.rates[input.frequency];
   const frequencyLabel = FREQUENCY_LABELS[input.frequency];
 
   const exteriorMemberPrice = calculateExteriorPrice(
     input.squareFeet,
     input.frequency,
+    resolved,
   );
 
-  const interiorExteriorMemberPrice =
-    calculateInteriorExteriorPrice(exteriorMemberPrice);
+  const interiorExteriorMemberPrice = calculateInteriorExteriorPrice(
+    exteriorMemberPrice,
+    resolved,
+  );
 
-  const exteriorOneTimePrice = calculateOneTimePrice(exteriorMemberPrice);
+  const exteriorOneTimePrice = calculateOneTimePrice(exteriorMemberPrice, resolved);
 
   const interiorExteriorOneTimePrice = calculateOneTimePrice(
     interiorExteriorMemberPrice,
+    resolved,
   );
 
   const annualExteriorValue = exteriorMemberPrice * rateConfig.annualVisits;
@@ -135,7 +163,7 @@ export function calculateWindowCarePricing(
     interiorExteriorOneTimePrice,
     annualExteriorValue,
     annualInteriorExteriorValue,
-    oneTimePremium: COMPANY_SETTINGS.oneTimePremium,
+    oneTimePremium: resolved.oneTimePremium,
     notes,
     exclusions,
   };
@@ -148,8 +176,9 @@ export function calculateWindowCarePricing(
 export function getPricingComparison(
   input: PricingInput,
   context?: PropertyContext,
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
 ): PricingComparison {
-  const output = calculateWindowCarePricing(input, context);
+  const output = calculateWindowCarePricing(input, context, settings);
   return {
     recurringExterior: output.exteriorMemberPrice,
     recurringInteriorExterior: output.interiorExteriorMemberPrice,
@@ -160,3 +189,8 @@ export function getPricingComparison(
     frequencyLabel: output.frequencyLabel,
   };
 }
+
+/** @deprecated Use getMinSqft(settings) */
+export const MIN_SQFT = DEFAULT_COMPANY_SETTINGS.minimumQuoteSqft;
+/** @deprecated Use getMaxSqft(settings) */
+export const MAX_SQFT = DEFAULT_COMPANY_SETTINGS.maximumQuoteSqft;

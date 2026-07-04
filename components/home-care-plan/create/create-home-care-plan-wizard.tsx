@@ -18,6 +18,7 @@ import {
 } from "@/lib/home-care-plan/create-types";
 import { calculateWindowCarePricing } from "@/lib/pricing/window-care-pricing";
 import type { CareFrequency } from "@/lib/pricing/types";
+import { useCompanySettings } from "@/components/pricing/pricing-settings-provider";
 import { saveGeneratedHomeCarePlan } from "@/lib/persistence";
 import { LocalStorageNotice } from "@/components/persistence/local-storage-notice";
 import type { Property } from "@/lib/property/types";
@@ -45,6 +46,7 @@ export function CreateHomeCarePlanWizard({
   backLabel = "← Employee Dashboard",
 }: CreateHomeCarePlanWizardProps) {
   const router = useRouter();
+  const { settings } = useCompanySettings();
   const [step, setStep] = useState(0);
   const [draft, setDraft] = useState<HomeCarePlanDraft>(
     initialDraft ?? emptyHomeCarePlanDraft,
@@ -109,11 +111,15 @@ export function CreateHomeCarePlanWizard({
 
   const applyStandardPricing = () => {
     const squareFeet = Number.parseInt(draft.property.squareFeet, 10) || 0;
-    const output = calculateWindowCarePricing({
-      squareFeet,
-      frequency: draft.careFrequency,
-      includeInterior: draft.includeInteriorGlass,
-    });
+    const output = calculateWindowCarePricing(
+      {
+        squareFeet,
+        frequency: draft.careFrequency,
+        includeInterior: draft.includeInteriorGlass,
+      },
+      undefined,
+      settings,
+    );
 
     setDraft((prev) => ({
       ...prev,

@@ -1,12 +1,14 @@
-import {
-  createServerSupabaseClient,
-  isSupabaseConfigured,
-} from "@/lib/persistence/supabase/client";
+import { isCloudPersistenceConnected } from "@/lib/persistence/config";
+import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { withComputedRates } from "./calculations";
+import {
+  getLocalPresentation,
+  listLocalPresentations,
+  saveLocalPresentation,
+} from "./local-store";
 import { normalizePresentationTier } from "./types";
 import type {
   PresentationData,
-  PresentationInput,
   PresentationStatus,
   PresentationTier,
   SlideOverride,
@@ -32,8 +34,6 @@ interface PresentationRow {
   created_at: string;
   updated_at: string;
 }
-
-const memoryStore = new Map<string, PresentationData>();
 
 function rowToPresentation(row: PresentationRow): PresentationData {
   return {
@@ -83,6 +83,54 @@ function newPresentationId(): string {
   return `pres_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
+function logCloudFallback(operation: string, error: unknown): void {
+  console.warn(
+    `[presentations] Supabase ${operation} failed — using local store:`,
+    error,
+  );
+}
+
+async function listFromSupabase(): Promise<PresentationData[]> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("presentations")
+    .select("*")
+    .order("updated_at", { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as PresentationRow[]).map(rowToPresentation);
+}
+
+async function getFromSupabase(id: string): Promise<PresentationData | null> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("presentations")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? rowToPresentation(data as PresentationRow) : null;
+}
+
+async function saveToSupabase(data: PresentationData): Promise<PresentationData> {
+  const supabase = createServerSupabaseClient();
+  const { data: row, error } = await supabase
+    .from("presentations")
+    .upsert(
+      {
+        id: data.id,
+        ...presentationToRow(data),
+      },
+      { onConflict: "id" },
+    )
+    .select("*")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return rowToPresentation(row as PresentationRow);
+}
+
 export function createDefaultPresentation(input?: {
   clientName?: string;
   createdBy?: string;
@@ -113,38 +161,29 @@ export function createDefaultPresentation(input?: {
 }
 
 export async function listPresentations(): Promise<PresentationData[]> {
-  if (isSupabaseConfigured()) {
-    const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("presentations")
-      .select("*")
-      .order("updated_at", { ascending: false });
-
-    if (error) throw new Error(error.message);
-    return ((data ?? []) as PresentationRow[]).map(rowToPresentation);
+  if (isCloudPersistenceConnected()) {
+    try {
+      return await listFromSupabase();
+    } catch (error) {
+      logCloudFallback("list", error);
+    }
   }
 
-  return Array.from(memoryStore.values()).sort((a, b) =>
-    b.updatedAt.localeCompare(a.updatedAt),
-  );
+  return listLocalPresentations();
 }
 
 export async function getPresentation(
   id: string,
 ): Promise<PresentationData | null> {
-  if (isSupabaseConfigured()) {
-    const supabase = createServerSupabaseClient();
-    const { data, error } = await supabase
-      .from("presentations")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (error) throw new Error(error.message);
-    return data ? rowToPresentation(data as PresentationRow) : null;
+  if (isCloudPersistenceConnected()) {
+    try {
+      return await getFromSupabase(id);
+    } catch (error) {
+      logCloudFallback("get", error);
+    }
   }
 
-  return memoryStore.get(id) ?? null;
+  return getLocalPresentation(id);
 }
 
 export async function savePresentation(
@@ -157,26 +196,15 @@ export async function savePresentation(
     updatedAt: new Date().toISOString(),
   };
 
-  if (isSupabaseConfigured()) {
-    const supabase = createServerSupabaseClient();
-    const { data: row, error } = await supabase
-      .from("presentations")
-      .upsert(
-        {
-          id: merged.id,
-          ...presentationToRow(merged),
-        },
-        { onConflict: "id" },
-      )
-      .select("*")
-      .single();
-
-    if (error) throw new Error(error.message);
-    return rowToPresentation(row as PresentationRow);
+  if (isCloudPersistenceConnected()) {
+    try {
+      return await saveToSupabase(merged);
+    } catch (error) {
+      logCloudFallback("save", error);
+    }
   }
 
-  memoryStore.set(merged.id, merged);
-  return merged;
+  return saveLocalPresentation(merged);
 }
 
 export async function createPresentation(input?: {

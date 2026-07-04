@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { COMPANY_SETTINGS } from "./company-settings";
+import { DEFAULT_COMPANY_SETTINGS } from "./company-settings";
 import {
   calculateExteriorPrice,
   calculateInteriorExteriorPrice,
   calculateOneTimePrice,
   calculateWindowCarePricing,
+  getMaxSqft,
+  getMinSqft,
   validateInput,
 } from "./window-care-pricing";
-import { MAX_SQFT, MIN_SQFT } from "./company-settings";
 
-const { rates, interiorMultiplier, oneTimePremium } = COMPANY_SETTINGS;
+const { rates, interiorMultiplier, oneTimePremium } = DEFAULT_COMPANY_SETTINGS;
 
 describe("Atlas Pricing Engine — window-care-pricing", () => {
   it("derives exterior prices from COMPANY_SETTINGS rates", () => {
@@ -68,23 +69,25 @@ describe("Atlas Pricing Engine — window-care-pricing", () => {
   });
 
   it("enforces minimum square footage", () => {
+    const min = getMinSqft();
     expect(
       validateInput({
-        squareFeet: MIN_SQFT - 1,
+        squareFeet: min - 1,
         frequency: "quarterly",
         includeInterior: false,
       }),
-    ).toContain(String(MIN_SQFT));
+    ).toContain(String(min));
   });
 
   it("enforces maximum square footage", () => {
+    const max = getMaxSqft();
     expect(
       validateInput({
-        squareFeet: MAX_SQFT + 1,
+        squareFeet: max + 1,
         frequency: "quarterly",
         includeInterior: false,
       }),
-    ).toContain(String(MAX_SQFT));
+    ).toContain(String(max));
   });
 
   it("ignores PropertyContext until v2 reasoning ships", () => {
@@ -106,5 +109,23 @@ describe("Atlas Pricing Engine — window-care-pricing", () => {
     );
     expect(withContext.exteriorMemberPrice).toBe(without.exteriorMemberPrice);
     expect(withContext.recommendation).toBeUndefined();
+  });
+
+  it("respects custom settings for one-time premium", () => {
+    const custom = {
+      ...DEFAULT_COMPANY_SETTINGS,
+      oneTimePremium: 225,
+    };
+    const output = calculateWindowCarePricing(
+      {
+        squareFeet: 1500,
+        frequency: "quarterly",
+        includeInterior: false,
+      },
+      undefined,
+      custom,
+    );
+    expect(output.exteriorOneTimePrice).toBe(150 + 225);
+    expect(output.oneTimePremium).toBe(225);
   });
 });
