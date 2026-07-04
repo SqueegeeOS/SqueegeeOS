@@ -17,6 +17,7 @@ export const ROUTES = {
   settings: "/employee/settings",
   hq: "/hq",
   hqOurStory: "/hq/our-story",
+  hqPricing: "/hq/pricing",
   experience: "/experience",
   experienceUnlock: "/experience/unlock",
   experienceRequestTransition: "/experience/request-transition",

@@ -279,6 +279,7 @@ export function AdminCommandCenter({
   ];
 
   const quickActions = [
+    { label: "Pricing Calculator", href: ROUTES.hqPricing },
     { label: "New Presentation", href: ROUTES.newPresentation },
     { label: "All Presentations", href: ROUTES.presentations },
     { label: "Our Story", href: ROUTES.hqOurStory },
@@ -368,6 +369,26 @@ export function AdminCommandCenter({
                 {topBar}
               </header>
             </BootLayer>
+
+        <div className="mt-10">
+          <Link
+            href={ROUTES.hqPricing}
+            className="group flex flex-col gap-2 rounded-[1.75rem] border border-accent/25 bg-accent/[0.05] px-6 py-5 transition-colors hover:border-accent/40 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
+                Pricing Calculator
+              </p>
+              <p className="mt-2 text-sm text-muted">
+                Base quarterly rates by sq ft — exterior, inside + out, and one-time
+                pricing. Screens never included.
+              </p>
+            </div>
+            <span className="text-sm text-accent transition-transform group-hover:translate-x-0.5">
+              Open sheet →
+            </span>
+          </Link>
+        </div>
 
         {morningBrief && (
           <div className="mt-10">

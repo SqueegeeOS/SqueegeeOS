@@ -145,19 +145,13 @@ export function MemberPremiumCard({
 
           <div className="px-5 py-5 sm:px-7">
             <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
-              Your Home Investment
+              Your Membership
             </p>
             <dl className="mt-3 space-y-2 text-sm">
               <div className="flex justify-between gap-4">
                 <dt className="text-muted">Monthly</dt>
                 <dd className="font-serif text-lg font-light text-foreground">
                   {formatTierPrice(membership.monthlyPrice)}
-                </dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted">Year to date</dt>
-                <dd className="text-foreground">
-                  {formatTierPrice(schedule.yearToDateInvested)} invested
                 </dd>
               </div>
               <div className="flex justify-between gap-4">
