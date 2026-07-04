@@ -17,6 +17,19 @@ import type {
   PricingInput,
   PricingOutput,
   PricingRecommendation,
+  PropertyContext,
+} from "./types";
+
+export type {
+  CareFrequency,
+  CustomerRelationship,
+  PricingComparison,
+  PricingInput,
+  PricingOutput,
+  PricingRecommendation,
+  PropertyAccessFlags,
+  PropertyContext,
+  ServiceScope,
 } from "./types";
 
 export { COMPANY_SETTINGS, MIN_SQFT, MAX_SQFT } from "./company-settings";
@@ -60,15 +73,20 @@ export function calculateOneTimePrice(memberPrice: number): number {
 /**
  * Atlas Pricing Engine v2 — returns advisory reasoning when property
  * intelligence and recommendation models are connected.
+ * v1 ignores `context`; signature is stable for v2.
  */
 export function buildPricingRecommendation(
   _input: PricingInput,
   _output: Omit<PricingOutput, "recommendation">,
+  _context?: PropertyContext,
 ): PricingRecommendation | undefined {
   return undefined;
 }
 
-export function calculateWindowCarePricing(input: PricingInput): PricingOutput {
+export function calculateWindowCarePricing(
+  input: PricingInput,
+  context?: PropertyContext,
+): PricingOutput {
   const rateConfig = COMPANY_SETTINGS.rates[input.frequency];
   const frequencyLabel = FREQUENCY_LABELS[input.frequency];
 
@@ -122,13 +140,16 @@ export function calculateWindowCarePricing(input: PricingInput): PricingOutput {
     exclusions,
   };
 
-  const recommendation = buildPricingRecommendation(input, base);
+  const recommendation = buildPricingRecommendation(input, base, context);
 
   return recommendation ? { ...base, recommendation } : base;
 }
 
-export function getPricingComparison(input: PricingInput): PricingComparison {
-  const output = calculateWindowCarePricing(input);
+export function getPricingComparison(
+  input: PricingInput,
+  context?: PropertyContext,
+): PricingComparison {
+  const output = calculateWindowCarePricing(input, context);
   return {
     recurringExterior: output.exteriorMemberPrice,
     recurringInteriorExterior: output.interiorExteriorMemberPrice,

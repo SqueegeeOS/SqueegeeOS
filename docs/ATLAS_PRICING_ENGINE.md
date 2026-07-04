@@ -68,7 +68,27 @@ recommendation?: {
 }
 ```
 
+Optional context (v2 prep — defined, not yet used by math):
+
+```typescript
+calculateWindowCarePricing(input: PricingInput, context?: PropertyContext)
+```
+
+`PropertyContext` carries flags, customer relationship, region, detected sqft, and field observations. v1 ignores it; v2 reasoning consumes it.
+
 When the engine returns reasoning, Atlas stops being a calculator and becomes an advisor.
+
+---
+
+## Founding Commit
+
+**`42a4cfb`** — July 4, 2026. Atlas Pricing Engine v1 entered the repo.
+
+---
+
+## Related
+
+- [Apollo Directive v1.0](./APOLLO_DIRECTIVE.md) — permanent product vision for all HomeAtlas work
 
 ---
 

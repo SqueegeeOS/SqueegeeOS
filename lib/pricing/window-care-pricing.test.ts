@@ -5,7 +5,9 @@ import {
   calculateInteriorExteriorPrice,
   calculateOneTimePrice,
   calculateWindowCarePricing,
+  validateInput,
 } from "./window-care-pricing";
+import { MAX_SQFT, MIN_SQFT } from "./company-settings";
 
 const { rates, interiorMultiplier, oneTimePremium } = COMPANY_SETTINGS;
 
@@ -63,5 +65,46 @@ describe("Atlas Pricing Engine — window-care-pricing", () => {
       includeInterior: true,
     });
     expect(output.interiorExteriorMemberPrice).toBe(240);
+  });
+
+  it("enforces minimum square footage", () => {
+    expect(
+      validateInput({
+        squareFeet: MIN_SQFT - 1,
+        frequency: "quarterly",
+        includeInterior: false,
+      }),
+    ).toContain(String(MIN_SQFT));
+  });
+
+  it("enforces maximum square footage", () => {
+    expect(
+      validateInput({
+        squareFeet: MAX_SQFT + 1,
+        frequency: "quarterly",
+        includeInterior: false,
+      }),
+    ).toContain(String(MAX_SQFT));
+  });
+
+  it("ignores PropertyContext until v2 reasoning ships", () => {
+    const without = calculateWindowCarePricing({
+      squareFeet: 2500,
+      frequency: "quarterly",
+      includeInterior: false,
+    });
+    const withContext = calculateWindowCarePricing(
+      {
+        squareFeet: 2500,
+        frequency: "quarterly",
+        includeInterior: false,
+      },
+      {
+        flags: { secondStoryGlass: true, poolPresent: true },
+        customerRelationship: "returning",
+      },
+    );
+    expect(withContext.exteriorMemberPrice).toBe(without.exteriorMemberPrice);
+    expect(withContext.recommendation).toBeUndefined();
   });
 });
