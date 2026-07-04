@@ -664,10 +664,10 @@ export default function DiamondCeremony({ onComplete }) {
         }
         .dc-tagline {
           font-family: 'Cormorant Garamond', serif;
-          font-weight: 300;
-          font-size: clamp(13px, 2vw, 17px);
+          font-weight: 400;
+          font-size: clamp(14px, calc(2vw + 1px), 18px);
           font-style: italic;
-          color: rgba(40,38,35,0.48);
+          color: rgba(28,26,22,0.62);
           margin-bottom: 32px;
           opacity: 0;
           will-change: opacity, transform;
@@ -690,10 +690,10 @@ export default function DiamondCeremony({ onComplete }) {
         }
         .dc-benefit {
           font-family: 'Montserrat', sans-serif;
-          font-weight: 300;
-          font-size: 10px;
+          font-weight: 400;
+          font-size: 11px;
           letter-spacing: 0.22em;
-          color: rgba(40,38,35,0.52);
+          color: rgba(28,26,22,0.68);
           text-transform: uppercase;
           display: flex;
           align-items: center;
@@ -706,15 +706,15 @@ export default function DiamondCeremony({ onComplete }) {
           width: 3px;
           height: 3px;
           border-radius: 50%;
-          background: rgba(40,38,35,0.22);
+          background: rgba(28,26,22,0.32);
           flex-shrink: 0;
         }
         .dc-emblem {
           font-family: 'Cormorant Garamond', serif;
-          font-weight: 300;
-          font-size: 9px;
+          font-weight: 400;
+          font-size: 10px;
           letter-spacing: 0.6em;
-          color: rgba(40,38,35,0.18);
+          color: rgba(28,26,22,0.32);
           text-transform: uppercase;
           margin-bottom: 18px;
           opacity: 0;
@@ -722,10 +722,10 @@ export default function DiamondCeremony({ onComplete }) {
         }
         .dc-final {
           font-family: 'Cormorant Garamond', serif;
-          font-weight: 300;
-          font-size: clamp(22px, 3.5vw, 34px);
+          font-weight: 400;
+          font-size: clamp(23px, calc(3.5vw + 1px), 35px);
           font-style: italic;
-          color: rgba(20,18,15,0.68);
+          color: rgba(18,16,13,0.82);
           letter-spacing: 0.06em;
           opacity: 0;
           will-change: opacity, transform;
