@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
+  listVisitMemory,
+} from "@/lib/health/assessment-repository";
+import {
   getPropertyHealthHeader,
-  listStaffHealthChecks,
 } from "@/lib/health/repository";
+import { assessmentTypeLabel } from "@/lib/health/assessment-types";
 
 export const metadata: Metadata = {
   title: "Property Visit | Technician",
@@ -23,9 +26,9 @@ interface TechPropertyPageProps {
 
 export default async function TechPropertyPage({ params }: TechPropertyPageProps) {
   const { id } = await params;
-  const [property, checks] = await Promise.all([
+  const [property, visits] = await Promise.all([
     getPropertyHealthHeader(id),
-    listStaffHealthChecks(id),
+    listVisitMemory(id),
   ]);
 
   if (!property) {
@@ -39,9 +42,9 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
     );
   }
 
-  const latest = checks[0] ?? null;
+  const latest = visits[0] ?? null;
   const today = new Date().toISOString().split("T")[0]!;
-  const hasCheckToday = checks.some((c) => c.visitDate === today);
+  const hasVisitToday = visits.some((v) => v.visitDate === today);
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8 pb-16">
@@ -64,10 +67,17 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
       </header>
 
       <Link
-        href={`/tech/properties/${id}/health-check`}
-        className="mb-8 flex min-h-[56px] items-center justify-center rounded-2xl bg-[#c9a96e] px-6 text-center text-base font-medium tracking-wide text-black transition-transform active:scale-[0.98]"
+        href={`/tech/properties/${id}/assessment`}
+        className="mb-3 flex min-h-[56px] items-center justify-center rounded-2xl bg-[#c9a96e] px-6 text-center text-base font-medium tracking-wide text-black transition-transform active:scale-[0.98]"
       >
-        {hasCheckToday ? "Update this visit&apos;s health check" : "Record health check for this visit"}
+        {hasVisitToday ? "Continue today&apos;s assessment" : "Start visit assessment"}
+      </Link>
+
+      <Link
+        href={`/tech/properties/${id}/assessment?mode=window_service`}
+        className="mb-8 block text-center text-xs text-[#555] underline underline-offset-2 hover:text-[#c9a96e]"
+      >
+        Quick window check only (~2 min)
       </Link>
 
       {latest && (
@@ -83,6 +93,8 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
           </p>
           <p className="mt-1 text-xs text-[#444]">
             {formatVisitDate(latest.visitDate)} · {latest.technicianName}
+            {latest.assessmentType !== "legacy" &&
+              ` · ${assessmentTypeLabel(latest.assessmentType)}`}
           </p>
         </section>
       )}
@@ -91,23 +103,27 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
         <p className="mb-3 text-[10px] uppercase tracking-widest text-[#444]">
           Visit history
         </p>
-        {checks.length > 0 ? (
+        {visits.length > 0 ? (
           <ul className="space-y-2">
-            {checks.map((check) => (
+            {visits.map((visit) => (
               <li
-                key={check.id}
+                key={visit.id}
                 className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] px-4 py-3"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm text-white">
-                      {formatVisitDate(check.visitDate)}
+                      {formatVisitDate(visit.visitDate)}
                     </p>
-                    <p className="text-xs text-[#444]">{check.technicianName}</p>
+                    <p className="text-xs text-[#444]">
+                      {visit.technicianName}
+                      {visit.assessmentType !== "legacy" &&
+                        ` · ${assessmentTypeLabel(visit.assessmentType)}`}
+                    </p>
                   </div>
-                  {check.overallScore != null && (
+                  {visit.overallScore != null && (
                     <p className="font-serif text-lg text-[#c9a96e]">
-                      {check.overallScore}%
+                      {visit.overallScore}%
                     </p>
                   )}
                 </div>
@@ -116,7 +132,7 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
           </ul>
         ) : (
           <p className="text-sm text-[#444]">
-            No visits recorded yet. Save your first health check above.
+            No visits recorded yet. Start your first assessment above.
           </p>
         )}
       </section>

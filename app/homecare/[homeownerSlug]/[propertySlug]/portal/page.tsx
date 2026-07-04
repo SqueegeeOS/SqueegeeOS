@@ -2,9 +2,9 @@ import { loadGeneratedHomeCarePlan } from "@/lib/persistence/repository";
 import { getMemberPortalDataBySlugs } from "@/lib/persistence/queries/member-portal";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import {
-  getLatestCustomerHealth,
-  getPropertyIdBySlugs,
-} from "@/lib/health/repository";
+  getLatestCustomerHealthUnified,
+} from "@/lib/health/assessment-repository";
+import { getPropertyIdBySlugs } from "@/lib/health/repository";
 import {
   MemberPortalNotFound,
   MemberPortalPageClient,
@@ -34,7 +34,7 @@ export default async function MemberPortalPage({ params }: MemberPortalPageProps
 
   const propertyId = await getPropertyIdBySlugs(homeownerSlug, propertySlug);
   const homeHealth = propertyId
-    ? await getLatestCustomerHealth(propertyId)
+    ? await getLatestCustomerHealthUnified(propertyId)
     : null;
   const homeHealthHref = `/homecare/${homeownerSlug}/${propertySlug}/portal/home-health`;
 

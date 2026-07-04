@@ -2,8 +2,12 @@ import type { Metadata } from "next";
 import { HomeHealthPanel } from "@/components/portal/HomeHealthPanel";
 import { loadGeneratedHomeCarePlan } from "@/lib/persistence/repository";
 import {
+  extractVisibleCustomerNotesFromAssessments,
+  getLatestCustomerHealthUnified,
+  listStaffAssessments,
+} from "@/lib/health/assessment-repository";
+import {
   extractVisibleCustomerNotes,
-  getLatestCustomerHealth,
   getPropertyIdBySlugs,
   listStaffHealthChecks,
 } from "@/lib/health/repository";
@@ -39,12 +43,16 @@ export default async function MemberHomeHealthPage({
   let notes: ReturnType<typeof extractVisibleCustomerNotes> = [];
 
   if (propertyId) {
-    const [latestResult, checks] = await Promise.all([
-      getLatestCustomerHealth(propertyId),
+    const [latestResult, assessments, checks] = await Promise.all([
+      getLatestCustomerHealthUnified(propertyId),
+      listStaffAssessments(propertyId),
       listStaffHealthChecks(propertyId),
     ]);
     latest = latestResult;
-    notes = extractVisibleCustomerNotes(checks);
+    notes = [
+      ...extractVisibleCustomerNotesFromAssessments(assessments),
+      ...extractVisibleCustomerNotes(checks),
+    ].sort((a, b) => b.visitDate.localeCompare(a.visitDate));
   }
 
   return (

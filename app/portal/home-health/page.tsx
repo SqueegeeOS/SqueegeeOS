@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
-import { HomeHealthPanel } from "@/components/portal/HomeHealthPanel";
+import {
+  extractVisibleCustomerNotesFromAssessments,
+  getLatestCustomerHealthUnified,
+  listStaffAssessments,
+} from "@/lib/health/assessment-repository";
 import {
   extractVisibleCustomerNotes,
-  getLatestCustomerHealth,
   getPropertyHealthHeader,
   listStaffHealthChecks,
 } from "@/lib/health/repository";
@@ -31,13 +34,21 @@ export default async function PortalHomeHealthPage({
     );
   }
 
-  const [property, latest, checks] = await Promise.all([
+  const [property, latest, assessments, legacyChecks] = await Promise.all([
     getPropertyHealthHeader(propertyId),
-    getLatestCustomerHealth(propertyId),
+    getLatestCustomerHealthUnified(propertyId),
+    listStaffAssessments(propertyId),
     listStaffHealthChecks(propertyId),
   ]);
 
-  const notes = extractVisibleCustomerNotes(checks);
+  const notes = [
+    ...extractVisibleCustomerNotesFromAssessments(assessments),
+    ...extractVisibleCustomerNotes(legacyChecks),
+  ].sort((a, b) => b.visitDate.localeCompare(a.visitDate));
+
+  const { HomeHealthPanel } = await import(
+    "@/components/portal/HomeHealthPanel"
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
