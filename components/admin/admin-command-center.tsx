@@ -28,14 +28,19 @@ import {
 } from "@/lib/admin/growth-journey";
 import {
   EMPTY_LEGACY_BASELINE,
-  loadLegacyBaseline,
   type LegacyBaseline,
 } from "@/lib/admin/legacy-baseline";
 import { HEADQUARTERS_PURPOSE } from "@/lib/admin/company-philosophy";
 import { computeOsTimeline } from "@/lib/admin/os-timeline";
 import { ROUTES } from "@/lib/navigation/config";
 import type { HeadquartersSyncResult } from "@/lib/admin/headquarters-profile-client";
-import { HeadquartersCloudStatus } from "./headquarters-cloud-status";
+import { buildMorningBrief } from "@/lib/concierge/build-morning-brief";
+import { toGoogleReviewsSnapshot } from "@/lib/concierge/rules";
+import { useGoogleReviewsClient } from "@/lib/reviews/use-google-reviews-client";
+import {
+  HeadquartersCloudStatus,
+  HeadquartersStatusCard,
+} from "./headquarters-cloud-status";
 import { AdminCeoScoreboard } from "./admin-ceo-scoreboard";
 import { AdminCockpitSidebar } from "./admin-cockpit-sidebar";
 import { AdminCurrentMission } from "./admin-current-mission";
@@ -54,6 +59,7 @@ import { MonthlySalesLedger } from "./monthly-sales-ledger";
 import { RecentClosedJobsTable } from "./recent-closed-jobs-table";
 import { RevenuePeriodFilterBar } from "./revenue-period-filter";
 import { WhyWeExist } from "./why-we-exist";
+import { MorningBriefSection } from "./morning-brief";
 
 const easeLuxury = [0.22, 1, 0.36, 1] as const;
 
@@ -65,6 +71,7 @@ export function AdminCommandCenter({
   headquartersSync?: HeadquartersSyncResult | null;
 }) {
   const reduceMotion = useReducedMotion();
+  const { response: googleReviewsResponse } = useGoogleReviewsClient();
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
   const [periodFilter, setPeriodFilter] =
     useState<RevenuePeriodFilter>("current_month");
@@ -135,7 +142,9 @@ export function AdminCommandCenter({
   }, []);
 
   useEffect(() => {
-    setLegacyBaseline(initialLegacyBaseline ?? loadLegacyBaseline());
+    if (initialLegacyBaseline) {
+      setLegacyBaseline(initialLegacyBaseline);
+    }
   }, [initialLegacyBaseline]);
 
   useEffect(() => {
@@ -201,6 +210,20 @@ export function AdminCommandCenter({
     return computeCurrentMissions(operatingContext);
   }, [operatingContext]);
 
+  const morningBrief = useMemo(() => {
+    if (!dashboard || !operatingContext) return null;
+
+    return buildMorningBrief({
+      operatingContext,
+      dashboard,
+      googleReviews: toGoogleReviewsSnapshot(
+        googleReviewsResponse?.status,
+        googleReviewsResponse?.data ?? null,
+      ),
+      missions,
+    });
+  }, [dashboard, googleReviewsResponse, missions, operatingContext]);
+
   const freedomMeter = useMemo(() => {
     if (!operatingContext || !scoreboard) return null;
     return computeFreedomMeter(operatingContext, scoreboard.ledger);
@@ -263,11 +286,7 @@ export function AdminCommandCenter({
   const topBar = (
     <div className="flex flex-wrap items-center gap-3">
       {headquartersSync && (
-        <HeadquartersCloudStatus
-          source={headquartersSync.source}
-          cloudAvailable={headquartersSync.cloudAvailable}
-          warning={headquartersSync.warning}
-        />
+        <HeadquartersCloudStatus sync={headquartersSync} />
       )}
       <span className="rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-[0.22em] text-muted">
         {dashboard.storage === "supabase" ? "Cloud ledger" : "Local ledger"}
@@ -291,7 +310,15 @@ export function AdminCommandCenter({
   );
 
   const sidebar = (
-    <AdminCockpitSidebar legacyBaseline={legacyBaseline} />
+    <div className="space-y-6">
+      {headquartersSync && (
+        <HeadquartersStatusCard
+          sync={headquartersSync}
+          baseline={legacyBaseline}
+        />
+      )}
+      <AdminCockpitSidebar legacyBaseline={legacyBaseline} />
+    </div>
   );
 
   return (
@@ -323,6 +350,12 @@ export function AdminCommandCenter({
           </div>
           {topBar}
         </motion.header>
+
+        {morningBrief && (
+          <div className="mt-10">
+            <MorningBriefSection brief={morningBrief} />
+          </div>
+        )}
 
         <div className="mt-10">
           <WhyWeExist />

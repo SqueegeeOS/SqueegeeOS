@@ -38,6 +38,7 @@ export function FounderOnboarding({ onComplete }: FounderOnboardingProps) {
   const [step, setStep] = useState<PreserveStep>("welcome");
   const [form, setForm] = useState<LegacyBaseline>(EMPTY_LEGACY_BASELINE);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   const ceremonyStory = useMemo(() => {
     const draft = {
@@ -51,11 +52,13 @@ export function FounderOnboarding({ onComplete }: FounderOnboardingProps) {
   const handleComplete = async () => {
     if (saving) return;
     setSaving(true);
+    setSaveError(null);
     ensureOsLaunchedDate();
     const draft: LegacyBaseline = {
       ...form,
       configured: true,
       onboardingComplete: true,
+      headquartersInitialized: true,
       founders: form.founders ?? DEFAULT_FOUNDERS,
       fiveStarReviews: form.googleReviews,
       homesProtected: form.homesServed,
@@ -66,7 +69,14 @@ export function FounderOnboarding({ onComplete }: FounderOnboardingProps) {
       legacyMilestones: buildDefaultLegacyMilestones(draft),
     };
     const sync = await persistHeadquartersProfile(saved);
-    onComplete(sync.baseline, sync);
+    if (sync.source === "supabase" || sync.source === "migrated") {
+      onComplete(sync.baseline, sync);
+    } else {
+      setSaveError(
+        sync.warning ??
+          "Could not save to Cloud Headquarters. Confirm Supabase is configured and try again.",
+      );
+    }
     setSaving(false);
   };
 
@@ -268,6 +278,10 @@ export function FounderOnboarding({ onComplete }: FounderOnboardingProps) {
             </motion.div>
           ))}
         </div>
+
+        {saveError && (
+          <p className="mt-10 text-sm text-amber-700">{saveError}</p>
+        )}
 
         <motion.button
           type="button"

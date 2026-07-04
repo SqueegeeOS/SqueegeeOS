@@ -6,10 +6,12 @@ import {
   upsertHeadquartersProfileToSupabase,
 } from "@/lib/admin/headquarters-profile-server";
 import {
+  isHeadquartersInitialized,
   normalizeLegacyBaseline,
   type LegacyBaseline,
 } from "@/lib/admin/legacy-baseline";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -24,6 +26,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     profile: result.profile,
     storage: result.profile ? "supabase" : "none",
+    healthy: isSupabaseConfigured() && !result.error,
     warning: result.error,
   });
 }
@@ -73,7 +76,7 @@ export async function PUT(request: Request) {
     }
 
     if (
-      existing.profile.onboardingComplete &&
+      isHeadquartersInitialized(existing.profile) &&
       isBlankHeadquartersProfile(incoming)
     ) {
       return NextResponse.json(

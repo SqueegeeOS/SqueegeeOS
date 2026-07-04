@@ -1,6 +1,7 @@
 import {
   DEFAULT_FOUNDERS,
   EMPTY_LEGACY_BASELINE,
+  isHeadquartersInitialized,
   legacyBaselineHasHistory,
   normalizeLegacyBaseline,
   type LegacyBaseline,
@@ -26,6 +27,7 @@ export interface HeadquartersProfileRow {
   about_dasan: string;
   company_stand_for: string;
   onboarding_complete: boolean;
+  headquarters_initialized?: boolean;
   founders: [string, string];
   legacy_milestones: LegacyMilestone[];
   portrait_noah: string | null;
@@ -42,7 +44,7 @@ export interface HeadquartersProfileRow {
 }
 
 export function isBlankHeadquartersProfile(baseline: LegacyBaseline): boolean {
-  return !baseline.onboardingComplete && !legacyBaselineHasHistory(baseline);
+  return !isHeadquartersInitialized(baseline) && !legacyBaselineHasHistory(baseline);
 }
 
 export function baselineToRow(baseline: LegacyBaseline): HeadquartersProfileRow {
@@ -68,6 +70,7 @@ export function baselineToRow(baseline: LegacyBaseline): HeadquartersProfileRow 
     about_dasan: normalized.aboutDasan,
     company_stand_for: normalized.companyStandFor,
     onboarding_complete: normalized.onboardingComplete,
+    headquarters_initialized: isHeadquartersInitialized(normalized),
     founders: normalized.founders,
     legacy_milestones: normalized.legacyMilestones,
     portrait_noah: normalized.portraitNoah,
@@ -88,6 +91,7 @@ export function rowToBaseline(row: HeadquartersProfileRow): LegacyBaseline {
   return normalizeLegacyBaseline({
     configured: row.configured,
     onboardingComplete: row.onboarding_complete,
+    headquartersInitialized: row.headquarters_initialized ?? row.onboarding_complete,
     companyFoundedDate: row.business_started_date,
     founders: row.founders,
     googleReviews: row.google_reviews_baseline,
@@ -155,11 +159,12 @@ export async function fetchHeadquartersProfileFromSupabase(): Promise<{
     }
 
     const row = data as HeadquartersProfileRow;
-    if (!row.configured && !row.onboarding_complete) {
+    const baseline = rowToBaseline(row);
+    if (isBlankHeadquartersProfile(baseline)) {
       return { profile: null };
     }
 
-    return { profile: rowToBaseline(row) };
+    return { profile: baseline };
   } catch (error) {
     return {
       profile: null,

@@ -10,6 +10,7 @@ export interface LegacyMilestone {
 export interface LegacyBaseline {
   configured: boolean;
   onboardingComplete: boolean;
+  headquartersInitialized: boolean;
   companyFoundedDate: string | null;
   founders: [string, string];
   googleReviews: number;
@@ -45,6 +46,7 @@ export const DEFAULT_FOUNDERS: [string, string] = [
 export const EMPTY_LEGACY_BASELINE: LegacyBaseline = {
   configured: false,
   onboardingComplete: false,
+  headquartersInitialized: false,
   companyFoundedDate: null,
   founders: DEFAULT_FOUNDERS,
   googleReviews: 0,
@@ -94,6 +96,11 @@ function normalizeBaseline(parsed: Partial<LegacyBaseline>): LegacyBaseline {
     onboardingComplete: Boolean(
       parsed.onboardingComplete ?? parsed.configured,
     ),
+    headquartersInitialized: Boolean(
+      parsed.headquartersInitialized ??
+        parsed.onboardingComplete ??
+        parsed.configured,
+    ),
   };
 }
 
@@ -103,54 +110,37 @@ export function normalizeLegacyBaseline(
   return normalizeBaseline(parsed);
 }
 
+import { getHeadquartersSessionBaseline } from "@/lib/admin/headquarters-profile-session";
+
+/** Session cache only — Supabase is the source of truth. */
 export function loadLegacyBaseline(): LegacyBaseline {
-  if (typeof window === "undefined") return EMPTY_LEGACY_BASELINE;
-
-  const raw = localStorage.getItem(LEGACY_BASELINE_KEY);
-  if (!raw) return EMPTY_LEGACY_BASELINE;
-
-  try {
-    return normalizeBaseline(JSON.parse(raw) as Partial<LegacyBaseline>);
-  } catch {
-    return EMPTY_LEGACY_BASELINE;
-  }
+  return getHeadquartersSessionBaseline();
 }
 
+/** @deprecated Use persistHeadquartersProfile — founder data lives in Supabase only. */
 export function saveLocalLegacyBaseline(baseline: LegacyBaseline): LegacyBaseline {
-  if (typeof window === "undefined") {
-    return normalizeBaseline({
-      ...baseline,
-      configured: true,
-      updatedAt: new Date().toISOString(),
-    });
-  }
-
-  const normalized = normalizeBaseline({
+  return normalizeBaseline({
     ...baseline,
     configured: true,
     fiveStarReviews: baseline.googleReviews,
     homesProtected: baseline.homesServed,
     activeMembers: baseline.recurringCustomers || baseline.activeMembers,
-    updatedAt: new Date().toISOString(),
+    updatedAt: baseline.updatedAt ?? new Date().toISOString(),
   });
-
-  localStorage.setItem(LEGACY_BASELINE_KEY, JSON.stringify(normalized));
-  if (normalized.onboardingComplete) {
-    localStorage.setItem(FOUNDER_ONBOARDING_KEY, "true");
-  }
-
-  return normalized;
 }
 
-/** Local browser cache only — prefer persistHeadquartersProfile for cloud sync. */
+/** @deprecated Use persistHeadquartersProfile for cloud sync. */
 export function saveLegacyBaseline(baseline: LegacyBaseline): void {
-  saveLocalLegacyBaseline(baseline);
+  void saveLocalLegacyBaseline(baseline);
 }
 
+export function isHeadquartersInitialized(baseline: LegacyBaseline): boolean {
+  return Boolean(baseline.headquartersInitialized || baseline.onboardingComplete);
+}
+
+/** @deprecated Never use localStorage to gate onboarding — check Supabase via sync. */
 export function isFounderOnboardingComplete(): boolean {
-  if (typeof window === "undefined") return false;
-  const legacy = loadLegacyBaseline();
-  return legacy.onboardingComplete;
+  return isHeadquartersInitialized(getHeadquartersSessionBaseline());
 }
 
 export function legacyBaselineHasHistory(baseline: LegacyBaseline): boolean {

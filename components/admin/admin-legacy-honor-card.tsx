@@ -47,6 +47,7 @@ export function AdminLegacyHonorCard({
       ...form,
       configured: true,
       onboardingComplete: true,
+      headquartersInitialized: true,
       fiveStarReviews: form.googleReviews,
       homesProtected: form.homesServed,
       activeMembers: form.recurringCustomers,
@@ -60,7 +61,7 @@ export function AdminLegacyHonorCard({
     setSaveMessage(
       sync.source === "supabase" || sync.source === "migrated"
         ? "Saved to Cloud Headquarters."
-        : sync.warning ?? "Saved on this device only.",
+        : sync.warning ?? "Cloud save failed.",
     );
     setEditing(false);
     setSaving(false);

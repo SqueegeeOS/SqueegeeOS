@@ -1,30 +1,70 @@
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
+  clearLocalHeadquartersDraft,
+  readLocalHeadquartersDraft,
+} from "@/lib/admin/headquarters-local-draft";
+import {
   compareProfileUpdatedAt,
   isBlankHeadquartersProfile,
-  pickNewerBaseline,
 } from "@/lib/admin/headquarters-profile-server";
+import { setHeadquartersSessionBaseline, getHeadquartersSessionBaseline } from "@/lib/admin/headquarters-profile-session";
 import {
-  loadLegacyBaseline,
-  saveLocalLegacyBaseline,
+  EMPTY_LEGACY_BASELINE,
+  isHeadquartersInitialized,
+  legacyBaselineHasHistory,
+  normalizeLegacyBaseline,
   type LegacyBaseline,
 } from "@/lib/admin/legacy-baseline";
 
-export type HeadquartersProfileSource = "supabase" | "local" | "migrated";
+export type HeadquartersProfileSource =
+  | "supabase"
+  | "migrated"
+  | "none"
+  | "local_draft";
 
 export interface HeadquartersSyncResult {
   baseline: LegacyBaseline;
   source: HeadquartersProfileSource;
   cloudAvailable: boolean;
+  databaseHealthy: boolean;
   warning?: string;
+  pendingLocalImport?: boolean;
+  localDraft?: LegacyBaseline | null;
 }
 
 interface HeadquartersProfileApiResponse {
   profile: LegacyBaseline | null;
   storage: "supabase" | "none" | "local";
+  healthy?: boolean;
   warning?: string;
   error?: string;
   message?: string;
+}
+
+function normalizeForCloudSave(baseline: LegacyBaseline): LegacyBaseline {
+  return normalizeLegacyBaseline({
+    ...baseline,
+    configured: true,
+    headquartersInitialized: true,
+    onboardingComplete: true,
+    fiveStarReviews: baseline.googleReviews,
+    homesProtected: baseline.homesServed,
+    activeMembers: baseline.recurringCustomers || baseline.activeMembers,
+    updatedAt: new Date().toISOString(),
+  });
+}
+
+function finalizeBaseline(baseline: LegacyBaseline): LegacyBaseline {
+  const normalized = normalizeLegacyBaseline({
+    ...baseline,
+    configured: true,
+    headquartersInitialized: isHeadquartersInitialized(baseline),
+    onboardingComplete: Boolean(
+      baseline.onboardingComplete || baseline.headquartersInitialized,
+    ),
+  });
+  setHeadquartersSessionBaseline(normalized);
+  return normalized;
 }
 
 async function fetchCloudProfile(): Promise<HeadquartersProfileApiResponse> {
@@ -42,6 +82,7 @@ async function fetchCloudProfile(): Promise<HeadquartersProfileApiResponse> {
       return {
         profile: null,
         storage: "none",
+        healthy: false,
         warning:
           (json && "error" in json && json.error) ||
           "Could not load cloud headquarters profile",
@@ -53,6 +94,7 @@ async function fetchCloudProfile(): Promise<HeadquartersProfileApiResponse> {
     return {
       profile: null,
       storage: "none",
+      healthy: false,
       warning: "Could not reach cloud headquarters profile",
     };
   }
@@ -61,13 +103,15 @@ async function fetchCloudProfile(): Promise<HeadquartersProfileApiResponse> {
 async function saveCloudProfile(
   baseline: LegacyBaseline,
 ): Promise<HeadquartersProfileApiResponse> {
+  const payload = normalizeForCloudSave(baseline);
+
   try {
     const response = await fetch("/api/admin/headquarters-profile", {
       method: "PUT",
       headers: getAdminRequestHeaders(),
       body: JSON.stringify({
-        profile: baseline,
-        expectedUpdatedAt: baseline.updatedAt,
+        profile: payload,
+        expectedUpdatedAt: payload.updatedAt,
       }),
     });
 
@@ -78,6 +122,7 @@ async function saveCloudProfile(
         return {
           profile: json.profile,
           storage: "supabase",
+          healthy: true,
           warning: json.error,
         };
       }
@@ -85,7 +130,8 @@ async function saveCloudProfile(
       return {
         profile: null,
         storage: "local",
-        warning: json.error ?? "Cloud save failed — kept local copy only",
+        healthy: false,
+        warning: json.error ?? "Cloud save failed",
       };
     }
 
@@ -94,94 +140,184 @@ async function saveCloudProfile(
     return {
       profile: null,
       storage: "local",
-      warning: "Cloud save failed — kept local copy only",
+      healthy: false,
+      warning: "Cloud save failed",
     };
   }
 }
 
+async function saveCloudProfileAndFinalize(
+  baseline: LegacyBaseline,
+): Promise<HeadquartersProfileApiResponse> {
+  const saved = await saveCloudProfile(baseline);
+  if (saved.profile) {
+    finalizeBaseline(saved.profile);
+  }
+  return saved;
+}
+
+function buildSyncResult(
+  baseline: LegacyBaseline,
+  options: Omit<HeadquartersSyncResult, "baseline">,
+): HeadquartersSyncResult {
+  return {
+    baseline: finalizeBaseline(baseline),
+    ...options,
+  };
+}
+
+/**
+ * Supabase is the single source of truth. localStorage drafts are never used
+ * to decide whether Founder Setup should appear.
+ */
 export async function syncHeadquartersProfile(): Promise<HeadquartersSyncResult> {
-  const local = loadLegacyBaseline();
+  const localDraft = readLocalHeadquartersDraft();
   const cloudResponse = await fetchCloudProfile();
   const cloud = cloudResponse.profile;
+  const databaseHealthy = Boolean(cloudResponse.healthy ?? cloud);
 
-  if (cloud?.onboardingComplete) {
-    const winner = pickNewerBaseline(cloud, local);
+  if (cloud && isHeadquartersInitialized(cloud)) {
+    const localIsNewer =
+      localDraft &&
+      legacyBaselineHasHistory(localDraft) &&
+      compareProfileUpdatedAt(localDraft.updatedAt, cloud.updatedAt) > 0;
 
-    if (
-      !isBlankHeadquartersProfile(local) &&
-      compareProfileUpdatedAt(local.updatedAt, cloud.updatedAt) > 0
-    ) {
-      const migrated = await saveCloudProfile(winner);
-      const baseline = migrated.profile ?? winner;
-      saveLocalLegacyBaseline(baseline);
-      return {
-        baseline,
-        source: migrated.profile ? "migrated" : "local",
-        cloudAvailable: Boolean(migrated.profile),
-        warning: migrated.warning ?? cloudResponse.warning,
-      };
+    if (localIsNewer) {
+      return buildSyncResult(cloud, {
+        source: "supabase",
+        cloudAvailable: true,
+        databaseHealthy,
+        warning: cloudResponse.warning,
+        pendingLocalImport: true,
+        localDraft,
+      });
     }
 
-    saveLocalLegacyBaseline(cloud);
-    return {
-      baseline: cloud,
+    clearLocalHeadquartersDraft();
+    return buildSyncResult(cloud, {
       source: "supabase",
       cloudAvailable: true,
+      databaseHealthy,
       warning: cloudResponse.warning,
-    };
+    });
   }
 
-  if (!cloud && !isBlankHeadquartersProfile(local)) {
-    const migrated = await saveCloudProfile(local);
-    const baseline = migrated.profile ?? saveLocalLegacyBaseline(local);
-    return {
-      baseline,
-      source: migrated.profile ? "migrated" : "local",
-      cloudAvailable: Boolean(migrated.profile),
-      warning: migrated.warning ?? cloudResponse.warning,
-    };
+  if (
+    localDraft &&
+    (isHeadquartersInitialized(localDraft) || legacyBaselineHasHistory(localDraft))
+  ) {
+    const migrated = await saveCloudProfileAndFinalize({
+      ...localDraft,
+      headquartersInitialized: true,
+      onboardingComplete: true,
+    });
+
+    if (migrated.profile && isHeadquartersInitialized(migrated.profile)) {
+      clearLocalHeadquartersDraft();
+      return buildSyncResult(migrated.profile, {
+        source: "migrated",
+        cloudAvailable: true,
+        databaseHealthy: true,
+        warning: migrated.warning ?? cloudResponse.warning,
+      });
+    }
+
+    return buildSyncResult(EMPTY_LEGACY_BASELINE, {
+      source: "local_draft",
+      cloudAvailable: false,
+      databaseHealthy: false,
+      warning:
+        migrated.warning ??
+        cloudResponse.warning ??
+        "Local founder archive found but cloud sync failed. Import your draft when the database is healthy.",
+      pendingLocalImport: true,
+      localDraft,
+    });
   }
 
-  if (cloud) {
-    saveLocalLegacyBaseline(cloud);
-    return {
-      baseline: cloud,
-      source: cloud.onboardingComplete ? "supabase" : "local",
+  if (cloud && !isBlankHeadquartersProfile(cloud)) {
+    return buildSyncResult(cloud, {
+      source: "supabase",
       cloudAvailable: true,
+      databaseHealthy,
       warning: cloudResponse.warning,
-    };
+    });
   }
 
-  return {
-    baseline: local,
-    source: "local",
-    cloudAvailable: false,
+  return buildSyncResult(EMPTY_LEGACY_BASELINE, {
+    source: "none",
+    cloudAvailable: databaseHealthy,
+    databaseHealthy,
     warning: cloudResponse.warning,
-  };
+  });
+}
+
+export async function importLocalHeadquartersDraft(): Promise<HeadquartersSyncResult> {
+  const localDraft = readLocalHeadquartersDraft();
+  if (!localDraft) {
+    return buildSyncResult(getHeadquartersSessionBaseline(), {
+      source: "none",
+      cloudAvailable: false,
+      databaseHealthy: false,
+      warning: "No local draft found to import.",
+    });
+  }
+
+  const saved = await saveCloudProfileAndFinalize({
+    ...localDraft,
+    headquartersInitialized: true,
+    onboardingComplete: true,
+  });
+
+  if (saved.profile) {
+    clearLocalHeadquartersDraft();
+    return buildSyncResult(saved.profile, {
+      source: "migrated",
+      cloudAvailable: true,
+      databaseHealthy: true,
+      warning: saved.warning,
+    });
+  }
+
+  return buildSyncResult(getHeadquartersSessionBaseline(), {
+    source: "local_draft",
+    cloudAvailable: false,
+    databaseHealthy: false,
+    warning: saved.warning ?? "Import failed — cloud save did not succeed.",
+    pendingLocalImport: true,
+    localDraft,
+  });
 }
 
 export async function persistHeadquartersProfile(
   baseline: LegacyBaseline,
 ): Promise<HeadquartersSyncResult> {
-  const normalized = saveLocalLegacyBaseline(baseline);
-  const saved = await saveCloudProfile(normalized);
+  const payload = normalizeForCloudSave({
+    ...baseline,
+    headquartersInitialized: true,
+    onboardingComplete: true,
+    configured: true,
+  });
+
+  const saved = await saveCloudProfile(payload);
 
   if (saved.profile) {
-    saveLocalLegacyBaseline(saved.profile);
-    return {
-      baseline: saved.profile,
+    clearLocalHeadquartersDraft();
+    return buildSyncResult(finalizeBaseline(saved.profile), {
       source: "supabase",
       cloudAvailable: true,
+      databaseHealthy: true,
       warning: saved.warning,
-    };
+    });
   }
 
   return {
-    baseline: normalized,
-    source: "local",
+    baseline: payload,
+    source: "none",
     cloudAvailable: false,
+    databaseHealthy: false,
     warning:
       saved.warning ??
-      "Saved on this device only. Run migrations/003_headquarters_profile.sql in Supabase.",
+      "Could not save to Supabase. Run migrations/004_headquarters_initialized.sql and confirm Supabase env vars.",
   };
 }
