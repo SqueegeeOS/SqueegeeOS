@@ -14,6 +14,8 @@ import type { PlaceSearchCandidate } from "@/lib/reviews/place-id-resolver";
 import type { PlacesSearchDiagnostic } from "@/lib/reviews/places-search-debug";
 import type { ResolveUrlDiagnostic } from "@/lib/reviews/resolve-url-debug";
 import { GoogleOAuthSetupGuide } from "@/components/setup/google-oauth-setup-guide";
+import type { GbpApiDiagnostic } from "@/lib/reviews/google-business-profile";
+import { GOOGLE_OAUTH_SCOPES } from "@/lib/reviews/google-oauth-config";
 import {
   buildEnvLocalSnippet,
   buildVercelInstructions,
@@ -160,6 +162,174 @@ function PlaceConnectConfirmation({
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+function GbpListDiagnosticPanel({
+  email,
+  diagnostic,
+  oauthScopesRequested,
+  gbpApiAccessUrl,
+}: {
+  email?: string | null;
+  diagnostic: GbpApiDiagnostic | null;
+  oauthScopesRequested?: string;
+  gbpApiAccessUrl?: string | null;
+}) {
+  if (!diagnostic) return null;
+
+  const isApiIssue =
+    diagnostic.failureKind === "api_access_blocked" ||
+    diagnostic.failureKind === "locations_request_failed" ||
+    diagnostic.needsApiApproval;
+  const isAccountIssue =
+    diagnostic.failureKind === "zero_accounts" ||
+    diagnostic.failureKind === "zero_locations";
+
+  return (
+    <div className="space-y-4 rounded-[1.25rem] border border-amber-500/30 bg-amber-500/[0.06] p-5 text-xs leading-relaxed text-muted">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[10px] uppercase tracking-[0.22em] text-amber-700">
+          Business Profile list diagnostics
+        </p>
+        <span
+          className={`rounded-full border px-2.5 py-0.5 text-[9px] uppercase tracking-[0.16em] ${
+            isApiIssue
+              ? "border-amber-600/40 text-amber-800"
+              : isAccountIssue
+                ? "border-border text-muted"
+                : "border-border text-muted"
+          }`}
+        >
+          {isApiIssue ? "Likely API / scopes" : isAccountIssue ? "Check account" : diagnostic.failureKind}
+        </span>
+      </div>
+
+      <p className="text-sm text-foreground/90">{diagnostic.interpretation}</p>
+
+      <dl className="grid gap-2 sm:grid-cols-2">
+        <div>
+          <dt className="uppercase tracking-[0.16em]">Signed-in email</dt>
+          <dd className="mt-1 text-foreground/90">{email ?? "unknown"}</dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-[0.16em]">business.manage scope</dt>
+          <dd className="mt-1 text-foreground/90">
+            {diagnostic.hasBusinessManageScope ? "present" : "missing"}
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="uppercase tracking-[0.16em]">Scopes on token</dt>
+          <dd className="mt-1 break-all font-mono text-[10px] text-foreground/80">
+            {diagnostic.oauthScopes ?? "—"}
+          </dd>
+        </div>
+        <div className="sm:col-span-2">
+          <dt className="uppercase tracking-[0.16em]">Scopes we request</dt>
+          <dd className="mt-1 break-all font-mono text-[10px] text-foreground/80">
+            {oauthScopesRequested ?? GOOGLE_OAUTH_SCOPES.join(" ")}
+          </dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-[0.16em]">Accounts HTTP</dt>
+          <dd className="mt-1 text-foreground/90">
+            {diagnostic.accountsHttpStatus ?? "—"}
+            {diagnostic.accountCount != null
+              ? ` · ${diagnostic.accountCount} account(s)`
+              : ""}
+          </dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-[0.16em]">Locations HTTP</dt>
+          <dd className="mt-1 text-foreground/90">
+            {diagnostic.locationsHttpStatus ?? "—"}
+            {diagnostic.locationCount != null
+              ? ` · ${diagnostic.locationCount} location(s)`
+              : ""}
+          </dd>
+        </div>
+      </dl>
+
+      {diagnostic.accountsError && (
+        <p className="rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-amber-900">
+          Accounts API: {diagnostic.accountsError}
+        </p>
+      )}
+      {diagnostic.locationsError && (
+        <p className="rounded-lg border border-border/60 bg-background/40 px-3 py-2 text-amber-900">
+          Locations API: {diagnostic.locationsError}
+        </p>
+      )}
+
+      {diagnostic.accountsRaw && diagnostic.accountsRaw.length > 0 && (
+        <div>
+          <p className="mb-2 uppercase tracking-[0.16em]">Accounts returned</p>
+          <ul className="space-y-1 rounded-lg border border-border/60 bg-background/40 px-3 py-2">
+            {diagnostic.accountsRaw.map((account) => (
+              <li key={account.name ?? account.accountName} className="text-foreground/85">
+                {account.accountName ?? account.name ?? "Account"}
+                {account.type ? ` · ${account.type}` : ""}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {diagnostic.locationPreviews && diagnostic.locationPreviews.length > 0 && (
+        <div>
+          <p className="mb-2 uppercase tracking-[0.16em]">Locations returned</p>
+          <ul className="space-y-1 rounded-lg border border-border/60 bg-background/40 px-3 py-2">
+            {diagnostic.locationPreviews.map((location) => (
+              <li key={`${location.accountName}-${location.title}`}>
+                {location.title ?? "Untitled"}
+                {location.placeId ? ` · Place ID present` : " · no Place ID"}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {diagnostic.accountsResponseSnippet && (
+        <details>
+          <summary className="cursor-pointer text-foreground/85">
+            Raw accounts response (truncated)
+          </summary>
+          <pre className="mt-2 overflow-x-auto rounded-lg border border-border/60 bg-background/40 p-3 font-mono text-[10px] text-foreground/80">
+            {diagnostic.accountsResponseSnippet}
+          </pre>
+        </details>
+      )}
+
+      <p className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+        Endpoint: {diagnostic.accountsEndpoint}
+      </p>
+
+      {isApiIssue && gbpApiAccessUrl && (
+        <a
+          href={gbpApiAccessUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex rounded-full border border-accent/30 bg-accent/[0.12] px-6 py-3 text-[10px] uppercase tracking-[0.2em] text-accent"
+        >
+          Request Business Profile API access ↗
+        </a>
+      )}
+
+      {!isApiIssue && isAccountIssue && (
+        <p>
+          Confirm{" "}
+          <a
+            href="https://business.google.com"
+            target="_blank"
+            rel="noreferrer"
+            className="text-accent underline"
+          >
+            business.google.com
+          </a>{" "}
+          shows SqueegeeKing for <strong className="text-foreground">{email}</strong>.
+        </p>
+      )}
     </div>
   );
 }
@@ -450,6 +620,14 @@ export function GoogleReviewsSetupWizard() {
   const [pendingConnect, setPendingConnect] =
     useState<BusinessConnectOption | null>(null);
   const [productionPlaceId, setProductionPlaceId] = useState<string | null>(null);
+  const [gbpApiAccessUrl, setGbpApiAccessUrl] = useState<string | null>(null);
+  const [gbpNeedsApproval, setGbpNeedsApproval] = useState(false);
+  const [gbpDiagnostic, setGbpDiagnostic] = useState<GbpApiDiagnostic | null>(
+    null,
+  );
+  const [oauthScopesRequested, setOauthScopesRequested] = useState<
+    string | null
+  >(null);
 
   const step = WIZARD_STEPS[stepIndex];
   const findStepIndex = WIZARD_STEPS.findIndex((item) => item.id === "find");
@@ -621,16 +799,25 @@ export function GoogleReviewsSetupWizard() {
         businesses: BusinessConnectOption[];
         email?: string | null;
         warning?: string;
+        gbpApiAccessUrl?: string;
+        oauthScopesRequested?: string;
+        diagnostic?: GbpApiDiagnostic;
         serverEnvKeyPresent?: boolean;
       };
       setManagedBusinesses(json.businesses);
       setOauthEmail(json.email ?? null);
       setOauthConnected(true);
+      setGbpDiagnostic(json.diagnostic ?? null);
+      setOauthScopesRequested(json.oauthScopesRequested ?? null);
+      setGbpNeedsApproval(Boolean(json.diagnostic?.needsApiApproval));
+      setGbpApiAccessUrl(json.gbpApiAccessUrl ?? null);
       if (json.serverEnvKeyPresent !== undefined) {
         setServerEnvKeyPresent(json.serverEnvKeyPresent);
       }
       if (json.warning && json.businesses.length === 0) {
         setStatusMessage(json.warning);
+      } else if (json.businesses.length > 0) {
+        setGbpNeedsApproval(false);
       }
     } finally {
       setLoadingManaged(false);
@@ -1014,6 +1201,13 @@ export function GoogleReviewsSetupWizard() {
                 → Enable
               </li>
               <li>
+                Request{" "}
+                <ExternalLink href={GOOGLE_CONSOLE_LINKS.gbpApiAccess}>
+                  Business Profile Basic API Access
+                </ExternalLink>{" "}
+                (required — Google approves manually; quota is 0 until then)
+              </li>
+              <li>
                 <ExternalLink href={GOOGLE_CONSOLE_LINKS.placesApiNew}>
                   Places API (New)
                 </ExternalLink>{" "}
@@ -1160,10 +1354,12 @@ export function GoogleReviewsSetupWizard() {
             )}
 
             {oauthConnected && !loadingManaged && managedBusinesses.length === 0 && (
-              <p className="text-sm text-muted">
-                No managed Business Profiles found for this Google account. Try
-                a different account, or use the fallback options below.
-              </p>
+              <GbpListDiagnosticPanel
+                email={oauthEmail}
+                diagnostic={gbpDiagnostic}
+                oauthScopesRequested={oauthScopesRequested ?? undefined}
+                gbpApiAccessUrl={gbpApiAccessUrl}
+              />
             )}
 
             {managedBusinesses.length > 0 && (
@@ -1488,6 +1684,11 @@ export function GoogleReviewsSetupWizard() {
     oauthChecking,
     oauthConnected,
     oauthEmail,
+    gbpApiAccessUrl,
+    gbpDiagnostic,
+    loadManagedBusinesses,
+    loadingManaged,
+    oauthScopesRequested,
     pendingConnect,
     productionPlaceId,
     connectingPlaceId,

@@ -39,6 +39,8 @@ export const GOOGLE_CONSOLE_LINKS = {
   credentials: "https://console.cloud.google.com/apis/credentials",
   oauthCreateClient:
     "https://console.cloud.google.com/apis/credentials/oauthclient",
+  gbpApiAccess:
+    "https://developers.google.com/my-business/content/prereqs#request-access",
   billing: "https://console.cloud.google.com/billing",
   businessProfileApi:
     "https://console.cloud.google.com/marketplace/product/google/mybusinessbusinessinformation.googleapis.com",

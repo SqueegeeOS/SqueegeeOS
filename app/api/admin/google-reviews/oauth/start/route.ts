@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import {
   getGoogleOAuthClientId,
-  GOOGLE_BUSINESS_OAUTH_SCOPE,
+  getGoogleOAuthScopeString,
   isGoogleBusinessOAuthConfigured,
   resolveGoogleOAuthRedirectUri,
 } from "@/lib/reviews/google-oauth-config";
@@ -26,7 +26,7 @@ export async function GET(request: Request) {
     client_id: getGoogleOAuthClientId(),
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: GOOGLE_BUSINESS_OAUTH_SCOPE,
+    scope: getGoogleOAuthScopeString(),
     access_type: "offline",
     prompt: "consent",
     state,

@@ -4,7 +4,9 @@ export function logGoogleReviewsSetup(
     | "place_resolved"
     | "connection_test"
     | "managed_businesses_listed"
-    | "production_place_checked",
+    | "production_place_checked"
+    | "gbp_accounts_list"
+    | "gbp_locations_list",
   details: Record<string, string | number | boolean | null | undefined>,
 ): void {
   console.info(

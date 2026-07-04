@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
+import {
+  getGoogleOAuthScopeString,
+  GBP_REQUIRED_APIS,
+} from "@/lib/reviews/google-oauth-config";
 import { listManagedGoogleBusinesses } from "@/lib/reviews/google-business-profile";
-import { readGoogleOAuthSession } from "@/lib/reviews/google-oauth-session";
+import {
+  readGoogleOAuthSession,
+  writeGoogleOAuthSession,
+} from "@/lib/reviews/google-oauth-session";
+import { resolveOAuthEmail } from "@/lib/reviews/google-oauth-token-info";
 import { resolveSearchApiKey } from "@/lib/reviews/resolve-search-api-key";
 import { logGoogleReviewsSetup } from "@/lib/reviews/setup-log";
 
@@ -21,17 +29,29 @@ export async function GET(request: Request) {
     );
   }
 
+  const email = await resolveOAuthEmail(session.accessToken, session.email);
+  if (email && email !== session.email) {
+    await writeGoogleOAuthSession({ ...session, email });
+  }
+
   const { searchParams } = new URL(request.url);
   const keyInfo = resolveSearchApiKey(searchParams.get("apiKey") ?? undefined);
 
   const result = await listManagedGoogleBusinesses(
     session.accessToken,
     keyInfo.apiKey,
+    { email },
   );
 
   logGoogleReviewsSetup("managed_businesses_listed", {
-    email: session.email ?? null,
+    email: email ?? null,
+    failureKind: result.diagnostic.failureKind,
     businessCount: result.businesses.length,
+    accountsHttpStatus: result.diagnostic.accountsHttpStatus ?? null,
+    accountCount: result.diagnostic.accountCount ?? null,
+    locationCount: result.diagnostic.locationCount ?? null,
+    oauthScopes: result.diagnostic.oauthScopes ?? null,
+    hasBusinessManageScope: result.diagnostic.hasBusinessManageScope ?? null,
     businesses: result.businesses
       .map(
         (item) =>
@@ -42,8 +62,14 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     businesses: result.businesses,
-    email: session.email ?? null,
+    email: email ?? null,
     warning: result.error,
+    diagnostic: result.diagnostic,
+    oauthScopesRequested: getGoogleOAuthScopeString(),
+    requiredApis: GBP_REQUIRED_APIS,
+    gbpApiAccessUrl: result.diagnostic.needsApiApproval
+      ? "https://developers.google.com/my-business/content/prereqs#request-access"
+      : undefined,
     serverEnvKeyPresent: keyInfo.serverEnvKeyPresent,
     apiKeySource: keyInfo.source,
   });

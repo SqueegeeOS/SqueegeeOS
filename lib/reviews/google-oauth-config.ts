@@ -1,6 +1,26 @@
 export const GOOGLE_BUSINESS_OAUTH_SCOPE =
   "https://www.googleapis.com/auth/business.manage";
 
+/** Scopes requested during Google Business sign-in */
+export const GOOGLE_OAUTH_SCOPES = [
+  GOOGLE_BUSINESS_OAUTH_SCOPE,
+  "openid",
+  "email",
+  "profile",
+] as const;
+
+export function getGoogleOAuthScopeString(): string {
+  return GOOGLE_OAUTH_SCOPES.join(" ");
+}
+
+export const GBP_ACCOUNTS_LIST_URL =
+  "https://mybusinessaccountmanagement.googleapis.com/v1/accounts";
+
+export const GBP_REQUIRED_APIS = [
+  "My Business Account Management API",
+  "Business Profile Business Information API",
+] as const;
+
 export const GOOGLE_OAUTH_COOKIE = "squeegeeking_google_business_oauth";
 export const GOOGLE_OAUTH_STATE_COOKIE = "squeegeeking_google_oauth_state";
 
