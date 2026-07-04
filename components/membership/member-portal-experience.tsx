@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { MEMBER_PRIVILEGES } from "@/lib/membership/member-privileges";
 import {
-  consumeMemberWelcomePending,
   hasSeenUnlockCeremony,
   unlockContextFromPlanData,
   UNLOCK_WELCOME_COPY,
@@ -31,6 +30,7 @@ const REVEAL_RISE_PX = 20;
 interface MemberPortalExperienceProps {
   data: HomeCarePlanData;
   planName?: string;
+  fromUnlock?: boolean;
 }
 
 function PortalCard({
@@ -89,15 +89,14 @@ function PortalCard({
 export function MemberPortalExperience({
   data,
   planName,
+  fromUnlock = false,
 }: MemberPortalExperienceProps) {
   const planPath = `/homecare/${data.homeowner.slug}/${data.property.slug}/plan`;
   const reduceMotion = useReducedMotion();
-  const [fromUnlock, setFromUnlock] = useState(false);
   const [canReplayCeremony, setCanReplayCeremony] = useState(false);
   const { beginMembershipUnlock } = useMembershipUnlock();
 
   useEffect(() => {
-    setFromUnlock(consumeMemberWelcomePending());
     setCanReplayCeremony(
       hasSeenUnlockCeremony(data.homeowner.slug, data.property.slug),
     );

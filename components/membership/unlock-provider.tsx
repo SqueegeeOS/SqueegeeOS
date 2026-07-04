@@ -4,27 +4,20 @@ import {
   createContext,
   useCallback,
   useContext,
-  useState,
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
 import type {
   MembershipUnlockContext,
   UnlockPlaybackOptions,
-  UnlockTimingProfile,
 } from "@/lib/membership/unlock-sequence";
 import {
   buildMemberPortalPath,
   markMemberWelcomePending,
-  markUnlockCeremonySeen,
   resolveUnlockPlayback,
 } from "@/lib/membership/unlock-sequence";
-import { MembershipUnlockSequence } from "./unlock/membership-unlock-sequence";
 
-interface ActiveUnlock {
-  context: MembershipUnlockContext;
-  profile: UnlockTimingProfile;
-}
+export const UNLOCK_CEREMONY_REQUEST = "squeegeeking:request-unlock-ceremony";
 
 interface MembershipUnlockContextValue {
   beginMembershipUnlock: (
@@ -37,7 +30,6 @@ const UnlockContext = createContext<MembershipUnlockContextValue | null>(null);
 
 export function MembershipUnlockProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const [activeUnlock, setActiveUnlock] = useState<ActiveUnlock | null>(null);
 
   const navigateToPortal = useCallback(
     (context: MembershipUnlockContext) => {
@@ -52,41 +44,25 @@ export function MembershipUnlockProvider({ children }: { children: ReactNode }) 
     (context: MembershipUnlockContext, options?: UnlockPlaybackOptions) => {
       const playback = resolveUnlockPlayback(context, options);
 
-      if (playback.action === "skip") {
-        markMemberWelcomePending();
-        navigateToPortal(context);
-        return;
-      }
+      markMemberWelcomePending();
+      navigateToPortal(context);
 
-      setActiveUnlock({ context, profile: playback.profile });
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent(UNLOCK_CEREMONY_REQUEST, {
+            detail: {
+              forceCeremony: playback.action === "ceremony",
+            },
+          }),
+        );
+      }
     },
     [navigateToPortal],
   );
 
-  const handleComplete = useCallback(() => {
-    if (!activeUnlock) return;
-    markUnlockCeremonySeen(
-      activeUnlock.context.homeownerSlug,
-      activeUnlock.context.propertySlug,
-    );
-    const path = buildMemberPortalPath(
-      activeUnlock.context.homeownerSlug,
-      activeUnlock.context.propertySlug,
-    );
-    setActiveUnlock(null);
-    router.push(path);
-  }, [activeUnlock, router]);
-
   return (
     <UnlockContext.Provider value={{ beginMembershipUnlock }}>
       {children}
-      {activeUnlock && (
-        <MembershipUnlockSequence
-          context={activeUnlock.context}
-          timingProfile={activeUnlock.profile}
-          onComplete={handleComplete}
-        />
-      )}
     </UnlockContext.Provider>
   );
 }

@@ -3,11 +3,20 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import UnlockCeremony from "@/components/UnlockCeremony";
 import { MemberPortalExperience } from "@/components/membership/member-portal-experience";
-import { MembershipUnlockProvider } from "@/components/membership/unlock-provider";
+import {
+  MembershipUnlockProvider,
+  UNLOCK_CEREMONY_REQUEST,
+} from "@/components/membership/unlock-provider";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { canyonOaksHomeCarePlan } from "@/lib/home-care-plan/canyon-oaks";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
+import {
+  consumeMemberWelcomePending,
+  hasSeenUnlockCeremony,
+  markUnlockCeremonySeen,
+} from "@/lib/membership/unlock-sequence";
 import { loadGeneratedHomeCarePlan } from "@/lib/persistence";
 
 export default function MemberPortalPage() {
@@ -121,7 +130,64 @@ export default function MemberPortalPage() {
 
   return (
     <MembershipUnlockProvider>
-      <MemberPortalExperience data={planData} />
+      <MemberPortalWithCeremony
+        planData={planData}
+        homeownerSlug={homeownerSlug}
+        propertySlug={propertySlug}
+      />
     </MembershipUnlockProvider>
+  );
+}
+
+function MemberPortalWithCeremony({
+  planData,
+  homeownerSlug,
+  propertySlug,
+}: {
+  planData: HomeCarePlanData;
+  homeownerSlug: string;
+  propertySlug: string;
+}) {
+  const [fromUnlock, setFromUnlock] = useState(false);
+  const [showCeremony, setShowCeremony] = useState(false);
+
+  useEffect(() => {
+    function applyWelcomePending(forceCeremony: boolean) {
+      const pending = consumeMemberWelcomePending();
+      if (pending) setFromUnlock(true);
+      if (
+        forceCeremony ||
+        (pending && !hasSeenUnlockCeremony(homeownerSlug, propertySlug))
+      ) {
+        setShowCeremony(true);
+      }
+    }
+
+    applyWelcomePending(false);
+
+    const handleRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ forceCeremony?: boolean }>).detail;
+      applyWelcomePending(Boolean(detail?.forceCeremony));
+    };
+
+    window.addEventListener(UNLOCK_CEREMONY_REQUEST, handleRequest);
+    return () => {
+      window.removeEventListener(UNLOCK_CEREMONY_REQUEST, handleRequest);
+    };
+  }, [homeownerSlug, propertySlug]);
+
+  return (
+    <>
+      {showCeremony && (
+        <UnlockCeremony
+          onComplete={() => {
+            console.log("ceremony complete");
+            markUnlockCeremonySeen(homeownerSlug, propertySlug);
+            setShowCeremony(false);
+          }}
+        />
+      )}
+      <MemberPortalExperience data={planData} fromUnlock={fromUnlock} />
+    </>
   );
 }

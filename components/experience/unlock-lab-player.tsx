@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { MembershipUnlockSequence } from "@/components/membership/unlock/membership-unlock-sequence";
+import UnlockCeremony from "@/components/UnlockCeremony";
 import {
   EXPERIENCE_UNLOCK_CONTEXT,
 } from "@/lib/experience/lab-config";
@@ -71,13 +71,7 @@ export function UnlockLabPlayer() {
       </ExperienceLabShell>
 
       {playing && (
-        <MembershipUnlockSequence
-          key={playKey}
-          context={EXPERIENCE_UNLOCK_CONTEXT}
-          timingProfile={profile}
-          previewMode
-          onComplete={handleComplete}
-        />
+        <UnlockCeremony key={playKey} onComplete={handleComplete} />
       )}
     </>
   );
