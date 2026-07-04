@@ -6,6 +6,8 @@ import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { FounderOnboarding } from "@/components/admin/founder-onboarding";
 import { HeadquartersImportDraftBanner } from "@/components/admin/headquarters-import-draft-banner";
 import { HeadquartersSchemaSetup } from "@/components/admin/headquarters-schema-setup";
+import { HeadquartersArrivalSequence } from "@/components/experience/headquarters-arrival-sequence";
+import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import {
   importLocalHeadquartersDraft,
   syncHeadquartersProfile,
@@ -16,6 +18,10 @@ import {
   type LegacyBaseline,
 } from "@/lib/admin/legacy-baseline";
 import { isAdminUnlocked } from "@/lib/admin/pin";
+import {
+  markHeadquartersBootComplete,
+  shouldRunHeadquartersBoot,
+} from "@/lib/motion/boot-sequence";
 
 export function AdminExperience() {
   const [unlocked, setUnlocked] = useState(false);
@@ -27,6 +33,7 @@ export function AdminExperience() {
     null,
   );
   const [importingDraft, setImportingDraft] = useState(false);
+  const [showArrival, setShowArrival] = useState(false);
 
   const applySyncResult = useCallback((result: HeadquartersSyncResult) => {
     setLegacyBaseline(result.baseline);
@@ -60,6 +67,11 @@ export function AdminExperience() {
     void runCloudSync().finally(() => setReady(true));
   }, [runCloudSync, unlocked]);
 
+  useEffect(() => {
+    if (!ready || !onboardingComplete) return;
+    setShowArrival(shouldRunHeadquartersBoot());
+  }, [onboardingComplete, ready]);
+
   const handleOnboardingComplete = useCallback(
     (baseline: LegacyBaseline, sync?: HeadquartersSyncResult) => {
       setLegacyBaseline(baseline);
@@ -84,10 +96,21 @@ export function AdminExperience() {
     }
   }, [applySyncResult]);
 
+  const handleArrivalComplete = useCallback(() => {
+    markHeadquartersBootComplete();
+    setShowArrival(false);
+  }, []);
+
   if (!ready) {
     return (
-      <div className="flex min-h-[100svh] items-center justify-center bg-background text-muted">
-        Loading Cloud Headquarters…
+      <div className="relative min-h-[100svh] bg-background">
+        <div className="motion-grain pointer-events-none absolute inset-0 opacity-[0.035]" />
+        <div className="relative mx-auto flex min-h-[100svh] max-w-md flex-col items-center justify-center px-6">
+          <ShimmerBlock className="h-3 w-32 rounded-full" />
+          <ShimmerBlock className="mt-6 h-10 w-full rounded-2xl" />
+          <ShimmerBlock className="mt-3 h-10 w-4/5 rounded-2xl" />
+          <p className="sr-only">Loading Cloud Headquarters…</p>
+        </div>
       </div>
     );
   }
@@ -145,6 +168,9 @@ export function AdminExperience() {
 
   return (
     <>
+      {showArrival && (
+        <HeadquartersArrivalSequence onComplete={handleArrivalComplete} />
+      )}
       {syncResult?.pendingLocalImport && syncResult.localDraft && (
         <HeadquartersImportDraftBanner
           cloudBaseline={syncResult.baseline}

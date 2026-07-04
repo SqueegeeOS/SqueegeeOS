@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { loadLocalClosedJobs } from "@/lib/admin/closed-jobs-store";
@@ -38,6 +37,16 @@ import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import { buildMorningBrief } from "@/lib/concierge/build-morning-brief";
 import { toGoogleReviewsSnapshot } from "@/lib/concierge/rules";
 import { useGoogleReviewsClient } from "@/lib/reviews/use-google-reviews-client";
+import { AmbientFieldScoped } from "@/components/motion/ambient-field";
+import { BootLayer } from "@/components/motion/boot-layer";
+import { BootProvider } from "@/components/motion/boot-provider";
+import { HeadquartersLoadingShell } from "@/components/motion/shimmer-block";
+import { LuxuryButton } from "@/components/motion/status-pulse";
+import {
+  HeadlineReveal,
+  LineReveal,
+} from "@/components/motion/typography-reveal";
+import { headquartersGreeting } from "@/lib/motion/boot-sequence";
 import {
   HeadquartersCloudStatus,
   HeadquartersStatusCard,
@@ -62,8 +71,6 @@ import { RevenuePeriodFilterBar } from "./revenue-period-filter";
 import { WhyWeExist } from "./why-we-exist";
 import { MorningBriefSection } from "./morning-brief";
 
-const easeLuxury = [0.22, 1, 0.36, 1] as const;
-
 export function AdminCommandCenter({
   initialLegacyBaseline,
   headquartersSync,
@@ -71,7 +78,6 @@ export function AdminCommandCenter({
   initialLegacyBaseline?: LegacyBaseline | null;
   headquartersSync?: HeadquartersSyncResult | null;
 }) {
-  const reduceMotion = useReducedMotion();
   const { response: googleReviewsResponse } = useGoogleReviewsClient();
   const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
   const [periodFilter, setPeriodFilter] =
@@ -241,11 +247,7 @@ export function AdminCommandCenter({
   }, [dashboard]);
 
   if (loading || !dashboard || !stats || !chartSeries || !scoreboard || !growthJourney || !freedomMeter) {
-    return (
-      <div className="flex min-h-[100svh] items-center justify-center bg-background text-muted">
-        Opening headquarters…
-      </div>
-    );
+    return <HeadquartersLoadingShell />;
   }
 
   const showOsAwaitingBanner =
@@ -297,7 +299,7 @@ export function AdminCommandCenter({
           Private beta
         </span>
       )}
-      <button
+      <LuxuryButton
         type="button"
         onClick={() => {
           clearAdminSession();
@@ -306,7 +308,7 @@ export function AdminCommandCenter({
         className="rounded-full border border-border px-4 py-2 text-[10px] uppercase tracking-[0.2em] text-muted transition-colors hover:border-accent/30 hover:text-accent"
       >
         Lock headquarters
-      </button>
+      </LuxuryButton>
     </div>
   );
 
@@ -323,37 +325,45 @@ export function AdminCommandCenter({
   );
 
   return (
-    <div className="relative min-h-[100svh] overflow-x-hidden bg-background pb-24">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(201,184,150,0.08),transparent_55%)]" />
-
-      <div className="relative mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14 lg:px-10">
-        <motion.header
-          initial={reduceMotion ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.7, ease: easeLuxury }}
-          className="flex flex-col gap-6 border-b border-border/70 pb-10 lg:flex-row lg:items-end lg:justify-between"
-        >
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.32em] text-muted">
-              SqueegeeKing Headquarters
-            </p>
-            <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-muted/60">
-              {PLATFORM_BRAND.poweredByLabel}
-            </p>
-            <h1 className="mt-4 font-serif text-4xl font-light leading-[1.05] text-foreground sm:text-6xl">
-              Welcome back, Noah &amp; Dasan.
-            </h1>
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-muted sm:text-lg">
-              Your company is alive. Let&apos;s continue building it today.
-            </p>
-            {showOsAwaitingBanner && (
-              <p className="mt-4 text-sm text-muted/80">
-                The Operating System is ready for its first logged sale.
-              </p>
-            )}
-          </div>
-          {topBar}
-        </motion.header>
+    <BootProvider>
+      <AmbientFieldScoped>
+        <div className="relative min-h-[100svh] overflow-x-hidden pb-24">
+          <div className="relative mx-auto max-w-7xl px-5 py-10 sm:px-8 sm:py-14 lg:px-10">
+            <BootLayer layer="navigation">
+              <header className="flex flex-col gap-6 border-b border-border/70 pb-10 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.32em] text-muted">
+                    SqueegeeKing Headquarters
+                  </p>
+                  <p className="mt-2 text-[10px] uppercase tracking-[0.22em] text-muted/60">
+                    {PLATFORM_BRAND.poweredByLabel}
+                  </p>
+                  <HeadlineReveal
+                    as="h1"
+                    text={headquartersGreeting("Noah")}
+                    className="mt-4 font-serif text-4xl font-light leading-[1.05] text-foreground sm:text-6xl"
+                    delay={0.12}
+                    wordDelay={0.055}
+                  />
+                  <LineReveal
+                    className="mt-4 max-w-2xl text-base leading-relaxed text-muted sm:text-lg"
+                    delay={0.48}
+                  >
+                    Welcome back, Dasan. Your company is alive. Let&apos;s
+                    continue building it today.
+                  </LineReveal>
+                  {showOsAwaitingBanner && (
+                    <LineReveal
+                      className="mt-4 text-sm text-muted/80"
+                      delay={0.72}
+                    >
+                      The Operating System is ready for its first logged sale.
+                    </LineReveal>
+                  )}
+                </div>
+                {topBar}
+              </header>
+            </BootLayer>
 
         {morningBrief && (
           <div className="mt-10">
@@ -397,7 +407,7 @@ export function AdminCommandCenter({
               eyebrow="Growth Journey"
               title="The path forward"
               description="Foundation to Dynasty — milestones unlock as the business earns them."
-              delay={0}
+              index={1}
             >
               <AdminGrowthJourney tiers={growthJourney} />
             </AdminSection>
@@ -411,7 +421,7 @@ export function AdminCommandCenter({
               eyebrow="The Operating System"
               title="Today — alive"
               description="Numbers change. Charts move. Goals progress. This is the company right now."
-              delay={0.04}
+              index={0}
             >
               <div className="space-y-8">
                 <RevenuePeriodFilterBar
@@ -435,7 +445,7 @@ export function AdminCommandCenter({
               eyebrow="Two Timelines"
               title="History and today"
               description="The Legacy is preserved. The Operating System is tracked live."
-              delay={0.06}
+              index={1}
             >
               <AdminDualTimelines
                 legacyMilestones={legacyBaseline.legacyMilestones}
@@ -453,7 +463,7 @@ export function AdminCommandCenter({
             eyebrow="Closed Jobs"
             title="Log a completed sale"
             description="Enter a job from the field in under a minute. Totals refresh instantly."
-            delay={0.12}
+            index={0}
           >
             <ClosedJobsForm onLogged={() => void loadDashboard({ silent: true })} />
           </AdminSection>
@@ -462,7 +472,7 @@ export function AdminCommandCenter({
             eyebrow="Monthly Sales Ledger"
             title="Revenue by month"
             description="Revenue collected, ARR generated, and monthly sales performance for the selected period."
-            delay={0.14}
+            index={1}
           >
             <MonthlySalesLedger
               entries={ledger}
@@ -476,7 +486,7 @@ export function AdminCommandCenter({
             eyebrow="Recent Activity"
             title="Closed jobs"
             description="Every sale with immediate revenue and annual contract value."
-            delay={0.16}
+            index={0}
           >
             <RecentClosedJobsTable
               jobs={filteredJobs}
@@ -490,7 +500,7 @@ export function AdminCommandCenter({
             eyebrow="Membership Revenue"
             title="Membership overview"
             description="Platform membership health. MRR remains a placeholder until Stripe connects."
-            delay={0.18}
+            index={0}
           >
             <MembershipRevenueSection membership={dashboard.membership} />
           </AdminSection>
@@ -501,7 +511,7 @@ export function AdminCommandCenter({
         </div>
 
         <div className="mt-10">
-          <AdminSection eyebrow="Quick Actions" title="Move with intent" delay={0.2}>
+          <AdminSection eyebrow="Quick Actions" title="Move with intent" index={0}>
             <div className="grid gap-3 sm:grid-cols-2">
               {quickActions.map((action) =>
                 action.external ? (
@@ -530,29 +540,28 @@ export function AdminCommandCenter({
           </AdminSection>
         </div>
 
-        <motion.footer
-          initial={reduceMotion ? false : { opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.8 }}
-          className="mt-10 space-y-4 rounded-[1.5rem] border border-border/70 bg-surface/40 px-5 py-4 text-xs leading-relaxed text-muted sm:px-6"
-        >
-          <p className="text-[10px] uppercase tracking-[0.2em] text-muted/50">
-            {PLATFORM_BRAND.poweredByLabel}
-          </p>
-          <p className="max-w-2xl text-muted/60 italic">
-            {HEADQUARTERS_PURPOSE}
-          </p>
-          <p>
-            Closed jobs: {dashboard.dataSources.closedJobs} · Executive stats:{" "}
-            {dashboard.dataSources.executive} · Membership:{" "}
-            {dashboard.dataSources.membership}. Supabase table: run{" "}
-            <code className="rounded bg-background px-1.5 py-0.5 text-accent">
-              lib/persistence/supabase/migrations/002_closed_jobs.sql
-            </code>{" "}
-            in the SQL Editor for cloud persistence.
-          </p>
-        </motion.footer>
-      </div>
-    </div>
+        <BootLayer layer="footer">
+          <footer className="mt-10 space-y-4 rounded-[1.5rem] border border-border/70 bg-surface/40 px-5 py-4 text-xs leading-relaxed text-muted sm:px-6">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-muted/50">
+              {PLATFORM_BRAND.poweredByLabel}
+            </p>
+            <p className="max-w-2xl text-muted/60 italic">
+              {HEADQUARTERS_PURPOSE}
+            </p>
+            <p>
+              Closed jobs: {dashboard.dataSources.closedJobs} · Executive stats:{" "}
+              {dashboard.dataSources.executive} · Membership:{" "}
+              {dashboard.dataSources.membership}. Supabase table: run{" "}
+              <code className="rounded bg-background px-1.5 py-0.5 text-accent">
+                lib/persistence/supabase/migrations/002_closed_jobs.sql
+              </code>{" "}
+              in the SQL Editor for cloud persistence.
+            </p>
+          </footer>
+        </BootLayer>
+          </div>
+        </div>
+      </AmbientFieldScoped>
+    </BootProvider>
   );
 }

@@ -4,6 +4,7 @@ import {
   ADMIN_UNLOCK_KEY,
   isAdminPrivateBeta,
 } from "./config";
+import { clearHeadquartersBootFlag } from "@/lib/motion/boot-sequence";
 
 interface AdminUnlockRecord {
   unlockedAt: number;
@@ -34,6 +35,7 @@ export function clearAdminSession(): void {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(ADMIN_UNLOCK_KEY);
   sessionStorage.removeItem(ADMIN_PIN_SESSION_KEY);
+  clearHeadquartersBootFlag();
 }
 
 export function isAdminUnlocked(): boolean {
