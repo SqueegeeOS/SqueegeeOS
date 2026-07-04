@@ -36,7 +36,7 @@ export function UnlockLabPlayer() {
     <>
       <ExperienceLabShell
         title="Membership Unlock Ceremony"
-        description="Production unlock sequence using Larry Buckley · Canyon Oaks Residence demo context. No Stripe, no membership records."
+        description="Apollo Unlock Ceremony v2 — constellation particles, key forge, bloom, and welcome sequence. Larry Buckley · Canyon Oaks demo context."
       >
         <article className="rounded-[1.5rem] border border-border/70 bg-surface/40 p-5 sm:p-6">
           <p className="text-[10px] uppercase tracking-[0.22em] text-muted">

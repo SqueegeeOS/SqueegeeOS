@@ -1,19 +1,16 @@
 /**
- * Membership Unlock Sequence — Daedalus Motion Spec v1.
+ * Membership Unlock Sequence — Apollo Motion Spec v2.0.
  * Triggered after successful Stripe Checkout.
  */
 
-import {
-  getDaedalusTotalMs,
-  scaleDaedalusPhases,
-} from "./unlock-daedalus";
+import { getApolloCeremonyEstimateMs } from "./unlock-apollo";
 
 export type UnlockSequencePhase =
-  | "approach"
-  | "insert"
-  | "turn"
-  | "release"
+  | "constellation"
+  | "orbit"
+  | "unlock"
   | "bloom"
+  | "welcome"
   | "reveal"
   | "done";
 
@@ -40,11 +37,15 @@ export type UnlockPlayback =
   | { action: "ceremony"; profile: UnlockTimingProfile }
   | { action: "skip" };
 
-/** Daedalus v1 — 4000ms full ceremony */
-export const UNLOCK_TIMING_FULL = scaleDaedalusPhases(1);
+/** Apollo v2 — ~28s full ceremony (see unlock-apollo.ts) */
+export const UNLOCK_TIMING_FULL = {
+  skipAvailableAfter: 2000,
+} as const;
 
-/** ~2200ms — same choreography, compressed */
-export const UNLOCK_TIMING_FAST = scaleDaedalusPhases(0.55);
+/** Fast profile — same choreography, ~55% duration */
+export const UNLOCK_TIMING_FAST = {
+  skipAvailableAfter: 1100,
+} as const;
 
 export const UNLOCK_WELCOME_COPY = {
   family: "Welcome to the SqueegeeKing Family.",
@@ -59,12 +60,12 @@ export function getUnlockTiming(profile: UnlockTimingProfile) {
 }
 
 export function getUnlockSequenceTotalMs(profile: UnlockTimingProfile): number {
-  return getDaedalusTotalMs(profile);
+  return getApolloCeremonyEstimateMs(profile);
 }
 
 /**
- * Production timing: set NEXT_PUBLIC_UNLOCK_TIMING=fast on Vercel for ~2.2s ceremony.
- * Default (unset or "full") keeps the 4s Daedalus v1 spec.
+ * Production timing: set NEXT_PUBLIC_UNLOCK_TIMING=fast on Vercel for ~15s ceremony.
+ * Default (unset or "full") keeps the Apollo v2 spec (~28s).
  */
 export function getProductionUnlockTimingProfile(): UnlockTimingProfile {
   const value = process.env.NEXT_PUBLIC_UNLOCK_TIMING;
