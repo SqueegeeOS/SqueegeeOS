@@ -6,21 +6,25 @@ import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { isAdminUnlocked } from "@/lib/admin/pin";
 import { ROUTES } from "@/lib/navigation/config";
 import {
-  calculateQuarterlyBaseQuote,
+  calculateMembershipPricingQuote,
   formatPricingAmount,
+  PRICING_CADENCE_CONFIG,
   PRICING_PRESET_SQFT,
-  QUARTERLY_BASE_RATE_PER_SQFT,
-} from "@/lib/pricing/quarterly-base-calculator";
+  ratePerThousandSqft,
+  type PricingCadence,
+} from "@/lib/pricing/membership-pricing-calculator";
 
 function PriceRow({
   label,
   perVisit,
   annual,
+  visitsPerYear,
   highlight = false,
 }: {
   label: string;
   perVisit: number;
   annual?: number;
+  visitsPerYear?: number;
   highlight?: boolean;
 }) {
   return (
@@ -36,9 +40,9 @@ function PriceRow({
         {formatPricingAmount(perVisit)}
         <span className="text-base text-muted"> / visit</span>
       </p>
-      {annual != null && (
+      {annual != null && visitsPerYear != null && (
         <p className="mt-1 text-xs text-muted">
-          {formatPricingAmount(annual)} / year · 4 visits
+          {formatPricingAmount(annual)} / year · {visitsPerYear} visits
         </p>
       )}
     </div>
@@ -47,9 +51,14 @@ function PriceRow({
 
 export function PricingCalculatorPage() {
   const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [cadence, setCadence] = useState<PricingCadence>("quarterly");
   const [sqft, setSqft] = useState(2500);
 
-  const quote = useMemo(() => calculateQuarterlyBaseQuote(sqft), [sqft]);
+  const config = PRICING_CADENCE_CONFIG[cadence];
+  const quote = useMemo(
+    () => calculateMembershipPricingQuote(sqft, cadence),
+    [sqft, cadence],
+  );
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
@@ -70,20 +79,50 @@ export function PricingCalculatorPage() {
             Base Rate Sheet
           </p>
           <h1 className="mt-3 font-serif text-4xl font-light text-foreground sm:text-5xl">
-            Quarterly pricing calculator
+            Membership pricing calculator
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-muted">
-            Exterior-only floor pricing at{" "}
-            {formatPricingAmount(QUARTERLY_BASE_RATE_PER_SQFT * 1000)} per 1,000
-            sq ft per visit. Screens are never included. Interior adds 60%. One-time
-            jobs add {formatPricingAmount(quote.oneTimePremium)} vs the member rate.
+            Exterior-only floor pricing — screens never included. Interior adds
+            60%. One-time jobs add {formatPricingAmount(quote.oneTimePremium)} vs
+            the member rate.
           </p>
         </header>
 
         <section className="mt-10 rounded-[1.75rem] border border-border/70 bg-surface/40 p-6 sm:p-8">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
+            Membership cadence
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(Object.keys(PRICING_CADENCE_CONFIG) as PricingCadence[]).map(
+              (option) => {
+                const def = PRICING_CADENCE_CONFIG[option];
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setCadence(option)}
+                    className={`rounded-full border px-5 py-2.5 text-left transition-colors ${
+                      cadence === option
+                        ? "border-accent/40 bg-accent/10 text-accent"
+                        : "border-border text-muted hover:border-accent/25"
+                    }`}
+                  >
+                    <span className="block text-xs uppercase tracking-[0.14em]">
+                      {def.label}
+                    </span>
+                    <span className="mt-0.5 block text-[11px] normal-case tracking-normal text-muted">
+                      {formatPricingAmount(ratePerThousandSqft(def.ratePerSqft))}{" "}
+                      / 1,000 sq ft · {def.visitsPerYear} visits/yr
+                    </span>
+                  </button>
+                );
+              },
+            )}
+          </div>
+
           <label
             htmlFor="sqft-input"
-            className="text-[10px] uppercase tracking-[0.28em] text-muted"
+            className="mt-8 block text-[10px] uppercase tracking-[0.28em] text-muted"
           >
             Home square footage
           </label>
@@ -127,28 +166,36 @@ export function PricingCalculatorPage() {
               </button>
             ))}
           </div>
+
+          <p className="mt-6 text-sm text-muted">
+            Selected: <span className="text-foreground">{config.label}</span> ·{" "}
+            {config.tagline} · {config.frequency} ·{" "}
+            {formatPricingAmount(ratePerThousandSqft(config.ratePerSqft))} per
+            1,000 sq ft
+          </p>
         </section>
 
         <div className="mt-10 grid gap-8 lg:grid-cols-2">
           <div>
             <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
-              Quarterly membership
+              {config.label} membership
             </p>
             <p className="mt-2 text-sm text-muted">
-              Cheapest plan — exterior only unless inside + out is selected. No
-              screen cleaning on any tier.
+              Exterior only unless inside + out is selected. No screen cleaning.
             </p>
             <div className="mt-4 space-y-3">
               <PriceRow
                 label="Exterior only"
-                perVisit={quote.quarterlyExterior}
-                annual={quote.quarterlyExteriorAnnual}
+                perVisit={quote.memberExterior}
+                annual={quote.memberExteriorAnnual}
+                visitsPerYear={quote.visitsPerYear}
                 highlight
               />
               <PriceRow
                 label="Inside + outside"
-                perVisit={quote.quarterlyInsideOut}
-                annual={quote.quarterlyInsideOutAnnual}
+                perVisit={quote.memberInsideOut}
+                annual={quote.memberInsideOutAnnual}
+                visitsPerYear={quote.visitsPerYear}
               />
             </div>
           </div>
@@ -162,10 +209,7 @@ export function PricingCalculatorPage() {
               Interior still adds 60% to the exterior price.
             </p>
             <div className="mt-4 space-y-3">
-              <PriceRow
-                label="Exterior only"
-                perVisit={quote.oneTimeExterior}
-              />
+              <PriceRow label="Exterior only" perVisit={quote.oneTimeExterior} />
               <PriceRow
                 label="Inside + outside"
                 perVisit={quote.oneTimeInsideOut}
@@ -178,19 +222,27 @@ export function PricingCalculatorPage() {
           <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
             Reference examples
           </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted">
+          <ul className="mt-4 space-y-3 text-sm text-muted">
             <li>
-              1,400 sq ft → {formatPricingAmount(140)}/visit quarterly exterior ·{" "}
-              {formatPricingAmount(290)} one-time exterior
+              <span className="text-foreground/80">Quarterly</span> · 1,000 sq ft
+              → {formatPricingAmount(100)}/visit exterior ·{" "}
+              {formatPricingAmount(250)} one-time exterior
             </li>
             <li>
-              1,500 sq ft → {formatPricingAmount(150)}/visit quarterly exterior ·{" "}
+              <span className="text-foreground/80">Bi-Annual</span> · 1,000 sq ft
+              → {formatPricingAmount(125)}/visit exterior ·{" "}
+              {formatPricingAmount(275)} one-time exterior
+            </li>
+            <li>
+              <span className="text-foreground/80">Quarterly</span> · 1,500 sq ft
+              → {formatPricingAmount(150)}/visit exterior ·{" "}
               {formatPricingAmount(240)}/visit inside + out ·{" "}
               {formatPricingAmount(300)} one-time exterior ·{" "}
               {formatPricingAmount(480)} one-time inside + out
             </li>
             <li>
-              2,500 sq ft → {formatPricingAmount(250)}/visit quarterly exterior ·{" "}
+              <span className="text-foreground/80">Quarterly</span> · 2,500 sq ft
+              → {formatPricingAmount(250)}/visit exterior ·{" "}
               {formatPricingAmount(400)} one-time exterior
             </li>
           </ul>

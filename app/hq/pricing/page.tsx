@@ -3,7 +3,7 @@ import { PricingCalculatorPage } from "@/components/admin/pricing-calculator-pag
 
 export const metadata: Metadata = {
   title: "Pricing Calculator | SqueegeeKing HQ",
-  description: "Base quarterly and one-time pricing by square footage.",
+  description: "Quarterly and bi-annual base pricing by square footage.",
   robots: { index: false, follow: false },
 };
 

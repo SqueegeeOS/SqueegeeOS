@@ -380,8 +380,8 @@ export function AdminCommandCenter({
                 Pricing Calculator
               </p>
               <p className="mt-2 text-sm text-muted">
-                Base quarterly rates by sq ft — exterior, inside + out, and one-time
-                pricing. Screens never included.
+                Quarterly and bi-annual base rates by sq ft — exterior, inside +
+                out, and one-time pricing. Screens never included.
               </p>
             </div>
             <span className="text-sm text-accent transition-transform group-hover:translate-x-0.5">
