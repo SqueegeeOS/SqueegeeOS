@@ -3,6 +3,7 @@ import { authorizeAdminRequest } from "@/lib/admin/pin";
 import { listManagedGoogleBusinesses } from "@/lib/reviews/google-business-profile";
 import { readGoogleOAuthSession } from "@/lib/reviews/google-oauth-session";
 import { resolveSearchApiKey } from "@/lib/reviews/resolve-search-api-key";
+import { logGoogleReviewsSetup } from "@/lib/reviews/setup-log";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -27,6 +28,17 @@ export async function GET(request: Request) {
     session.accessToken,
     keyInfo.apiKey,
   );
+
+  logGoogleReviewsSetup("managed_businesses_listed", {
+    email: session.email ?? null,
+    businessCount: result.businesses.length,
+    businesses: result.businesses
+      .map(
+        (item) =>
+          `${item.name} (${item.placeId}) · ${item.rating ?? "?"}★ · ${item.reviewCount ?? "?"} reviews`,
+      )
+      .join(" | "),
+  });
 
   return NextResponse.json({
     businesses: result.businesses,

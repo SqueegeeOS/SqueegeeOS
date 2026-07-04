@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
 import { resolveGoogleBusinessLink } from "@/lib/reviews/place-id-resolver";
 import { resolveSearchApiKey } from "@/lib/reviews/resolve-search-api-key";
+import { logGoogleReviewsSetup } from "@/lib/reviews/setup-log";
 
 export async function POST(request: Request) {
   const pinHeader = request.headers.get("x-admin-pin");
@@ -29,6 +30,24 @@ export async function POST(request: Request) {
     phone: body.phone,
     website: body.website,
   });
+
+  const resolvedName =
+    result.candidates.find((item) => item.placeId === result.placeId)?.name ??
+    result.businessNameHint ??
+    result.candidates[0]?.name ??
+    null;
+
+  if (result.placeId) {
+    logGoogleReviewsSetup("place_resolved", {
+      source: "resolve_url",
+      inputUrl: url,
+      resolvedUrl: result.resolvedUrl,
+      method: result.method,
+      placeId: result.placeId,
+      businessName: resolvedName,
+      candidateCount: result.candidates.length,
+    });
+  }
 
   return NextResponse.json({
     placeId: result.placeId,

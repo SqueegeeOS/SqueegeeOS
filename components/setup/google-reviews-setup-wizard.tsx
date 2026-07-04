@@ -90,6 +90,79 @@ function CheckRow({
   );
 }
 
+function PlaceConnectConfirmation({
+  business,
+  productionPlaceId,
+  confirming,
+  onCancel,
+  onConfirm,
+}: {
+  business: BusinessConnectOption;
+  productionPlaceId?: string | null;
+  confirming: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const stars = formatStarRating(business.rating);
+  const sameAsProduction =
+    productionPlaceId && productionPlaceId === business.placeId;
+
+  return (
+    <div className="rounded-[1.25rem] border border-accent/30 bg-accent/[0.06] p-5">
+      <p className="text-[10px] uppercase tracking-[0.22em] text-accent">
+        Confirm Place ID before saving
+      </p>
+      <p className="mt-3 text-sm leading-relaxed text-foreground/90">
+        Verify this is Noah&apos;s SqueegeeKing Google Business Profile (~5.0
+        stars, ~116 reviews). This Place ID will be copied into{" "}
+        <code className="text-xs">GOOGLE_PLACE_ID</code> for production.
+      </p>
+      <div className="mt-4 space-y-2 rounded-xl border border-border/60 bg-background/50 px-4 py-3 text-sm">
+        <p className="font-serif text-xl font-light text-foreground">
+          {business.name}
+        </p>
+        {stars && (
+          <p className="text-accent">
+            {stars}
+            {business.reviewCount != null
+              ? ` · ${business.reviewCount} reviews`
+              : ""}
+          </p>
+        )}
+        {business.locationLabel && (
+          <p className="text-xs text-muted">{business.locationLabel}</p>
+        )}
+        <p className="font-mono text-[11px] text-muted break-all">
+          Place ID: {business.placeId}
+        </p>
+      </div>
+      {sameAsProduction && (
+        <p className="mt-3 text-xs text-muted">
+          This matches the Place ID already configured in production.
+        </p>
+      )}
+      <div className="mt-4 flex flex-wrap gap-3">
+        <button
+          type="button"
+          onClick={onConfirm}
+          disabled={confirming}
+          className="rounded-full border border-accent/30 bg-accent/[0.12] px-6 py-3 text-[10px] uppercase tracking-[0.2em] text-accent disabled:opacity-50"
+        >
+          {confirming ? "Confirming…" : "Confirm & save Place ID"}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={confirming}
+          className="rounded-full border border-border px-5 py-3 text-[10px] uppercase tracking-[0.18em] text-muted hover:border-accent/25 hover:text-accent disabled:opacity-50"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function BusinessConnectList({
   businesses,
   connectedPlaceId,
@@ -354,7 +427,13 @@ export function GoogleReviewsSetupWizard() {
   const [testing, setTesting] = useState(false);
   const [searching, setSearching] = useState(false);
   const [resolving, setResolving] = useState(false);
-  const [testResult, setTestResult] = useState<GoogleReviewsTestResult | null>(null);
+  const [testResult, setTestResult] = useState<
+    (GoogleReviewsTestResult & {
+      likelySqueegeeKing?: boolean;
+      mismatchReason?: string | null;
+      placeId?: string;
+    }) | null
+  >(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [searchDiagnostic, setSearchDiagnostic] =
@@ -362,6 +441,9 @@ export function GoogleReviewsSetupWizard() {
   const [resolveDiagnostic, setResolveDiagnostic] =
     useState<ResolveUrlDiagnostic | null>(null);
   const [serverEnvKeyPresent, setServerEnvKeyPresent] = useState(false);
+  const [pendingConnect, setPendingConnect] =
+    useState<BusinessConnectOption | null>(null);
+  const [productionPlaceId, setProductionPlaceId] = useState<string | null>(null);
 
   const step = WIZARD_STEPS[stepIndex];
   const findStepIndex = WIZARD_STEPS.findIndex((item) => item.id === "find");
@@ -390,7 +472,12 @@ export function GoogleReviewsSetupWizard() {
   }, []);
 
   const runTest = useCallback(
-    async (overrides?: { placeId?: string; apiKey?: string }) => {
+    async (overrides?: {
+      placeId?: string;
+      apiKey?: string;
+      source?: string;
+      businessNameHint?: string;
+    }) => {
       const placeId = overrides?.placeId ?? state.placeId;
       const apiKey = overrides?.apiKey ?? state.apiKey;
       setTesting(true);
@@ -403,10 +490,17 @@ export function GoogleReviewsSetupWizard() {
           body: JSON.stringify({
             apiKey,
             placeId,
+            source: overrides?.source ?? "manual_test",
+            businessNameHint:
+              overrides?.businessNameHint ?? state.businessName ?? undefined,
           }),
         });
         if (!response.ok) throw new Error("Test request failed");
-        const json = (await response.json()) as GoogleReviewsTestResult;
+        const json = (await response.json()) as GoogleReviewsTestResult & {
+          likelySqueegeeKing?: boolean;
+          mismatchReason?: string | null;
+          placeId?: string;
+        };
         setTestResult(json);
         if (json.apiKeyValid && json.placeIdValid) {
           update({
@@ -431,6 +525,33 @@ export function GoogleReviewsSetupWizard() {
     },
     [state.apiKey, state.businessName, state.placeId, update],
   );
+
+  const loadProductionPlaceStatus = useCallback(async () => {
+    try {
+      const response = await fetch("/api/admin/google-reviews/status", {
+        headers: getAdminRequestHeaders(),
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const json = (await response.json()) as {
+        configured?: boolean;
+        placeId?: string | null;
+        likelySqueegeeKing?: boolean;
+        mismatchReason?: string | null;
+        businessName?: string | null;
+        rating?: number | null;
+        reviewCount?: number | null;
+      };
+      setProductionPlaceId(json.placeId ?? null);
+      if (json.configured && json.likelySqueegeeKing === false && json.mismatchReason) {
+        setStatusMessage(
+          `Production GOOGLE_PLACE_ID currently resolves to ${json.businessName ?? "another business"}${json.rating != null && json.reviewCount != null ? ` (${json.rating.toFixed(1)}★ · ${json.reviewCount} reviews)` : ""}. Reconnect SqueegeeKing below.`,
+        );
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   const loadOAuthStatus = useCallback(async () => {
     try {
@@ -498,6 +619,7 @@ export function GoogleReviewsSetupWizard() {
     async (business: BusinessConnectOption) => {
       setConnectingPlaceId(business.placeId);
       setStatusMessage(null);
+      setPendingConnect(null);
 
       update({
         placeId: business.placeId,
@@ -507,18 +629,28 @@ export function GoogleReviewsSetupWizard() {
         testPassed: false,
       });
 
-      const testResponse = await runTest({ placeId: business.placeId });
+      const source =
+        business.source === "google_business"
+          ? "oauth_connect"
+          : "places_search";
+
+      const testResponse = await runTest({
+        placeId: business.placeId,
+        source,
+        businessNameHint: business.name,
+      });
+
       if (testResponse?.placeIdValid && testResponse.reviewsFound) {
         setStatusMessage(
-          `Connected to ${business.name}. Live rating and reviews confirmed.`,
+          `Confirmed ${business.name} · Place ID ${business.placeId} · ${testResponse.rating?.toFixed(1) ?? "—"}★ · ${testResponse.reviewCount ?? "—"} reviews.`,
         );
       } else if (testResponse?.placeIdValid) {
         setStatusMessage(
-          `Connected to ${business.name}. Place ID saved — confirm reviews on the next step.`,
+          `Place ID saved for ${business.name} (${business.placeId}). Confirm live reviews on the next step.`,
         );
       } else {
         setStatusMessage(
-          `Connected to ${business.name}. Place ID saved from your Google Business Profile.`,
+          `Place ID ${business.placeId} saved from ${business.name}. Run Test connection on the next step.`,
         );
       }
       setStepIndex(testStepIndex);
@@ -526,6 +658,11 @@ export function GoogleReviewsSetupWizard() {
     },
     [runTest, testStepIndex, update],
   );
+
+  const requestConnect = useCallback((business: BusinessConnectOption) => {
+    setPendingConnect(business);
+    setStatusMessage(null);
+  }, []);
 
   const handleUseGoogleBusiness = useCallback(() => {
     window.location.href = "/api/admin/google-reviews/oauth/start";
@@ -554,13 +691,14 @@ export function GoogleReviewsSetupWizard() {
 
   useEffect(() => {
     if (step.id === "find") {
+      void loadProductionPlaceStatus();
       void loadOAuthStatus().then((status) => {
         if (status?.connected) {
           void loadManagedBusinesses();
         }
       });
     }
-  }, [loadManagedBusinesses, loadOAuthStatus, step.id]);
+  }, [loadManagedBusinesses, loadOAuthStatus, loadProductionPlaceStatus, step.id]);
 
   const runBusinessSearch = useCallback(
     async (serviceAreaMode: boolean) => {
@@ -645,9 +783,9 @@ export function GoogleReviewsSetupWizard() {
 
   const selectBusiness = useCallback(
     (candidate: PlaceSearchCandidate) => {
-      void connectBusiness(fromPlaceSearchCandidate(candidate));
+      requestConnect(fromPlaceSearchCandidate(candidate));
     },
-    [connectBusiness],
+    [requestConnect],
   );
 
   const handleResolveUrl = useCallback(
@@ -1003,19 +1141,34 @@ export function GoogleReviewsSetupWizard() {
                 <BusinessConnectList
                   businesses={managedBusinesses}
                   connectedPlaceId={state.placeId}
-                  onConnect={(business) => void connectBusiness(business)}
+                  onConnect={requestConnect}
                   connectingPlaceId={connectingPlaceId}
                 />
               </div>
             )}
 
+            {pendingConnect && (
+              <PlaceConnectConfirmation
+                business={pendingConnect}
+                productionPlaceId={productionPlaceId}
+                confirming={connectingPlaceId === pendingConnect.placeId}
+                onCancel={() => setPendingConnect(null)}
+                onConfirm={() => void connectBusiness(pendingConnect)}
+              />
+            )}
+
             {state.placeId && state.businessName && (
-              <p className="text-xs text-accent">
-                Connected: {state.businessName}
-                {state.lastReviewCount
-                  ? ` · ${state.lastRating ?? "—"} stars · ${state.lastReviewCount} reviews`
-                  : ""}
-              </p>
+              <div className="rounded-xl border border-border/60 bg-background/40 px-4 py-3 text-xs">
+                <p className="text-accent">
+                  Selected: {state.businessName}
+                  {state.lastReviewCount
+                    ? ` · ${state.lastRating ?? "—"} stars · ${state.lastReviewCount} reviews`
+                    : ""}
+                </p>
+                <p className="mt-1 font-mono text-[10px] text-muted break-all">
+                  Place ID: {state.placeId}
+                </p>
+              </div>
             )}
 
             <details className="rounded-[1.25rem] border border-border/70 bg-background/30 p-4">
@@ -1158,6 +1311,11 @@ export function GoogleReviewsSetupWizard() {
                 Connected business: <strong>{state.businessName}</strong>
               </p>
             )}
+            {state.placeId && (
+              <p className="font-mono text-[11px] text-muted break-all">
+                Place ID: {state.placeId}
+              </p>
+            )}
             <button
               type="button"
               onClick={() => void handleTest()}
@@ -1190,6 +1348,11 @@ export function GoogleReviewsSetupWizard() {
                         {testResult.businessName}
                       </p>
                     )}
+                    {testResult.mismatchReason && !testResult.likelySqueegeeKing && (
+                        <p className="mt-3 rounded-lg border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2 text-xs text-amber-900">
+                          This may not be SqueegeeKing: {testResult.mismatchReason}
+                        </p>
+                      )}
                   </div>
                 )}
                 {testResult.error && (
@@ -1203,9 +1366,22 @@ export function GoogleReviewsSetupWizard() {
         return (
           <StepCard title="Save and go live">
             <p>
-              Your Place ID was saved automatically when you connected your
-              Google Business Profile. Copy these values into your environment.
+              Your Place ID was saved when you confirmed your Google Business
+              Profile. Copy these values into your environment.
             </p>
+            {state.businessName && state.placeId && (
+              <div className="rounded-xl border border-accent/25 bg-accent/[0.06] px-4 py-3 text-sm">
+                <p className="text-foreground">
+                  <strong>{state.businessName}</strong>
+                  {state.lastRating != null && state.lastReviewCount != null
+                    ? ` · ${state.lastRating.toFixed(1)}★ · ${state.lastReviewCount} reviews`
+                    : ""}
+                </p>
+                <p className="mt-2 font-mono text-[11px] text-muted break-all">
+                  GOOGLE_PLACE_ID={state.placeId}
+                </p>
+              </div>
+            )}
             <p>
               For <strong className="text-foreground">local testing</strong>,
               paste into <code className="text-accent">.env.local</code> and
@@ -1269,12 +1445,16 @@ export function GoogleReviewsSetupWizard() {
     handleServiceAreaSearch,
     handleTest,
     handleUseGoogleBusiness,
+    loadProductionPlaceStatus,
     loadingManaged,
     managedBusinesses,
     oauthConfigured,
     oauthConnected,
     oauthEmail,
+    pendingConnect,
+    productionPlaceId,
     connectingPlaceId,
+    requestConnect,
     resolving,
     resolveDiagnostic,
     searchDiagnostic,
