@@ -22,6 +22,8 @@ export const ROUTES = {
   experienceRequestTransition: "/experience/request-transition",
   experienceHeadquartersArrival: "/experience/headquarters-arrival",
   setupGoogleReviews: "/setup/google-reviews",
+  presentations: "/presentations",
+  newPresentation: "/presentations/new",
 } as const;
 
 export interface NavItem {
@@ -57,6 +59,7 @@ export const CUSTOMER_NAV_ITEMS: NavItem[] = [
 
 export const EMPLOYEE_NAV_ITEMS: NavItem[] = [
   { label: "Employee Home", href: ROUTES.employeeHome },
+  { label: "Presentations", href: ROUTES.presentations },
   { label: "Create Home Care Plan", href: ROUTES.createPlan },
   { label: "Properties", href: ROUTES.properties },
   { label: "Requests", href: ROUTES.requests },

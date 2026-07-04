@@ -116,6 +116,9 @@ export interface PropertyAssetRow {
   file_size_bytes: number | null;
   visit_id: string | null;
   signed_agreement_id: string | null;
+  photo_source: string | null;
+  is_primary: boolean;
+  external_url: string | null;
   captured_at: string | null;
   created_at: string;
   updated_at: string;
@@ -244,6 +247,9 @@ export function propertyAssetFromRow(row: PropertyAssetRow): PersistedPhotoDocum
     fileSizeBytes: row.file_size_bytes,
     visitId: row.visit_id,
     signedAgreementId: row.signed_agreement_id,
+    photoSource: row.photo_source as PersistedPhotoDocument["photoSource"],
+    isPrimary: row.is_primary ?? false,
+    externalUrl: row.external_url,
     capturedAt: row.captured_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

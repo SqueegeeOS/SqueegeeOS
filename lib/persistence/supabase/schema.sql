@@ -188,3 +188,21 @@ create policy "property_assets_anon_all" on property_assets for all using (true)
 
 alter table closed_jobs enable row level security;
 create policy "closed_jobs_anon_all" on closed_jobs for all using (true) with check (true);
+
+-- ---------------------------------------------------------------------------
+-- Member Intelligence System (see migrations/005_member_intelligence.sql)
+-- ---------------------------------------------------------------------------
+
+alter table properties add column if not exists zillow_url text;
+alter table properties add column if not exists property_details jsonb not null default '{}'::jsonb;
+alter table properties add column if not exists access_instructions text;
+alter table properties add column if not exists service_notes jsonb not null default '[]'::jsonb;
+alter table properties add column if not exists preferred_products jsonb not null default '[]'::jsonb;
+
+alter table property_assets add column if not exists photo_source text
+  check (photo_source is null or photo_source in ('zillow', 'our_team', 'member_uploaded', 'internal'));
+alter table property_assets add column if not exists is_primary boolean not null default false;
+alter table property_assets add column if not exists external_url text;
+
+-- member_profiles, member_savings_transactions, member_appointments,
+-- service_observations, ai_quotes — see 005_member_intelligence.sql

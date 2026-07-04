@@ -29,3 +29,32 @@ export type {
   PhotoDocumentCategory,
   PhotoDocumentKind,
 } from "./photo-document";
+export type {
+  MembershipTier,
+  AppointmentStatus,
+  PersistedMemberProfile,
+  PersistedMemberProfileInput,
+  PersistedMemberSavingsTransaction,
+  PersistedMemberSavingsTransactionInput,
+  PersistedMemberAppointment,
+  PersistedMemberAppointmentInput,
+} from "./member-profile";
+export type {
+  PropertyDetailsRecord,
+  PropertyIntelligenceFields,
+  PropertyPhotoFields,
+  PropertyPhotoRecord,
+  PropertyPhotoSource,
+} from "./property-intelligence";
+export type {
+  AIQuoteStatus,
+  AIQuoteResult,
+  FieldInputs,
+  FieldObservationFlags,
+  HomeCondition,
+  HomeownerVibe,
+  PersistedAIQuote,
+  PersistedAIQuoteInput,
+  PersistedServiceObservation,
+  PersistedServiceObservationInput,
+} from "./ai-quote";

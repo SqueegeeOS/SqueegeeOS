@@ -363,6 +363,9 @@ export const supabaseAdapter: PersistenceAdapter = {
         file_size_bytes: input.fileSizeBytes,
         visit_id: input.visitId,
         signed_agreement_id: input.signedAgreementId,
+        photo_source: input.photoSource ?? null,
+        is_primary: input.isPrimary ?? false,
+        external_url: input.externalUrl ?? null,
         captured_at: input.capturedAt,
       })
       .select("*")

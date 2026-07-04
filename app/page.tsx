@@ -1,5 +1,5 @@
-import { PublicLanding } from "@/components/marketing/public-landing";
+import { ScrollCinemaLanding } from "@/components/marketing/scroll-cinema-landing";
 
 export default function HomePage() {
-  return <PublicLanding />;
+  return <ScrollCinemaLanding />;
 }

@@ -279,6 +279,8 @@ export function AdminCommandCenter({
   ];
 
   const quickActions = [
+    { label: "New Presentation", href: ROUTES.newPresentation },
+    { label: "All Presentations", href: ROUTES.presentations },
     { label: "Our Story", href: ROUTES.hqOurStory },
     { label: "Create Home Care Plan", href: ROUTES.createPlan },
     { label: "View Properties", href: ROUTES.properties },

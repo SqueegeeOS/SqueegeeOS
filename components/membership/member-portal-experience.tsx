@@ -12,6 +12,7 @@ import {
   UNLOCK_WELCOME_COPY,
 } from "@/lib/membership/unlock-sequence";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
+import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import { useMembershipUnlock } from "@/components/membership/unlock-provider";
 import { MemberPrivilegeCard } from "./member-privilege-card";
 import { MembershipActiveBadge } from "./membership-active-badge";
@@ -19,7 +20,9 @@ import {
   MemberAddOnServices,
   MemberCareSummary,
 } from "./member-care-summary";
-import { resolveMemberPortalStatus } from "@/lib/membership/member-portal-status";
+import { MemberFieldNotes } from "./member-field-notes";
+import { MemberPremiumCard } from "./member-premium-card";
+import { resolvePortalViews } from "@/lib/membership/portal-from-supabase";
 
 const easeLuxury = [0.16, 1, 0.3, 1] as const;
 
@@ -29,6 +32,7 @@ const REVEAL_RISE_PX = 20;
 
 interface MemberPortalExperienceProps {
   data: HomeCarePlanData;
+  portalData?: MemberPortalData | null;
   planName?: string;
   fromUnlock?: boolean;
 }
@@ -88,6 +92,7 @@ function PortalCard({
 
 export function MemberPortalExperience({
   data,
+  portalData,
   planName,
   fromUnlock = false,
 }: MemberPortalExperienceProps) {
@@ -103,11 +108,13 @@ export function MemberPortalExperience({
   }, [data.homeowner.slug, data.property.slug]);
 
   const entranceBase = fromUnlock ? 0.05 : 0.25;
-  const careStatus = resolveMemberPortalStatus(
+  const { status: careStatus, membership, liveData } = resolvePortalViews(
     data,
+    portalData,
     planName ? { planName } : undefined,
   );
   const displayPlanName = careStatus.planName;
+  const welcomeName = portalData?.profile.firstName ?? data.homeowner.firstName;
 
   return (
     <div className="min-h-[100svh] overflow-x-hidden bg-background text-foreground">
@@ -151,6 +158,11 @@ export function MemberPortalExperience({
               Member Portal
             </p>
             <MembershipActiveBadge variant="hero" />
+            {liveData && (
+              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300/90">
+                Live
+              </span>
+            )}
           </motion.div>
           <motion.h1
             initial={reduceMotion ? false : { opacity: 0, y: 10 }}
@@ -164,7 +176,7 @@ export function MemberPortalExperience({
           >
             {fromUnlock
               ? UNLOCK_WELCOME_COPY.family
-              : `Welcome home, ${data.homeowner.firstName}.`}
+              : `Welcome home, ${welcomeName}.`}
           </motion.h1>
           <motion.p
             initial={reduceMotion ? false : { opacity: 0, y: 8 }}
@@ -210,6 +222,11 @@ export function MemberPortalExperience({
             : "Your membership is active. Your care schedule and member pricing are below."}
         </motion.p>
 
+        <MemberPremiumCard
+          membership={membership}
+          entranceDelay={entranceBase + 0.35}
+        />
+
         <MemberCareSummary
           status={careStatus}
           propertySlug={data.property.slug}
@@ -221,6 +238,13 @@ export function MemberPortalExperience({
           propertySlug={data.property.slug}
           entranceDelay={entranceBase + 0.5}
         />
+
+        {portalData?.observations && portalData.observations.length > 0 && (
+          <MemberFieldNotes
+            observations={portalData.observations}
+            entranceDelay={entranceBase + 0.6}
+          />
+        )}
 
         <div className="mt-10 space-y-4">
           <PortalCard href={planPath} index={0} fromUnlock={fromUnlock}>

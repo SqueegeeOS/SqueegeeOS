@@ -8,6 +8,12 @@ export type PhotoDocumentCategory =
   | "property_profile"
   | "other";
 
+export type PropertyPhotoSource =
+  | "zillow"
+  | "our_team"
+  | "member_uploaded"
+  | "internal";
+
 /**
  * Persisted photo or document — maps to `property_assets` table in Supabase.
  * Photos tie to visits/timeline; documents include signed agreements and PDFs.
@@ -26,6 +32,9 @@ export interface PersistedPhotoDocument {
   fileSizeBytes: number | null;
   visitId: string | null;
   signedAgreementId: string | null;
+  photoSource: PropertyPhotoSource | null;
+  isPrimary: boolean;
+  externalUrl: string | null;
   capturedAt: string | null;
   createdAt: string;
   updatedAt: string;
@@ -33,7 +42,10 @@ export interface PersistedPhotoDocument {
 
 export type PersistedPhotoDocumentInput = Omit<
   PersistedPhotoDocument,
-  "id" | "createdAt" | "updatedAt"
+  "id" | "createdAt" | "updatedAt" | "photoSource" | "isPrimary" | "externalUrl"
 > & {
   id?: string;
+  photoSource?: PropertyPhotoSource | null;
+  isPrimary?: boolean;
+  externalUrl?: string | null;
 };

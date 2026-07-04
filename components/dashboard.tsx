@@ -140,6 +140,25 @@ export function Dashboard() {
             </motion.div>
             </Link>
 
+            <Link href="/presentations" className="block">
+              <motion.div
+                whileHover={{ y: -3 }}
+                whileTap={{ scale: 0.99 }}
+                transition={{ duration: 0.35, ease }}
+                className="group relative overflow-hidden rounded-[2rem] border border-border bg-surface px-8 py-6 sm:px-10 sm:py-7"
+              >
+                <p className="text-[10px] font-medium uppercase tracking-[0.32em] text-accent">
+                  Presentations
+                </p>
+                <p className="relative mt-3 font-serif text-2xl font-light tracking-tight text-foreground">
+                  Live Signature Close
+                </p>
+                <p className="relative mt-2 text-sm text-muted">
+                  Build a deck, present full-screen, sign on the close slide
+                </p>
+              </motion.div>
+            </Link>
+
             <Link href="/properties" className="block">
               <motion.div
                 whileHover={{ y: -3 }}

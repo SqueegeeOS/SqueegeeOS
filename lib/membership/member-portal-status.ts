@@ -2,6 +2,7 @@ import { ROUTES } from "@/lib/navigation/config";
 import { propertyHubContext } from "@/lib/property/mock-data";
 import { getPropertyBySlug } from "@/lib/property/types";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
+import { SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 
 export type MembershipCadence = "quarterly" | "bi-annual" | "monthly" | "one-time";
 
@@ -25,14 +26,14 @@ export interface MemberPortalStatus {
   scheduleVisitHref: string;
 }
 
-const CADENCE_LABEL: Record<MembershipCadence, string> = {
+export const CADENCE_LABEL: Record<MembershipCadence, string> = {
   quarterly: "Quarterly",
   "bi-annual": "Bi-Annual",
   monthly: "Monthly",
   "one-time": "One-Time",
 };
 
-const SERVICE_SUMMARY: Record<MembershipCadence, string> = {
+export const SERVICE_SUMMARY: Record<MembershipCadence, string> = {
   quarterly:
     "Quarterly exterior stewardship — windows, tracks, gutters, and a full property walkthrough each season.",
   "bi-annual":
@@ -44,8 +45,9 @@ const SERVICE_SUMMARY: Record<MembershipCadence, string> = {
 
 /** Member add-on discount by cadence (percent off list price). */
 export const MEMBER_ADD_ON_DISCOUNT: Partial<Record<MembershipCadence, number>> = {
-  quarterly: 25,
-  "bi-annual": 20,
+  quarterly: SQUEEGEEKING_TIERS.quarterly.addonDiscount,
+  "bi-annual": SQUEEGEEKING_TIERS.biannual.addonDiscount,
+  monthly: SQUEEGEEKING_TIERS.quarterly.addonDiscount,
 };
 
 export const MEMBER_ADD_ON_CATALOG: MemberAddOnService[] = [

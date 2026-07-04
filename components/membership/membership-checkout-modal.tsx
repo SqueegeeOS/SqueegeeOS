@@ -20,28 +20,23 @@ import type {
 import { stripeCheckoutCapabilities } from "@/lib/membership/types";
 import { useMembershipCheckout } from "./checkout-context";
 import { useMembershipUnlock } from "./unlock-provider";
-import { MembershipSignatureStep } from "./membership-signature-step";
+import { AgreementFlow } from "@/components/agreement/agreement-flow";
 import {
   unlockContextFromPlanData,
 } from "@/lib/membership/unlock-sequence";
 
 const steps = [
   "Select Plan",
-  "Agreement",
-  "Signature",
+  "Agreement & Sign",
   "Checkout Preview",
   "Confirm",
 ] as const;
 
-const agreementExcerpt = (propertyName: string) => `Home Care Membership Agreement
-
-This agreement establishes an ongoing stewardship relationship between you and ${CUSTOMER_BRAND.name} for your property at ${propertyName}.
-
-Members receive scheduled inspections, priority scheduling, documented property history, and member pricing on additional services.
-
-Billing occurs monthly for the selected membership tier. You may cancel with thirty days written notice.
-
-This is a placeholder agreement for demonstration purposes.`;
+function parseTierPrice(price: string): number | undefined {
+  const digits = price.replace(/[^\d.]/g, "");
+  const value = Number.parseFloat(digits);
+  return Number.isFinite(value) ? value : undefined;
+}
 
 function NotActiveBadge() {
   return (
@@ -88,7 +83,7 @@ export function MembershipCheckoutModal() {
   }, [isOpen]);
 
   const canContinue = () => {
-    if (step === 2) return savedSignature !== null;
+    if (step === 1) return savedSignature !== null;
     return true;
   };
 
@@ -233,31 +228,21 @@ export function MembershipCheckoutModal() {
                   )}
 
                   {step === 1 && (
-                    <div>
-                      <h2 className="font-serif text-2xl font-light text-foreground">
-                        Home Care Membership Agreement
-                      </h2>
-                      <div className="mt-4 max-h-48 overflow-y-auto rounded-2xl border border-border bg-surface p-4 text-sm leading-relaxed text-muted whitespace-pre-line">
-                        {agreementExcerpt(planData.property.name)}
-                      </div>
-                      <p className="mt-4 text-xs text-muted">
-                        Placeholder agreement — legal review pending.
-                      </p>
-                    </div>
-                  )}
-
-                  {step === 2 && (
-                    <MembershipSignatureStep
+                    <AgreementFlow
                       planData={planData}
                       planId={selectedPlanId}
                       planName={selectedPlan.name}
+                      tierPrice={selectedPlan.price}
+                      tierPeriod={selectedPlan.period}
+                      lifestyle={selectedPlan.lifestyle}
+                      monthlyPrice={parseTierPrice(selectedPlan.price)}
                       savedSignature={savedSignature}
-                      onSignatureSaved={(signature) => setSavedSignature(signature)}
-                      onSignatureCleared={() => setSavedSignature(null)}
+                      onComplete={(signature) => setSavedSignature(signature)}
+                      onEdit={() => setSavedSignature(null)}
                     />
                   )}
 
-                  {step === 3 && (
+                  {step === 2 && (
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
                         <h2 className="font-serif text-2xl font-light text-foreground">
@@ -302,7 +287,7 @@ export function MembershipCheckoutModal() {
                     </div>
                   )}
 
-                  {step === 4 && (
+                  {step === 3 && (
                     <div>
                       <h2 className="font-serif text-2xl font-light text-foreground">
                         Confirm &amp; continue

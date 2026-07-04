@@ -1,0 +1,199 @@
+"use client";
+
+import { useState } from "react";
+import { AgreementSignaturePad } from "@/components/agreement/agreement-signature-pad";
+import {
+  computePresentationRates,
+  slugifyPresentation,
+  visitRateFromPresentation,
+} from "@/lib/presentations/calculations";
+import {
+  tierLabel,
+  tierTagline,
+  type PresentationData,
+  type PresentationTier,
+} from "@/lib/presentations/types";
+import {
+  calculateAnnualFromVisits,
+  formatTierPrice,
+  planNameForAgreement,
+  SQUEEGEEKING_TIERS,
+} from "@/lib/membership/tier-config";
+import type { MembershipPlanId } from "@/lib/membership/types";
+
+function tierToPlanId(_tier: PresentationTier): MembershipPlanId {
+  return "preferred";
+}
+
+export function SigningOverlay({
+  presentation,
+  selectedTier,
+  onClose,
+  onComplete,
+}: {
+  presentation: PresentationData;
+  selectedTier: PresentationTier;
+  onClose: () => void;
+  onComplete: () => void;
+}) {
+  const [tier, setTier] = useState<PresentationTier>(selectedTier);
+  const [signature, setSignature] = useState<string | null>(null);
+  const [agreed, setAgreed] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const rates = computePresentationRates({ ...presentation, tier });
+  const visitPrice =
+    tier === presentation.tier
+      ? visitRateFromPresentation(presentation)
+      : tier === "biannual"
+        ? rates.biannualVisit
+        : rates.quarterlyVisit;
+  const annualTotal = calculateAnnualFromVisits(tier, visitPrice);
+
+  const handleSign = async () => {
+    if (!signature || !agreed) return;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const signedAt = new Date().toISOString();
+      const homeownerSlug = slugifyPresentation(presentation.clientName) || "client";
+      const propertySlug =
+        slugifyPresentation(presentation.clientAddress) || "property";
+
+      const signRes = await fetch("/api/sign-agreement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          memberName: presentation.clientName,
+          memberEmail: presentation.clientEmail || undefined,
+          homeownerSlug,
+          propertySlug,
+          propertyName: presentation.clientAddress || presentation.clientName,
+          planId: tierToPlanId(tier),
+          planName: planNameForAgreement(tier),
+          signatureDataUrl: signature,
+          signedAt,
+          monthlyPrice: visitPrice,
+          presentationId: presentation.id,
+          agreementTier: tier,
+        }),
+      });
+
+      if (!signRes.ok) throw new Error("Signing failed");
+
+      const { agreementId } = (await signRes.json()) as { agreementId: string };
+
+      await fetch(`/api/presentations/${presentation.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "signed",
+          signedAt,
+          agreementId,
+          tier,
+          monthlyRate: visitPrice,
+          annualRate: annualTotal,
+        }),
+      });
+
+      setDone(true);
+      setTimeout(onComplete, 2500);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-[#060606]/92 p-5 backdrop-blur-md">
+      {done ? (
+        <div className="text-center">
+          <p className="text-4xl text-accent">✦</p>
+          <h2 className="mt-6 font-serif text-4xl font-light text-[#f5f2eb]">
+            Welcome to HomeAtlas.
+          </h2>
+          <p className="mt-3 text-sm text-accent/80">
+            Agreement signed · PDF sent · You&apos;re confirmed.
+          </p>
+        </div>
+      ) : (
+        <div className="relative w-full max-w-lg rounded-lg border border-white/10 bg-[#0d0d0d] p-8 sm:p-10">
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-4 top-4 text-xl text-white/40"
+            aria-label="Close"
+          >
+            ×
+          </button>
+
+          <p className="text-[10px] uppercase tracking-[0.18em] text-accent/60">
+            Membership Agreement
+          </p>
+          <h2 className="mt-2 font-serif text-3xl font-light text-[#f5f2eb]">
+            {presentation.clientName}
+          </h2>
+          <p className="mt-2 text-sm text-white/40">
+            {tierLabel(tier)} · {tierTagline(tier)} ·{" "}
+            {formatTierPrice(visitPrice)}/visit ·{" "}
+            {SQUEEGEEKING_TIERS[tier].addonDiscount}% OFF add-ons
+          </p>
+
+          <div className="mt-4 flex gap-2">
+            {(["biannual", "quarterly"] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setTier(option)}
+                className={`flex-1 rounded border px-3 py-2 text-[11px] uppercase tracking-[0.12em] ${
+                  tier === option
+                    ? "border-accent/40 bg-accent/10 text-accent"
+                    : "border-white/10 text-white/40"
+                }`}
+              >
+                {SQUEEGEEKING_TIERS[option].label}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-6">
+            <AgreementSignaturePad
+              onSigned={setSignature}
+              onCleared={() => setSignature(null)}
+              disabled={loading}
+            />
+          </div>
+
+          <label className="mt-5 flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+              className="mt-1 accent-accent"
+            />
+            <span className="text-xs leading-relaxed text-white/50">
+              I agree to the SqueegeeKing {tierLabel(tier)} Membership Agreement
+              and authorize {formatTierPrice(visitPrice)} per visit (
+              {formatTierPrice(annualTotal)}/year).
+            </span>
+          </label>
+
+          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+
+          <button
+            type="button"
+            onClick={handleSign}
+            disabled={!signature || !agreed || loading}
+            className="mt-5 w-full rounded py-4 text-sm font-bold transition disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/30 enabled:bg-gradient-to-br enabled:from-accent enabled:to-[#e8d5a3] enabled:text-[#060606]"
+          >
+            {loading ? "Processing…" : "Sign & Confirm Membership"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
