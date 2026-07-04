@@ -147,8 +147,7 @@ export async function fetchHeadquartersProfileFromSupabase(): Promise<{
       if (isMissingTableError(error.message, error.code)) {
         return {
           profile: null,
-          error:
-            "headquarters_profile table missing — run migrations/003_headquarters_profile.sql",
+          error: "headquarters_profile table missing — run Cloud Headquarters setup",
         };
       }
       return { profile: null, error: error.message };
@@ -198,8 +197,7 @@ export async function upsertHeadquartersProfileToSupabase(
       if (isMissingTableError(error.message, error.code)) {
         return {
           profile: null,
-          error:
-            "headquarters_profile table missing — run migrations/003_headquarters_profile.sql",
+          error: "headquarters_profile table missing — run Cloud Headquarters setup",
         };
       }
       return { profile: null, error: error.message };

@@ -5,6 +5,7 @@ import { AdminCommandCenter } from "@/components/admin/admin-command-center";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { FounderOnboarding } from "@/components/admin/founder-onboarding";
 import { HeadquartersImportDraftBanner } from "@/components/admin/headquarters-import-draft-banner";
+import { HeadquartersSchemaSetup } from "@/components/admin/headquarters-schema-setup";
 import {
   importLocalHeadquartersDraft,
   syncHeadquartersProfile,
@@ -75,6 +76,9 @@ export function AdminExperience() {
     try {
       const result = await importLocalHeadquartersDraft();
       applySyncResult(result);
+      if (isHeadquartersInitialized(result.baseline)) {
+        setOnboardingComplete(true);
+      }
     } finally {
       setImportingDraft(false);
     }
@@ -90,6 +94,18 @@ export function AdminExperience() {
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={handleUnlock} />;
+  }
+
+  if (syncResult?.needsSchemaSetup) {
+    return (
+      <HeadquartersSchemaSetup
+        warning={syncResult.warning}
+        onReady={() => {
+          setReady(false);
+          void runCloudSync().finally(() => setReady(true));
+        }}
+      />
+    );
   }
 
   if (!onboardingComplete) {

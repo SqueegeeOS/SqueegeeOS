@@ -1,7 +1,9 @@
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
   clearLocalHeadquartersDraft,
+  markLocalDraftImported,
   readLocalHeadquartersDraft,
+  wasLocalDraftImported,
 } from "@/lib/admin/headquarters-local-draft";
 import {
   compareProfileUpdatedAt,
@@ -30,15 +32,31 @@ export interface HeadquartersSyncResult {
   warning?: string;
   pendingLocalImport?: boolean;
   localDraft?: LegacyBaseline | null;
+  needsSchemaSetup?: boolean;
 }
 
 interface HeadquartersProfileApiResponse {
   profile: LegacyBaseline | null;
   storage: "supabase" | "none" | "local";
   healthy?: boolean;
+  schemaReady?: boolean;
   warning?: string;
   error?: string;
   message?: string;
+}
+
+async function ensureCloudSchema(): Promise<boolean> {
+  try {
+    const response = await fetch("/api/admin/headquarters-profile/migrate", {
+      method: "POST",
+      headers: getAdminRequestHeaders(),
+    });
+    if (!response.ok) return false;
+    const json = (await response.json()) as { schemaReady?: boolean };
+    return Boolean(json.schemaReady);
+  } catch {
+    return false;
+  }
 }
 
 function normalizeForCloudSave(baseline: LegacyBaseline): LegacyBaseline {
@@ -95,6 +113,7 @@ async function fetchCloudProfile(): Promise<HeadquartersProfileApiResponse> {
       profile: null,
       storage: "none",
       healthy: false,
+      schemaReady: false,
       warning: "Could not reach cloud headquarters profile",
     };
   }
@@ -119,6 +138,7 @@ async function saveCloudProfile(
 
     if (!response.ok) {
       if (response.status === 409 && json.profile) {
+        finalizeBaseline(json.profile);
         return {
           profile: json.profile,
           storage: "supabase",
@@ -172,14 +192,40 @@ function buildSyncResult(
  */
 export async function syncHeadquartersProfile(): Promise<HeadquartersSyncResult> {
   const localDraft = readLocalHeadquartersDraft();
-  const cloudResponse = await fetchCloudProfile();
+  let cloudResponse = await fetchCloudProfile();
+
+  if (cloudResponse.schemaReady === false) {
+    const ensured = await ensureCloudSchema();
+    if (ensured) {
+      cloudResponse = await fetchCloudProfile();
+    }
+  }
+
   const cloud = cloudResponse.profile;
-  const databaseHealthy = Boolean(cloudResponse.healthy ?? cloud);
+  const schemaReady = cloudResponse.schemaReady !== false;
+  const databaseHealthy = Boolean(
+    schemaReady && (cloudResponse.healthy ?? cloud),
+  );
+
+  if (!schemaReady) {
+    return buildSyncResult(EMPTY_LEGACY_BASELINE, {
+      source: "none",
+      cloudAvailable: false,
+      databaseHealthy: false,
+      needsSchemaSetup: true,
+      warning: cloudResponse.warning ?? cloudResponse.error,
+    });
+  }
 
   if (cloud && isHeadquartersInitialized(cloud)) {
+    if (localDraft && wasLocalDraftImported()) {
+      clearLocalHeadquartersDraft();
+    }
+
     const localIsNewer =
       localDraft &&
       legacyBaselineHasHistory(localDraft) &&
+      !wasLocalDraftImported() &&
       compareProfileUpdatedAt(localDraft.updatedAt, cloud.updatedAt) > 0;
 
     if (localIsNewer) {
@@ -194,6 +240,7 @@ export async function syncHeadquartersProfile(): Promise<HeadquartersSyncResult>
     }
 
     clearLocalHeadquartersDraft();
+    markLocalDraftImported();
     return buildSyncResult(cloud, {
       source: "supabase",
       cloudAvailable: true,
@@ -204,6 +251,7 @@ export async function syncHeadquartersProfile(): Promise<HeadquartersSyncResult>
 
   if (
     localDraft &&
+    !wasLocalDraftImported() &&
     (isHeadquartersInitialized(localDraft) || legacyBaselineHasHistory(localDraft))
   ) {
     const migrated = await saveCloudProfileAndFinalize({
@@ -213,7 +261,7 @@ export async function syncHeadquartersProfile(): Promise<HeadquartersSyncResult>
     });
 
     if (migrated.profile && isHeadquartersInitialized(migrated.profile)) {
-      clearLocalHeadquartersDraft();
+      markLocalDraftImported();
       return buildSyncResult(migrated.profile, {
         source: "migrated",
         cloudAvailable: true,
@@ -224,12 +272,12 @@ export async function syncHeadquartersProfile(): Promise<HeadquartersSyncResult>
 
     return buildSyncResult(EMPTY_LEGACY_BASELINE, {
       source: "local_draft",
-      cloudAvailable: false,
+      cloudAvailable: true,
       databaseHealthy: false,
       warning:
         migrated.warning ??
         cloudResponse.warning ??
-        "Local founder archive found but cloud sync failed. Import your draft when the database is healthy.",
+        "Local founder archive found but cloud import failed. Retry import.",
       pendingLocalImport: true,
       localDraft,
     });
@@ -270,7 +318,7 @@ export async function importLocalHeadquartersDraft(): Promise<HeadquartersSyncRe
   });
 
   if (saved.profile) {
-    clearLocalHeadquartersDraft();
+    markLocalDraftImported();
     return buildSyncResult(saved.profile, {
       source: "migrated",
       cloudAvailable: true,
@@ -302,7 +350,7 @@ export async function persistHeadquartersProfile(
   const saved = await saveCloudProfile(payload);
 
   if (saved.profile) {
-    clearLocalHeadquartersDraft();
+    markLocalDraftImported();
     return buildSyncResult(finalizeBaseline(saved.profile), {
       source: "supabase",
       cloudAvailable: true,
@@ -318,6 +366,6 @@ export async function persistHeadquartersProfile(
     databaseHealthy: false,
     warning:
       saved.warning ??
-      "Could not save to Supabase. Run migrations/004_headquarters_initialized.sql and confirm Supabase env vars.",
+      "Could not save to Supabase. Confirm Cloud Headquarters setup is complete.",
   };
 }

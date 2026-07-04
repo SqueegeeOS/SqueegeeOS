@@ -12,6 +12,7 @@ import {
 } from "@/lib/admin/legacy-baseline";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
 import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
+import { ensureHeadquartersProfileSchema } from "@/lib/persistence/supabase/ensure-headquarters-schema";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -21,13 +22,15 @@ export async function GET(request: Request) {
   const pinHeader = request.headers.get("x-admin-pin");
   if (!authorizeAdminRequest(pinHeader)) return unauthorized();
 
+  const schema = await ensureHeadquartersProfileSchema();
   const result = await fetchHeadquartersProfileFromSupabase();
 
   return NextResponse.json({
     profile: result.profile,
     storage: result.profile ? "supabase" : "none",
-    healthy: isSupabaseConfigured() && !result.error,
-    warning: result.error,
+    healthy: isSupabaseConfigured() && schema.schemaReady && !result.error,
+    schemaReady: schema.schemaReady,
+    warning: result.error ?? schema.error,
   });
 }
 
@@ -55,6 +58,17 @@ export async function PUT(request: Request) {
     return NextResponse.json(
       { error: "Refusing to save an empty headquarters profile" },
       { status: 400 },
+    );
+  }
+
+  const schema = await ensureHeadquartersProfileSchema();
+  if (!schema.schemaReady) {
+    return NextResponse.json(
+      {
+        error: schema.error ?? "headquarters_profile table missing",
+        schemaReady: false,
+      },
+      { status: 503 },
     );
   }
 

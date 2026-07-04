@@ -1,6 +1,6 @@
 -- Migration 003: Shared Headquarters / Legacy profile (singleton row)
--- Run in Supabase SQL Editor after migrations 001/002.
 -- Safe to re-run: uses IF NOT EXISTS.
+-- Includes headquarters_initialized (canonical one-time setup flag).
 
 create table if not exists headquarters_profile (
   id text primary key default 'squeegeeking',
@@ -15,6 +15,7 @@ create table if not exists headquarters_profile (
   about_dasan text not null default '',
   company_stand_for text not null default '',
   onboarding_complete boolean not null default false,
+  headquarters_initialized boolean not null default false,
   founders jsonb not null default '["Noah Thomas", "Dasan Gramps"]'::jsonb,
   legacy_milestones jsonb not null default '[]'::jsonb,
   portrait_noah text,
@@ -30,8 +31,15 @@ create table if not exists headquarters_profile (
   updated_at timestamptz not null default now()
 );
 
+alter table headquarters_profile
+  add column if not exists headquarters_initialized boolean not null default false;
+
 create index if not exists headquarters_profile_updated_at_idx
   on headquarters_profile (updated_at desc);
+
+create index if not exists headquarters_profile_initialized_idx
+  on headquarters_profile (headquarters_initialized)
+  where headquarters_initialized = true;
 
 alter table headquarters_profile enable row level security;
 
@@ -39,7 +47,11 @@ drop policy if exists "headquarters_profile_anon_all" on headquarters_profile;
 create policy "headquarters_profile_anon_all" on headquarters_profile
   for all using (true) with check (true);
 
--- Seed the singleton row (no-op if already present).
 insert into headquarters_profile (id)
 values ('squeegeeking')
 on conflict (id) do nothing;
+
+update headquarters_profile
+set headquarters_initialized = true
+where onboarding_complete = true
+  and headquarters_initialized = false;
