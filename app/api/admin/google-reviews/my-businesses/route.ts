@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
 import { listManagedGoogleBusinesses } from "@/lib/reviews/google-business-profile";
 import { readGoogleOAuthSession } from "@/lib/reviews/google-oauth-session";
+import { resolveSearchApiKey } from "@/lib/reviews/resolve-search-api-key";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -20,13 +21,18 @@ export async function GET(request: Request) {
   }
 
   const { searchParams } = new URL(request.url);
-  const apiKey = searchParams.get("apiKey") ?? undefined;
+  const keyInfo = resolveSearchApiKey(searchParams.get("apiKey") ?? undefined);
 
-  const result = await listManagedGoogleBusinesses(session.accessToken, apiKey);
+  const result = await listManagedGoogleBusinesses(
+    session.accessToken,
+    keyInfo.apiKey,
+  );
 
   return NextResponse.json({
     businesses: result.businesses,
     email: session.email ?? null,
     warning: result.error,
+    serverEnvKeyPresent: keyInfo.serverEnvKeyPresent,
+    apiKeySource: keyInfo.source,
   });
 }

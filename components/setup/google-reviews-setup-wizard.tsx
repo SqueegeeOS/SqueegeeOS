@@ -478,10 +478,14 @@ export function GoogleReviewsSetupWizard() {
         businesses: BusinessConnectOption[];
         email?: string | null;
         warning?: string;
+        serverEnvKeyPresent?: boolean;
       };
       setManagedBusinesses(json.businesses);
       setOauthEmail(json.email ?? null);
       setOauthConnected(true);
+      if (json.serverEnvKeyPresent !== undefined) {
+        setServerEnvKeyPresent(json.serverEnvKeyPresent);
+      }
       if (json.warning && json.businesses.length === 0) {
         setStatusMessage(json.warning);
       }
@@ -503,30 +507,24 @@ export function GoogleReviewsSetupWizard() {
         testPassed: false,
       });
 
-      if (state.apiKey.trim()) {
-        const testResponse = await runTest({
-          placeId: business.placeId,
-          apiKey: state.apiKey,
-        });
-        if (testResponse?.placeIdValid) {
-          setStatusMessage(`Connected to ${business.name}. Live reviews confirmed.`);
-          setStepIndex(testStepIndex);
-        } else {
-          setStatusMessage(
-            `Connected to ${business.name}. Test your API key on the next step.`,
-          );
-          setStepIndex(testStepIndex);
-        }
+      const testResponse = await runTest({ placeId: business.placeId });
+      if (testResponse?.placeIdValid && testResponse.reviewsFound) {
+        setStatusMessage(
+          `Connected to ${business.name}. Live rating and reviews confirmed.`,
+        );
+      } else if (testResponse?.placeIdValid) {
+        setStatusMessage(
+          `Connected to ${business.name}. Place ID saved — confirm reviews on the next step.`,
+        );
       } else {
         setStatusMessage(
-          `Connected to ${business.name}. Your Place ID is saved — add your API key on step 4, then test.`,
+          `Connected to ${business.name}. Place ID saved from your Google Business Profile.`,
         );
-        setStepIndex(testStepIndex);
       }
-
+      setStepIndex(testStepIndex);
       setConnectingPlaceId(null);
     },
-    [runTest, state.apiKey, testStepIndex, update],
+    [runTest, testStepIndex, update],
   );
 
   const handleUseGoogleBusiness = useCallback(() => {
@@ -549,16 +547,20 @@ export function GoogleReviewsSetupWizard() {
       });
     } else if (oauth === "error") {
       setStatusMessage(
-        "Google sign-in did not complete. Try again, or use search below.",
+        "Google sign-in did not complete. Try again — this is the recommended way to connect service-area businesses.",
       );
     }
   }, [findStepIndex, loadManagedBusinesses, loadOAuthStatus, searchParams]);
 
   useEffect(() => {
-    if (step.id === "find" && oauthConnected) {
-      void loadManagedBusinesses();
+    if (step.id === "find") {
+      void loadOAuthStatus().then((status) => {
+        if (status?.connected) {
+          void loadManagedBusinesses();
+        }
+      });
     }
-  }, [loadManagedBusinesses, oauthConnected, step.id, state.apiKey]);
+  }, [loadManagedBusinesses, loadOAuthStatus, step.id]);
 
   const runBusinessSearch = useCallback(
     async (serviceAreaMode: boolean) => {
@@ -787,10 +789,16 @@ export function GoogleReviewsSetupWizard() {
           <StepCard title="Connect live Google Reviews">
             <p>
               This wizard walks you through Google Cloud setup — step by step.
-              No guessing. When finished, SqueegeeKing will show your real
-              Google rating and review count everywhere reviews appear.
+              When finished, SqueegeeKing will show your real Google rating and
+              review count everywhere reviews appear.
             </p>
             <p className="text-foreground/90">
+              If you manage the SqueegeeKing Google Business Profile, you will
+              connect with Google — no Place ID hunting required. Public search
+              is available only as a fallback for service-area businesses that
+              do not appear in Places search.
+            </p>
+            <p>
               You will need about 10 minutes and access to Google Cloud. Billing
               may need to be enabled on your Google Cloud project (Google offers
               free monthly credit for Maps Platform).
@@ -818,30 +826,34 @@ export function GoogleReviewsSetupWizard() {
         );
       case "apis":
         return (
-          <StepCard title="Enable the Places APIs">
-            <p>Enable both APIs below while your SqueegeeKing project is selected:</p>
+          <StepCard title="Enable the required Google APIs">
+            <p>
+              Enable these APIs while your SqueegeeKing project is selected.
+              Business Profile APIs are required to connect your owned profile;
+              Places APIs fetch live ratings and reviews after connect.
+            </p>
             <ol className="list-decimal space-y-3 pl-5">
-              <li>
-                <ExternalLink href={GOOGLE_CONSOLE_LINKS.placesApiNew}>
-                  Places API (New)
-                </ExternalLink>{" "}
-                → Enable
-              </li>
-              <li>
-                <ExternalLink href={GOOGLE_CONSOLE_LINKS.placesApiLegacy}>
-                  Places API
-                </ExternalLink>{" "}
-                → Enable
-              </li>
               <li>
                 <ExternalLink href={GOOGLE_CONSOLE_LINKS.businessProfileApi}>
                   Business Profile API
                 </ExternalLink>{" "}
-                → Enable (for “Use my Google Business”)
+                → Enable (required for Google Business connect)
               </li>
               <li>
                 <ExternalLink href={GOOGLE_CONSOLE_LINKS.businessAccountApi}>
                   My Business Account Management API
+                </ExternalLink>{" "}
+                → Enable
+              </li>
+              <li>
+                <ExternalLink href={GOOGLE_CONSOLE_LINKS.placesApiNew}>
+                  Places API (New)
+                </ExternalLink>{" "}
+                → Enable (for live rating &amp; review count)
+              </li>
+              <li>
+                <ExternalLink href={GOOGLE_CONSOLE_LINKS.placesApiLegacy}>
+                  Places API
                 </ExternalLink>{" "}
                 → Enable
               </li>
@@ -914,42 +926,60 @@ export function GoogleReviewsSetupWizard() {
         );
       case "find":
         return (
-          <StepCard title="Connect your Google Business">
-            <p className="text-xs leading-relaxed text-muted">
-              You should never need to hunt for a Place ID. If you own
-              SqueegeeKing on Google, sign in and tap Connect.
-            </p>
+          <StepCard title="Connect Google Business Profile">
+            <div className="rounded-[1.25rem] border border-amber-500/25 bg-amber-500/[0.05] p-4">
+              <p className="text-sm leading-relaxed text-foreground/90">
+                Service-area businesses may not appear in public Places search.
+                If you manage this Google Business Profile, use Google Business
+                connect instead.
+              </p>
+            </div>
 
             <div className="rounded-[1.25rem] border border-accent/20 bg-accent/[0.05] p-5">
               <p className="text-[10px] uppercase tracking-[0.22em] text-accent">
-                Recommended
+                Step 1 — Connect with Google
               </p>
               <p className="mt-3 text-sm text-foreground/90">
-                Use the Google account that owns your Business Profile.
+                Sign in with the Google account that manages SqueegeeKing. We
+                will list the Business Profiles you own, pull the Place ID
+                automatically, and use Places API only to fetch your live rating
+                and review count.
               </p>
               {oauthConfigured ? (
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={handleUseGoogleBusiness}
-                    className="rounded-full border border-accent/30 bg-accent/[0.12] px-6 py-3.5 text-[10px] uppercase tracking-[0.2em] text-accent"
-                  >
-                    Use my Google Business
-                  </button>
-                  {oauthConnected && oauthEmail && (
-                    <span className="self-center text-xs text-muted">
-                      Signed in as {oauthEmail}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  {!oauthConnected ? (
+                    <button
+                      type="button"
+                      onClick={handleUseGoogleBusiness}
+                      className="rounded-full border border-accent/30 bg-accent/[0.12] px-6 py-3.5 text-[10px] uppercase tracking-[0.2em] text-accent"
+                    >
+                      Sign in with Google Business
+                    </button>
+                  ) : (
+                    <span className="text-xs text-muted">
+                      Signed in{oauthEmail ? ` as ${oauthEmail}` : ""}
                     </span>
+                  )}
+                  {oauthConnected && (
+                    <button
+                      type="button"
+                      onClick={() => void loadManagedBusinesses()}
+                      disabled={loadingManaged}
+                      className="rounded-full border border-border px-5 py-2.5 text-[10px] uppercase tracking-[0.18em] text-muted hover:border-accent/25 hover:text-accent disabled:opacity-50"
+                    >
+                      {loadingManaged ? "Refreshing…" : "Refresh list"}
+                    </button>
                   )}
                 </div>
               ) : (
                 <p className="mt-4 text-xs leading-relaxed text-muted">
-                  Google sign-in is not configured yet. Add{" "}
+                  Google Business sign-in is not configured on this server yet.
+                  Add{" "}
                   <code className="text-foreground/80">GOOGLE_OAUTH_CLIENT_ID</code>{" "}
                   and{" "}
                   <code className="text-foreground/80">GOOGLE_OAUTH_CLIENT_SECRET</code>{" "}
-                  in Vercel, enable the Business Profile APIs, and use search
-                  below meanwhile.
+                  in Vercel, enable the Business Profile APIs above, and
+                  redeploy.
                 </p>
               )}
             </div>
@@ -958,111 +988,128 @@ export function GoogleReviewsSetupWizard() {
               <p className="text-sm text-muted">Loading your Google businesses…</p>
             )}
 
-            {managedBusinesses.length > 0 && (
-              <BusinessConnectList
-                businesses={managedBusinesses}
-                connectedPlaceId={state.placeId}
-                onConnect={(business) => void connectBusiness(business)}
-                connectingPlaceId={connectingPlaceId}
-              />
-            )}
-
-            <div className="border-t border-border/60 pt-5">
-              <p className="text-foreground/90">Or search manually</p>
-              <p className="mt-2 text-xs text-muted">
-                For service area businesses with no public address — search by
-                name, phone, or website.
+            {oauthConnected && !loadingManaged && managedBusinesses.length === 0 && (
+              <p className="text-sm text-muted">
+                No managed Business Profiles found for this Google account. Try
+                a different account, or use the fallback options below.
               </p>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label className="mb-2 block text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Business name
-                </label>
-                <input
-                  className={inputClassName}
-                  value={state.searchQuery}
-                  onChange={(e) => update({ searchQuery: e.target.value })}
-                  placeholder="SqueegeeKing"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Phone (optional)
-                </label>
-                <input
-                  className={inputClassName}
-                  value={state.searchPhone}
-                  onChange={(e) => update({ searchPhone: e.target.value })}
-                  placeholder="(530) 555-0100"
-                />
-              </div>
-              <div>
-                <label className="mb-2 block text-[10px] uppercase tracking-[0.2em] text-muted">
-                  Website (optional)
-                </label>
-                <input
-                  className={inputClassName}
-                  value={state.searchWebsite}
-                  onChange={(e) => update({ searchWebsite: e.target.value })}
-                  placeholder="squeegeeking.net"
-                />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => void handleSearch()}
-                disabled={searching}
-                className="rounded-full border border-accent/30 bg-accent/[0.1] px-5 py-3 text-[10px] uppercase tracking-[0.18em] text-accent disabled:opacity-50"
-              >
-                {searching ? "Searching…" : "Search Google"}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleServiceAreaSearch()}
-                disabled={searching}
-                className="rounded-full border border-border px-5 py-3 text-[10px] uppercase tracking-[0.18em] text-muted hover:border-accent/25 hover:text-accent disabled:opacity-50"
-              >
-                I have a Service Area Business
-              </button>
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-xs text-muted">
-                <input
-                  type="checkbox"
-                  checked={state.diagnosticMode}
-                  onChange={(e) => update({ diagnosticMode: e.target.checked })}
-                  className="rounded border-border"
-                />
-                Show search diagnostics
-              </label>
-            </div>
-            {state.diagnosticMode && (
-              <SearchDiagnosticsPanel
-                searchDiagnostic={searchDiagnostic}
-                resolveDiagnostic={resolveDiagnostic}
-                serverEnvKeyPresent={serverEnvKeyPresent}
-              />
             )}
-            {searchResults.length > 0 && (
-              <BusinessCandidateList
-                candidates={searchResults}
-                selectedPlaceId={state.placeId}
-                onSelect={selectBusiness}
-                connectingPlaceId={connectingPlaceId}
-              />
+
+            {managedBusinesses.length > 0 && (
+              <div>
+                <p className="mb-3 text-[10px] uppercase tracking-[0.22em] text-muted">
+                  Step 2 — Choose your business
+                </p>
+                <BusinessConnectList
+                  businesses={managedBusinesses}
+                  connectedPlaceId={state.placeId}
+                  onConnect={(business) => void connectBusiness(business)}
+                  connectingPlaceId={connectingPlaceId}
+                />
+              </div>
+            )}
+
+            {state.placeId && state.businessName && (
+              <p className="text-xs text-accent">
+                Connected: {state.businessName}
+                {state.lastReviewCount
+                  ? ` · ${state.lastRating ?? "—"} stars · ${state.lastReviewCount} reviews`
+                  : ""}
+              </p>
             )}
 
             <details className="rounded-[1.25rem] border border-border/70 bg-background/30 p-4">
               <summary className="cursor-pointer text-sm text-foreground/90">
-                More options (share link or advanced)
+                Fallback — public search or share link
               </summary>
-              <div className="mt-4 space-y-4">
+              <div className="mt-4 space-y-5">
+                <p className="text-xs leading-relaxed text-muted">
+                  Only use this if you cannot sign in with Google Business.
+                  Public Places search often misses service-area businesses with
+                  no public address.
+                </p>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <label className="mb-2 block text-[10px] uppercase tracking-[0.2em] text-muted">
+                      Business name
+                    </label>
+                    <input
+                      className={inputClassName}
+                      value={state.searchQuery}
+                      onChange={(e) => update({ searchQuery: e.target.value })}
+                      placeholder="SqueegeeKing"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-[0.2em] text-muted">
+                      Phone (optional)
+                    </label>
+                    <input
+                      className={inputClassName}
+                      value={state.searchPhone}
+                      onChange={(e) => update({ searchPhone: e.target.value })}
+                      placeholder="(530) 555-0100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-[10px] uppercase tracking-[0.2em] text-muted">
+                      Website (optional)
+                    </label>
+                    <input
+                      className={inputClassName}
+                      value={state.searchWebsite}
+                      onChange={(e) => update({ searchWebsite: e.target.value })}
+                      placeholder="squeegeeking.net"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void handleSearch()}
+                    disabled={searching}
+                    className="rounded-full border border-border px-5 py-3 text-[10px] uppercase tracking-[0.18em] text-muted hover:border-accent/25 hover:text-accent disabled:opacity-50"
+                  >
+                    {searching ? "Searching…" : "Search Google"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleServiceAreaSearch()}
+                    disabled={searching}
+                    className="rounded-full border border-border px-5 py-3 text-[10px] uppercase tracking-[0.18em] text-muted hover:border-accent/25 hover:text-accent disabled:opacity-50"
+                  >
+                    Service area search
+                  </button>
+                </div>
+                <label className="flex items-center gap-2 text-xs text-muted">
+                  <input
+                    type="checkbox"
+                    checked={state.diagnosticMode}
+                    onChange={(e) => update({ diagnosticMode: e.target.checked })}
+                    className="rounded border-border"
+                  />
+                  Show search diagnostics
+                </label>
+                {state.diagnosticMode && (
+                  <SearchDiagnosticsPanel
+                    searchDiagnostic={searchDiagnostic}
+                    resolveDiagnostic={resolveDiagnostic}
+                    serverEnvKeyPresent={serverEnvKeyPresent}
+                  />
+                )}
+                {searchResults.length > 0 && (
+                  <BusinessCandidateList
+                    candidates={searchResults}
+                    selectedPlaceId={state.placeId}
+                    onSelect={selectBusiness}
+                    connectingPlaceId={connectingPlaceId}
+                  />
+                )}
+
                 <div>
                   <p className="text-xs text-muted">
-                    Paste a share.google, g.page, or Maps link.
+                    Or paste a share.google, g.page, or Maps link.
                   </p>
                   <div className="mt-3 flex flex-col gap-3 sm:flex-row">
                     <input
@@ -1077,7 +1124,7 @@ export function GoogleReviewsSetupWizard() {
                       disabled={resolving}
                       className="shrink-0 rounded-full border border-border px-5 py-3 text-[10px] uppercase tracking-[0.18em] text-muted hover:border-accent/25 hover:text-accent disabled:opacity-50"
                     >
-                      {resolving ? "Finding…" : "Find my business"}
+                      {resolving ? "Finding…" : "Resolve link"}
                     </button>
                     <button
                       type="button"
@@ -1090,41 +1137,27 @@ export function GoogleReviewsSetupWizard() {
                   </div>
                   {state.pendingShareUrl && (
                     <p className="mt-2 text-xs text-amber-700">
-                      Pending share link saved: {state.pendingShareUrl}
+                      Pending share link: {state.pendingShareUrl}
                     </p>
                   )}
                 </div>
-                <div>
-                  <p className="text-xs text-muted">Advanced: Place ID (rarely needed)</p>
-                  <input
-                    className={`${inputClassName} mt-3`}
-                    value={state.placeId}
-                    onChange={(e) =>
-                      update({ placeId: e.target.value, testPassed: false })
-                    }
-                    placeholder="ChIJ..."
-                  />
-                </div>
               </div>
             </details>
-
-            {state.placeId && state.businessName && (
-              <p className="text-xs text-accent">
-                Connected: {state.businessName}
-                {state.lastReviewCount
-                  ? ` · ${state.lastRating ?? "—"} stars · ${state.lastReviewCount} reviews`
-                  : ""}
-              </p>
-            )}
           </StepCard>
         );
       case "test":
         return (
           <StepCard title="Test your connection">
             <p>
-              We will call Google with your API key and Place ID — the same way
-              production does — and show your live rating before you deploy.
+              We will call Places API with your connected Place ID — the same
+              way production does — and show your live rating and review count
+              before you deploy.
             </p>
+            {state.businessName && (
+              <p className="text-sm text-foreground/90">
+                Connected business: <strong>{state.businessName}</strong>
+              </p>
+            )}
             <button
               type="button"
               onClick={() => void handleTest()}
@@ -1169,6 +1202,10 @@ export function GoogleReviewsSetupWizard() {
       case "deploy":
         return (
           <StepCard title="Save and go live">
+            <p>
+              Your Place ID was saved automatically when you connected your
+              Google Business Profile. Copy these values into your environment.
+            </p>
             <p>
               For <strong className="text-foreground">local testing</strong>,
               paste into <code className="text-accent">.env.local</code> and

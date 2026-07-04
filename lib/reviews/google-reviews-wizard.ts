@@ -52,7 +52,7 @@ export const WIZARD_STEPS = [
   { id: "apis", title: "Enable APIs" },
   { id: "api-key", title: "Create API key" },
   { id: "restrict", title: "Restrict key" },
-  { id: "find", title: "Find your business" },
+  { id: "find", title: "Connect Google Business" },
   { id: "test", title: "Test connection" },
   { id: "deploy", title: "Save & deploy" },
 ] as const;
