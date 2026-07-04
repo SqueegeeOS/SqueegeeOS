@@ -10,7 +10,7 @@ import {
   type HealthScores,
   type PropertyHealthCheck,
 } from "./types";
-import { listLocalHealthChecks, saveLocalHealthCheck } from "./local-store";
+import { listLocalHealthChecks, saveLocalHealthCheck, listLocalTechnicianPropertyIds } from "./local-store";
 
 interface HealthCheckRow {
   id: string;
@@ -277,4 +277,91 @@ export function validateHealthCheckForm(
   if (!hasAny) return "Score at least one category.";
 
   return null;
+}
+
+export interface TechnicianPropertySummary {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  customerName: string;
+  lastVisitDate: string | null;
+  lastOverallScore: number | null;
+}
+
+export async function listTechnicianProperties(): Promise<
+  TechnicianPropertySummary[]
+> {
+  if (isCloudPersistenceConnected()) {
+    const supabase = createServerSupabaseClient();
+    const { data: properties, error } = await supabase
+      .from("properties")
+      .select("id, name, address, city, homeowner_id")
+      .order("name", { ascending: true });
+
+    if (error || !properties?.length) return [];
+
+    const homeownerIds = [
+      ...new Set(properties.map((p) => p.homeowner_id as string)),
+    ];
+    const { data: homeowners } = await supabase
+      .from("homeowners")
+      .select("id, full_name")
+      .in("id", homeownerIds);
+
+    const homeownerNames = new Map(
+      (homeowners ?? []).map((h) => [h.id, h.full_name as string]),
+    );
+
+    const { data: checkRows } = await supabase
+      .from("property_visit_health_checks")
+      .select("property_id, visit_date, overall_score")
+      .order("visit_date", { ascending: false });
+
+    const latestByProperty = new Map<
+      string,
+      { visit_date: string; overall_score: number | null }
+    >();
+    for (const row of checkRows ?? []) {
+      if (!latestByProperty.has(row.property_id)) {
+        latestByProperty.set(row.property_id, {
+          visit_date: row.visit_date,
+          overall_score:
+            row.overall_score != null ? Number(row.overall_score) : null,
+        });
+      }
+    }
+
+    return properties.map((p) => {
+      const latest = latestByProperty.get(p.id);
+      return {
+        id: p.id,
+        name: p.name,
+        address: p.address,
+        city: p.city,
+        customerName: homeownerNames.get(p.homeowner_id) ?? "",
+        lastVisitDate: latest?.visit_date ?? null,
+        lastOverallScore: latest?.overall_score ?? null,
+      };
+    });
+  }
+
+  const localIds = await listLocalTechnicianPropertyIds();
+  const summaries: TechnicianPropertySummary[] = [];
+
+  for (const id of localIds) {
+    const checks = await listLocalHealthChecks(id);
+    const latest = checks[0] ?? null;
+    summaries.push({
+      id,
+      name: id.startsWith("local-") ? id.replace(/^local-/, "").replace(/-/g, " ") : id,
+      address: "Local property",
+      city: "",
+      customerName: "",
+      lastVisitDate: latest?.visitDate ?? null,
+      lastOverallScore: latest?.overallScore ?? null,
+    });
+  }
+
+  return summaries.sort((a, b) => a.name.localeCompare(b.name));
 }

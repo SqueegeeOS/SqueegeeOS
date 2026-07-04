@@ -66,3 +66,8 @@ export async function saveLocalHealthCheck(
   await writeFileStore(store);
   return check;
 }
+
+export async function listLocalTechnicianPropertyIds(): Promise<string[]> {
+  const store = await readFileStore();
+  return Array.from(store.keys());
+}

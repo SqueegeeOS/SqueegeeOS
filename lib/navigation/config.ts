@@ -18,6 +18,7 @@ export const ROUTES = {
   hqPricingSettings: "/hq/settings/pricing",
   /** @deprecated Use hqCarePlanBuilder — redirect remains at /hq/pricing */
   hqPricing: "/hq/care-plan-builder",
+  tech: "/tech",
   experience: "/experience",
   experienceUnlock: "/experience/unlock",
   experienceRequestTransition: "/experience/request-transition",
@@ -52,6 +53,7 @@ export const CUSTOMER_NAV_ITEMS: NavItem[] = [
 
 export const EMPLOYEE_NAV_ITEMS: NavItem[] = [
   { label: "Employee Home", href: ROUTES.employeeHome },
+  { label: "Field Visits", href: ROUTES.tech },
   { label: "Presentations", href: ROUTES.presentations },
   { label: "Create Home Care Plan", href: ROUTES.createPlan },
   { label: "Properties", href: ROUTES.properties },

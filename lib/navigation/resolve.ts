@@ -18,7 +18,7 @@ export interface FloatingBackConfig {
   bottomClass?: string;
 }
 
-const EMPLOYEE_PREFIXES = ["/employee", "/properties", "/presentations"];
+const EMPLOYEE_PREFIXES = ["/employee", "/properties", "/presentations", "/tech"];
 const HIDDEN_PREFIXES = ["/hq", "/admin"];
 
 function isPresentationPresentMode(pathname: string): boolean {

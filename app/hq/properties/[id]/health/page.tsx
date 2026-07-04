@@ -39,7 +39,7 @@ export default async function PropertyHealthPage({
       </div>
 
       <Link
-        href={`/tech/health-check?propertyId=${id}`}
+        href={`/tech/properties/${id}`}
         className="mb-8 inline-block rounded-lg border border-[#333] px-4 py-2 text-xs text-[#888] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
       >
         + Record Health Check
