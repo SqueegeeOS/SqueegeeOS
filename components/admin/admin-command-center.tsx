@@ -279,7 +279,11 @@ export function AdminCommandCenter({
   ];
 
   const quickActions = [
-    { label: "Pricing Calculator", href: ROUTES.hqPricing },
+    {
+      label: "Care Plan Builder",
+      subtitle: "Standard Pricing Engine",
+      href: ROUTES.hqCarePlanBuilder,
+    },
     { label: "New Presentation", href: ROUTES.newPresentation },
     { label: "All Presentations", href: ROUTES.presentations },
     { label: "Our Story", href: ROUTES.hqOurStory },
@@ -372,20 +376,23 @@ export function AdminCommandCenter({
 
         <div className="mt-10">
           <Link
-            href={ROUTES.hqPricing}
+            href={ROUTES.hqCarePlanBuilder}
             className="group flex flex-col gap-2 rounded-[1.75rem] border border-accent/25 bg-accent/[0.05] px-6 py-5 transition-colors hover:border-accent/40 sm:flex-row sm:items-center sm:justify-between"
           >
             <div>
               <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
-                Pricing Calculator
+                Care Plan Builder
+              </p>
+              <p className="mt-1 text-[11px] text-muted/80">
+                Standard Pricing Engine
               </p>
               <p className="mt-2 text-sm text-muted">
-                Quarterly and bi-annual base rates by sq ft — exterior, inside +
-                out, and one-time pricing. Screens never included.
+                Exterior glass and interior + exterior quotes by property size —
+                recurring care and one-time visit comparison.
               </p>
             </div>
             <span className="text-sm text-accent transition-transform group-hover:translate-x-0.5">
-              Open sheet →
+              Open builder →
             </span>
           </Link>
         </div>
@@ -556,7 +563,14 @@ export function AdminCommandCenter({
                     href={action.href}
                     className="flex min-h-[52px] items-center justify-between rounded-2xl border border-border bg-background/40 px-5 py-4 text-sm tracking-[0.04em] text-foreground transition-colors hover:border-accent/25"
                   >
-                    {action.label}
+                    <span>
+                      {action.label}
+                      {"subtitle" in action && action.subtitle ? (
+                        <span className="mt-0.5 block text-[10px] tracking-[0.18em] text-muted">
+                          {action.subtitle}
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="text-muted">→</span>
                   </Link>
                 ),

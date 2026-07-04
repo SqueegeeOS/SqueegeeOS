@@ -277,6 +277,7 @@ export function draftFromProperty(
       lastVisit: property.lastVisit,
       heroImage: property.heroImage,
       propertyType: property.type,
+      squareFeet: String(property.squareFeet || 2500),
     },
     services: [],
     findings: [],
@@ -297,6 +298,10 @@ export function draftFromProperty(
     membershipPreferredPrice: "249",
     membershipEstatePrice: "449",
     recommendedTier: "preferred",
+    careFrequency: "quarterly",
+    includeInteriorGlass: false,
+    standardPricingApplied: false,
+    standardPricingNote: "",
     internalNotes: "",
   };
 }

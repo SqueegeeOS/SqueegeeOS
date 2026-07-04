@@ -1,4 +1,5 @@
 import type { ServiceOption } from "@/lib/acquisition/types";
+import type { CareFrequency } from "@/lib/pricing/types";
 
 export interface HomeCarePlanFindingDraft {
   id: string;
@@ -25,6 +26,7 @@ export interface HomeCarePlanDraft {
     lastVisit: string;
     heroImage: string;
     propertyType: string;
+    squareFeet: string;
   };
   services: ServiceOption[];
   findings: HomeCarePlanFindingDraft[];
@@ -40,6 +42,10 @@ export interface HomeCarePlanDraft {
   membershipPreferredPrice: string;
   membershipEstatePrice: string;
   recommendedTier: "one-time" | "preferred" | "estate";
+  careFrequency: CareFrequency;
+  includeInteriorGlass: boolean;
+  standardPricingApplied: boolean;
+  standardPricingNote: string;
   internalNotes: string;
 }
 
@@ -60,6 +66,7 @@ export const emptyHomeCarePlanDraft: HomeCarePlanDraft = {
     lastVisit: "",
     heroImage: "",
     propertyType: "Residence",
+    squareFeet: "2500",
   },
   services: [],
   findings: [],
@@ -76,6 +83,10 @@ export const emptyHomeCarePlanDraft: HomeCarePlanDraft = {
   membershipPreferredPrice: "249",
   membershipEstatePrice: "449",
   recommendedTier: "preferred",
+  careFrequency: "quarterly",
+  includeInteriorGlass: false,
+  standardPricingApplied: false,
+  standardPricingNote: "",
   internalNotes: "",
 };
 

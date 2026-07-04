@@ -16,6 +16,8 @@ import {
   type HomeCarePlanDraft,
   type HomeCarePlanFindingDraft,
 } from "@/lib/home-care-plan/create-types";
+import { calculateWindowCarePricing } from "@/lib/pricing/window-care-pricing";
+import type { CareFrequency } from "@/lib/pricing/types";
 import { saveGeneratedHomeCarePlan } from "@/lib/persistence";
 import { LocalStorageNotice } from "@/components/persistence/local-storage-notice";
 import type { Property } from "@/lib/property/types";
@@ -102,6 +104,24 @@ export function CreateHomeCarePlanWizard({
     setDraft((prev) => ({
       ...prev,
       findings: prev.findings.filter((finding) => finding.id !== id),
+    }));
+  };
+
+  const applyStandardPricing = () => {
+    const squareFeet = Number.parseInt(draft.property.squareFeet, 10) || 0;
+    const output = calculateWindowCarePricing({
+      squareFeet,
+      frequency: draft.careFrequency,
+      includeInterior: draft.includeInteriorGlass,
+    });
+
+    setDraft((prev) => ({
+      ...prev,
+      membershipOneTimePrice: String(output.exteriorOneTimePrice),
+      membershipPreferredPrice: String(output.exteriorMemberPrice),
+      membershipEstatePrice: String(output.interiorExteriorMemberPrice),
+      standardPricingApplied: true,
+      standardPricingNote: "Screens are not included in base pricing.",
     }));
   };
 
@@ -288,6 +308,21 @@ export function CreateHomeCarePlanWizard({
                     onChange={(e) =>
                       updateProperty({ propertyType: e.target.value })
                     }
+                    className={`${inputClassName} mt-2`}
+                  />
+                </label>
+                <label className="block">
+                  <span className={labelClassName}>Square footage</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={draft.property.squareFeet}
+                    onChange={(e) =>
+                      updateProperty({
+                        squareFeet: e.target.value.replace(/[^\d]/g, ""),
+                      })
+                    }
+                    placeholder="2500"
                     className={`${inputClassName} mt-2`}
                   />
                 </label>
@@ -585,16 +620,106 @@ export function CreateHomeCarePlanWizard({
           {step === 4 && (
             <div className="space-y-5">
               <h2 className="font-serif text-2xl font-light text-foreground">
-                Pricing
+                Standard Pricing
               </h2>
               <p className="text-sm text-muted">
-                Set membership pricing for this presentation. Amounts appear on
-                the customer-facing plan.
+                Apply the Standard Pricing Engine from HQ, then adjust any amount
+                before generating the plan.
               </p>
+
+              <div>
+                <p className={labelClassName}>Care frequency</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {(
+                    [
+                      ["quarterly", "Every 3 Months"],
+                      ["bi_annual", "Every 6 Months"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() =>
+                        setDraft((prev) => ({
+                          ...prev,
+                          careFrequency: id as CareFrequency,
+                          standardPricingApplied: false,
+                        }))
+                      }
+                      className={`min-h-[44px] rounded-full border px-4 py-2 text-sm touch-manipulation ${
+                        draft.careFrequency === id
+                          ? "border-accent/40 bg-accent/10 text-foreground"
+                          : "border-border bg-surface text-muted"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className={labelClassName}>Service scope</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        includeInteriorGlass: false,
+                        standardPricingApplied: false,
+                      }))
+                    }
+                    className={`min-h-[44px] rounded-full border px-4 py-2 text-sm touch-manipulation ${
+                      !draft.includeInteriorGlass
+                        ? "border-accent/40 bg-accent/10 text-foreground"
+                        : "border-border bg-surface text-muted"
+                    }`}
+                  >
+                    Exterior Glass
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setDraft((prev) => ({
+                        ...prev,
+                        includeInteriorGlass: true,
+                        standardPricingApplied: false,
+                      }))
+                    }
+                    className={`min-h-[44px] rounded-full border px-4 py-2 text-sm touch-manipulation ${
+                      draft.includeInteriorGlass
+                        ? "border-accent/40 bg-accent/10 text-foreground"
+                        : "border-border bg-surface text-muted"
+                    }`}
+                  >
+                    Interior + Exterior Glass
+                  </button>
+                </div>
+                <p className="mt-2 text-xs text-muted">
+                  Base pricing includes glass only. Screens are not included.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={applyStandardPricing}
+                className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3.5 text-sm font-medium tracking-[0.06em] text-accent touch-manipulation"
+              >
+                Apply Standard Pricing
+              </button>
+
+              {draft.standardPricingApplied && (
+                <p className="text-xs text-accent/90">
+                  Standard pricing applied · {draft.standardPricingNote}
+                </p>
+              )}
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <label className="block">
-                  <span className={labelClassName}>One-time ($)</span>
+                  <span className={labelClassName}>
+                    One-Time Visit — exterior ($)
+                  </span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -606,13 +731,16 @@ export function CreateHomeCarePlanWizard({
                           /[^\d]/g,
                           "",
                         ),
+                        standardPricingApplied: false,
                       }))
                     }
                     className={`${inputClassName} mt-2`}
                   />
                 </label>
                 <label className="block">
-                  <span className={labelClassName}>Preferred / mo ($)</span>
+                  <span className={labelClassName}>
+                    Recurring — exterior glass / visit ($)
+                  </span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -624,13 +752,16 @@ export function CreateHomeCarePlanWizard({
                           /[^\d]/g,
                           "",
                         ),
+                        standardPricingApplied: false,
                       }))
                     }
                     className={`${inputClassName} mt-2`}
                   />
                 </label>
                 <label className="block">
-                  <span className={labelClassName}>Estate / mo ($)</span>
+                  <span className={labelClassName}>
+                    Recurring — interior + exterior / visit ($)
+                  </span>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -642,6 +773,7 @@ export function CreateHomeCarePlanWizard({
                           /[^\d]/g,
                           "",
                         ),
+                        standardPricingApplied: false,
                       }))
                     }
                     className={`${inputClassName} mt-2`}

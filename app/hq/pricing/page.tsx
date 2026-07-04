@@ -1,12 +1,6 @@
-import type { Metadata } from "next";
-import { PricingCalculatorPage } from "@/components/admin/pricing-calculator-page";
+import { redirect } from "next/navigation";
+import { ROUTES } from "@/lib/navigation/config";
 
-export const metadata: Metadata = {
-  title: "Pricing Calculator | SqueegeeKing HQ",
-  description: "Quarterly and bi-annual base pricing by square footage.",
-  robots: { index: false, follow: false },
-};
-
-export default function HqPricingPage() {
-  return <PricingCalculatorPage />;
+export default function HqPricingRedirect() {
+  redirect(ROUTES.hqCarePlanBuilder);
 }

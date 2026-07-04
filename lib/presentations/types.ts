@@ -40,7 +40,7 @@ export const SLIDE_MANIFEST: SlideConfig[] = [
   { id: "solution", label: "The Solution", description: "What SqueegeeKing does differently", editable: ["headline", "body"] },
   { id: "services", label: "Services Included", description: "Benefits by tier", editable: ["highlight"] },
   { id: "schedule", label: "Your Schedule", description: "Annual visit calendar", editable: [] },
-  { id: "pricing", label: "Investment", description: "Bi-Annual vs Quarterly per visit", editable: ["headline"] },
+  { id: "pricing", label: "Standard Pricing", description: "Every 3 vs 6 months per visit", editable: ["headline"] },
   { id: "comparison", label: "Tier Comparison", description: "Side-by-side benefit table", editable: ["body"] },
   { id: "savings", label: "The Math", description: "RainBlock + Hard Water upgrade value", editable: [] },
   { id: "testimonials", label: "Member Stories", description: "Social proof", editable: ["highlight"] },

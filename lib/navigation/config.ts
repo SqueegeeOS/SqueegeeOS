@@ -17,7 +17,10 @@ export const ROUTES = {
   settings: "/employee/settings",
   hq: "/hq",
   hqOurStory: "/hq/our-story",
-  hqPricing: "/hq/pricing",
+  hqCarePlanBuilder: "/hq/care-plan-builder",
+  hqPricingSettings: "/hq/settings/pricing",
+  /** @deprecated Use hqCarePlanBuilder — redirect remains at /hq/pricing */
+  hqPricing: "/hq/care-plan-builder",
   experience: "/experience",
   experienceUnlock: "/experience/unlock",
   experienceRequestTransition: "/experience/request-transition",
