@@ -181,7 +181,6 @@ function MemberPortalWithCeremony({
       {showCeremony && (
         <UnlockCeremony
           onComplete={() => {
-            console.log("ceremony complete");
             markUnlockCeremonySeen(homeownerSlug, propertySlug);
             setShowCeremony(false);
           }}

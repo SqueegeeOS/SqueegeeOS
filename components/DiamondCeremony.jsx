@@ -1,6 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback } from 'react'
+import {
+  DIAMOND_CEREMONY_END,
+  DIAMOND_CEREMONY_START,
+} from '@/lib/membership/unlock-sequence'
 
 const ease = {
   outExpo: t => t === 1 ? 1 : 1 - Math.pow(2, -10 * t),
@@ -289,10 +293,10 @@ function createDiamondEngine(canvas) {
     const maxR = Math.sqrt(W*W + H*H)
     const r = state.fillProgress * maxR
     const grd = ctx.createRadialGradient(cx, cy, 0, cx, cy, r)
-    grd.addColorStop(0, `rgba(255,255,255,${state.fillOpacity})`)
-    grd.addColorStop(0.4, `rgba(252,251,249,${state.fillOpacity * 0.95})`)
-    grd.addColorStop(0.7, `rgba(250,249,247,${state.fillOpacity * 0.9})`)
-    grd.addColorStop(1, `rgba(248,247,245,${state.fillOpacity * 0.85})`)
+    grd.addColorStop(0, `rgba(6,6,6,${state.fillOpacity})`)
+    grd.addColorStop(0.4, `rgba(6,6,6,${state.fillOpacity * 0.98})`)
+    grd.addColorStop(0.7, `rgba(6,6,6,${state.fillOpacity * 0.96})`)
+    grd.addColorStop(1, `rgba(6,6,6,${state.fillOpacity * 0.92})`)
     ctx.beginPath()
     ctx.arc(cx, cy, r, 0, Math.PI * 2)
     ctx.fillStyle = grd
@@ -398,10 +402,18 @@ export default function DiamondCeremony({ onComplete }) {
     animateValue(600, t => {
       if (overlayRef.current) overlayRef.current.style.opacity = (1 - t).toString()
     }, ease.inOutCubic).then(() => {
+      window.dispatchEvent(new Event(DIAMOND_CEREMONY_END))
       setPhase('done')
       if (onComplete) onComplete()
     })
   }, [onComplete])
+
+  useEffect(() => {
+    window.dispatchEvent(new Event(DIAMOND_CEREMONY_START))
+    return () => {
+      window.dispatchEvent(new Event(DIAMOND_CEREMONY_END))
+    }
+  }, [])
 
   useEffect(() => {
     const t = setTimeout(() => { skippable.current = true }, 1800)
@@ -600,8 +612,6 @@ export default function DiamondCeremony({ onComplete }) {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300;1,400&family=Montserrat:wght@200;300;400&display=swap');
-
         .dc-overlay {
           position: fixed;
           inset: 0;
@@ -617,7 +627,7 @@ export default function DiamondCeremony({ onComplete }) {
         .dc-welcome {
           position: absolute;
           inset: 0;
-          background: #faf9f7;
+          background: #060606;
           display: flex;
           flex-direction: column;
           align-items: center;
@@ -636,21 +646,21 @@ export default function DiamondCeremony({ onComplete }) {
           text-align: center;
         }
         .dc-eyebrow {
-          font-family: 'Montserrat', sans-serif;
-          font-weight: 200;
+          font-family: var(--font-geist-sans), system-ui, sans-serif;
+          font-weight: 300;
           font-size: 9px;
           letter-spacing: 0.5em;
-          color: rgba(40,38,35,0.35);
+          color: rgba(201, 184, 150, 0.55);
           text-transform: uppercase;
           margin-bottom: 26px;
           opacity: 0;
           will-change: opacity, transform;
         }
         .dc-headline {
-          font-family: 'Cormorant Garamond', serif;
+          font-family: var(--font-cormorant), Georgia, serif;
           font-weight: 300;
           font-size: clamp(26px, 4.5vw, 46px);
-          color: rgba(20,18,15,0.9);
+          color: rgba(245, 242, 235, 0.95);
           line-height: 1.2;
           letter-spacing: 0.01em;
           margin-bottom: 22px;
@@ -660,14 +670,14 @@ export default function DiamondCeremony({ onComplete }) {
         .dc-headline em {
           font-style: italic;
           font-weight: 400;
-          color: rgba(20,18,15,0.72);
+          color: rgba(245, 242, 235, 0.78);
         }
         .dc-tagline {
-          font-family: 'Cormorant Garamond', serif;
+          font-family: var(--font-cormorant), Georgia, serif;
           font-weight: 400;
           font-size: clamp(14px, calc(2vw + 1px), 18px);
           font-style: italic;
-          color: rgba(28,26,22,0.62);
+          color: rgba(245, 242, 235, 0.62);
           margin-bottom: 32px;
           opacity: 0;
           will-change: opacity, transform;
@@ -675,7 +685,7 @@ export default function DiamondCeremony({ onComplete }) {
         .dc-divider {
           width: 1px;
           height: 44px;
-          background: linear-gradient(180deg, transparent, rgba(40,38,35,0.18), transparent);
+          background: linear-gradient(180deg, transparent, rgba(245, 242, 235, 0.18), transparent);
           margin: 0 auto 32px;
           opacity: 0;
           will-change: opacity, transform;
@@ -689,11 +699,11 @@ export default function DiamondCeremony({ onComplete }) {
           gap: 13px;
         }
         .dc-benefit {
-          font-family: 'Montserrat', sans-serif;
+          font-family: var(--font-geist-sans), system-ui, sans-serif;
           font-weight: 400;
           font-size: 11px;
           letter-spacing: 0.22em;
-          color: rgba(28,26,22,0.68);
+          color: rgba(245, 242, 235, 0.68);
           text-transform: uppercase;
           display: flex;
           align-items: center;
@@ -706,26 +716,26 @@ export default function DiamondCeremony({ onComplete }) {
           width: 3px;
           height: 3px;
           border-radius: 50%;
-          background: rgba(28,26,22,0.32);
+          background: rgba(245, 242, 235, 0.32);
           flex-shrink: 0;
         }
         .dc-emblem {
-          font-family: 'Cormorant Garamond', serif;
+          font-family: var(--font-cormorant), Georgia, serif;
           font-weight: 400;
           font-size: 10px;
           letter-spacing: 0.6em;
-          color: rgba(28,26,22,0.32);
+          color: rgba(245, 242, 235, 0.32);
           text-transform: uppercase;
           margin-bottom: 18px;
           opacity: 0;
           will-change: opacity, transform;
         }
         .dc-final {
-          font-family: 'Cormorant Garamond', serif;
+          font-family: var(--font-cormorant), Georgia, serif;
           font-weight: 400;
           font-size: clamp(23px, calc(3.5vw + 1px), 35px);
           font-style: italic;
-          color: rgba(18,16,13,0.82);
+          color: rgba(245, 242, 235, 0.82);
           letter-spacing: 0.06em;
           opacity: 0;
           will-change: opacity, transform;
@@ -735,18 +745,16 @@ export default function DiamondCeremony({ onComplete }) {
           bottom: 26px;
           left: 50%;
           transform: translateX(-50%);
-          font-family: 'Montserrat', sans-serif;
-          font-weight: 200;
+          font-family: var(--font-geist-sans), system-ui, sans-serif;
+          font-weight: 300;
           font-size: 8px;
           letter-spacing: 0.4em;
-          color: rgba(255,255,255,0.12);
+          color: rgba(245, 242, 235, 0.18);
           text-transform: uppercase;
           white-space: nowrap;
           pointer-events: none;
           z-index: 10;
-          transition: color 0.5s ease;
         }
-        .dc-skip.dark { color: rgba(40,38,35,0.18); }
       `}</style>
 
       <div ref={overlayRef} className="dc-overlay">
@@ -790,7 +798,7 @@ export default function DiamondCeremony({ onComplete }) {
           </div>
         </div>
 
-        <p className={`dc-skip ${phase === 'welcome' ? 'dark' : ''}`}>
+        <p className="dc-skip">
           Tap anywhere to continue
         </p>
       </div>

@@ -53,6 +53,8 @@ export const UNLOCK_WELCOME_COPY = {
 } as const;
 
 export const MEMBER_WELCOME_SESSION_KEY = "squeegeeking:member-welcome";
+export const DIAMOND_CEREMONY_START = "squeegeeking:diamond-ceremony-start";
+export const DIAMOND_CEREMONY_END = "squeegeeking:diamond-ceremony-end";
 const CEREMONY_SEEN_PREFIX = "squeegeeking:unlock-seen:";
 
 export function getUnlockTiming(profile: UnlockTimingProfile) {

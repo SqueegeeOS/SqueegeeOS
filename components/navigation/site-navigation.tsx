@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
+import {
+  DIAMOND_CEREMONY_END,
+  DIAMOND_CEREMONY_START,
+} from "@/lib/membership/unlock-sequence";
 import {
   getBreadcrumbs,
   getFloatingBack,
@@ -15,11 +19,23 @@ import { FloatingBack } from "./floating-back";
 
 export function SiteNavigation() {
   const pathname = usePathname() ?? "/";
+  const [ceremonyActive, setCeremonyActive] = useState(false);
   const mode = getNavigationMode(pathname);
   const breadcrumbs = getBreadcrumbs(pathname);
   const floatingBack = getFloatingBack(pathname);
   const overlay = shouldUseOverlayNav(pathname);
   const hasBreadcrumbs = breadcrumbs.length > 1;
+
+  useEffect(() => {
+    const onStart = () => setCeremonyActive(true);
+    const onEnd = () => setCeremonyActive(false);
+    window.addEventListener(DIAMOND_CEREMONY_START, onStart);
+    window.addEventListener(DIAMOND_CEREMONY_END, onEnd);
+    return () => {
+      window.removeEventListener(DIAMOND_CEREMONY_START, onStart);
+      window.removeEventListener(DIAMOND_CEREMONY_END, onEnd);
+    };
+  }, []);
 
   useEffect(() => {
     document.documentElement.style.setProperty(
@@ -31,6 +47,8 @@ export function SiteNavigation() {
       `calc(var(--site-nav-height) + ${hasBreadcrumbs ? "1.75rem" : "0px"})`,
     );
   }, [hasBreadcrumbs]);
+
+  if (ceremonyActive) return null;
 
   return (
     <>
