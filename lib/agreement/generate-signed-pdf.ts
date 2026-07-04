@@ -13,6 +13,12 @@ import {
   SQUEEGEEKING_TIERS,
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
+import type { AgreementKind } from "@/lib/agreement/one-time-agreement";
+import {
+  ONE_TIME_AGREEMENT_TITLE,
+  ONE_TIME_AGREEMENT_TEMPLATE,
+  ONE_TIME_SERVICE_SCOPE,
+} from "@/lib/agreement/one-time-agreement";
 
 export interface GenerateSignedPDFInput {
   memberName: string;
@@ -20,6 +26,7 @@ export interface GenerateSignedPDFInput {
   signatureDataUrl: string;
   tier: string;
   agreementTier?: SqueegeeKingTierId;
+  agreementKind?: AgreementKind;
   propertyName: string;
   monthlyPrice?: number;
 }
@@ -32,16 +39,22 @@ function formatSignedDate(iso: string): string {
   });
 }
 
-async function loadTemplateBytes(tier: SqueegeeKingTierId): Promise<Uint8Array | null> {
-  const templatePath = path.join(
-    process.cwd(),
-    "public/documents",
-    agreementTemplateFilename(tier),
-  );
+async function loadTemplateBytes(
+  kind: AgreementKind,
+  tier: SqueegeeKingTierId,
+): Promise<Uint8Array | null> {
+  const filename =
+    kind === "one_time"
+      ? ONE_TIME_AGREEMENT_TEMPLATE
+      : agreementTemplateFilename(tier);
+  const templatePath = path.join(process.cwd(), "public/documents", filename);
   try {
     await fs.promises.access(templatePath);
     return fs.readFileSync(templatePath);
   } catch {
+    if (kind === "one_time") {
+      return null;
+    }
     const legacyPath = path.join(
       process.cwd(),
       "public/documents/homeatlas-agreement.pdf",
@@ -137,6 +150,71 @@ async function buildProgrammaticAgreement(
   return pdfDoc;
 }
 
+async function buildProgrammaticOneTimeAgreement(
+  input: GenerateSignedPDFInput,
+): Promise<PDFDocument> {
+  const visitPrice = input.monthlyPrice ?? 0;
+
+  const pdfDoc = await PDFDocument.create();
+  const page = pdfDoc.addPage([612, 792]);
+  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const { height } = page.getSize();
+  let y = height - 56;
+
+  const draw = (text: string, size = 10, bold = false) => {
+    const lines = text.split("\n");
+    for (const line of lines) {
+      page.drawText(line, {
+        x: 54,
+        y,
+        size,
+        font: bold ? fontBold : font,
+        color: rgb(0.1, 0.1, 0.1),
+        maxWidth: 504,
+      });
+      y -= size * 1.45;
+    }
+  };
+
+  draw(ONE_TIME_AGREEMENT_TITLE.toUpperCase(), 14, true);
+  y -= 6;
+  draw(`Client: ${input.memberName}`, 10);
+  draw(`Property: ${input.propertyName}`, 10);
+  draw(`Signed: ${formatSignedDate(input.signedAt)}`, 10);
+  y -= 8;
+  draw("ONE-TIME SERVICE — NOT A MEMBERSHIP", 11, true);
+  y -= 4;
+  draw(
+    "This agreement covers a single scheduled visit only. No recurring membership, member portal access, priority booking, or add-on discounts are included unless you separately enroll in a membership plan.",
+    9,
+  );
+  y -= 8;
+  draw("SCOPE OF WORK", 11, true);
+  y -= 4;
+  for (const item of ONE_TIME_SERVICE_SCOPE) {
+    draw(`  ◈  ${item}`, 9);
+  }
+  y -= 10;
+  draw(`VISIT PRICE: $${visitPrice}`, 10, true);
+  draw("PAYMENT: Due per booking terms agreed at scheduling.", 10);
+  y -= 8;
+  draw("7-DAY WORKMANSHIP GUARANTEE", 11, true);
+  draw(
+    "If you are not satisfied with workmanship on the completed visit, contact us within seven (7) days and we will make it right.",
+    9,
+  );
+  y -= 12;
+  draw("EXCLUSIONS", 10, true);
+  draw("  —  No RainBlock or Hard Water unless explicitly quoted", 9);
+  draw("  —  No member pricing on future add-on services", 9);
+  draw("  —  No automatic rebooking or recurring billing", 9);
+  y -= 16;
+  draw("Client signature", 11, true);
+
+  return pdfDoc;
+}
+
 async function embedSignatureOnPage(
   pdfDoc: PDFDocument,
   pageIndex: number,
@@ -199,10 +277,34 @@ async function embedSignatureOnPage(
 export async function generateSignedPDF(
   input: GenerateSignedPDFInput,
 ): Promise<Uint8Array> {
+  const agreementKind = input.agreementKind ?? "membership";
+
+  if (agreementKind === "one_time") {
+    const templateBytes = await loadTemplateBytes("one_time", "biannual");
+    if (templateBytes) {
+      const pdfDoc = await PDFDocument.load(templateBytes);
+      await embedSignatureOnPage(pdfDoc, pdfDoc.getPageCount() - 1, input);
+      return pdfDoc.save();
+    }
+
+    const pdfDoc = await buildProgrammaticOneTimeAgreement(input);
+    await embedSignatureOnPage(pdfDoc, 0, input, {
+      nameX: 72,
+      nameY: 72,
+      dateX: 360,
+      dateY: 72,
+      sigX: 72,
+      sigY: 82,
+      sigW: 200,
+      sigH: 56,
+    });
+    return pdfDoc.save();
+  }
+
   const skTier = normalizeToSqueegeeKingTier(
     input.agreementTier ?? input.tier ?? "quarterly",
   );
-  const templateBytes = await loadTemplateBytes(skTier);
+  const templateBytes = await loadTemplateBytes("membership", skTier);
 
   if (templateBytes) {
     const pdfDoc = await PDFDocument.load(templateBytes);

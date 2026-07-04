@@ -134,6 +134,7 @@ export function MemberAddOnServices({
         ease: easeLuxury,
       }}
       className="mt-10"
+      id="member-addons"
     >
       <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
         Member Add-Ons

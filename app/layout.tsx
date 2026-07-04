@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { SiteNavigation } from "@/components/navigation/site-navigation";
 import { AppPricingSettingsProvider } from "@/components/pricing/app-pricing-settings-provider";
@@ -62,6 +63,7 @@ export default function RootLayout({
           <SiteNavigation />
           {children}
         </AppPricingSettingsProvider>
+        <SpeedInsights />
       </body>
     </html>
   );

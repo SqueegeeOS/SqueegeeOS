@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  SLIDE_MANIFEST,
+  getPresentationSlides,
   type PresentationData,
 } from "@/lib/presentations/types";
 import { withComputedRates } from "@/lib/presentations/calculations";
@@ -163,11 +163,15 @@ export function PresentationEditor({
         </aside>
 
         <main className="p-6 sm:p-8">
+          {(() => {
+            const slides = getPresentationSlides(data);
+            return (
+              <>
           <p className="mb-5 text-[10px] uppercase tracking-[0.18em] text-white/30">
-            Slides — {SLIDE_MANIFEST.length} total
+            Slides — {slides.length} total
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
-            {SLIDE_MANIFEST.map((slide, index) => (
+            {slides.map((slide, index) => (
               <div
                 key={slide.id}
                 className="rounded border border-white/10 bg-white/[0.03] p-5"
@@ -200,6 +204,9 @@ export function PresentationEditor({
               </div>
             ))}
           </div>
+              </>
+            );
+          })()}
         </main>
       </div>
     </div>

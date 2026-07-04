@@ -1,20 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
+import {
+  buildLeadFormFromParams,
+  estimatedPriceForLead,
+  parseRequestSearchParams,
+} from "@/lib/acquisition/request-params";
 import {
   contactMethods,
   emptyLeadForm,
+  preferredStartWindows,
   serviceOptions,
   type LeadIntakeFormData,
 } from "@/lib/acquisition/types";
 import { CUSTOMER_BRAND, CUSTOMER_CTAS } from "@/lib/brand/customer";
+import {
+  buildSqueegeeKingTierQuote,
+  formatTierPeriodPrice,
+  SQUEEGEEKING_TIER_ORDER,
+  type SqueegeeKingTierId,
+} from "@/lib/membership/tier-config";
 import { RequestPlanTransition } from "@/components/experience/request-plan-transition";
 import { AmbientGlow, Eyebrow, Reveal, easeLuxury } from "@/components/marketing/ui";
 
 const inputClassName =
   "w-full rounded-2xl border border-border bg-surface px-4 py-3.5 text-base text-foreground placeholder:text-muted/60 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20";
+
+const SQFT_MIN = 800;
+const SQFT_MAX = 6000;
+const SQFT_DEFAULT = 2500;
 
 type FormPhase = "form" | "transition" | "thanks";
 
@@ -48,10 +65,88 @@ function ThankYouScreen({ firstName }: { firstName: string }) {
   );
 }
 
-export function RequestForm() {
-  const [form, setForm] = useState<LeadIntakeFormData>(emptyLeadForm);
+function MembershipTierPicker({
+  value,
+  onChange,
+}: {
+  value: SqueegeeKingTierId | null;
+  onChange: (tier: SqueegeeKingTierId) => void;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {SQUEEGEEKING_TIER_ORDER.map((tierId) => {
+        const tier = buildSqueegeeKingTierQuote(tierId, SQFT_DEFAULT);
+        const selected = value === tierId;
+        return (
+          <button
+            key={tierId}
+            type="button"
+            onClick={() => onChange(tierId)}
+            className={`rounded-2xl border px-4 py-4 text-left transition-colors touch-manipulation ${
+              selected
+                ? "border-accent/40 bg-accent/10"
+                : "border-border bg-surface"
+            }`}
+          >
+            {tier.highlighted && (
+              <p className="mb-1 text-[10px] uppercase tracking-[0.2em] text-accent">
+                Recommended
+              </p>
+            )}
+            <p className="font-medium text-foreground">{tier.label}</p>
+            <p className="mt-1 text-xs text-muted">{tier.frequency}</p>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function RequestFormFields() {
+  const searchParams = useSearchParams();
+  const urlParams = useMemo(
+    () => parseRequestSearchParams(searchParams),
+    [searchParams],
+  );
+  const initialForm = useMemo(
+    () => buildLeadFormFromParams(urlParams),
+    [urlParams],
+  );
+
+  const [form, setForm] = useState<LeadIntakeFormData>(initialForm);
   const [phase, setPhase] = useState<FormPhase>("form");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const sqftValue = form.squareFootage ?? SQFT_DEFAULT;
+  const estimatedPrice = estimatedPriceForLead(
+    form.membershipTier,
+    form.squareFootage,
+  );
+  const priceLabel =
+    form.membershipTier && estimatedPrice
+      ? formatTierPeriodPrice(estimatedPrice, form.membershipTier)
+      : null;
+
+  const setMembershipTier = (tier: SqueegeeKingTierId) => {
+    const label = buildSqueegeeKingTierQuote(tier, sqftValue).label;
+    const noteLine = `Interested in ${label} membership.`;
+
+    setForm((prev) => ({
+      ...prev,
+      membershipTier: tier,
+      servicesInterested: prev.servicesInterested.includes(
+        "Full Home Care Membership",
+      )
+        ? prev.servicesInterested
+        : [...prev.servicesInterested, "Full Home Care Membership"],
+      notes: prev.notes.includes(noteLine)
+        ? prev.notes
+        : prev.notes
+          ? `${noteLine}\n\n${prev.notes}`
+          : noteLine,
+    }));
+  };
 
   const toggleService = (service: (typeof serviceOptions)[number]) => {
     setForm((prev) => ({
@@ -62,11 +157,32 @@ export function RequestForm() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
     setIsSubmitting(true);
-    window.setTimeout(() => setPhase("transition"), 180);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setError(data.error ?? "Something went wrong. Please try again.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      setPhase("transition");
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setIsSubmitting(false);
+    }
   };
 
   const firstName = form.name.split(" ")[0] || "friend";
@@ -95,6 +211,19 @@ export function RequestForm() {
               Tell us about your property. We&apos;ll schedule an inspection and
               craft your personalized experience.
             </p>
+            {form.membershipTier && priceLabel && (
+              <p className="mt-4 rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm text-foreground">
+                Your estimated{" "}
+                <span className="font-medium">
+                  {buildSqueegeeKingTierQuote(form.membershipTier, sqftValue).label}
+                </span>{" "}
+                investment:{" "}
+                <span className="font-medium">{priceLabel}</span>
+                {form.squareFootage
+                  ? ` for ${form.squareFootage.toLocaleString()} sq ft`
+                  : " (example for 2,500 sq ft — adjust below)"}
+              </p>
+            )}
             <p className="mt-3 text-[11px] tracking-[0.14em] text-muted/80">
               {CUSTOMER_CTAS.requestPlanHint}
             </p>
@@ -167,6 +296,47 @@ export function RequestForm() {
 
               <div>
                 <label className="mb-3 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                  Membership Interest
+                </label>
+                <MembershipTierPicker
+                  value={form.membershipTier}
+                  onChange={setMembershipTier}
+                />
+              </div>
+
+              <div>
+                <label
+                  htmlFor="sqft-range"
+                  className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.26em] text-muted"
+                >
+                  <span>Approximate sq ft (optional)</span>
+                  <span className="normal-case tracking-normal text-foreground">
+                    {sqftValue.toLocaleString()} sq ft
+                  </span>
+                </label>
+                <input
+                  id="sqft-range"
+                  type="range"
+                  min={SQFT_MIN}
+                  max={SQFT_MAX}
+                  step={100}
+                  value={sqftValue}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      squareFootage: parseInt(e.target.value, 10),
+                    })
+                  }
+                  className="w-full accent-accent"
+                />
+                <div className="mt-1 flex justify-between text-[10px] text-muted">
+                  <span>{SQFT_MIN.toLocaleString()}</span>
+                  <span>{SQFT_MAX.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-3 block text-[10px] uppercase tracking-[0.26em] text-muted">
                   Services Interested In
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -188,6 +358,30 @@ export function RequestForm() {
                     );
                   })}
                 </div>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                  Preferred Start Window
+                </label>
+                <select
+                  value={form.preferredStartWindow}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      preferredStartWindow: e.target
+                        .value as LeadIntakeFormData["preferredStartWindow"],
+                    })
+                  }
+                  className={inputClassName}
+                >
+                  <option value="">Select a timeframe</option>
+                  {preferredStartWindows.map((window) => (
+                    <option key={window} value={window}>
+                      {window}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -226,6 +420,8 @@ export function RequestForm() {
                 />
               </div>
 
+              {error && <p className="text-sm text-red-400">{error}</p>}
+
               <motion.button
                 type="submit"
                 disabled={isSubmitting}
@@ -233,7 +429,7 @@ export function RequestForm() {
                 transition={{ duration: 0.12, ease: easeLuxury }}
                 className="w-full min-h-[52px] rounded-full border border-accent/40 bg-accent text-sm font-medium tracking-[0.12em] text-background touch-manipulation transition-opacity hover:opacity-95 disabled:opacity-90 sm:text-base"
               >
-                {CUSTOMER_CTAS.requestPlan}
+                {isSubmitting ? "Submitting…" : CUSTOMER_CTAS.requestPlan}
               </motion.button>
             </form>
           </Reveal>
@@ -245,5 +441,22 @@ export function RequestForm() {
         onComplete={() => setPhase("thanks")}
       />
     </>
+  );
+}
+
+function RequestFormFallback() {
+  return (
+    <div
+      className="min-h-screen bg-background"
+      style={{ paddingTop: "var(--site-chrome-offset)" }}
+    />
+  );
+}
+
+export function RequestForm() {
+  return (
+    <Suspense fallback={<RequestFormFallback />}>
+      <RequestFormFields />
+    </Suspense>
   );
 }

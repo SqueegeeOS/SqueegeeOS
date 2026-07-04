@@ -4,7 +4,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { MEMBER_PRIVILEGES } from "@/lib/membership/member-privileges";
 import {
   hasSeenUnlockCeremony,
@@ -21,8 +20,15 @@ import {
   MemberCareSummary,
 } from "./member-care-summary";
 import { MemberFieldNotes } from "./member-field-notes";
+import { MemberHomeDashboard } from "./member-home-dashboard";
 import { MemberPremiumCard } from "./member-premium-card";
+import { MemberWalletCard } from "./member-wallet-card";
 import { resolvePortalViews } from "@/lib/membership/portal-from-supabase";
+import {
+  buildMemberWalletCardData,
+  isMemberMembershipActive,
+} from "@/lib/membership/member-wallet-card-data";
+import { buildMemberHomeDashboardView } from "@/lib/membership/member-home-dashboard-data";
 
 const easeLuxury = [0.16, 1, 0.3, 1] as const;
 
@@ -115,13 +121,29 @@ export function MemberPortalExperience({
   );
   const displayPlanName = careStatus.planName;
   const welcomeName = portalData?.profile.firstName ?? data.homeowner.firstName;
+  const membershipActive = isMemberMembershipActive(portalData);
+  const walletCard = membershipActive
+    ? buildMemberWalletCardData(membership, careStatus, {
+        isActive: membershipActive,
+      })
+    : null;
+  const portalPath = `/homecare/${data.homeowner.slug}/${data.property.slug}/portal`;
+  const returningMember = !fromUnlock;
+  const homeDashboard = returningMember
+    ? buildMemberHomeDashboardView(data, careStatus, membership, {
+        portalData,
+        planPath,
+      })
+    : null;
 
   return (
     <div className="min-h-[100svh] overflow-x-hidden bg-background text-foreground">
       <div
-        className={`relative min-h-[52vh] overflow-hidden sm:min-h-[58vh] ${
-          fromUnlock ? "member-portal-shimmer" : ""
-        }`}
+        className={`relative overflow-hidden ${
+          returningMember
+            ? "min-h-[36vh] sm:min-h-[40vh]"
+            : "min-h-[52vh] sm:min-h-[58vh]"
+        } ${fromUnlock ? "member-portal-shimmer" : ""}`}
       >
         <motion.div
           className="absolute inset-0"
@@ -143,7 +165,13 @@ export function MemberPortalExperience({
           <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/45 to-background" />
         </motion.div>
 
-        <div className="relative flex min-h-[52vh] flex-col justify-end px-5 pb-14 pt-28 sm:min-h-[58vh] sm:px-10 sm:pb-16">
+        <div
+          className={`relative flex flex-col justify-end px-5 pb-10 pt-28 sm:px-10 sm:pb-12 ${
+            returningMember
+              ? "min-h-[36vh] sm:min-h-[40vh]"
+              : "min-h-[52vh] sm:min-h-[58vh]"
+          }`}
+        >
           <motion.div
             initial={reduceMotion ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -172,11 +200,13 @@ export function MemberPortalExperience({
               ease: easeLuxury,
               delay: reduceMotion ? 0 : entranceBase + 0.2,
             }}
-            className="mt-4 max-w-xl font-serif text-3xl font-light leading-[1.08] tracking-tight sm:text-5xl md:text-6xl"
+            className="mt-4 max-w-xl font-serif text-3xl font-light leading-[1.08] tracking-tight sm:text-4xl md:text-5xl"
           >
             {fromUnlock
               ? UNLOCK_WELCOME_COPY.family
-              : `Welcome home, ${welcomeName}.`}
+              : returningMember
+                ? data.property.name
+                : `Welcome home, ${welcomeName}.`}
           </motion.h1>
           <motion.p
             initial={reduceMotion ? false : { opacity: 0, y: 8 }}
@@ -186,52 +216,75 @@ export function MemberPortalExperience({
               ease: easeLuxury,
               delay: reduceMotion ? 0 : entranceBase + 0.45,
             }}
-            className="mt-5 max-w-lg text-sm leading-relaxed text-white/80 sm:text-base"
+            className="mt-4 max-w-lg text-sm leading-relaxed text-white/80 sm:text-base"
           >
             {fromUnlock
               ? UNLOCK_WELCOME_COPY.care
-              : `${data.property.name} is under our care.`}
+              : returningMember
+                ? `${careStatus.planName} · ${careStatus.cadenceLabel} membership`
+                : `${data.property.name} is under our care.`}
           </motion.p>
-          <motion.p
-            initial={reduceMotion ? false : { opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{
-              delay: reduceMotion ? 0 : entranceBase + 0.65,
-              duration: 0.9,
-            }}
-            className="mt-3 text-[10px] uppercase tracking-[0.22em] text-white/45"
-          >
-            {data.property.name} · {careStatus.planName}
-          </motion.p>
+          {!returningMember && (
+            <motion.p
+              initial={reduceMotion ? false : { opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{
+                delay: reduceMotion ? 0 : entranceBase + 0.65,
+                duration: 0.9,
+              }}
+              className="mt-3 text-[10px] uppercase tracking-[0.22em] text-white/45"
+            >
+              {data.property.name} · {careStatus.planName}
+            </motion.p>
+          )}
         </div>
       </div>
 
-      <div className="mx-auto max-w-2xl px-5 py-14 sm:px-10 sm:py-16">
-        <motion.p
-          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: 1,
-            delay: reduceMotion ? 0 : entranceBase + 0.55,
-            ease: easeLuxury,
-          }}
-          className="text-base leading-relaxed text-muted"
-        >
-          {fromUnlock
-            ? "Everything here has been prepared for you. Your home is in capable hands."
-            : "Your membership is active. Your care schedule and member pricing are below."}
-        </motion.p>
+      <div className="mx-auto max-w-2xl px-5 py-10 sm:px-10 sm:py-14">
+        {homeDashboard && (
+          <MemberHomeDashboard
+            dashboard={homeDashboard}
+            entranceDelay={entranceBase + 0.15}
+          />
+        )}
+
+        {!returningMember && (
+          <motion.p
+            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{
+              duration: 1,
+              delay: reduceMotion ? 0 : entranceBase + 0.55,
+              ease: easeLuxury,
+            }}
+            className="text-base leading-relaxed text-muted"
+          >
+            {fromUnlock
+              ? "Everything here has been prepared for you. Your home is in capable hands."
+              : "Your membership is active. Your care schedule and member pricing are below."}
+          </motion.p>
+        )}
+
+        {walletCard && (
+          <MemberWalletCard
+            data={walletCard}
+            portalUrl={portalPath}
+            entranceDelay={entranceBase + (returningMember ? 0.35 : 0.28)}
+          />
+        )}
 
         <MemberPremiumCard
           membership={membership}
-          entranceDelay={entranceBase + 0.35}
+          entranceDelay={entranceBase + (returningMember ? 0.45 : 0.35)}
         />
 
-        <MemberCareSummary
-          status={careStatus}
-          propertySlug={data.property.slug}
-          entranceDelay={entranceBase + 0.35}
-        />
+        {!returningMember && (
+          <MemberCareSummary
+            status={careStatus}
+            propertySlug={data.property.slug}
+            entranceDelay={entranceBase + 0.35}
+          />
+        )}
 
         <MemberAddOnServices
           status={careStatus}

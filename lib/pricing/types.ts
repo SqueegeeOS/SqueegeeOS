@@ -58,6 +58,41 @@ export interface PricingOutput {
   recommendation?: PricingRecommendation;
 }
 
+export type ExteriorAddOnId =
+  | "soft_wash_exterior"
+  | "moss_removal"
+  | "pressure_wash_concrete"
+  | "screen_rescreening";
+
+export interface ExteriorAddOnSelection {
+  id: ExteriorAddOnId;
+  enabled: boolean;
+  /** Treated area sq ft — moss removal & concrete only */
+  areaSqft?: number;
+  /** Screen count — rescreening only */
+  screenCount?: number;
+}
+
+export interface ExteriorAddOnLineItem {
+  id: ExteriorAddOnId;
+  label: string;
+  /** Member / quoted price (after discount when applicable) */
+  amount: number;
+  /** List price before member discount */
+  listAmount: number;
+  detail: string;
+  memberDiscountPercent?: number;
+}
+
+export interface ExteriorAddOnQuote {
+  lineItems: ExteriorAddOnLineItem[];
+  /** Sum of member/quoted prices */
+  subtotal: number;
+  listSubtotal: number;
+  memberDiscountPercent: number | null;
+  memberSavings: number;
+}
+
 export interface PricingComparison {
   recurringExterior: number;
   recurringInteriorExterior: number;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SlideRenderer } from "./slide-renderer";
 import { SigningOverlay } from "./signing-overlay";
-import { SLIDE_MANIFEST, type PresentationData } from "@/lib/presentations/types";
+import { getPresentationSlides, type PresentationData } from "@/lib/presentations/types";
 
 export function PresentationViewer({
   presentation,
@@ -15,8 +15,9 @@ export function PresentationViewer({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [signing, setSigning] = useState(false);
   const [signingTier, setSigningTier] = useState<PresentationData["tier"]>("quarterly");
-  const totalSlides = SLIDE_MANIFEST.length;
-  const currentSlide = SLIDE_MANIFEST[currentIndex];
+  const slides = getPresentationSlides(presentation);
+  const totalSlides = slides.length;
+  const currentSlide = slides[currentIndex];
 
   const next = useCallback(() => {
     setCurrentIndex((i) => Math.min(i + 1, totalSlides - 1));
@@ -73,7 +74,7 @@ export function PresentationViewer({
         </span>
 
         <div className="flex gap-2">
-          {SLIDE_MANIFEST.map((_, i) => (
+          {slides.map((_, i) => (
             <button
               key={i}
               type="button"

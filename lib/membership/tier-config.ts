@@ -119,6 +119,73 @@ export const TIER_COMPARISON_ROWS: Array<{
   { label: "Recommended For", biannual: "Occasional refresh", quarterly: "Year-round protection" },
 ];
 
+export const SQUEEGEEKING_TIER_ORDER: SqueegeeKingTierId[] = [
+  "quarterly",
+  "biannual",
+];
+
+export interface SqueegeeKingTierQuote {
+  id: SqueegeeKingTierId;
+  label: string;
+  tagline: string;
+  frequency: string;
+  rainblockIncluded: boolean;
+  hardWaterIncluded: boolean;
+  addonDiscount: number;
+  visitPrice: number;
+  periodPriceLabel: string;
+  highlighted: boolean;
+}
+
+export function formatTierPeriodPrice(
+  price: number,
+  tier: SqueegeeKingTierId,
+): string {
+  const suffix = tier === "quarterly" ? "/quarter" : " bi-annually";
+  return `${formatTierPrice(price)}${suffix}`;
+}
+
+export function buildSqueegeeKingTierQuote(
+  tier: SqueegeeKingTierId,
+  squareFootage = 2500,
+): SqueegeeKingTierQuote {
+  const def = SQUEEGEEKING_TIERS[tier];
+  const visitPrice = calculateVisitPrice(tier, squareFootage);
+  const periodPriceLabel = formatTierPeriodPrice(visitPrice, tier);
+
+  return {
+    id: tier,
+    label: def.label,
+    tagline: def.tagline,
+    frequency: def.frequency,
+    rainblockIncluded: tier === "quarterly",
+    hardWaterIncluded: tier === "quarterly",
+    addonDiscount: def.addonDiscount,
+    visitPrice,
+    periodPriceLabel,
+    highlighted: def.highlighted,
+  };
+}
+
+export function buildSqueegeeKingTierQuotes(
+  squareFootage = 2500,
+): SqueegeeKingTierQuote[] {
+  return SQUEEGEEKING_TIER_ORDER.map((tier) =>
+    buildSqueegeeKingTierQuote(tier, squareFootage),
+  );
+}
+
+export function membershipRequestHref(
+  tier: SqueegeeKingTierId,
+  squareFootage?: number,
+): string {
+  const params = new URLSearchParams({ membership: tier });
+  if (squareFootage && squareFootage > 0) {
+    params.set("sqft", String(Math.round(squareFootage)));
+  }
+  return `/request?${params.toString()}`;
+}
+
 export function normalizeToSqueegeeKingTier(tier: string): SqueegeeKingTierId {
   const n = tier.toLowerCase();
   if (

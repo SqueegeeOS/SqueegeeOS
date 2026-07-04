@@ -8,11 +8,19 @@ import type {
   MembershipPlanId,
   MembershipSignature,
 } from "@/lib/membership/types";
+import {
+  agreementKindForPlan,
+  oneTimeAgreementTemplatePath,
+} from "@/lib/agreement/one-time-agreement";
+import {
+  membershipAgreementCheckboxText,
+  oneTimeAgreementCheckboxText,
+} from "@/lib/agreement/agreement-content";
 import { AgreementModal } from "./agreement-modal";
 import { AgreementSignaturePad } from "./agreement-signature-pad";
 import { AgreementSummary } from "./agreement-summary";
 
-const AGREEMENT_TEMPLATE_URL = "/documents/homeatlas-agreement.pdf";
+const MEMBERSHIP_AGREEMENT_TEMPLATE_URL = "/documents/homeatlas-agreement.pdf";
 
 interface AgreementFlowProps {
   planData: HomeCarePlanData;
@@ -62,6 +70,11 @@ export function AgreementFlow({
 
   const memberName = planData.homeowner.fullName;
   const homeAddress = `${planData.property.address}, ${planData.property.city}`;
+  const agreementKind = agreementKindForPlan(planId);
+  const isOneTime = agreementKind === "one_time";
+  const agreementTemplateUrl = isOneTime
+    ? oneTimeAgreementTemplatePath()
+    : MEMBERSHIP_AGREEMENT_TEMPLATE_URL;
 
   const handleSign = async () => {
     if (!signature || !agreed) return;
@@ -106,8 +119,9 @@ export function AgreementFlow({
           Agreement signed
         </h2>
         <p className="mt-2 text-sm text-muted">
-          Your signed membership agreement is on file. Continue to secure
-          checkout when ready.
+          {isOneTime
+            ? "Your signed service agreement is on file. Continue to checkout when ready."
+            : "Your signed membership agreement is on file. Continue to secure checkout when ready."}
         </p>
 
         <div className="mt-6 space-y-4 rounded-2xl border border-accent/25 bg-accent/5 p-5">
@@ -162,7 +176,9 @@ export function AgreementFlow({
           One last step.
         </h2>
         <p className="mt-2 text-sm text-muted">
-          Review your membership agreement and sign below.
+          {isOneTime
+            ? "Review your one-time service agreement and sign below."
+            : "Review your membership agreement and sign below."}
         </p>
       </div>
 
@@ -178,6 +194,7 @@ export function AgreementFlow({
       </div>
 
       <AgreementSummary
+        kind={agreementKind}
         tierName={planName}
         tierPrice={tierPrice}
         tierPeriod={tierPeriod}
@@ -189,12 +206,13 @@ export function AgreementFlow({
         onClick={() => setShowPdf(true)}
         className="w-full rounded-2xl border border-border bg-surface px-4 py-3.5 text-sm tracking-[0.06em] text-foreground touch-manipulation"
       >
-        Read full agreement
+        Read full {isOneTime ? "service agreement" : "agreement"}
       </button>
 
       {showPdf && (
         <AgreementModal
-          pdfUrl={AGREEMENT_TEMPLATE_URL}
+          pdfUrl={agreementTemplateUrl}
+          kind={agreementKind}
           onClose={() => setShowPdf(false)}
         />
       )}
@@ -234,8 +252,9 @@ export function AgreementFlow({
           className="mt-1 h-5 w-5 shrink-0 rounded border-border accent-accent"
         />
         <span className="text-sm leading-relaxed text-foreground">
-          I have read and agree to the HomeAtlas Membership Agreement. I
-          understand this is a legally binding signature.
+          {isOneTime
+            ? oneTimeAgreementCheckboxText()
+            : membershipAgreementCheckboxText()}
         </span>
       </label>
 
@@ -247,7 +266,7 @@ export function AgreementFlow({
         disabled={!signature || !agreed || loading}
         className="min-h-[52px] w-full rounded-full bg-accent text-sm font-medium tracking-[0.1em] text-background disabled:opacity-40"
       >
-        {loading ? "Generating your agreement…" : "Sign & continue"}
+        {loading ? "Generating your agreement…" : isOneTime ? "Sign service agreement" : "Sign & continue"}
       </button>
 
       {loading && (

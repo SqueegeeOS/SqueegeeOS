@@ -4,6 +4,7 @@ import {
   squeegeeKingTierLabel,
   SQUEEGEEKING_TIERS,
 } from "@/lib/membership/tier-config";
+import type { PresentationQuoteSnapshot } from "./quote-snapshot";
 
 export type PresentationTier = SqueegeeKingTierId;
 export type PresentationStatus = "draft" | "presented" | "signed";
@@ -21,6 +22,7 @@ export type SlideType =
   | "services"
   | "schedule"
   | "pricing"
+  | "custom_quote"
   | "comparison"
   | "savings"
   | "testimonials"
@@ -41,12 +43,21 @@ export const SLIDE_MANIFEST: SlideConfig[] = [
   { id: "services", label: "Services Included", description: "Benefits by tier", editable: ["highlight"] },
   { id: "schedule", label: "Your Schedule", description: "Annual visit calendar", editable: [] },
   { id: "pricing", label: "Standard Pricing", description: "Every 3 vs 6 months per visit", editable: ["headline"] },
+  { id: "custom_quote", label: "Your Custom Quote", description: "Window care + exterior add-ons from builder", editable: ["headline"] },
   { id: "comparison", label: "Tier Comparison", description: "Side-by-side benefit table", editable: ["body"] },
   { id: "savings", label: "The Math", description: "RainBlock + Hard Water upgrade value", editable: [] },
   { id: "testimonials", label: "Member Stories", description: "Social proof", editable: ["highlight"] },
   { id: "guarantee", label: "Our Guarantee", description: "7-day workmanship guarantee", editable: ["body"] },
   { id: "close", label: "Ready to Start", description: "Dual sign buttons", editable: ["headline", "body"] },
 ];
+
+export function getPresentationSlides(
+  presentation: Pick<PresentationData, "quoteSnapshot">,
+): SlideConfig[] {
+  return SLIDE_MANIFEST.filter(
+    (slide) => slide.id !== "custom_quote" || presentation.quoteSnapshot,
+  );
+}
 
 export interface PresentationData {
   id: string;
@@ -61,6 +72,7 @@ export interface PresentationData {
   annualRate: number;
   retailValue: number;
   customNotes: string;
+  quoteSnapshot?: PresentationQuoteSnapshot | null;
   slideOverrides: Partial<Record<SlideType, SlideOverride>>;
   status: PresentationStatus;
   signedAt: string | null;

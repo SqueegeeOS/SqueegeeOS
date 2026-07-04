@@ -6,6 +6,11 @@ import {
   normalizeToSqueegeeKingTier,
   planNameForAgreement,
 } from "@/lib/membership/tier-config";
+import {
+  agreementKindForPlan,
+  isOneTimePlanId,
+  planNameForOneTimeAgreement,
+} from "@/lib/agreement/one-time-agreement";
 import type { MembershipPlanId } from "@/lib/membership/types";
 
 function tierToPlanId(_tier: string): MembershipPlanId {
@@ -55,7 +60,16 @@ export async function POST(req: NextRequest) {
       monthlyPrice = monthlyPrice ?? presentation.monthlyRate;
     }
 
-    const resolvedTier = normalizeToSqueegeeKingTier(agreementTier ?? "quarterly");
+    const agreementKind = agreementKindForPlan(planId);
+    const isOneTime = isOneTimePlanId(planId);
+
+    if (isOneTime) {
+      planName = planNameForOneTimeAgreement();
+    }
+
+    const resolvedTier = isOneTime
+      ? undefined
+      : normalizeToSqueegeeKingTier(agreementTier ?? "quarterly");
 
     if (
       !memberName ||
@@ -93,16 +107,17 @@ export async function POST(req: NextRequest) {
       monthlyPrice:
         typeof monthlyPrice === "number" ? monthlyPrice : undefined,
       agreementTier: resolvedTier,
+      agreementKind,
       ipAddress: req.headers.get("x-forwarded-for"),
       userAgent: req.headers.get("user-agent"),
     });
 
-    if (presentationId) {
+    if (presentationId && !isOneTime) {
       await patchPresentation(presentationId, {
         status: "signed",
         signedAt,
         agreementId: result.agreementId,
-        tier: resolvedTier,
+        tier: resolvedTier ?? "quarterly",
       });
     }
 

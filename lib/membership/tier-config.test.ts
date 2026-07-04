@@ -1,0 +1,31 @@
+import { describe, expect, it } from "vitest";
+import {
+  buildSqueegeeKingTierQuotes,
+  membershipRequestHref,
+} from "./tier-config";
+
+describe("SqueegeeKing tier quotes", () => {
+  it("builds aligned quarterly and bi-annual comparison rows", () => {
+    const [quarterly, biannual] = buildSqueegeeKingTierQuotes(2500);
+
+    expect(quarterly.label).toBe("Quarterly");
+    expect(biannual.label).toBe("Bi-Annual");
+    expect(quarterly.frequency).toBe("Every 3 months");
+    expect(biannual.frequency).toBe("Every 6 months");
+    expect(quarterly.rainblockIncluded).toBe(true);
+    expect(biannual.rainblockIncluded).toBe(false);
+    expect(quarterly.addonDiscount).toBe(25);
+    expect(biannual.addonDiscount).toBe(20);
+    expect(quarterly.periodPriceLabel).toMatch(/\/quarter$/);
+    expect(biannual.periodPriceLabel).toMatch(/bi-annually$/);
+    expect(quarterly.highlighted).toBe(true);
+  });
+
+  it("links tier CTAs to the request form", () => {
+    expect(membershipRequestHref("quarterly")).toBe("/request?membership=quarterly");
+    expect(membershipRequestHref("biannual")).toBe("/request?membership=biannual");
+    expect(membershipRequestHref("quarterly", 3200)).toBe(
+      "/request?membership=quarterly&sqft=3200",
+    );
+  });
+});

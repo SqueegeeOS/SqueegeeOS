@@ -6,6 +6,10 @@ import {
 } from "@/lib/persistence/supabase/client";
 import type { MembershipPlanId } from "@/lib/membership/types";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
+import type { AgreementKind } from "@/lib/agreement/one-time-agreement";
+import {
+  agreementKindForPlan,
+} from "@/lib/agreement/one-time-agreement";
 
 export interface SignAgreementRequest {
   memberName: string;
@@ -19,6 +23,7 @@ export interface SignAgreementRequest {
   signedAt: string;
   monthlyPrice?: number;
   agreementTier?: SqueegeeKingTierId;
+  agreementKind?: AgreementKind;
   ipAddress?: string | null;
   userAgent?: string | null;
 }
@@ -73,6 +78,7 @@ export async function processSignAgreement(
     signatureDataUrl: input.signatureDataUrl,
     tier: input.planName,
     agreementTier: input.agreementTier,
+    agreementKind: input.agreementKind ?? agreementKindForPlan(input.planId),
     propertyName: input.propertyName,
     monthlyPrice: parsePriceNumber(input.monthlyPrice),
   });

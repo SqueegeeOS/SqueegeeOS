@@ -27,7 +27,7 @@ export {
   settingsFromPerThousandSqft,
   validateCompanySettings,
 } from "./company-settings";
-export type { CompanySettings } from "./company-settings";
+export type { CompanySettings, ExteriorAddOnSettings } from "./company-settings";
 
 export type {
   CareFrequency,
@@ -39,6 +39,24 @@ export type {
   PropertyAccessFlags,
   PropertyContext,
   ServiceScope,
+} from "./types";
+
+export {
+  applyMemberAddOnDiscount,
+  calculateExteriorAddOnQuote,
+  calculateMossRemovalQuote,
+  calculatePressureWashConcreteQuote,
+  calculateScreenRescreeningQuote,
+  calculateSoftWashQuote,
+  defaultExteriorAddOnSelections,
+  EXTERIOR_ADDON_LABELS,
+  getMemberAddOnDiscountPercent,
+} from "./exterior-addon-pricing";
+export type {
+  ExteriorAddOnId,
+  ExteriorAddOnLineItem,
+  ExteriorAddOnQuote,
+  ExteriorAddOnSelection,
 } from "./types";
 
 const FREQUENCY_LABELS: Record<CareFrequency, string> = {

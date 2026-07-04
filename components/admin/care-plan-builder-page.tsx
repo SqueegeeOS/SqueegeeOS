@@ -1,13 +1,21 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { FadePriceBlock, RollingPrice } from "@/components/admin/pricing-motion";
 import { useCompanySettings } from "@/components/pricing/pricing-settings-provider";
 import { isAdminUnlocked } from "@/lib/admin/pin";
-import { buildCopyQuote, formatDollars } from "@/lib/pricing/format";
-import type { CareFrequency } from "@/lib/pricing/types";
+import { buildCopyQuote, formatDollars, memberSavingsQuoteLine } from "@/lib/pricing/format";
+import { EXTERIOR_ADDON_AREA_GUIDANCE } from "@/lib/pricing/exterior-addon-guidance";
+import {
+  calculateExteriorAddOnQuote,
+  defaultExteriorAddOnSelections,
+  EXTERIOR_ADDON_LABELS,
+  getMemberAddOnDiscountPercent,
+} from "@/lib/pricing/exterior-addon-pricing";
+import type { CareFrequency, ExteriorAddOnSelection } from "@/lib/pricing/types";
 import {
   calculateWindowCarePricing,
   getMaxSqft,
@@ -16,6 +24,7 @@ import {
   PRICING_SQFT_PRESETS,
   validateInput,
 } from "@/lib/pricing/window-care-pricing";
+import { buildPresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { ROUTES } from "@/lib/navigation/config";
 
 /** Future: gate ranges, lead capture, hide one-time comparison. */
@@ -29,6 +38,7 @@ const pillIdle =
   "border-border text-muted hover:border-accent/25";
 
 export function CarePlanBuilderPage() {
+  const router = useRouter();
   const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
   const { settings } = useCompanySettings();
   const minSqft = getMinSqft(settings);
@@ -36,7 +46,11 @@ export function CarePlanBuilderPage() {
   const [frequency, setFrequency] = useState<CareFrequency>("quarterly");
   const [sqft, setSqft] = useState(2500);
   const [includeInterior, setIncludeInterior] = useState(false);
+  const [addOnSelections, setAddOnSelections] = useState<ExteriorAddOnSelection[]>(
+    () => defaultExteriorAddOnSelections(),
+  );
   const [copied, setCopied] = useState(false);
+  const [creatingPresentation, setCreatingPresentation] = useState(false);
 
   const clampedSqft = Math.min(maxSqft, Math.max(minSqft, sqft || minSqft));
 
@@ -65,6 +79,16 @@ export function CarePlanBuilderPage() {
       settings,
     );
   }, [clampedSqft, frequency, includeInterior, validationError, settings]);
+
+  const addOnQuote = useMemo(() => {
+    if (validationError) return null;
+    return calculateExteriorAddOnQuote(
+      clampedSqft,
+      addOnSelections,
+      settings,
+      { memberDiscountPercent: getMemberAddOnDiscountPercent(frequency, settings) },
+    );
+  }, [clampedSqft, addOnSelections, settings, validationError, frequency]);
 
   const comparison = useMemo(() => {
     if (validationError) return null;
@@ -101,12 +125,68 @@ export function CarePlanBuilderPage() {
     setSqft(raw);
   };
 
+  const totalEstimate =
+    pricing && addOnQuote
+      ? recurringPrice + (addOnQuote.subtotal ?? 0)
+      : null;
+
+  const memberSavingsLine =
+    addOnQuote && addOnQuote.memberSavings > 0
+      ? memberSavingsQuoteLine(frequency, addOnQuote.memberSavings)
+      : null;
+
   const handleCopyQuote = async () => {
     if (!pricing || CUSTOMER_FACING_MODE) return;
-    const text = buildCopyQuote(clampedSqft, pricing);
+    const text = buildCopyQuote(clampedSqft, pricing, addOnQuote, {
+      frequency,
+      windowCareVisitPrice: recurringPrice,
+    });
     await navigator.clipboard.writeText(text);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleCreatePresentation = async () => {
+    if (!pricing || creatingPresentation) return;
+
+    setCreatingPresentation(true);
+    try {
+      const quoteSnapshot = buildPresentationQuoteSnapshot({
+        sqft: clampedSqft,
+        frequency,
+        includeInterior,
+        pricing,
+        addOnQuote,
+      });
+
+      const response = await fetch("/api/presentations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          createdBy: "Care Plan Builder",
+          homeSqft: clampedSqft,
+          tier: frequency === "quarterly" ? "quarterly" : "biannual",
+          quoteSnapshot,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Failed to create");
+
+      router.push(`/presentations/${data.presentation.id}/edit`);
+    } catch {
+      window.alert("Could not create presentation. Try again.");
+      setCreatingPresentation(false);
+    }
+  };
+
+  const updateAddOn = (
+    id: ExteriorAddOnSelection["id"],
+    patch: Partial<ExteriorAddOnSelection>,
+  ) => {
+    setAddOnSelections((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+    );
   };
 
   if (!unlocked) {
@@ -235,6 +315,123 @@ export function CarePlanBuilderPage() {
               Base pricing includes glass only. Screens are not included.
             </p>
           </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
+              Exterior Add-Ons
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Member pricing applies {getMemberAddOnDiscountPercent(frequency, settings)}%
+              off list for {frequency === "quarterly" ? "Quarterly" : "Bi-Annual"}{" "}
+              members.
+            </p>
+            <div className="mt-4 space-y-4">
+              {addOnSelections.map((selection) => (
+                <div
+                  key={selection.id}
+                  className="rounded-2xl border border-border/70 bg-background/40 px-4 py-4"
+                >
+                  <label className="flex cursor-pointer items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selection.enabled}
+                      onChange={(event) =>
+                        updateAddOn(selection.id, { enabled: event.target.checked })
+                      }
+                      className="mt-1 accent-accent"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm text-foreground">
+                        {EXTERIOR_ADDON_LABELS[selection.id]}
+                      </span>
+                      {selection.id === "soft_wash_exterior" && (
+                        <span className="mt-1 block text-xs text-muted">
+                          Flat {formatDollars(settings.exteriorAddOns.softWash.defaultPrice)}{" "}
+                          typical · scales above{" "}
+                          {settings.exteriorAddOns.softWash.largeHomeSqftThreshold.toLocaleString()}{" "}
+                          sq ft
+                        </span>
+                      )}
+                      {selection.id === "moss_removal" && (
+                        <span className="mt-1 block text-xs text-muted">
+                          ${settings.exteriorAddOns.mossRemoval.ratePerSqft}/sq ft on
+                          affected areas only
+                        </span>
+                      )}
+                      {selection.id === "pressure_wash_concrete" && (
+                        <span className="mt-1 block text-xs text-muted">
+                          ${settings.exteriorAddOns.pressureWashConcrete.ratePerSqft}/sq ft
+                          concrete
+                        </span>
+                      )}
+                      {selection.id === "screen_rescreening" && (
+                        <span className="mt-1 block text-xs text-muted">
+                          1–2 @ ${settings.exteriorAddOns.screenRescreening.singleScreenPrice}{" "}
+                          · 3–5 @ $
+                          {settings.exteriorAddOns.screenRescreening.midTierPricePerScreen}{" "}
+                          · 6+ @ $
+                          {settings.exteriorAddOns.screenRescreening.bulkPricePerScreen} each
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                  {selection.enabled &&
+                    selection.id !== "soft_wash_exterior" &&
+                    selection.id !== "screen_rescreening" && (
+                      <label className="mt-3 block pl-7">
+                        <span className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                          Area sq ft
+                        </span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={50}
+                          value={selection.areaSqft ?? 0}
+                          onChange={(event) =>
+                            updateAddOn(selection.id, {
+                              areaSqft: Number(event.target.value) || 0,
+                            })
+                          }
+                          className="mt-2 w-full max-w-xs rounded-xl border border-border bg-background px-4 py-2.5 text-base text-foreground outline-none focus:border-accent/40"
+                        />
+                        {selection.id === "moss_removal" && (
+                          <p className="mt-2 max-w-md text-xs leading-relaxed text-muted">
+                            {EXTERIOR_ADDON_AREA_GUIDANCE.moss_removal}
+                          </p>
+                        )}
+                        {selection.id === "pressure_wash_concrete" && (
+                          <p className="mt-2 max-w-md text-xs leading-relaxed text-muted">
+                            {EXTERIOR_ADDON_AREA_GUIDANCE.pressure_wash_concrete}
+                          </p>
+                        )}
+                      </label>
+                    )}
+                  {selection.enabled && selection.id === "screen_rescreening" && (
+                    <label className="mt-3 block pl-7">
+                      <span className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                        Number of screens
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={selection.screenCount ?? 1}
+                        onChange={(event) =>
+                          updateAddOn(selection.id, {
+                            screenCount: Math.max(
+                              1,
+                              Number(event.target.value) || 1,
+                            ),
+                          })
+                        }
+                        className="mt-2 w-full max-w-xs rounded-xl border border-border bg-background px-4 py-2.5 text-base text-foreground outline-none focus:border-accent/40"
+                      />
+                    </label>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </section>
 
         {pricing && comparison && (
@@ -308,6 +505,110 @@ export function CarePlanBuilderPage() {
               </p>
             </section>
 
+            {addOnQuote && addOnQuote.lineItems.length > 0 && (
+              <section className="mt-6 rounded-[1.75rem] border border-border/70 bg-surface/30 p-6 sm:p-8">
+                <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
+                  Exterior Add-Ons
+                </p>
+                {memberSavingsLine && (
+                  <p className="mt-3 rounded-xl border border-accent/25 bg-accent/10 px-4 py-3 text-sm font-medium text-accent">
+                    {memberSavingsLine}
+                  </p>
+                )}
+                {addOnQuote.memberDiscountPercent != null &&
+                  addOnQuote.memberSavings <= 0 && (
+                  <p className="mt-2 text-xs text-muted">
+                    {addOnQuote.memberDiscountPercent}% member discount on add-ons
+                    when enrolled in{" "}
+                    {frequency === "quarterly" ? "Quarterly" : "Bi-Annual"} care.
+                  </p>
+                )}
+                <dl className="mt-4 space-y-3 text-sm">
+                  {addOnQuote.lineItems.map((item) => (
+                    <div key={item.id} className="flex justify-between gap-4">
+                      <dt className="min-w-0 text-muted">
+                        <span className="block text-foreground/90">{item.label}</span>
+                        <span className="mt-0.5 block text-xs">{item.detail}</span>
+                        {item.listAmount !== item.amount && (
+                          <span className="mt-0.5 block text-xs line-through">
+                            List {formatDollars(item.listAmount)}
+                          </span>
+                        )}
+                      </dt>
+                      <dd className="shrink-0 font-serif text-lg font-light text-foreground">
+                        {formatDollars(item.amount)}
+                      </dd>
+                    </div>
+                  ))}
+                  {addOnQuote.memberSavings > 0 && (
+                    <div className="flex justify-between gap-4 border-t border-border/60 pt-3 text-xs">
+                      <dt className="text-muted">Member savings</dt>
+                      <dd className="text-emerald-400/90">
+                        −{formatDollars(addOnQuote.memberSavings)}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-4 border-t border-border/60 pt-3">
+                    <dt className="text-muted">Add-on subtotal</dt>
+                    <dd className="font-serif text-xl font-light text-accent">
+                      {formatDollars(addOnQuote.subtotal)}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            )}
+
+            {totalEstimate != null && (
+              <section className="mt-6 rounded-[1.75rem] border border-accent/25 bg-accent/[0.06] p-6 sm:p-8">
+                <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
+                  Quote Summary
+                </p>
+                <dl className="mt-4 space-y-3 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <dt className="text-muted">
+                      Window Care ({pricing?.frequencyLabel.toLowerCase()})
+                    </dt>
+                    <dd className="font-serif text-lg font-light text-foreground">
+                      {formatDollars(recurringPrice)}
+                    </dd>
+                  </div>
+                  {addOnQuote && addOnQuote.lineItems.length > 0 && (
+                    <>
+                      {addOnQuote.lineItems.map((item) => (
+                        <div key={item.id} className="flex justify-between gap-4">
+                          <dt className="text-muted">{item.label}</dt>
+                          <dd className="text-foreground">
+                            {formatDollars(item.amount)}
+                          </dd>
+                        </div>
+                      ))}
+                      <div className="flex justify-between gap-4 border-t border-border/60 pt-3">
+                        <dt className="text-muted">Add-on subtotal</dt>
+                        <dd>{formatDollars(addOnQuote.subtotal)}</dd>
+                      </div>
+                      {memberSavingsLine && (
+                        <div className="rounded-xl border border-accent/25 bg-accent/10 px-4 py-3">
+                          <p className="text-sm font-medium text-accent">
+                            {memberSavingsLine}
+                          </p>
+                          <p className="mt-1 text-xs text-muted">
+                            {addOnQuote.memberDiscountPercent}% off add-ons while
+                            membership payments are current.
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div className="flex justify-between gap-4 border-t border-accent/30 pt-3">
+                    <dt className="font-medium text-foreground">Total estimate</dt>
+                    <dd className="font-serif text-2xl font-light text-accent">
+                      {formatDollars(totalEstimate)}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+            )}
+
             <section className="mt-6 rounded-[1.75rem] border border-accent/20 border-l-4 bg-surface/20 px-6 py-5 sm:px-8">
               <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
                 Atlas Recommendation
@@ -331,13 +632,23 @@ export function CarePlanBuilderPage() {
             </section>
 
             {!CUSTOMER_FACING_MODE && (
-              <button
-                type="button"
-                onClick={() => void handleCopyQuote()}
-                className="mt-8 w-full rounded-2xl border border-accent/30 bg-accent/10 px-6 py-4 text-sm font-medium tracking-[0.06em] text-accent transition-colors hover:border-accent/50"
-              >
-                {copied ? "Copied ✓" : "Copy Quote Summary"}
-              </button>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => void handleCopyQuote()}
+                  className="flex-1 rounded-2xl border border-accent/30 bg-accent/10 px-6 py-4 text-sm font-medium tracking-[0.06em] text-accent transition-colors hover:border-accent/50"
+                >
+                  {copied ? "Copied ✓" : "Copy Quote Summary"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCreatePresentation()}
+                  disabled={creatingPresentation}
+                  className="flex-1 rounded-2xl border border-border bg-surface px-6 py-4 text-sm font-medium tracking-[0.06em] text-foreground transition-colors hover:border-accent/30 disabled:opacity-60"
+                >
+                  {creatingPresentation ? "Creating…" : "Open in Presentation"}
+                </button>
+              </div>
             )}
 
             <p className="mt-4 text-xs text-muted/70">

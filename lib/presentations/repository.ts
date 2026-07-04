@@ -1,6 +1,7 @@
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { withComputedRates } from "./calculations";
+import type { PresentationQuoteSnapshot } from "./quote-snapshot";
 import {
   getLocalPresentation,
   listLocalPresentations,
@@ -31,6 +32,7 @@ interface PresentationRow {
   status: PresentationStatus;
   signed_at: string | null;
   agreement_id: string | null;
+  quote_snapshot: PresentationQuoteSnapshot | null;
   created_at: string;
   updated_at: string;
 }
@@ -48,6 +50,7 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     annualRate: Number(row.annual_rate),
     retailValue: Number(row.retail_value),
     customNotes: row.custom_notes ?? "",
+    quoteSnapshot: row.quote_snapshot ?? null,
     slideOverrides: row.slide_overrides ?? {},
     status: row.status,
     signedAt: row.signed_at,
@@ -69,6 +72,7 @@ function presentationToRow(data: PresentationData): Record<string, unknown> {
     annual_rate: data.annualRate,
     retail_value: data.retailValue,
     custom_notes: data.customNotes || null,
+    quote_snapshot: data.quoteSnapshot ?? null,
     slide_overrides: data.slideOverrides,
     status: data.status,
     signed_at: data.signedAt,
@@ -135,9 +139,11 @@ export function createDefaultPresentation(input?: {
   clientName?: string;
   createdBy?: string;
   tier?: PresentationTier;
+  homeSqft?: number;
+  quoteSnapshot?: PresentationQuoteSnapshot | null;
 }): PresentationData {
   const tier = normalizePresentationTier(input?.tier ?? "quarterly");
-  const homeSqft = 2500;
+  const homeSqft = input?.homeSqft ?? input?.quoteSnapshot?.sqft ?? 2500;
   const rates = withComputedRates({ tier, homeSqft });
   const now = new Date().toISOString();
 
@@ -151,6 +157,7 @@ export function createDefaultPresentation(input?: {
     tier,
     ...rates,
     customNotes: "",
+    quoteSnapshot: input?.quoteSnapshot ?? null,
     slideOverrides: {},
     status: "draft",
     signedAt: null,
@@ -210,6 +217,9 @@ export async function savePresentation(
 export async function createPresentation(input?: {
   clientName?: string;
   createdBy?: string;
+  tier?: PresentationTier;
+  homeSqft?: number;
+  quoteSnapshot?: PresentationQuoteSnapshot | null;
 }): Promise<PresentationData> {
   const record = createDefaultPresentation(input);
   return savePresentation(record);

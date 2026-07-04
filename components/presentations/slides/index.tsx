@@ -16,6 +16,7 @@ import {
   type SlideOverride,
 } from "../slide-primitives";
 import { computePresentationRates } from "@/lib/presentations/calculations";
+import { formatDollars, memberSavingsQuoteLine } from "@/lib/pricing/format";
 import {
   addonSavingsExample,
   formatTierPrice,
@@ -109,6 +110,85 @@ export function PricingSlide({ presentation, overrides }: SlideComponentProps) {
           highlighted
         />
       </div>
+    </FullSlide>
+  );
+}
+
+export function CustomQuoteSlide({ presentation, overrides }: SlideComponentProps) {
+  const snapshot = presentation.quoteSnapshot;
+  if (!snapshot) {
+    return (
+      <FullSlide>
+        <Eyebrow>Your quote</Eyebrow>
+        <HeroText>No custom quote attached.</HeroText>
+      </FullSlide>
+    );
+  }
+
+  const { exteriorAddOnQuote: addOns } = snapshot;
+  const tierLabel =
+    snapshot.frequency === "quarterly" ? "Quarterly" : "Bi-Annual";
+
+  return (
+    <FullSlide>
+      <Eyebrow>{overrides?.headline ?? "Your custom quote"}</Eyebrow>
+      <HeroText>
+        {tierLabel} care for {snapshot.sqft.toLocaleString()} sq ft
+      </HeroText>
+      <div className="mt-8 space-y-2 rounded-lg border border-white/10 bg-white/[0.03] p-6 text-sm">
+        <div className="flex justify-between gap-4 border-b border-white/10 pb-3">
+          <span className="text-white/50">
+            Window Care ({snapshot.frequencyLabel.toLowerCase()})
+          </span>
+          <span className="font-serif text-lg text-[#f5f2eb]">
+            {formatDollars(snapshot.windowCareVisitPrice)}
+          </span>
+        </div>
+        {addOns.lineItems.map((item) => (
+          <div key={item.id} className="flex justify-between gap-4">
+            <span className="min-w-0 text-white/50">
+              <span className="block text-[#f5f2eb]/90">{item.label}</span>
+              <span className="text-xs">{item.detail}</span>
+            </span>
+            <span className="shrink-0 text-[#f5f2eb]">
+              {item.listAmount !== item.amount ? (
+                <>
+                  <span className="block text-xs text-white/35 line-through">
+                    {formatDollars(item.listAmount)}
+                  </span>
+                  {formatDollars(item.amount)}
+                </>
+              ) : (
+                formatDollars(item.amount)
+              )}
+            </span>
+          </div>
+        ))}
+        {addOns.lineItems.length > 0 && (
+          <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
+            <span className="text-white/50">Add-on subtotal</span>
+            <span className="text-accent">{formatDollars(addOns.subtotal)}</span>
+          </div>
+        )}
+        {addOns.memberSavings > 0 && (
+          <p className="mt-4 rounded-lg border border-accent/25 bg-accent/10 px-4 py-3 text-sm font-medium text-accent">
+            {memberSavingsQuoteLine(
+              snapshot.frequency,
+              addOns.memberSavings,
+            )}
+          </p>
+        )}
+        <div className="flex justify-between gap-4 border-t border-accent/20 pt-3 font-medium">
+          <span className="text-[#f5f2eb]">Total estimate</span>
+          <span className="font-serif text-xl text-accent">
+            {formatDollars(snapshot.totalEstimate)}
+          </span>
+        </div>
+      </div>
+      <SubText>
+        Same numbers from your Care Plan Builder — window care plus selected
+        exterior add-ons at member pricing.
+      </SubText>
     </FullSlide>
   );
 }
@@ -281,6 +361,7 @@ export const SLIDE_COMPONENTS = {
   services: ServicesSlide,
   schedule: ScheduleSlide,
   pricing: PricingSlide,
+  custom_quote: CustomQuoteSlide,
   comparison: ComparisonSlide,
   savings: SavingsSlide,
   testimonials: TestimonialsSlide,

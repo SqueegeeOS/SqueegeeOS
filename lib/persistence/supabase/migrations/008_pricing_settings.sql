@@ -22,7 +22,27 @@ values (
       "bi_annual": { "ratePerSqft": 0.125, "annualVisits": 2 }
     },
     "interiorMultiplier": 1.6,
-    "oneTimePremium": 150
+    "oneTimePremium": 150,
+    "exteriorAddOns": {
+      "softWash": {
+        "defaultPrice": 250,
+        "minPrice": 200,
+        "maxPrice": 300,
+        "largeHomeSqftThreshold": 5500,
+        "largeHomePer1000Sqft": 40
+      },
+      "mossRemoval": { "ratePerSqft": 0.6 },
+      "pressureWashConcrete": { "ratePerSqft": 0.3 },
+      "memberAddOnDiscount": { "quarterly": 25, "bi_annual": 20 },
+      "screenRescreening": {
+        "singleScreenPrice": 40,
+        "midTierMinCount": 3,
+        "midTierMaxCount": 5,
+        "midTierPricePerScreen": 30,
+        "bulkMinCount": 6,
+        "bulkPricePerScreen": 25
+      }
+    }
   }'::jsonb
 )
 on conflict (id) do nothing;

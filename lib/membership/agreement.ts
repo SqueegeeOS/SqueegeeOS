@@ -1,4 +1,5 @@
 import { persistSignedAgreement } from "@/lib/persistence/repository";
+import { agreementKindForPlan } from "@/lib/agreement/one-time-agreement";
 import type {
   AgreementCaptureMetadata,
   MembershipAgreementRecord,
@@ -86,6 +87,7 @@ export async function signMembershipAgreement(
       signatureDataUrl: signature.signatureValue,
       signedAt: signature.signedAt,
       monthlyPrice,
+      agreementKind: agreementKindForPlan(signature.planId),
     }),
   });
 

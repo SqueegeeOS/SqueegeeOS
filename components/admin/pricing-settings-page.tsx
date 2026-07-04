@@ -271,6 +271,257 @@ export function PricingSettingsPage() {
             </div>
           </section>
 
+          <section className="rounded-[1.75rem] border border-border/70 bg-surface/40 p-6 space-y-4">
+            <p className={labelClass}>Exterior add-ons</p>
+            <p className="text-xs text-muted">
+              Soft wash is a flat quote for typical homes. Moss and concrete use
+              treated area sq ft only.
+            </p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block sm:col-span-2">
+                <span className={labelClass}>Soft wash — default price ($)</span>
+                <input
+                  type="number"
+                  step={5}
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.softWash.defaultPrice}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        softWash: {
+                          ...draft.exteriorAddOns.softWash,
+                          defaultPrice: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Soft wash min ($)</span>
+                <input
+                  type="number"
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.softWash.minPrice}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        softWash: {
+                          ...draft.exteriorAddOns.softWash,
+                          minPrice: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Soft wash max ($)</span>
+                <input
+                  type="number"
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.softWash.maxPrice}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        softWash: {
+                          ...draft.exteriorAddOns.softWash,
+                          maxPrice: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Large home threshold (sq ft)</span>
+                <input
+                  type="number"
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.softWash.largeHomeSqftThreshold}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        softWash: {
+                          ...draft.exteriorAddOns.softWash,
+                          largeHomeSqftThreshold: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Large home +$/1,000 sq ft</span>
+                <input
+                  type="number"
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.softWash.largeHomePer1000Sqft}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        softWash: {
+                          ...draft.exteriorAddOns.softWash,
+                          largeHomePer1000Sqft: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Moss removal ($/sq ft)</span>
+                <input
+                  type="number"
+                  step={0.05}
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.mossRemoval.ratePerSqft}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        mossRemoval: {
+                          ratePerSqft: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Concrete pressure wash ($/sq ft)</span>
+                <input
+                  type="number"
+                  step={0.05}
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.pressureWashConcrete.ratePerSqft}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        pressureWashConcrete: {
+                          ratePerSqft: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <p className={`${labelClass} pt-2`}>Member add-on discount</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className={labelClass}>Quarterly (% off list)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.memberAddOnDiscount.quarterly}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        memberAddOnDiscount: {
+                          ...draft.exteriorAddOns.memberAddOnDiscount,
+                          quarterly: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Bi-Annual (% off list)</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={50}
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.memberAddOnDiscount.bi_annual}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        memberAddOnDiscount: {
+                          ...draft.exteriorAddOns.memberAddOnDiscount,
+                          bi_annual: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+            </div>
+            <p className={`${labelClass} pt-2`}>Screen rescreening (per screen)</p>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <label className="block">
+                <span className={labelClass}>1–2 screens ($)</span>
+                <input
+                  type="number"
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.screenRescreening.singleScreenPrice}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        screenRescreening: {
+                          ...draft.exteriorAddOns.screenRescreening,
+                          singleScreenPrice: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>3–5 screens ($ each)</span>
+                <input
+                  type="number"
+                  className={`${inputClass} mt-2`}
+                  value={
+                    draft.exteriorAddOns.screenRescreening.midTierPricePerScreen
+                  }
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        screenRescreening: {
+                          ...draft.exteriorAddOns.screenRescreening,
+                          midTierPricePerScreen: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>6+ screens ($ each)</span>
+                <input
+                  type="number"
+                  className={`${inputClass} mt-2`}
+                  value={draft.exteriorAddOns.screenRescreening.bulkPricePerScreen}
+                  onChange={(e) =>
+                    updateDraft({
+                      exteriorAddOns: {
+                        ...draft.exteriorAddOns,
+                        screenRescreening: {
+                          ...draft.exteriorAddOns.screenRescreening,
+                          bulkPricePerScreen: Number(e.target.value),
+                        },
+                      },
+                    })
+                  }
+                />
+              </label>
+            </div>
+          </section>
+
           {error && <p className="text-sm text-red-400/90">{error}</p>}
           {message && <p className="text-sm text-accent/90">{message}</p>}
 
