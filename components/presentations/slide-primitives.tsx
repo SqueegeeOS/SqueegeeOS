@@ -21,7 +21,7 @@ import {
 
 export function FullSlide({
   children,
-  background = "#060606",
+  background = "transparent",
   className = "",
 }: {
   children: ReactNode;
@@ -30,17 +30,17 @@ export function FullSlide({
 }) {
   return (
     <div
-      className={`flex min-h-full w-full items-start justify-center px-6 py-10 sm:px-12 sm:py-12 ${className}`}
+      className={`flex min-h-full w-full justify-center px-6 sm:px-12 lg:px-16 ${className}`}
       style={{ background }}
     >
-      <div className="w-full max-w-5xl">{children}</div>
+      <div className="m-auto w-full max-w-5xl py-12 sm:py-16">{children}</div>
     </div>
   );
 }
 
 export function Eyebrow({ children }: { children: ReactNode }) {
   return (
-    <p className="mb-4 text-[11px] uppercase tracking-[0.2em] text-accent/70">
+    <p className="mb-5 text-[10px] uppercase tracking-[0.3em] text-accent/80 sm:text-[11px]">
       {children}
     </p>
   );
@@ -48,7 +48,7 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 
 export function HeroText({ children }: { children: ReactNode }) {
   return (
-    <h1 className="font-serif text-4xl font-light leading-tight text-[#f5f2eb] sm:text-6xl">
+    <h1 className="font-serif text-[2.5rem] font-light leading-[1.08] tracking-[-0.015em] text-[#f5f2eb] [text-wrap:balance] sm:text-6xl lg:text-7xl">
       {children}
     </h1>
   );
@@ -56,7 +56,7 @@ export function HeroText({ children }: { children: ReactNode }) {
 
 export function SubText({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-4 text-base leading-relaxed text-white/50 sm:text-lg">
+    <p className="mt-5 text-base leading-relaxed text-white/60 [text-wrap:balance] sm:text-lg">
       {children}
     </p>
   );
@@ -125,31 +125,31 @@ export function PricingColumn({
   const annualTotal = visitPrice * def.visitsPerYear;
   return (
     <div
-      className={`rounded-2xl border p-6 sm:p-8 ${
+      className={`rounded-2xl border p-7 sm:p-9 ${
         highlighted
-          ? "border-accent/40 bg-accent/[0.08] shadow-[0_0_48px_rgba(197,168,105,0.14)]"
+          ? "border-accent/40 bg-accent/[0.08] shadow-[0_24px_64px_-32px_rgba(201,184,150,0.35)] ring-1 ring-inset ring-accent/15"
           : "border-white/10 bg-white/[0.03]"
       }`}
     >
       {highlighted ? (
-        <p className="mb-4 text-[10px] uppercase tracking-[0.18em] text-accent">
-          Most Popular
+        <p className="mb-5 text-[10px] uppercase tracking-[0.22em] text-accent">
+          {def.label} · Most Popular
         </p>
       ) : (
-        <p className="mb-4 text-[10px] uppercase tracking-[0.18em] text-white/30">
+        <p className="mb-5 text-[10px] uppercase tracking-[0.22em] text-white/40">
           {def.label}
         </p>
       )}
-      <p className="font-serif text-5xl font-light text-[#f5f2eb] sm:text-6xl">
+      <p className="font-serif text-5xl font-light tracking-[-0.01em] text-[#f5f2eb] sm:text-6xl">
         {formatTierPrice(visitPrice)}
       </p>
-      <p className="mt-1 text-sm text-white/40">per visit</p>
-      <p className="mt-5 text-xs text-white/35">
+      <p className="mt-1.5 text-sm text-white/50">per visit</p>
+      <p className="mt-6 text-xs tracking-wide text-white/45 tabular-nums">
         {def.visitsPerYear} visits · {formatTierPrice(annualTotal)}/year
       </p>
       <p
         className={`mt-4 text-sm ${
-          highlighted ? "font-medium text-accent" : "text-white/55"
+          highlighted ? "font-medium text-accent" : "text-white/60"
         }`}
       >
         {def.addonDiscount}% off add-ons

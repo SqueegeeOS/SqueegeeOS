@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { readCachedPresentation } from "@/lib/presentations/client-cache";
 import type { PresentationData } from "@/lib/presentations/types";
+import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { PresentationViewer } from "./presentation-viewer";
 
 export function PresentationPresentLoader({
@@ -78,7 +79,14 @@ export function PresentationPresentLoader({
   if (loading) {
     return (
       <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#060606] text-[#f5f2eb]">
-        <p className="text-sm text-white/50">Opening presentation…</p>
+        <div className="motion-grain pointer-events-none absolute inset-0 opacity-[0.03]" aria-hidden />
+        <div className="flex w-full max-w-2xl flex-col items-center px-6">
+          <ShimmerBlock className="h-3 w-32 rounded-full" />
+          <ShimmerBlock className="mt-8 h-14 w-3/4 rounded-2xl" />
+          <ShimmerBlock className="mt-5 h-5 w-1/2 rounded-full" />
+          <ShimmerBlock className="mt-10 h-8 w-44 rounded-full" />
+        </div>
+        <p className="sr-only" role="status">Opening presentation…</p>
       </div>
     );
   }

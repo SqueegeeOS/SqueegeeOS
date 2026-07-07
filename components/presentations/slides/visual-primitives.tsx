@@ -72,10 +72,10 @@ export function IncludedVisual() {
             key={item.label}
             className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left"
           >
-            <span className="mt-0.5 text-accent">◇</span>
+            <span className="mt-0.5 text-accent" aria-hidden>◇</span>
             <div>
               <p className="text-sm text-[#f5f2eb]/90">{item.label}</p>
-              <p className="text-[11px] text-white/35">{item.detail}</p>
+              <p className="mt-0.5 text-[11px] text-white/45">{item.detail}</p>
             </div>
           </div>
         ))}
@@ -111,8 +111,8 @@ export function DifferenceVisual() {
         <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Typical service</p>
         <ul className="mt-4 space-y-3.5">
           {DIFFERENCE_ROWS.map((row) => (
-            <li key={row.them} className="flex items-start gap-3 text-sm leading-snug text-white/40">
-              <span className="mt-0.5 text-white/25">✕</span>
+            <li key={row.them} className="flex items-start gap-3 text-sm leading-snug text-white/50">
+              <span className="mt-0.5 text-white/30" aria-hidden>✕</span>
               <span>{row.them}</span>
             </li>
           ))}
@@ -177,7 +177,7 @@ export function ProcessTimeline() {
             <StepIcon type={step.icon} />
           </VisualIcon>
           <p className="mt-3 text-sm font-medium text-[#f5f2eb]">{step.title}</p>
-          <p className="mt-1 text-xs text-white/40">{step.detail}</p>
+          <p className="mt-1 text-xs text-white/50">{step.detail}</p>
         </div>
       ))}
     </div>
@@ -210,7 +210,8 @@ export function ExpandLink({
     <button
       type="button"
       onClick={onClick}
-      className="text-xs text-accent/80 underline-offset-4 transition hover:text-accent hover:underline"
+      aria-expanded={open}
+      className="rounded text-xs text-accent/80 underline-offset-4 transition-colors duration-200 hover:text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
     >
       {open ? "Hide details" : "View details"}
     </button>

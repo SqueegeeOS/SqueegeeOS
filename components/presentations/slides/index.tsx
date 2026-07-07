@@ -14,14 +14,12 @@ import {
   IconBullet,
   IncludedVisual,
   ProcessTimeline,
-  TrustPills,
 } from "./visual-primitives";
 import { computePresentationRates } from "@/lib/presentations/calculations";
 import { formatDollars, memberSavingsQuoteLine } from "@/lib/pricing/format";
 import {
   MEMBERSHIP_BILLING_PHILOSOPHY,
   MEMBERSHIP_BILLING_REMINDER,
-  MEMBERSHIP_BILLING_SCHEDULE_BODY,
 } from "@/lib/agreement/agreement-content";
 import { formatTierPrice, SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 import type { PresentationTier } from "@/lib/presentations/types";
@@ -39,24 +37,18 @@ interface SlideComponentProps {
 
 export function CoverSlide({ presentation, overrides }: SlideComponentProps) {
   return (
-    <FullSlide background="radial-gradient(ellipse at 50% 30%, #12100a 0%, #060606 70%)">
+    <FullSlide background="radial-gradient(ellipse at 50% 30%, rgba(18,16,10,0.85) 0%, transparent 70%)">
       <div className="mx-auto max-w-3xl text-center">
-        <p className="text-[11px] uppercase tracking-[0.28em] text-accent/60">
+        <p className="text-[11px] uppercase tracking-[0.35em] text-accent/70">
           SqueegeeKing
         </p>
+        <div className="mx-auto mt-6 mb-8 h-px w-12 bg-accent/25" aria-hidden />
         <Eyebrow>Prepared for</Eyebrow>
         <HeroText>{overrides?.headline ?? presentation.clientName}</HeroText>
-        <p className="mt-4 text-lg text-white/45">
+        <p className="mt-5 text-lg text-white/55">
           {presentation.clientAddress || "Your property"}
         </p>
         <TierBadge tier={presentation.tier} />
-        <TrustPills
-          items={[
-            "Trusted by homeowners",
-            "Detail-obsessed technicians",
-            "5-star experience",
-          ]}
-        />
       </div>
     </FullSlide>
   );
@@ -69,7 +61,7 @@ export function IncludedSlide({ presentation, overrides }: SlideComponentProps) 
       <div className="mx-auto max-w-4xl text-center">
         <Eyebrow>What&apos;s included</Eyebrow>
         <HeroText>{overrides?.highlight ?? "Complete care, every visit."}</HeroText>
-        <p className="mt-3 text-sm text-white/40">
+        <p className="mt-4 text-sm tracking-wide text-white/55">
           {def.label} · {def.visitsPerYear} visits per year
         </p>
         <IncludedVisual />
@@ -84,7 +76,7 @@ export function DifferenceSlide({ overrides }: SlideComponentProps) {
       <div className="mx-auto max-w-4xl">
         <Eyebrow>The difference</Eyebrow>
         <HeroText>{overrides?.headline ?? "Obvious, once you see it."}</HeroText>
-        <p className="mt-3 max-w-xl text-sm text-white/45">
+        <p className="mt-4 max-w-xl text-sm leading-relaxed text-white/60">
           {overrides?.body ??
             "Rhythm, documentation, and premium treatments — not one-off window cleaning."}
         </p>
@@ -157,7 +149,7 @@ export function ProcessSlide({ presentation }: SlideComponentProps) {
       <div className="mx-auto max-w-4xl text-center">
         <Eyebrow>How it works</Eyebrow>
         <HeroText>We handle everything.</HeroText>
-        <p className="mt-3 text-sm text-white/40">
+        <p className="mt-4 text-sm tracking-wide text-white/55">
           {tier.frequency} visits · {tier.visitsPerYear} per year · billed on the 1st
         </p>
         <ProcessTimeline />
@@ -227,7 +219,7 @@ export function CloseSlide({ presentation, overrides, onSign }: SlideComponentPr
   const rates = computePresentationRates(presentation);
 
   return (
-    <FullSlide background="radial-gradient(ellipse at 50% 35%, #0f0d08 0%, #060606 100%)">
+    <FullSlide background="radial-gradient(ellipse at 50% 35%, rgba(15,13,8,0.85) 0%, transparent 75%)">
       <div className="mx-auto max-w-2xl text-center">
         <Eyebrow>Ready to begin</Eyebrow>
         <HeroText>
@@ -236,32 +228,28 @@ export function CloseSlide({ presentation, overrides, onSign }: SlideComponentPr
 
         <ul className="mx-auto mt-10 max-w-md space-y-4">
           <IconBullet icon="✓">Nothing to pay at signing today</IconBullet>
-          <IconBullet icon="1">Billed on the 1st of your scheduled service month</IconBullet>
-          <IconBullet icon="○">No payment when we arrive — care stays at the center</IconBullet>
+          <IconBullet icon="✓">Billed on the 1st of your scheduled service month</IconBullet>
+          <IconBullet icon="✓">No payment when we arrive — care stays at the center</IconBullet>
         </ul>
 
-        <p className="mx-auto mt-6 max-w-sm text-xs leading-relaxed text-white/35">
-          {MEMBERSHIP_BILLING_SCHEDULE_BODY}
-        </p>
-
-        <div className="mt-10 flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <button
             type="button"
             onClick={() => onSign?.("biannual")}
-            className="rounded-xl border border-white/20 px-8 py-4 text-sm font-medium text-[#f5f2eb] transition hover:border-white/40"
+            className="min-h-[52px] rounded-xl border border-white/20 bg-white/[0.03] px-8 py-4 text-sm font-medium text-[#f5f2eb] transition-colors duration-200 hover:border-white/40 hover:bg-white/[0.06] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
           >
             Bi-Annual · {formatTierPrice(rates.biannualVisit)}/visit
           </button>
           <button
             type="button"
             onClick={() => onSign?.("quarterly")}
-            className="rounded-xl bg-gradient-to-br from-accent via-[#e8d5a3] to-accent px-8 py-4 text-sm font-bold text-[#060606] shadow-[0_0_40px_rgba(197,168,105,0.25)]"
+            className="min-h-[52px] rounded-xl bg-gradient-to-br from-accent via-[#e8d5a3] to-accent px-8 py-4 text-sm font-semibold text-[#060606] shadow-[0_0_40px_rgba(201,184,150,0.25)] transition-shadow duration-300 hover:shadow-[0_0_56px_rgba(201,184,150,0.35)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
           >
-            Quarterly · {formatTierPrice(rates.quarterlyVisit)}/visit ✦
+            Quarterly · {formatTierPrice(rates.quarterlyVisit)}/visit
           </button>
         </div>
 
-        <p className="mt-5 text-[11px] text-white/25">
+        <p className="mt-6 text-[11px] tracking-wide text-white/40">
           7-day guarantee · PDF agreement · {MEMBERSHIP_BILLING_REMINDER.split(".")[0]}
         </p>
       </div>
