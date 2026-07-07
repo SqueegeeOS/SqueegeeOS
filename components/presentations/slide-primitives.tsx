@@ -122,40 +122,39 @@ export function PricingColumn({
   highlighted?: boolean;
 }) {
   const def = SQUEEGEEKING_TIERS[tier];
+  const annualTotal = visitPrice * def.visitsPerYear;
   return (
     <div
-      className={`rounded-lg border p-6 ${
+      className={`rounded-2xl border p-6 sm:p-8 ${
         highlighted
-          ? "border-accent/40 bg-accent/[0.08] shadow-[0_0_40px_rgba(197,168,105,0.12)]"
+          ? "border-accent/40 bg-accent/[0.08] shadow-[0_0_48px_rgba(197,168,105,0.14)]"
           : "border-white/10 bg-white/[0.03]"
       }`}
     >
-      {highlighted && (
-        <p className="mb-3 text-[10px] uppercase tracking-[0.16em] text-accent">
+      {highlighted ? (
+        <p className="mb-4 text-[10px] uppercase tracking-[0.18em] text-accent">
           Most Popular
         </p>
-      )}
-      <p className="text-sm text-white/50">{def.tagline}</p>
-      <p className="mt-1 font-serif text-2xl text-[#f5f2eb]">{def.label}</p>
-      <p className="mt-4 font-serif text-4xl text-[#f5f2eb]">
-        {formatTierPrice(visitPrice)}
-        <span className="text-lg text-white/40">/visit</span>
-      </p>
-      <p className="mt-2 text-xs text-white/40">
-        {def.visitsPerYear} visits · {def.frequency}
-      </p>
-      <p
-        className={`mt-3 text-sm font-medium ${
-          highlighted ? "text-accent" : "text-white/70"
-        }`}
-      >
-        {def.addonDiscount}% OFF all add-ons
-      </p>
-      {!highlighted && (
-        <p className="mt-2 text-[11px] text-white/35">
-          Upgrade to Quarterly for RainBlock + Hard Water + 25% OFF
+      ) : (
+        <p className="mb-4 text-[10px] uppercase tracking-[0.18em] text-white/30">
+          {def.label}
         </p>
       )}
+      <p className="font-serif text-5xl font-light text-[#f5f2eb] sm:text-6xl">
+        {formatTierPrice(visitPrice)}
+      </p>
+      <p className="mt-1 text-sm text-white/40">per visit</p>
+      <p className="mt-5 text-xs text-white/35">
+        {def.visitsPerYear} visits · {formatTierPrice(annualTotal)}/year
+      </p>
+      <p
+        className={`mt-4 text-sm ${
+          highlighted ? "font-medium text-accent" : "text-white/55"
+        }`}
+      >
+        {def.addonDiscount}% off add-ons
+        {highlighted ? " · RainBlock + Hard Water included" : ""}
+      </p>
     </div>
   );
 }

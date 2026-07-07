@@ -18,19 +18,27 @@ export interface SlideOverride {
   highlight?: string;
 }
 
+/** Visual-first deck — 6 core slides (+ custom quote when applicable) */
 export type SlideType =
   | "cover"
+  | "included"
+  | "difference"
+  | "investment"
+  | "process"
+  | "custom_quote"
+  | "close";
+
+/** Legacy slide ids — may exist in stored slide_overrides from older decks */
+export type LegacySlideType =
   | "problem"
   | "solution"
   | "services"
   | "schedule"
   | "pricing"
-  | "custom_quote"
   | "comparison"
   | "savings"
   | "testimonials"
-  | "guarantee"
-  | "close";
+  | "guarantee";
 
 export interface SlideConfig {
   id: SlideType;
@@ -40,18 +48,48 @@ export interface SlideConfig {
 }
 
 export const SLIDE_MANIFEST: SlideConfig[] = [
-  { id: "cover", label: "Cover", description: "Client name · address · tier", editable: ["headline"] },
-  { id: "problem", label: "The Problem", description: "Why home maintenance fails", editable: ["headline", "body"] },
-  { id: "solution", label: "The Solution", description: "What SqueegeeKing does differently", editable: ["headline", "body"] },
-  { id: "services", label: "Services Included", description: "Benefits by tier", editable: ["highlight"] },
-  { id: "schedule", label: "Your Schedule", description: "Annual visit calendar", editable: [] },
-  { id: "pricing", label: "Standard Pricing", description: "Every 3 vs 6 months per visit", editable: ["headline"] },
-  { id: "custom_quote", label: "Your Custom Quote", description: "Window care + exterior add-ons from builder", editable: ["headline"] },
-  { id: "comparison", label: "Tier Comparison", description: "Side-by-side benefit table", editable: ["body"] },
-  { id: "savings", label: "The Math", description: "Quarterly benefits in plain English", editable: [] },
-  { id: "testimonials", label: "Member Stories", description: "Social proof", editable: ["highlight"] },
-  { id: "guarantee", label: "Our Guarantee", description: "7-day workmanship guarantee", editable: ["body"] },
-  { id: "close", label: "Ready to Start", description: "Dual sign buttons", editable: ["headline", "body"] },
+  {
+    id: "cover",
+    label: "Welcome",
+    description: "Client · property · first impression",
+    editable: ["headline"],
+  },
+  {
+    id: "included",
+    label: "What's Included",
+    description: "Visual care map — every visit",
+    editable: ["highlight"],
+  },
+  {
+    id: "difference",
+    label: "The Difference",
+    description: "SqueegeeKing vs typical service",
+    editable: ["headline", "body"],
+  },
+  {
+    id: "investment",
+    label: "Your Investment",
+    description: "Pricing + Quarterly value (expandable)",
+    editable: ["headline"],
+  },
+  {
+    id: "process",
+    label: "How It Works",
+    description: "Four-step visual timeline",
+    editable: [],
+  },
+  {
+    id: "custom_quote",
+    label: "Custom Quote",
+    description: "Care Plan Builder numbers",
+    editable: ["headline"],
+  },
+  {
+    id: "close",
+    label: "Get Started",
+    description: "Sign · billing clarity · CTA",
+    editable: ["headline", "body"],
+  },
 ];
 
 export function getPresentationSlides(
@@ -80,7 +118,9 @@ export interface PresentationData {
   retailValue: number;
   customNotes: string;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
-  slideOverrides: Partial<Record<SlideType, SlideOverride>>;
+  slideOverrides: Partial<
+    Record<SlideType | LegacySlideType, SlideOverride>
+  >;
   status: PresentationStatus;
   signedAt: string | null;
   agreementId: string | null;
