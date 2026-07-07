@@ -7,13 +7,16 @@ import {
   renderMemberWalletCardPng,
   walletCardFileName,
 } from "@/lib/membership/render-wallet-card-image";
+import type { FoundingMemberDisplay } from "@/lib/membership/founding-member";
 import { MembershipActiveBadge } from "./membership-active-badge";
+import { FoundingMemberHonor } from "./founding-member-honor";
 
 const easeLuxury = [0.16, 1, 0.3, 1] as const;
 
 interface MemberWalletCardProps {
   data: MemberWalletCardData;
   portalUrl: string;
+  foundingDisplay?: FoundingMemberDisplay | null;
   entranceDelay?: number;
 }
 
@@ -25,6 +28,7 @@ function isMobileDevice(): boolean {
 export function MemberWalletCard({
   data,
   portalUrl,
+  foundingDisplay = null,
   entranceDelay = 0.3,
 }: MemberWalletCardProps) {
   const reduceMotion = useReducedMotion();
@@ -157,6 +161,12 @@ export function MemberWalletCard({
           className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-accent/12 via-transparent to-transparent"
           aria-hidden
         />
+        {foundingDisplay && (
+          <div
+            className="pointer-events-none absolute inset-0 bg-gradient-to-br from-amber-500/10 via-transparent to-transparent"
+            aria-hidden
+          />
+        )}
 
         <div className="relative flex h-full flex-col justify-between p-6 sm:p-7">
           <div className="flex items-start justify-between gap-3">
@@ -176,6 +186,11 @@ export function MemberWalletCard({
           </div>
 
           <div>
+            {foundingDisplay && (
+              <div className="mb-3">
+                <FoundingMemberHonor display={foundingDisplay} variant="card" />
+              </div>
+            )}
             {data.addonDiscountLabel && (
               <p className="text-sm font-medium text-foreground/95">
                 {data.addonDiscountLabel}

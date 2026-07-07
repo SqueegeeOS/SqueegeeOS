@@ -4,6 +4,8 @@ import { motion, useReducedMotion } from "framer-motion";
 import { formatTierPrice } from "@/lib/membership/tier-config";
 import type { MemberMembershipView } from "@/lib/membership/resolve-member-membership";
 import type { ServiceScheduleStatus } from "@/lib/membership/tier-config";
+import { FOUNDING_HOME_PROLOGUE } from "@/lib/membership/founding-member";
+import type { FoundingMemberDisplay } from "@/lib/membership/founding-member";
 import { MembershipActiveBadge } from "./membership-active-badge";
 
 const easeLuxury = [0.16, 1, 0.3, 1] as const;
@@ -52,9 +54,11 @@ function statusLabel(status: ServiceScheduleStatus): string {
 
 export function MemberPremiumCard({
   membership,
+  foundingDisplay = null,
   entranceDelay = 0.45,
 }: {
   membership: MemberMembershipView;
+  foundingDisplay?: FoundingMemberDisplay | null;
   entranceDelay?: number;
 }) {
   const reduceMotion = useReducedMotion();
@@ -74,7 +78,8 @@ export function MemberPremiumCard({
         delay: reduceMotion ? 0 : entranceDelay,
         ease: easeLuxury,
       }}
-      className="mt-10 overflow-hidden rounded-3xl border border-accent/20 bg-surface/50 shadow-[0_12px_48px_rgba(0,0,0,0.12)]"
+      className="mt-10 overflow-hidden rounded-3xl border border-accent/20 bg-surface/50 shadow-[0_12px_48px_rgba(0,0,0,0.12)] data-[founding=true]:border-amber-500/20"
+      data-founding={foundingDisplay ? "true" : undefined}
       aria-labelledby="member-premium-heading"
     >
       <div className="border-b border-border/70 bg-gradient-to-br from-accent/8 via-transparent to-transparent px-5 py-6 sm:px-7">
@@ -124,7 +129,16 @@ export function MemberPremiumCard({
             </ul>
           ) : (
             <div className="mt-4 rounded-xl border border-dashed border-border/80 bg-background/20 px-5 py-6">
-              <h3 className="font-serif text-xl font-light text-foreground">
+              {foundingDisplay && (
+                <p className="text-[10px] uppercase tracking-[0.22em] text-amber-200/80">
+                  {FOUNDING_HOME_PROLOGUE}
+                </p>
+              )}
+              <h3
+                className={`font-serif text-xl font-light text-foreground ${
+                  foundingDisplay ? "mt-4" : ""
+                }`}
+              >
                 Your care begins here
               </h3>
               <p className="mt-2 text-sm leading-relaxed text-muted">

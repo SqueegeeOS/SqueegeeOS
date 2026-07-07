@@ -48,6 +48,8 @@ export interface MemberPortalData {
   membershipPlanName: string;
   monthlyRate: number;
   memberSince: string | null;
+  foundingMember: boolean;
+  foundingMemberSince: string | null;
 }
 
 interface HomeownerRow {
@@ -81,6 +83,8 @@ interface MembershipRow {
   price_display: string;
   started_at: string | null;
   status: string;
+  founding_member: boolean;
+  founding_member_since: string | null;
 }
 
 interface MemberProfileRow {
@@ -267,7 +271,9 @@ export async function getMemberPortalDataBySlugs(
 
   const { data: membership } = await supabase
     .from("memberships")
-    .select("plan_name, price_display, started_at, status")
+    .select(
+      "plan_name, price_display, started_at, status, founding_member, founding_member_since",
+    )
     .eq("property_id", propertyRow.id)
     .maybeSingle();
 
@@ -362,6 +368,8 @@ export async function getMemberPortalDataBySlugs(
       ? parsePriceDisplay(membershipRow.price_display)
       : 0,
     memberSince: membershipRow?.started_at ?? profile.created_at,
+    foundingMember: membershipRow?.founding_member ?? false,
+    foundingMemberSince: membershipRow?.founding_member_since ?? null,
   };
 }
 

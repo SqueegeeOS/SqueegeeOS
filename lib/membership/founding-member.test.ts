@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  FOUNDING_MEMBER_STORY,
   formatFoundingMemberLabel,
   isFoundingMembershipPeriod,
+  resolveFoundingMemberDisplay,
   resolveFoundingMemberFields,
 } from "./founding-member";
 
@@ -30,7 +32,39 @@ describe("founding member", () => {
     });
   });
 
-  it("formats the founding member display label", () => {
+  it("warns once in production when FOUNDING_PERIOD_END is unset", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("FOUNDING_PERIOD_END", "");
+
+    isFoundingMembershipPeriod();
+    isFoundingMembershipPeriod();
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]?.[0]).toContain("FOUNDING_PERIOD_END is not set");
+    warn.mockRestore();
+  });
+
+  it("resolves the founding member story display for portal UI", () => {
+    expect(
+      resolveFoundingMemberDisplay({
+        foundingMember: true,
+        memberSince: "2026-03-15T00:00:00.000Z",
+      }),
+    ).toEqual({
+      title: "Founding Member",
+      story: FOUNDING_MEMBER_STORY,
+      memberSinceLine: "Member Since 2026",
+    });
+    expect(
+      resolveFoundingMemberDisplay({
+        foundingMember: false,
+        memberSince: "2026-03-15T00:00:00.000Z",
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps the compact legacy label format", () => {
     expect(
       formatFoundingMemberLabel({
         foundingMember: true,

@@ -24,7 +24,9 @@ import { MemberFieldNotes } from "./member-field-notes";
 import { MemberHomeDashboard } from "./member-home-dashboard";
 import { MemberPremiumCard } from "./member-premium-card";
 import { MemberWalletCard } from "./member-wallet-card";
+import { FoundingMemberHonor } from "./founding-member-honor";
 import { resolvePortalViews } from "@/lib/membership/portal-from-supabase";
+import { resolveFoundingMemberDisplay } from "@/lib/membership/founding-member";
 import {
   buildMemberWalletCardData,
   isMemberMembershipActive,
@@ -136,6 +138,8 @@ export function MemberPortalExperience({
   const resolvedHomeHealthHref =
     homeHealthHref ?? `${portalPath}/home-health`;
   const returningMember = !fromUnlock;
+  const foundingDisplay = resolveFoundingMemberDisplay(portalData);
+  const isFoundingMember = Boolean(foundingDisplay);
   const homeDashboard = returningMember
     ? buildMemberHomeDashboardView(data, careStatus, membership, {
         portalData,
@@ -146,7 +150,11 @@ export function MemberPortalExperience({
     : null;
 
   return (
-    <div className="min-h-[100svh] overflow-x-hidden bg-background text-foreground">
+    <div
+      className={`min-h-[100svh] overflow-x-hidden bg-background text-foreground ${
+        isFoundingMember ? "founding-portal-theme" : ""
+      }`}
+    >
       <div
         className={`relative overflow-hidden ${
           returningMember
@@ -154,6 +162,12 @@ export function MemberPortalExperience({
             : "min-h-[52vh] sm:min-h-[58vh]"
         } ${fromUnlock ? "member-portal-shimmer" : ""}`}
       >
+        {isFoundingMember && (
+          <div
+            className="founding-hero-glow pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_top,rgba(212,175,55,0.12),transparent_68%)]"
+            aria-hidden
+          />
+        )}
         <motion.div
           className="absolute inset-0"
           initial={reduceMotion ? false : { opacity: 0, scale: 1.02 }}
@@ -194,6 +208,9 @@ export function MemberPortalExperience({
             <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
               Member Portal
             </p>
+            {foundingDisplay && (
+              <FoundingMemberHonor display={foundingDisplay} variant="compact" />
+            )}
             <MembershipActiveBadge variant="hero" />
             {liveData && (
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300/90">
@@ -217,6 +234,19 @@ export function MemberPortalExperience({
                 ? data.property.name
                 : `Welcome home, ${welcomeName}.`}
           </motion.h1>
+          {foundingDisplay && (
+            <motion.div
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 1,
+                ease: easeLuxury,
+                delay: reduceMotion ? 0 : entranceBase + 0.35,
+              }}
+            >
+              <FoundingMemberHonor display={foundingDisplay} variant="hero" />
+            </motion.div>
+          )}
           <motion.p
             initial={reduceMotion ? false : { opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
@@ -278,12 +308,14 @@ export function MemberPortalExperience({
           <MemberWalletCard
             data={walletCard}
             portalUrl={portalPath}
+            foundingDisplay={foundingDisplay}
             entranceDelay={entranceBase + (returningMember ? 0.35 : 0.28)}
           />
         )}
 
         <MemberPremiumCard
           membership={membership}
+          foundingDisplay={foundingDisplay}
           entranceDelay={entranceBase + (returningMember ? 0.45 : 0.35)}
         />
 
