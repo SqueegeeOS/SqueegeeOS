@@ -1,4 +1,6 @@
 import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
+import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
+import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendAgreementEmail } from "@/lib/agreement/send-agreement-email";
 import { storeSignedPdf } from "@/lib/agreement/store-signed-pdf";
 import type { MembershipPlanId } from "@/lib/membership/types";
@@ -38,10 +40,13 @@ export interface CompleteSignOnboardingInput {
 
 export interface CompleteSignOnboardingResult {
   pdfUrl: string;
+  pdfStorageBackend: "supabase" | "data_url";
   agreementId: string;
   membershipId: string;
   homeownerId: string;
   propertyId: string;
+  email: AgreementEmailResult;
+  /** @deprecated use email.status === "sent" */
   emailSent: boolean;
   onboardingStatus: "pending_payment";
 }
@@ -111,7 +116,7 @@ export async function completeSignOnboarding(
       },
       { onConflict: "slug" },
     )
-    .select("id")
+    .select("id, email")
     .single();
 
   if (homeownerError || !homeowner?.id) {
@@ -192,7 +197,8 @@ export async function completeSignOnboarding(
   });
 
   const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;
-  const pdfUrl = await storeSignedPdf(pdfBytes, fileName);
+  const storedPdf = await storeSignedPdf(pdfBytes, fileName);
+  const pdfUrl = storedPdf.url;
 
   const { data: agreement, error: agreementError } = await supabase
     .from("signed_agreements")
@@ -268,25 +274,43 @@ export async function completeSignOnboarding(
     );
   }
 
-  let emailSent = false;
-  const email = input.memberEmail ?? presentation.clientEmail;
-  if (email) {
-    const emailResult = await sendAgreementEmail({
-      to: email,
+  const memberEmail = resolveMemberEmail(
+    input.memberEmail,
+    presentation.clientEmail,
+    homeowner.email as string | null,
+  );
+
+  let email: AgreementEmailResult = {
+    status: "skipped",
+    reason: "no_valid_recipient_email",
+    recipient: presentation.clientEmail?.trim() || null,
+  };
+
+  if (memberEmail) {
+    email = await sendAgreementEmail({
+      to: memberEmail,
       name: presentation.clientName,
       pdfUrl,
       tier: input.planName,
+      pdfBytes,
+      fileName: storedPdf.fileName,
     });
-    emailSent = emailResult.sent;
+  } else {
+    console.warn("[onboarding] agreement email skipped — no customer email on presentation", {
+      presentationId: presentation.id,
+      clientEmail: presentation.clientEmail || "(empty)",
+    });
   }
 
   return {
     pdfUrl,
+    pdfStorageBackend: storedPdf.backend,
     agreementId,
     membershipId,
     homeownerId: homeowner.id as string,
     propertyId: property.id as string,
-    emailSent,
+    email,
+    emailSent: email.status === "sent",
     onboardingStatus: "pending_payment",
   };
 }

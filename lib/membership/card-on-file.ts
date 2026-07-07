@@ -1,4 +1,4 @@
-import { STRIPE_CHECKOUT_ENABLED } from "./types";
+import { isStripeClientEnabled } from "@/lib/stripe/client";
 
 export interface SaveCardOnFileInput {
   memberName: string;
@@ -9,30 +9,22 @@ export interface SaveCardOnFileInput {
 
 export interface SaveCardOnFileResult {
   saved: boolean;
-  mode: "mock" | "live";
+  mode: "mock" | "stripe";
   membershipId?: string;
   onboardingStatus?: string;
 }
 
 /**
- * Saves a payment method on file for membership billing.
- * Mock mode activates membership via setup-payment — no raw card data is sent or stored.
+ * Mock mode: activates membership without card data (Stripe disabled).
+ * Stripe mode: handled by StripePaymentSetup + setup-payment API.
  */
 export async function saveCardOnFile(
   input: SaveCardOnFileInput,
 ): Promise<SaveCardOnFileResult> {
-  if (STRIPE_CHECKOUT_ENABLED) {
-    const response = await fetch("/api/stripe/setup-payment", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(input),
-    });
-
-    if (!response.ok) {
-      throw new Error("Unable to save payment method");
-    }
-
-    return { saved: true, mode: "live" };
+  if (isStripeClientEnabled()) {
+    throw new Error(
+      "Use Stripe Elements to save a card when Stripe is enabled.",
+    );
   }
 
   if (!input.presentationId && !input.membershipId) {

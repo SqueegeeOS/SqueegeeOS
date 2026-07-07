@@ -35,7 +35,7 @@ export interface StripeCheckoutSession {
 
 export type CheckoutPhase = "steps" | "redirecting";
 
-export const STRIPE_CHECKOUT_ENABLED = false;
+export { STRIPE_CHECKOUT_ENABLED } from "@/lib/stripe/client";
 
 /**
  * Stripe Checkout will handle:

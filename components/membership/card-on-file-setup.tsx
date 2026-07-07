@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { saveCardOnFile } from "@/lib/membership/card-on-file";
+import { StripePaymentSetup } from "@/components/membership/stripe-payment-setup";
 import {
   MEMBERSHIP_BILLING_PHILOSOPHY,
   MEMBERSHIP_BILLING_REMINDER,
   MEMBERSHIP_ONBOARDING_PAYMENT_POINTS,
 } from "@/lib/agreement/agreement-content";
-import { STRIPE_CHECKOUT_ENABLED } from "@/lib/membership/types";
+import { STRIPE_CHECKOUT_ENABLED } from "@/lib/stripe/client";
 
 export function CardOnFileSetup({
   memberName,
@@ -27,9 +28,6 @@ export function CardOnFileSetup({
   onBack?: () => void;
 }) {
   const [cardholderName, setCardholderName] = useState(memberName);
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvc, setCvc] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,9 +48,9 @@ export function CardOnFileSetup({
     ? "mt-1 text-sm text-white/45"
     : "mt-1 text-sm text-muted";
 
-  const handleSubmit = async () => {
-    if (!cardholderName.trim() || cardNumber.replace(/\s/g, "").length < 4) {
-      setError("Enter the cardholder name and card number to continue.");
+  const handleMockSubmit = async () => {
+    if (!cardholderName.trim()) {
+      setError("Enter the cardholder name to continue.");
       return;
     }
 
@@ -98,9 +96,15 @@ export function CardOnFileSetup({
       </div>
 
       {STRIPE_CHECKOUT_ENABLED ? (
-        <p className={pointBodyClass}>
-          You&apos;ll complete card entry on Stripe&apos;s secure page.
-        </p>
+        <StripePaymentSetup
+          memberName={cardholderName.trim() || memberName}
+          memberEmail={memberEmail}
+          presentationId={presentationId}
+          membershipId={membershipId}
+          theme={theme}
+          onBack={onBack}
+          onSuccess={onSuccess}
+        />
       ) : (
         <div className="space-y-4 rounded-lg border border-white/10 bg-white/[0.02] p-5">
           <p
@@ -110,7 +114,7 @@ export function CardOnFileSetup({
                 : "text-[10px] uppercase tracking-[0.16em] text-muted"
             }
           >
-            Payment method
+            Payment method (demo)
           </p>
           <div>
             <label className={labelClass} htmlFor="cardholder-name">
@@ -124,51 +128,9 @@ export function CardOnFileSetup({
               autoComplete="cc-name"
             />
           </div>
-          <div>
-            <label className={labelClass} htmlFor="card-number">
-              Card number
-            </label>
-            <input
-              id="card-number"
-              className={inputClass}
-              value={cardNumber}
-              onChange={(e) => setCardNumber(e.target.value)}
-              placeholder="4242 4242 4242 4242"
-              inputMode="numeric"
-              autoComplete="cc-number"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass} htmlFor="card-expiry">
-                Expiry
-              </label>
-              <input
-                id="card-expiry"
-                className={inputClass}
-                value={expiry}
-                onChange={(e) => setExpiry(e.target.value)}
-                placeholder="MM / YY"
-                autoComplete="cc-exp"
-              />
-            </div>
-            <div>
-              <label className={labelClass} htmlFor="card-cvc">
-                CVC
-              </label>
-              <input
-                id="card-cvc"
-                className={inputClass}
-                value={cvc}
-                onChange={(e) => setCvc(e.target.value)}
-                placeholder="123"
-                inputMode="numeric"
-                autoComplete="cc-csc"
-              />
-            </div>
-          </div>
           <p className="text-xs text-white/30">
-            Demo mode — card is not charged. Stripe connects in production.
+            Demo mode — confirms membership without charging. Add Stripe keys in
+            Vercel for live card-on-file.
           </p>
         </div>
       )}
@@ -196,34 +158,36 @@ export function CardOnFileSetup({
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-      <div className="flex flex-col gap-2 sm:flex-row">
-        {onBack ? (
+      {!STRIPE_CHECKOUT_ENABLED ? (
+        <div className="flex flex-col gap-2 sm:flex-row">
+          {onBack ? (
+            <button
+              type="button"
+              onClick={onBack}
+              disabled={loading}
+              className={
+                isPresentation
+                  ? "rounded-lg border border-white/15 px-5 py-3.5 text-sm text-white/60 transition hover:border-white/30 hover:text-white/80 disabled:opacity-40"
+                  : "rounded-full border border-border px-5 py-3.5 text-sm text-muted"
+              }
+            >
+              Back
+            </button>
+          ) : null}
           <button
             type="button"
-            onClick={onBack}
+            onClick={() => void handleMockSubmit()}
             disabled={loading}
             className={
               isPresentation
-                ? "rounded-lg border border-white/15 px-5 py-3.5 text-sm text-white/60 transition hover:border-white/30 hover:text-white/80 disabled:opacity-40"
-                : "rounded-full border border-border px-5 py-3.5 text-sm text-muted"
+                ? "flex-1 rounded-lg bg-gradient-to-br from-accent to-[#e8d5a3] py-3.5 text-sm font-bold text-[#060606] transition disabled:opacity-40"
+                : "flex-1 rounded-full bg-accent py-3.5 text-sm font-medium text-background disabled:opacity-40"
             }
           >
-            Back
+            {loading ? "Saving…" : "Save payment method"}
           </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={loading}
-          className={
-            isPresentation
-              ? "flex-1 rounded-lg bg-gradient-to-br from-accent to-[#e8d5a3] py-3.5 text-sm font-bold text-[#060606] transition disabled:opacity-40"
-              : "flex-1 rounded-full bg-accent py-3.5 text-sm font-medium text-background disabled:opacity-40"
-          }
-        >
-          {loading ? "Saving…" : "Save payment method"}
-        </button>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }

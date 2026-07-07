@@ -1,28 +1,53 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SlideRenderer } from "./slide-renderer";
 import { PresentationOnboarding } from "./presentation-onboarding";
+import {
+  readOnboardingStep,
+  shouldResumeOnboarding,
+} from "@/lib/presentations/onboarding-session";
 import { getPresentationSlides, type PresentationData } from "@/lib/presentations/types";
 
 export function PresentationViewer({
   presentation,
+  onPresentationChange,
 }: {
   presentation: PresentationData;
+  onPresentationChange?: (next: PresentationData) => void;
 }) {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [signing, setSigning] = useState(false);
+  const [signing, setSigning] = useState(() => {
+    if (presentation.onboardingStatus === "pending_payment") return true;
+    if (presentation.onboardingStatus === "complete") return false;
+    return shouldResumeOnboarding(presentation.id, presentation.onboardingStatus);
+  });
   const [signingTier, setSigningTier] = useState<PresentationData["tier"]>(
     presentation.tier,
   );
+  const recoveryChecked = useRef(false);
+
   const slides = getPresentationSlides(presentation);
   const totalSlides = slides.length;
   const currentSlide = slides[currentIndex] ?? slides[0];
 
   useEffect(() => {
+    if (recoveryChecked.current) return;
+    recoveryChecked.current = true;
+
+    if (presentation.onboardingStatus === "complete") {
+      return;
+    }
+
     if (presentation.onboardingStatus === "pending_payment") {
+      setSigning(true);
+      return;
+    }
+
+    const savedStep = readOnboardingStep(presentation.id);
+    if (savedStep && savedStep !== "sign") {
       setSigning(true);
       return;
     }
@@ -35,8 +60,13 @@ export function PresentationViewer({
           `/api/membership/onboarding-status?presentationId=${presentation.id}`,
         );
         if (!res.ok || cancelled) return;
-        const data = (await res.json()) as { onboardingIncomplete?: boolean };
-        if (!cancelled && data.onboardingIncomplete) {
+        const data = (await res.json()) as {
+          onboardingIncomplete?: boolean;
+          onboardingStatus?: string | null;
+        };
+        if (cancelled) return;
+        if (data.onboardingStatus === "complete") return;
+        if (data.onboardingIncomplete) {
           setSigning(true);
         }
       } catch {
@@ -47,15 +77,7 @@ export function PresentationViewer({
     if (presentation.status === "signed" && !presentation.onboardingStatus) {
       void checkRecovery();
     }
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    presentation.id,
-    presentation.onboardingStatus,
-    presentation.status,
-  ]);
+  }, [presentation.id, presentation.onboardingStatus, presentation.status]);
 
   const next = useCallback(() => {
     setCurrentIndex((i) => Math.min(i + 1, totalSlides - 1));
@@ -158,17 +180,18 @@ export function PresentationViewer({
         </div>
       </footer>
 
-      {signing && (
+      {signing ? (
         <PresentationOnboarding
           presentation={presentation}
           selectedTier={signingTier}
           onClose={() => setSigning(false)}
+          onPresentationChange={onPresentationChange}
           onDone={() => {
             setSigning(false);
             router.push(`/presentations/${presentation.id}/edit`);
           }}
         />
-      )}
+      ) : null}
     </div>
   );
 }

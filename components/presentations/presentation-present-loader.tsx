@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { readCachedPresentation } from "@/lib/presentations/client-cache";
 import type { PresentationData } from "@/lib/presentations/types";
 import { PresentationViewer } from "./presentation-viewer";
@@ -18,6 +18,10 @@ export function PresentationPresentLoader({
   );
   const [loading, setLoading] = useState(!initial);
   const [error, setError] = useState<string | null>(null);
+
+  const handlePresentationChange = useCallback((next: PresentationData) => {
+    setPresentation(next);
+  }, []);
 
   useEffect(() => {
     if (presentation) return;
@@ -95,5 +99,10 @@ export function PresentationPresentLoader({
     );
   }
 
-  return <PresentationViewer presentation={presentation} />;
+  return (
+    <PresentationViewer
+      presentation={presentation}
+      onPresentationChange={handlePresentationChange}
+    />
+  );
 }

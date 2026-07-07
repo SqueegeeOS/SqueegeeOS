@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AgreementSignaturePad } from "@/components/agreement/agreement-signature-pad";
 import { CardOnFileSetup } from "@/components/membership/card-on-file-setup";
 import {
@@ -20,6 +20,12 @@ import {
   visitRateFromPresentation,
 } from "@/lib/presentations/calculations";
 import {
+  clearOnboardingStep,
+  readOnboardingStep,
+  saveOnboardingStep,
+  type PersistedOnboardingStep,
+} from "@/lib/presentations/onboarding-session";
+import {
   tierLabel,
   tierTagline,
   type PresentationData,
@@ -34,10 +40,30 @@ import {
 } from "@/lib/membership/tier-config";
 import type { MembershipPlanId } from "@/lib/membership/types";
 
-type OnboardingStep = "sign" | "welcome" | "payment" | "complete";
+type OnboardingStep = PersistedOnboardingStep;
+
+const STEP_ORDER: Record<OnboardingStep, number> = {
+  sign: 0,
+  welcome: 1,
+  payment: 2,
+  complete: 3,
+};
 
 function tierToPlanId(_tier: PresentationTier): MembershipPlanId {
   return "preferred";
+}
+
+function resolveInitialStep(presentation: PresentationData): OnboardingStep {
+  if (presentation.onboardingStatus === "complete") return "complete";
+  const saved = readOnboardingStep(presentation.id);
+  if (saved) return saved;
+  if (
+    presentation.onboardingStatus === "pending_payment" &&
+    presentation.membershipId
+  ) {
+    return "welcome";
+  }
+  return "sign";
 }
 
 function ChecklistItem({ children }: { children: ReactNode }) {
@@ -56,24 +82,41 @@ export function PresentationOnboarding({
   selectedTier,
   onClose,
   onDone,
+  onPresentationChange,
 }: {
   presentation: PresentationData;
   selectedTier: PresentationTier;
   onClose: () => void;
   onDone: () => void;
+  onPresentationChange?: (next: PresentationData) => void;
 }) {
-  const [step, setStep] = useState<OnboardingStep>("sign");
+  const [step, setStep] = useState<OnboardingStep>(() =>
+    resolveInitialStep(presentation),
+  );
+  const stepRef = useRef(step);
   const [tier, setTier] = useState<PresentationTier>(selectedTier);
   const [signature, setSignature] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [paymentSaved, setPaymentSaved] = useState(false);
+  const [paymentSaved, setPaymentSaved] = useState(
+    () => presentation.onboardingStatus === "complete",
+  );
   const [membershipId, setMembershipId] = useState<string | null>(
     presentation.membershipId,
   );
   const [onboardingStatus, setOnboardingStatus] =
     useState<PresentationOnboardingStatus | null>(presentation.onboardingStatus);
+
+  const goToStep = (next: OnboardingStep) => {
+    stepRef.current = next;
+    setStep(next);
+    saveOnboardingStep(presentation.id, next);
+  };
+
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
 
   const rates = computePresentationRates({ ...presentation, tier });
   const visitPrice =
@@ -84,12 +127,23 @@ export function PresentationOnboarding({
         : rates.quarterlyVisit;
   const annualTotal = calculateAnnualFromVisits(tier, visitPrice);
 
+  const syncPresentation = (next: PresentationData) => {
+    cachePresentation(next);
+    onPresentationChange?.(next);
+  };
+
+  useEffect(() => {
+    if (step !== "sign") {
+      saveOnboardingStep(presentation.id, step);
+    }
+  }, [presentation.id, step]);
+
   useEffect(() => {
     let cancelled = false;
 
     async function resumeOnboarding() {
       if (presentation.onboardingStatus === "complete") {
-        setStep("complete");
+        goToStep("complete");
         setPaymentSaved(true);
         return;
       }
@@ -100,7 +154,13 @@ export function PresentationOnboarding({
       ) {
         setMembershipId(presentation.membershipId);
         setOnboardingStatus("pending_payment");
-        setStep("welcome");
+        if (STEP_ORDER[stepRef.current] < STEP_ORDER.welcome) {
+          goToStep("welcome");
+        }
+        return;
+      }
+
+      if (STEP_ORDER[stepRef.current] >= STEP_ORDER.payment) {
         return;
       }
 
@@ -118,8 +178,12 @@ export function PresentationOnboarding({
 
         if (cancelled) return;
 
+        if (STEP_ORDER[stepRef.current] >= STEP_ORDER.payment) {
+          return;
+        }
+
         if (data.onboardingStatus === "complete") {
-          setStep("complete");
+          goToStep("complete");
           setPaymentSaved(true);
           setOnboardingStatus("complete");
           if (data.membershipId) setMembershipId(data.membershipId);
@@ -129,7 +193,9 @@ export function PresentationOnboarding({
         if (data.onboardingIncomplete && data.membershipId) {
           setMembershipId(data.membershipId);
           setOnboardingStatus("pending_payment");
-          setStep("welcome");
+          if (STEP_ORDER[stepRef.current] < STEP_ORDER.welcome) {
+            goToStep("welcome");
+          }
         }
       } catch {
         // Local-only presentations have no cloud status — stay on sign step.
@@ -140,11 +206,9 @@ export function PresentationOnboarding({
     return () => {
       cancelled = true;
     };
-  }, [
-    presentation.id,
-    presentation.membershipId,
-    presentation.onboardingStatus,
-  ]);
+    // Run once on mount — step guards prevent stale regressions.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presentation.id]);
 
   const handleSign = async () => {
     if (!signature || !agreed) return;
@@ -211,13 +275,13 @@ export function PresentationOnboarding({
         monthlyRate: visitPrice,
         annualRate: annualTotal,
       };
-      cachePresentation(signedPresentation);
+      syncPresentation(signedPresentation);
 
       if (signBody.membershipId) {
         setMembershipId(signBody.membershipId);
       }
       setOnboardingStatus(signBody.onboardingStatus ?? "pending_payment");
-      setStep("welcome");
+      goToStep("welcome");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong. Please try again.",
@@ -225,6 +289,24 @@ export function PresentationOnboarding({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePaymentSuccess = () => {
+    const completedPresentation: PresentationData = {
+      ...presentation,
+      status: "signed",
+      onboardingStatus: "complete",
+      membershipId: membershipId ?? presentation.membershipId,
+    };
+    syncPresentation(completedPresentation);
+    setPaymentSaved(true);
+    setOnboardingStatus("complete");
+    goToStep("complete");
+  };
+
+  const handleDone = () => {
+    clearOnboardingStep(presentation.id);
+    onDone();
   };
 
   return (
@@ -344,7 +426,7 @@ export function PresentationOnboarding({
 
             <button
               type="button"
-              onClick={() => setStep("payment")}
+              onClick={() => goToStep("payment")}
               className="mt-8 w-full rounded-lg bg-gradient-to-br from-accent to-[#e8d5a3] py-4 text-sm font-bold text-[#060606]"
             >
               Continue to payment method
@@ -374,12 +456,8 @@ export function PresentationOnboarding({
                 presentationId={presentation.id}
                 membershipId={membershipId ?? undefined}
                 theme="presentation"
-                onBack={() => setStep("welcome")}
-                onSuccess={() => {
-                  setPaymentSaved(true);
-                  setOnboardingStatus("complete");
-                  setStep("complete");
-                }}
+                onBack={() => goToStep("welcome")}
+                onSuccess={handlePaymentSuccess}
               />
             </div>
           </div>
@@ -413,7 +491,7 @@ export function PresentationOnboarding({
 
             <button
               type="button"
-              onClick={onDone}
+              onClick={handleDone}
               className="mt-8 w-full rounded-lg border border-white/20 py-4 text-sm font-medium text-[#f5f2eb] transition hover:border-white/40"
             >
               Done

@@ -279,11 +279,8 @@ export function AdminCommandCenter({
   ];
 
   const quickActions = [
-    {
-      label: "Care Plan Builder",
-      subtitle: "Standard Pricing Engine",
-      href: ROUTES.hqCarePlanBuilder,
-    },
+    { label: "Production Check", subtitle: "Field readiness", href: ROUTES.hqProductionCheck },
+    { label: "Care Plan Builder", subtitle: "Standard Pricing Engine", href: ROUTES.hqCarePlanBuilder },
     { label: "New Presentation", href: ROUTES.newPresentation },
     { label: "All Presentations", href: ROUTES.presentations },
     { label: "Our Story", href: ROUTES.hqOurStory },

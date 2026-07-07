@@ -1,4 +1,6 @@
 import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
+import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
+import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendAgreementEmail } from "@/lib/agreement/send-agreement-email";
 import { storeSignedPdf } from "@/lib/agreement/store-signed-pdf";
 import {
@@ -37,7 +39,10 @@ export interface SignAgreementRequest {
 
 export interface SignAgreementResult {
   pdfUrl: string;
+  pdfStorageBackend: "supabase" | "data_url";
   agreementId: string;
+  email: AgreementEmailResult;
+  /** @deprecated use email.status === "sent" */
   emailSent: boolean;
 }
 
@@ -66,7 +71,8 @@ export async function processSignAgreement(
   });
 
   const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;
-  const pdfUrl = await storeSignedPdf(pdfBytes, fileName);
+  const storedPdf = await storeSignedPdf(pdfBytes, fileName);
+  const pdfUrl = storedPdf.url;
 
   if (!isSupabaseConfigured()) {
     throw new Error(
@@ -93,7 +99,7 @@ export async function processSignAgreement(
       agreement_pdf_url: pdfUrl,
       signature_image_storage_path: null,
       status: "complete",
-      storage_backend: "supabase",
+      storage_backend: storedPdf.backend === "supabase" ? "supabase" : "session",
     })
     .select("id")
     .single();
@@ -104,16 +110,29 @@ export async function processSignAgreement(
     );
   }
 
-  let emailSent = false;
-  if (input.memberEmail) {
-    const emailResult = await sendAgreementEmail({
-      to: input.memberEmail,
+  const memberEmail = resolveMemberEmail(input.memberEmail);
+  let email: AgreementEmailResult = {
+    status: "skipped",
+    reason: "no_valid_recipient_email",
+    recipient: input.memberEmail?.trim() || null,
+  };
+
+  if (memberEmail) {
+    email = await sendAgreementEmail({
+      to: memberEmail,
       name: input.memberName,
       pdfUrl,
       tier: input.planName,
+      pdfBytes,
+      fileName: storedPdf.fileName,
     });
-    emailSent = emailResult.sent;
   }
 
-  return { pdfUrl, agreementId: data.id, emailSent };
+  return {
+    pdfUrl,
+    pdfStorageBackend: storedPdf.backend,
+    agreementId: data.id,
+    email,
+    emailSent: email.status === "sent",
+  };
 }

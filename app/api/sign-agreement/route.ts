@@ -19,6 +19,7 @@ import type { MembershipPlanId } from "@/lib/membership/types";
 import { isCarePlanQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { visitRateFromPresentation } from "@/lib/presentations/calculations";
+import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 
 function tierToPlanId(_tier: string): MembershipPlanId {
   return "preferred";
@@ -62,7 +63,10 @@ export async function POST(req: NextRequest) {
       }
 
       memberName = memberName || presentation.clientName;
-      memberEmail = memberEmail || presentation.clientEmail;
+      memberEmail = resolveMemberEmail(
+        memberEmail,
+        presentation.clientEmail,
+      );
       homeownerSlug =
         homeownerSlug || slugifyPresentation(presentation.clientName) || "client";
       propertySlug =
@@ -144,11 +148,16 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         pdfUrl: result.pdfUrl,
+        pdfStorageBackend: result.pdfStorageBackend,
         agreementId: result.agreementId,
         membershipId: result.membershipId,
         homeownerId: result.homeownerId,
         propertyId: result.propertyId,
         emailSent: result.emailSent,
+        emailStatus: result.email.status,
+        emailReason: result.email.reason ?? null,
+        emailRecipient: result.email.recipient ?? null,
+        emailDeliveryMode: result.email.deliveryMode ?? null,
         onboardingStatus: result.onboardingStatus,
       });
     }
@@ -179,8 +188,13 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       pdfUrl: result.pdfUrl,
+      pdfStorageBackend: result.pdfStorageBackend,
       agreementId: result.agreementId,
       emailSent: result.emailSent,
+      emailStatus: result.email.status,
+      emailReason: result.email.reason ?? null,
+      emailRecipient: result.email.recipient ?? null,
+      emailDeliveryMode: result.email.deliveryMode ?? null,
     });
   } catch (error) {
     if (error instanceof SignOnboardingError) {

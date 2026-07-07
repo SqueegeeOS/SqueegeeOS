@@ -16,6 +16,7 @@ export const ROUTES = {
   hqOurStory: "/hq/our-story",
   hqCarePlanBuilder: "/hq/care-plan-builder",
   hqPricingSettings: "/hq/settings/pricing",
+  hqProductionCheck: "/hq/production-check",
   /** @deprecated Use hqCarePlanBuilder — redirect remains at /hq/pricing */
   hqPricing: "/hq/care-plan-builder",
   tech: "/tech",
