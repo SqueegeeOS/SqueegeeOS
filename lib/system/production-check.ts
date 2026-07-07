@@ -1,8 +1,14 @@
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import {
   createServerSupabaseClient,
+  createServiceRoleSupabaseClient,
+  isServiceRoleConfigured,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import {
+  probeSignedAgreementsBucketPublic,
+  SIGNED_AGREEMENT_BUCKET,
+} from "@/lib/agreement/signed-agreement-storage";
 import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { getStripePublishableKey } from "@/lib/stripe/client";
 import { isStripeLiveMode, resolveStripeKeyMode } from "@/lib/stripe/mode";
@@ -12,6 +18,7 @@ export type ProductionMode = "production" | "degraded" | "development";
 export interface ProductionCheckResult {
   supabase: boolean;
   storage: boolean;
+  storageSafe: boolean;
   resend: boolean;
   stripe: boolean;
   stripeLive: boolean;
@@ -23,6 +30,9 @@ export interface ProductionCheckResult {
     storage: {
       bucket: "signed-agreements";
       ready: boolean;
+      private: boolean;
+      serviceRole: boolean;
+      safe: boolean;
       message?: string;
     };
     resend: {
@@ -47,7 +57,7 @@ export interface ProductionCheckResult {
 
 function resolveMode(flags: {
   supabase: boolean;
-  storage: boolean;
+  storageSafe: boolean;
   resend: boolean;
   stripe: boolean;
   stripeLive: boolean;
@@ -55,7 +65,7 @@ function resolveMode(flags: {
 }): ProductionMode {
   if (
     flags.supabase &&
-    flags.storage &&
+    flags.storageSafe &&
     flags.resend &&
     flags.stripe &&
     flags.stripeLive &&
@@ -96,27 +106,59 @@ export async function runProductionCheck(): Promise<ProductionCheckResult> {
   const supabase = supabaseConfigured && supabaseReachable;
 
   let storageReady = false;
+  let storagePrivate = false;
   let storageMessage: string | undefined;
+  const serviceRoleConfigured = isServiceRoleConfigured();
 
   if (supabaseConfigured) {
-    try {
-      const supabase = createServerSupabaseClient();
-      const { error } = await supabase.storage
-        .from("signed-agreements")
-        .list("", { limit: 1 });
-
-      if (error) {
-        storageMessage = error.message;
-      } else {
-        storageReady = true;
-      }
-    } catch (error) {
+    const probe = await probeSignedAgreementsBucketPublic();
+    if (probe === "private") {
+      storagePrivate = true;
+    } else if (probe === "public") {
       storageMessage =
-        error instanceof Error ? error.message : "Storage check failed";
+        "signed-agreements bucket is world-readable — run migration 017";
+    }
+
+    if (serviceRoleConfigured) {
+      try {
+        const supabase = createServiceRoleSupabaseClient();
+        const { data: bucket, error: bucketError } = await supabase.storage.getBucket(
+          SIGNED_AGREEMENT_BUCKET,
+        );
+
+        if (!bucketError && bucket) {
+          storagePrivate = !bucket.public;
+          if (bucket.public) {
+            storageMessage =
+              "signed-agreements bucket is public — run migration 017";
+          }
+        } else if (bucketError && !storageMessage) {
+          storageMessage = bucketError.message;
+        }
+
+        const { error: listError } = await supabase.storage
+          .from(SIGNED_AGREEMENT_BUCKET)
+          .list("", { limit: 1 });
+
+        if (listError) {
+          if (!storageMessage) storageMessage = listError.message;
+        } else {
+          storageReady = true;
+        }
+      } catch (error) {
+        storageMessage =
+          error instanceof Error ? error.message : "Storage check failed";
+      }
+    } else {
+      storageMessage =
+        "SUPABASE_SERVICE_ROLE_KEY not set — required for private agreement PDFs";
     }
   } else {
     storageMessage = "Supabase not configured";
   }
+
+  const storageSafe =
+    storageReady && storagePrivate && serviceRoleConfigured;
 
   const resendApiKey = Boolean(process.env.RESEND_API_KEY?.trim());
   const resendFrom = process.env.RESEND_AGREEMENT_FROM?.trim() || null;
@@ -155,7 +197,7 @@ export async function runProductionCheck(): Promise<ProductionCheckResult> {
 
   const mode = resolveMode({
     supabase,
-    storage: storageReady,
+    storageSafe,
     resend,
     stripe,
     stripeLive,
@@ -165,6 +207,7 @@ export async function runProductionCheck(): Promise<ProductionCheckResult> {
   return {
     supabase,
     storage: storageReady,
+    storageSafe,
     resend,
     stripe,
     stripeLive,
@@ -180,6 +223,9 @@ export async function runProductionCheck(): Promise<ProductionCheckResult> {
       storage: {
         bucket: "signed-agreements",
         ready: storageReady,
+        private: storagePrivate,
+        serviceRole: serviceRoleConfigured,
+        safe: storageSafe,
         message: storageMessage,
       },
       resend: {

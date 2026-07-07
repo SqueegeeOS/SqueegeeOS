@@ -72,7 +72,7 @@ export async function processSignAgreement(
 
   const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;
   const storedPdf = await storeSignedPdf(pdfBytes, fileName);
-  const pdfUrl = storedPdf.url;
+  const pdfStorageRef = storedPdf.url;
 
   if (!isSupabaseConfigured()) {
     throw new Error(
@@ -96,7 +96,7 @@ export async function processSignAgreement(
       signed_at: input.signedAt,
       ip_address: input.ipAddress ?? null,
       user_agent: input.userAgent ?? null,
-      agreement_pdf_url: pdfUrl,
+      agreement_pdf_url: pdfStorageRef,
       signature_image_storage_path: null,
       status: "complete",
       storage_backend: storedPdf.backend === "supabase" ? "supabase" : "session",
@@ -121,7 +121,7 @@ export async function processSignAgreement(
     email = await sendAgreementEmail({
       to: memberEmail,
       name: input.memberName,
-      pdfUrl,
+      pdfUrl: pdfStorageRef,
       tier: input.planName,
       pdfBytes,
       fileName: storedPdf.fileName,
@@ -129,7 +129,7 @@ export async function processSignAgreement(
   }
 
   return {
-    pdfUrl,
+    pdfUrl: storedPdf.accessUrl ?? pdfStorageRef,
     pdfStorageBackend: storedPdf.backend,
     agreementId: data.id,
     email,

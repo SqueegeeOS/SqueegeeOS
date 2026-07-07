@@ -114,9 +114,14 @@ export default function ProductionCheckPage() {
               hint={result.details.supabase.message}
             />
             <StatusRow
-              label="Storage Ready (signed-agreements)"
-              ok={result.storage}
-              hint={result.details.storage.message}
+              label="Agreement storage safe"
+              ok={result.storageSafe}
+              hint={
+                result.storageSafe
+                  ? "Private bucket · service role configured"
+                  : (result.details.storage.message ??
+                    "Run migration 017 and set SUPABASE_SERVICE_ROLE_KEY")
+              }
             />
             <StatusRow
               label="Email Ready (Resend)"

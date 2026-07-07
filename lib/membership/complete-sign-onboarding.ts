@@ -253,7 +253,7 @@ export async function completeSignOnboarding(
 
   const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;
   const storedPdf = await storeSignedPdf(pdfBytes, fileName);
-  const pdfUrl = storedPdf.url;
+  const pdfStorageRef = storedPdf.url;
 
   const { data: agreement, error: agreementError } = await supabase
     .from("signed_agreements")
@@ -274,7 +274,7 @@ export async function completeSignOnboarding(
       signed_at: input.signedAt,
       ip_address: input.ipAddress ?? null,
       user_agent: input.userAgent ?? null,
-      agreement_pdf_url: pdfUrl,
+      agreement_pdf_url: pdfStorageRef,
       signature_image_storage_path: null,
       status: "complete",
       storage_backend: "supabase",
@@ -345,7 +345,7 @@ export async function completeSignOnboarding(
     email = await sendAgreementEmail({
       to: memberEmail,
       name: presentation.clientName,
-      pdfUrl,
+      pdfUrl: pdfStorageRef,
       tier: input.planName,
       pdfBytes,
       fileName: storedPdf.fileName,
@@ -359,7 +359,7 @@ export async function completeSignOnboarding(
   }
 
   return {
-    pdfUrl,
+    pdfUrl: storedPdf.accessUrl ?? pdfStorageRef,
     pdfStorageBackend: storedPdf.backend,
     agreementId,
     membershipId,

@@ -42,3 +42,19 @@ export function createBrowserSupabaseClient(): SupabaseClient {
 export function createServerSupabaseClient(): SupabaseClient {
   return createClient(getSupabaseUrl(), getSupabaseAnonKey());
 }
+
+export function isServiceRoleConfigured(): boolean {
+  return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
+}
+
+/** Server-only privileged client — storage uploads and signed agreement URLs. */
+export function createServiceRoleSupabaseClient(): SupabaseClient {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  if (!key) {
+    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  }
+
+  return createClient(getSupabaseUrl(), key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}

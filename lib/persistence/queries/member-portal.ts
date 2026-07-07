@@ -1,3 +1,4 @@
+import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
 import {
   createServerSupabaseClient,
   isSupabaseConfigured,
@@ -449,6 +450,12 @@ export async function getMemberPortalDataBySlugs(
         propertyRow.id,
       );
 
+  const agreementPdfUrl = agreementRow
+    ? await resolveAgreementPdfAccessUrl(
+        (agreementRow as SignedAgreementRow).agreement_pdf_url,
+      )
+    : null;
+
   return {
     profile: memberProfile,
     property: buildPropertyRecord(propertyRow, memberProfile.id),
@@ -475,7 +482,7 @@ export async function getMemberPortalDataBySlugs(
       ? {
           planName: (agreementRow as SignedAgreementRow).plan_name,
           signedAt: (agreementRow as SignedAgreementRow).signed_at,
-          pdfUrl: (agreementRow as SignedAgreementRow).agreement_pdf_url,
+          pdfUrl: agreementPdfUrl,
         }
       : null,
     presentationId: membershipRow?.presentation_id ?? null,
