@@ -19,6 +19,14 @@ export function PresentationViewer({
   const totalSlides = slides.length;
   const currentSlide = slides[currentIndex];
 
+  if (!currentSlide) {
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#060606] text-[#f5f2eb]">
+        <p className="text-sm text-white/50">No slides available for this presentation.</p>
+      </div>
+    );
+  }
+
   const next = useCallback(() => {
     setCurrentIndex((i) => Math.min(i + 1, totalSlides - 1));
   }, [totalSlides]);

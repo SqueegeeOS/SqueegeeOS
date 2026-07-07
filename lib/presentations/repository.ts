@@ -2,6 +2,7 @@ import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { withComputedRates } from "./calculations";
 import type { PresentationQuoteSnapshot } from "./quote-snapshot";
+import { isCarePlanQuoteSnapshot } from "./quote-snapshot";
 import {
   getLocalPresentation,
   listLocalPresentations,
@@ -37,27 +38,86 @@ interface PresentationRow {
   updated_at: string;
 }
 
-function rowToPresentation(row: PresentationRow): PresentationData {
+function normalizePresentation(data: PresentationData): PresentationData {
+  const twoStory = data.twoStory ?? data.quoteSnapshot?.twoStory ?? false;
+  const includeScreens =
+    data.includeScreens ?? data.quoteSnapshot?.includeScreens ?? false;
+
   return {
+    ...data,
+    twoStory,
+    includeScreens,
+    quoteSnapshot: isCarePlanQuoteSnapshot(data.quoteSnapshot)
+      ? data.quoteSnapshot
+      : null,
+  };
+}
+
+function readPricingFlags(
+  snapshot: PresentationQuoteSnapshot | null,
+): Pick<PresentationData, "twoStory" | "includeScreens"> {
+  return {
+    twoStory: snapshot?.twoStory ?? false,
+    includeScreens: snapshot?.includeScreens ?? false,
+  };
+}
+
+function writeQuoteSnapshot(data: PresentationData): PresentationQuoteSnapshot | null {
+  const flags = {
+    twoStory: data.twoStory,
+    includeScreens: data.includeScreens,
+  };
+
+  if (isCarePlanQuoteSnapshot(data.quoteSnapshot)) {
+    return { ...data.quoteSnapshot, ...flags };
+  }
+
+  if (flags.twoStory || flags.includeScreens) {
+    return {
+      sqft: data.homeSqft,
+      frequency: data.tier === "quarterly" ? "quarterly" : "bi_annual",
+      includeInterior: false,
+      ...flags,
+      windowCareVisitPrice: 0,
+      frequencyLabel: "",
+      exteriorAddOnQuote: {
+        lineItems: [],
+        subtotal: 0,
+        listSubtotal: 0,
+        memberDiscountPercent: null,
+        memberSavings: 0,
+      },
+      totalEstimate: 0,
+    };
+  }
+
+  return null;
+}
+
+function rowToPresentation(row: PresentationRow): PresentationData {
+  const rawSnapshot = row.quote_snapshot;
+  const pricingFlags = readPricingFlags(rawSnapshot);
+  return normalizePresentation({
     id: row.id,
     createdBy: row.created_by ?? "Team",
     clientName: row.client_name,
     clientAddress: row.client_address ?? "",
     clientEmail: row.client_email ?? "",
     homeSqft: row.home_sqft,
+    ...pricingFlags,
     tier: normalizePresentationTier(row.tier),
     monthlyRate: Number(row.monthly_rate),
     annualRate: Number(row.annual_rate),
     retailValue: Number(row.retail_value),
     customNotes: row.custom_notes ?? "",
-    quoteSnapshot: row.quote_snapshot ?? null,
+    quoteSnapshot: isCarePlanQuoteSnapshot(rawSnapshot) ? rawSnapshot : null,
     slideOverrides: row.slide_overrides ?? {},
     status: row.status,
     signedAt: row.signed_at,
     agreementId: row.agreement_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-  };
+  });
 }
 
 function presentationToRow(data: PresentationData): Record<string, unknown> {
@@ -72,7 +132,7 @@ function presentationToRow(data: PresentationData): Record<string, unknown> {
     annual_rate: data.annualRate,
     retail_value: data.retailValue,
     custom_notes: data.customNotes || null,
-    quote_snapshot: data.quoteSnapshot ?? null,
+    quote_snapshot: writeQuoteSnapshot(data),
     slide_overrides: data.slideOverrides,
     status: data.status,
     signed_at: data.signedAt,
@@ -154,6 +214,8 @@ export function createDefaultPresentation(input?: {
     clientAddress: "",
     clientEmail: "",
     homeSqft,
+    twoStory: input?.quoteSnapshot?.twoStory ?? false,
+    includeScreens: input?.quoteSnapshot?.includeScreens ?? false,
     tier,
     ...rates,
     customNotes: "",
@@ -190,18 +252,20 @@ export async function getPresentation(
     }
   }
 
-  return getLocalPresentation(id);
+  return getLocalPresentation(id).then((data) =>
+    data ? normalizePresentation(data) : null,
+  );
 }
 
 export async function savePresentation(
   data: PresentationData,
 ): Promise<PresentationData> {
   const rates = withComputedRates(data);
-  const merged: PresentationData = {
+  const merged: PresentationData = normalizePresentation({
     ...data,
     ...rates,
     updatedAt: new Date().toISOString(),
-  };
+  });
 
   if (isCloudPersistenceConnected()) {
     try {

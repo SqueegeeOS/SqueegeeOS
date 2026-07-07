@@ -126,6 +126,7 @@ export function CustomQuoteSlide({ presentation, overrides }: SlideComponentProp
   }
 
   const { exteriorAddOnQuote: addOns } = snapshot;
+  const lineItems = addOns?.lineItems ?? [];
   const tierLabel =
     snapshot.frequency === "quarterly" ? "Quarterly" : "Bi-Annual";
 
@@ -144,7 +145,7 @@ export function CustomQuoteSlide({ presentation, overrides }: SlideComponentProp
             {formatDollars(snapshot.windowCareVisitPrice)}
           </span>
         </div>
-        {addOns.lineItems.map((item) => (
+        {lineItems.map((item) => (
           <div key={item.id} className="flex justify-between gap-4">
             <span className="min-w-0 text-white/50">
               <span className="block text-[#f5f2eb]/90">{item.label}</span>
@@ -164,17 +165,17 @@ export function CustomQuoteSlide({ presentation, overrides }: SlideComponentProp
             </span>
           </div>
         ))}
-        {addOns.lineItems.length > 0 && (
+        {lineItems.length > 0 && (
           <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
             <span className="text-white/50">Add-on subtotal</span>
-            <span className="text-accent">{formatDollars(addOns.subtotal)}</span>
+            <span className="text-accent">{formatDollars(addOns?.subtotal ?? 0)}</span>
           </div>
         )}
-        {addOns.memberSavings > 0 && (
+        {(addOns?.memberSavings ?? 0) > 0 && (
           <p className="mt-4 rounded-lg border border-accent/25 bg-accent/10 px-4 py-3 text-sm font-medium text-accent">
             {memberSavingsQuoteLine(
               snapshot.frequency,
-              addOns.memberSavings,
+              addOns?.memberSavings ?? 0,
             )}
           </p>
         )}

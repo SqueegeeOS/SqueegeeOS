@@ -4,7 +4,10 @@ import {
   squeegeeKingTierLabel,
   SQUEEGEEKING_TIERS,
 } from "@/lib/membership/tier-config";
-import type { PresentationQuoteSnapshot } from "./quote-snapshot";
+import {
+  isCarePlanQuoteSnapshot,
+  type PresentationQuoteSnapshot,
+} from "./quote-snapshot";
 
 export type PresentationTier = SqueegeeKingTierId;
 export type PresentationStatus = "draft" | "presented" | "signed";
@@ -55,7 +58,9 @@ export function getPresentationSlides(
   presentation: Pick<PresentationData, "quoteSnapshot">,
 ): SlideConfig[] {
   return SLIDE_MANIFEST.filter(
-    (slide) => slide.id !== "custom_quote" || presentation.quoteSnapshot,
+    (slide) =>
+      slide.id !== "custom_quote" ||
+      isCarePlanQuoteSnapshot(presentation.quoteSnapshot),
   );
 }
 
@@ -66,6 +71,8 @@ export interface PresentationData {
   clientAddress: string;
   clientEmail: string;
   homeSqft: number;
+  twoStory: boolean;
+  includeScreens: boolean;
   tier: PresentationTier;
   /** Per-visit rate (legacy field name) */
   monthlyRate: number;

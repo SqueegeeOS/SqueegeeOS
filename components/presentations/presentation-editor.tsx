@@ -9,7 +9,6 @@ import {
   withComputedRates,
 } from "@/lib/presentations/calculations";
 import { buildExteriorWindowBreakdown } from "@/lib/pricing/window-care-pricing";
-import type { CareFrequency } from "@/lib/pricing/types";
 import {
   getPresentationSlides,
   tierLabel,
@@ -36,6 +35,7 @@ export function PresentationEditor({
   const [data, setData] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const slides = useMemo(() => getPresentationSlides(data), [data]);
   const editableSlides = useMemo(
@@ -45,49 +45,30 @@ export function PresentationEditor({
   const rates = useMemo(() => computePresentationRates(data), [data]);
   const visitRate = visitRateFromPresentation(data);
 
-  const twoStory = data.quoteSnapshot?.twoStory ?? false;
-  const includeScreens = data.quoteSnapshot?.includeScreens ?? false;
+  const twoStory = data.twoStory;
+  const includeScreens = data.includeScreens;
+
+  const recalculateVisitRate = (
+    prev: PresentationData,
+    patch: Partial<PresentationData>,
+  ): PresentationData => {
+    const merged = { ...prev, ...patch, monthlyRate: 0 };
+    const visitRate = visitRateFromPresentation(merged);
+    return {
+      ...merged,
+      ...withComputedRates({ ...merged, monthlyRate: visitRate }),
+    };
+  };
 
   const setPricingOption = (
     patch: Partial<{ twoStory: boolean; includeScreens: boolean }>,
   ) => {
-    setData((prev) => {
-      const frequency: CareFrequency =
-        prev.tier === "quarterly" ? "quarterly" : "bi_annual";
-      const quoteSnapshot = {
-        sqft: prev.homeSqft,
-        frequency,
-        includeInterior: prev.quoteSnapshot?.includeInterior ?? false,
-        twoStory: patch.twoStory ?? prev.quoteSnapshot?.twoStory ?? false,
-        includeScreens:
-          patch.includeScreens ?? prev.quoteSnapshot?.includeScreens ?? false,
-        windowCareVisitPrice: prev.quoteSnapshot?.windowCareVisitPrice ?? 0,
-        frequencyLabel: prev.quoteSnapshot?.frequencyLabel ?? "",
-        exteriorAddOnQuote: prev.quoteSnapshot?.exteriorAddOnQuote ?? {
-          lineItems: [],
-          subtotal: 0,
-          listSubtotal: 0,
-          memberDiscountPercent: null,
-          memberSavings: 0,
-        },
-        totalEstimate: prev.quoteSnapshot?.totalEstimate ?? 0,
-      };
-      const visitRate = visitRateFromPresentation({
-        monthlyRate: 0,
-        tier: prev.tier,
-        homeSqft: prev.homeSqft,
-        quoteSnapshot,
-      });
-      const next = {
-        ...prev,
-        quoteSnapshot,
-        ...withComputedRates({
-          ...prev,
-          monthlyRate: visitRate,
-        }),
-      };
-      return next;
-    });
+    setData((prev) =>
+      recalculateVisitRate(prev, {
+        twoStory: patch.twoStory ?? prev.twoStory,
+        includeScreens: patch.includeScreens ?? prev.includeScreens,
+      }),
+    );
   };
 
   const exteriorBreakdown =
@@ -104,13 +85,11 @@ export function PresentationEditor({
     value: PresentationData[K],
   ) => {
     setData((prev) => {
+      if (field === "tier" || field === "homeSqft") {
+        return recalculateVisitRate(prev, { [field]: value } as Partial<PresentationData>);
+      }
       const next = { ...prev, [field]: value };
-      if (
-        field === "tier" ||
-        field === "homeSqft" ||
-        field === "monthlyRate" ||
-        field === "retailValue"
-      ) {
+      if (field === "monthlyRate" || field === "retailValue") {
         return { ...next, ...withComputedRates(next) };
       }
       return next;
@@ -131,18 +110,28 @@ export function PresentationEditor({
     });
   };
 
-  const save = async () => {
+  const save = async (): Promise<boolean> => {
     setSaving(true);
+    setError(null);
     try {
       const res = await fetch(`/api/presentations/${data.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
-      if (res.ok) {
-        const json = (await res.json()) as { presentation: PresentationData };
-        setData(json.presentation);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        setError(body?.error ?? "Could not save. Try again.");
+        return false;
       }
+      const json = (await res.json()) as { presentation: PresentationData };
+      setData(json.presentation);
+      return true;
+    } catch {
+      setError("Could not save. Check your connection and try again.");
+      return false;
     } finally {
       setSaving(false);
     }
@@ -150,8 +139,10 @@ export function PresentationEditor({
 
   const present = async () => {
     setPresenting(true);
+    setError(null);
     try {
-      await save();
+      const saved = await save();
+      if (!saved) return;
       router.push(`/presentations/${data.id}/present`);
     } finally {
       setPresenting(false);
@@ -255,27 +246,7 @@ export function PresentationEditor({
                 placeholder="e.g. 2800"
                 onChange={(v) => {
                   const homeSqft = Number.parseInt(v, 10) || 0;
-                  setData((prev) => {
-                    const quoteSnapshot = prev.quoteSnapshot
-                      ? { ...prev.quoteSnapshot, sqft: homeSqft }
-                      : prev.quoteSnapshot;
-                    const visitRate = visitRateFromPresentation({
-                      monthlyRate: 0,
-                      tier: prev.tier,
-                      homeSqft,
-                      quoteSnapshot,
-                    });
-                    return {
-                      ...prev,
-                      homeSqft,
-                      quoteSnapshot,
-                      ...withComputedRates({
-                        ...prev,
-                        homeSqft,
-                        monthlyRate: visitRate,
-                      }),
-                    };
-                  });
+                  setData((prev) => recalculateVisitRate(prev, { homeSqft }));
                 }}
               />
             </EditorField>
@@ -423,8 +394,12 @@ export function PresentationEditor({
         </p>
       </div>
 
+      {/* Error */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-[#1a1a1a] bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-[#0a0a0a]/95 px-4 pb-6 pt-4">
         <div className="mx-auto flex max-w-lg flex-col gap-2">
+          {error ? (
+            <p className="text-center text-sm text-red-400">{error}</p>
+          ) : null}
           <button
             type="button"
             onClick={present}

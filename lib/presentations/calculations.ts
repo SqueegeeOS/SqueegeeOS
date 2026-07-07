@@ -10,12 +10,15 @@ import type { PresentationData, PresentationInput } from "./types";
 
 /** In presentations, `monthlyRate` stores per-visit price. */
 export function visitRateFromPresentation(
-  data: Pick<PresentationData, "monthlyRate" | "tier" | "homeSqft" | "quoteSnapshot">,
+  data: Pick<
+    PresentationData,
+    "monthlyRate" | "tier" | "homeSqft" | "twoStory" | "includeScreens"
+  >,
 ): number {
   if (data.monthlyRate > 0) return data.monthlyRate;
   return calculateVisitPrice(data.tier, data.homeSqft, {
-    twoStory: data.quoteSnapshot?.twoStory,
-    includeScreens: data.quoteSnapshot?.includeScreens,
+    twoStory: data.twoStory,
+    includeScreens: data.includeScreens,
   });
 }
 
@@ -24,15 +27,25 @@ export function computePresentationRates(input: {
   homeSqft: number;
   monthlyRate?: number;
   retailValue?: number;
+  twoStory?: boolean;
+  includeScreens?: boolean;
 }) {
   const tier = normalizeToSqueegeeKingTier(input.tier);
+  const pricingOpts = {
+    twoStory: input.twoStory,
+    includeScreens: input.includeScreens,
+  };
   const visitRate =
     input.monthlyRate && input.monthlyRate > 0
       ? input.monthlyRate
-      : calculateVisitPrice(tier, input.homeSqft);
+      : calculateVisitPrice(tier, input.homeSqft, pricingOpts);
   const annualRate = calculateAnnualFromVisits(tier, visitRate);
-  const biannualVisit = calculateVisitPrice("biannual", input.homeSqft);
-  const quarterlyVisit = calculateVisitPrice("quarterly", input.homeSqft);
+  const biannualVisit = calculateVisitPrice("biannual", input.homeSqft, pricingOpts);
+  const quarterlyVisit = calculateVisitPrice(
+    "quarterly",
+    input.homeSqft,
+    pricingOpts,
+  );
   const upgrade = quarterlyUpgradeMath(biannualVisit, quarterlyVisit);
 
   const retailValue =

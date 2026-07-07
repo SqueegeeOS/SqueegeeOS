@@ -51,3 +51,15 @@ export function careFrequencyToPresentationTier(
 ): "quarterly" | "biannual" {
   return frequency === "quarterly" ? "quarterly" : "biannual";
 }
+
+/** Care Plan Builder quotes only — not field-prep pricing flags. */
+export function isCarePlanQuoteSnapshot(
+  snapshot: PresentationQuoteSnapshot | null | undefined,
+): snapshot is PresentationQuoteSnapshot {
+  return !!(
+    snapshot &&
+    snapshot.totalEstimate > 0 &&
+    snapshot.windowCareVisitPrice > 0 &&
+    snapshot.exteriorAddOnQuote
+  );
+}
