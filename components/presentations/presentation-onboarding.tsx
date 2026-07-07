@@ -107,6 +107,20 @@ export function PresentationOnboarding({
   );
   const [onboardingStatus, setOnboardingStatus] =
     useState<PresentationOnboardingStatus | null>(presentation.onboardingStatus);
+  const [portalUrl, setPortalUrl] = useState<string | null>(null);
+
+  const refreshPortalUrl = async () => {
+    try {
+      const res = await fetch(
+        `/api/membership/onboarding-status?presentationId=${presentation.id}`,
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as { portalUrl?: string | null };
+      if (data.portalUrl) setPortalUrl(data.portalUrl);
+    } catch {
+      // Portal link is optional when cloud persistence is unavailable.
+    }
+  };
 
   const goToStep = (next: OnboardingStep) => {
     stepRef.current = next;
@@ -137,6 +151,13 @@ export function PresentationOnboarding({
       saveOnboardingStep(presentation.id, step);
     }
   }, [presentation.id, step]);
+
+  useEffect(() => {
+    if (step === "welcome" || step === "complete") {
+      void refreshPortalUrl();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, presentation.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -251,6 +272,7 @@ export function PresentationOnboarding({
         homeownerId?: string;
         propertyId?: string;
         onboardingStatus?: PresentationOnboardingStatus;
+        portalUrl?: string | null;
         error?: string;
       } | null;
 
@@ -279,6 +301,9 @@ export function PresentationOnboarding({
 
       if (signBody.membershipId) {
         setMembershipId(signBody.membershipId);
+      }
+      if (signBody.portalUrl) {
+        setPortalUrl(signBody.portalUrl);
       }
       setOnboardingStatus(signBody.onboardingStatus ?? "pending_payment");
       goToStep("welcome");
@@ -431,6 +456,15 @@ export function PresentationOnboarding({
             >
               Continue to payment method
             </button>
+
+            {portalUrl ? (
+              <a
+                href={portalUrl}
+                className="mt-4 flex w-full min-h-[48px] items-center justify-center rounded-lg border border-white/20 py-4 text-sm font-medium text-[#f5f2eb] transition hover:border-white/40"
+              >
+                Open my home portal
+              </a>
+            ) : null}
           </div>
         ) : null}
 
@@ -489,10 +523,21 @@ export function PresentationOnboarding({
               {MEMBERSHIP_CONFIRMATION_PHILOSOPHY}
             </p>
 
+            {portalUrl ? (
+              <a
+                href={portalUrl}
+                className="mt-8 flex w-full min-h-[52px] items-center justify-center rounded-lg bg-gradient-to-br from-accent to-[#e8d5a3] py-4 text-sm font-bold text-[#060606]"
+              >
+                Open my home portal
+              </a>
+            ) : null}
+
             <button
               type="button"
               onClick={handleDone}
-              className="mt-8 w-full rounded-lg border border-white/20 py-4 text-sm font-medium text-[#f5f2eb] transition hover:border-white/40"
+              className={`w-full rounded-lg border border-white/20 py-4 text-sm font-medium text-[#f5f2eb] transition hover:border-white/40 ${
+                portalUrl ? "mt-4" : "mt-8"
+              }`}
             >
               Done
             </button>

@@ -24,6 +24,8 @@ interface MemberPortalPageClientProps {
   propertySlug: string;
   homeHealth?: CustomerHealthView | null;
   homeHealthHref?: string;
+  portalBasePath?: string;
+  customerPortalMode?: "token" | "slug";
 }
 
 export function MemberPortalPageClient({
@@ -33,6 +35,8 @@ export function MemberPortalPageClient({
   propertySlug,
   homeHealth = null,
   homeHealthHref,
+  portalBasePath,
+  customerPortalMode = "slug",
 }: MemberPortalPageClientProps) {
   return (
     <MembershipUnlockProvider>
@@ -43,6 +47,8 @@ export function MemberPortalPageClient({
         propertySlug={propertySlug}
         homeHealth={homeHealth}
         homeHealthHref={homeHealthHref}
+        portalBasePath={portalBasePath}
+        customerPortalMode={customerPortalMode}
       />
     </MembershipUnlockProvider>
   );
@@ -55,6 +61,8 @@ function MemberPortalWithCeremony({
   propertySlug,
   homeHealth = null,
   homeHealthHref,
+  portalBasePath,
+  customerPortalMode = "slug",
 }: MemberPortalPageClientProps) {
   const [fromUnlock, setFromUnlock] = useState(false);
   const [showCeremony, setShowCeremony] = useState(false);
@@ -100,6 +108,11 @@ function MemberPortalWithCeremony({
         fromUnlock={fromUnlock}
         homeHealth={homeHealth}
         homeHealthHref={homeHealthHref}
+        portalBasePath={
+          portalBasePath ??
+          `/homecare/${homeownerSlug}/${propertySlug}/portal`
+        }
+        customerPortalMode={customerPortalMode}
       />
     </>
   );

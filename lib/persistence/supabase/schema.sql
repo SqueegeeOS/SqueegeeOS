@@ -74,6 +74,7 @@ create table if not exists memberships (
   started_at timestamptz,
   founding_member boolean not null default false,
   founding_member_since timestamptz,
+  portal_access_token text,
   cancelled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

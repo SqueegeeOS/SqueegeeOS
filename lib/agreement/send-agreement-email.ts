@@ -1,5 +1,7 @@
 import type { AgreementEmailResult } from "./agreement-email-types";
 import { normalizeEmail } from "./resolve-member-email";
+import { CUSTOMER_BRAND } from "@/lib/brand/customer";
+import { PLATFORM_BRAND } from "@/lib/brand/platform";
 
 export interface SendAgreementEmailInput {
   to: string;
@@ -9,6 +11,8 @@ export interface SendAgreementEmailInput {
   /** Raw PDF bytes — used as Resend attachment when pdfUrl is not email-safe */
   pdfBytes?: Uint8Array;
   fileName?: string;
+  /** Private member portal magic link — never use slug URLs in customer email */
+  portalUrl?: string | null;
 }
 
 function pdfBytesFromDataUrl(dataUrl: string): Uint8Array | null {
@@ -55,7 +59,7 @@ export async function sendAgreementEmail(
 
   const from =
     process.env.RESEND_AGREEMENT_FROM?.trim() ??
-    "HomeAtlas <onboarding@resend.dev>";
+    `${CUSTOMER_BRAND.name} <onboarding@resend.dev>`;
 
   if (!process.env.RESEND_AGREEMENT_FROM?.trim()) {
     console.warn(
@@ -82,30 +86,47 @@ export async function sendAgreementEmail(
     };
   }
 
+  const emailBodyIntro = `Thanks for joining ${CUSTOMER_BRAND.name}'s ${PLATFORM_BRAND.name} membership experience, ${input.name}.`;
+  const emailFooter = `${CUSTOMER_BRAND.name} · ${CUSTOMER_BRAND.location}<br/>Powered by ${PLATFORM_BRAND.name}`;
+  const portalBlock = input.portalUrl
+    ? `
+          <p style="margin-top: 28px;">
+            <a href="${input.portalUrl}" style="display: inline-block; padding: 14px 24px; background: #1a1a1a; color: #f5f2eb; text-decoration: none; border-radius: 8px; font-size: 14px;">
+              Open your ${PLATFORM_BRAND.name} portal
+            </a>
+          </p>
+          <p style="color: #666; font-size: 12px; margin-top: 12px;">
+            Save this link — it is your private access to your home&apos;s care record.
+          </p>
+        `
+    : "";
+
   const payload: Record<string, unknown> = {
     from,
     to: recipient,
-    subject: "Your HomeAtlas Membership Agreement",
+    subject: `${CUSTOMER_BRAND.name} Membership Agreement`,
     html: useAttachment
       ? `
         <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
-          <h2>Welcome to HomeAtlas, ${input.name}.</h2>
+          <h2>${emailBodyIntro}</h2>
           <p>Your ${input.tier} membership agreement has been signed.</p>
           <p>Your signed agreement is attached to this email for your records.</p>
+          ${portalBlock}
           <p style="color: #666; font-size: 13px;">
-            HomeAtlas · Premium Home Services<br/>
+            ${emailFooter}<br/>
             Questions? Reply to this email.
           </p>
         </div>
       `
       : `
         <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
-          <h2>Welcome to HomeAtlas, ${input.name}.</h2>
+          <h2>${emailBodyIntro}</h2>
           <p>Your ${input.tier} membership agreement has been signed.</p>
           <p>Keep this link for your records:</p>
           <p><a href="${input.pdfUrl}">Download your signed agreement</a></p>
+          ${portalBlock}
           <p style="color: #666; font-size: 13px;">
-            HomeAtlas · Premium Home Services<br/>
+            ${emailFooter}<br/>
             Questions? Reply to this email.
           </p>
         </div>

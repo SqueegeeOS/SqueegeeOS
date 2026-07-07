@@ -214,9 +214,9 @@ function buildPropertyRecord(row: PropertyRow, memberProfileId: string): Propert
     zillowUrl: row.zillow_url,
     photos: [],
     details: row.property_details ?? {},
-    serviceNotes: row.service_notes ?? [],
-    preferredProducts: row.preferred_products ?? [],
-    accessInstructions: row.access_instructions,
+    serviceNotes: [],
+    preferredProducts: [],
+    accessInstructions: null,
   };
 }
 
@@ -245,7 +245,7 @@ export async function getMemberPortalDataBySlugs(
   const { data: property, error: propertyError } = await supabase
     .from("properties")
     .select(
-      "id, homeowner_id, slug, name, address, city, state, zip, square_feet, zillow_url, property_details, access_instructions, service_notes, preferred_products",
+      "id, homeowner_id, slug, name, address, city, state, zip, square_feet, zillow_url, property_details",
     )
     .eq("homeowner_id", homeownerRow.id)
     .eq("slug", propertySlug)

@@ -17,6 +17,10 @@ import {
 import {
   resolveFoundingMemberFields,
 } from "@/lib/membership/founding-member";
+import {
+  buildPortalAccessUrl,
+  generatePortalAccessToken,
+} from "@/lib/membership/portal-access";
 import type { MembershipSalesTier } from "@/lib/persistence/types/membership";
 import {
   firstNameFromFullName,
@@ -52,6 +56,7 @@ export interface CompleteSignOnboardingResult {
   /** @deprecated use email.status === "sent" */
   emailSent: boolean;
   onboardingStatus: "pending_payment";
+  portalUrl: string | null;
 }
 
 export function buildMembershipPricingFields(input: {
@@ -155,6 +160,16 @@ export async function completeSignOnboarding(
 
   const founding = resolveFoundingMemberFields(input.signedAt);
 
+  const { data: existingMembership } = await supabase
+    .from("memberships")
+    .select("portal_access_token")
+    .eq("property_id", property.id)
+    .maybeSingle();
+
+  const portalAccessToken =
+    (existingMembership?.portal_access_token as string | null | undefined) ??
+    generatePortalAccessToken();
+
   const { data: membership, error: membershipError } = await supabase
     .from("memberships")
     .upsert(
@@ -175,6 +190,7 @@ export async function completeSignOnboarding(
         started_at: input.signedAt,
         founding_member: founding.foundingMember,
         founding_member_since: founding.foundingMemberSince,
+        portal_access_token: portalAccessToken,
       },
       { onConflict: "property_id" },
     )
@@ -188,6 +204,7 @@ export async function completeSignOnboarding(
   }
 
   const membershipId = membership.id as string;
+  const portalUrl = buildPortalAccessUrl(portalAccessToken);
 
   const pdfBytes = await generateSignedPDF({
     memberName: presentation.clientName,
@@ -302,6 +319,7 @@ export async function completeSignOnboarding(
       tier: input.planName,
       pdfBytes,
       fileName: storedPdf.fileName,
+      portalUrl,
     });
   } else {
     console.warn("[onboarding] agreement email skipped — no customer email on presentation", {
@@ -320,5 +338,6 @@ export async function completeSignOnboarding(
     email,
     emailSent: email.status === "sent",
     onboardingStatus: "pending_payment",
+    portalUrl,
   };
 }

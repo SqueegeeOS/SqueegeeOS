@@ -3,6 +3,7 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 
 export async function GET(req: NextRequest) {
   if (!isSupabaseConfigured()) {
@@ -46,6 +47,7 @@ export async function GET(req: NextRequest) {
     }
 
     let membershipStatus: string | null = null;
+    let portalUrl: string | null = null;
     if (presentation.membership_id) {
       const { data: membership } = await supabase
         .from("memberships")
@@ -54,6 +56,12 @@ export async function GET(req: NextRequest) {
         .maybeSingle();
 
       membershipStatus = membership?.status ?? null;
+      if (membership?.id) {
+        portalUrl = await getPortalAccessUrlForMembership(
+          membership.id,
+          req.nextUrl.origin,
+        );
+      }
     }
 
     const signed =
@@ -72,6 +80,7 @@ export async function GET(req: NextRequest) {
       onboardingIncomplete:
         presentation.onboarding_status === "pending_payment" ||
         membershipStatus === "pending_payment",
+      portalUrl,
     });
   } catch (error) {
     const message =

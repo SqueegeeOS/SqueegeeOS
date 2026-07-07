@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadMembershipForPayment } from "@/lib/membership/load-membership-for-payment";
+import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import {
   createServerSupabaseClient,
   isSupabaseConfigured,
@@ -52,6 +53,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (membership.status === "active" && membership.payment_setup_completed_at) {
+      const portalUrl = await getPortalAccessUrlForMembership(
+        membership.id,
+        req.nextUrl.origin,
+      );
       return NextResponse.json({
         membershipId: membership.id,
         presentationId: membership.presentation_id,
@@ -59,6 +64,7 @@ export async function POST(req: NextRequest) {
         onboardingStatus: "complete",
         mode: isStripeServerEnabled() ? "stripe" : "mock",
         alreadyActive: true,
+        portalUrl,
       });
     }
 
@@ -168,6 +174,11 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const portalUrl = await getPortalAccessUrlForMembership(
+      membership.id,
+      req.nextUrl.origin,
+    );
+
     return NextResponse.json({
       membershipId: membership.id,
       presentationId: resolvedPresentationId,
@@ -175,6 +186,7 @@ export async function POST(req: NextRequest) {
       onboardingStatus: "complete",
       paymentSetupCompletedAt: now,
       mode: stripeEnabled ? "stripe" : "mock",
+      portalUrl,
     });
   } catch (error) {
     const message =

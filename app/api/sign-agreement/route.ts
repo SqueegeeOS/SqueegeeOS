@@ -159,6 +159,7 @@ export async function POST(req: NextRequest) {
         emailRecipient: result.email.recipient ?? null,
         emailDeliveryMode: result.email.deliveryMode ?? null,
         onboardingStatus: result.onboardingStatus,
+        portalUrl: result.portalUrl,
       });
     }
 

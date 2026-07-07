@@ -2,19 +2,21 @@ import type { Metadata } from "next";
 import {
   MemberPortalNotFound,
   MemberPortalPageClient,
-} from "./member-portal-page-client";
-import { loadMemberPortalPageBySlugs } from "@/lib/membership/load-member-portal-page";
+} from "@/app/homecare/[homeownerSlug]/[propertySlug]/portal/member-portal-page-client";
+import { loadMemberPortalPageByToken } from "@/lib/membership/load-member-portal-page";
 
-interface MemberPortalPageProps {
-  params: Promise<{
-    homeownerSlug: string;
-    propertySlug: string;
-  }>;
+export const metadata: Metadata = {
+  title: "Member Portal",
+  robots: { index: false, follow: false },
+};
+
+interface TokenPortalPageProps {
+  params: Promise<{ token: string }>;
 }
 
-export default async function MemberPortalPage({ params }: MemberPortalPageProps) {
-  const { homeownerSlug, propertySlug } = await params;
-  const model = await loadMemberPortalPageBySlugs(homeownerSlug, propertySlug);
+export default async function TokenPortalPage({ params }: TokenPortalPageProps) {
+  const { token } = await params;
+  const model = await loadMemberPortalPageByToken(token);
 
   if (!model) {
     return <MemberPortalNotFound />;

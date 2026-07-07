@@ -46,6 +46,8 @@ interface MemberPortalExperienceProps {
   fromUnlock?: boolean;
   homeHealth?: CustomerHealthView | null;
   homeHealthHref?: string;
+  portalBasePath?: string;
+  customerPortalMode?: "token" | "slug";
 }
 
 function PortalCard({
@@ -108,6 +110,8 @@ export function MemberPortalExperience({
   fromUnlock = false,
   homeHealth = null,
   homeHealthHref,
+  portalBasePath,
+  customerPortalMode = "slug",
 }: MemberPortalExperienceProps) {
   const planPath = `/homecare/${data.homeowner.slug}/${data.property.slug}/plan`;
   const reduceMotion = useReducedMotion();
@@ -134,9 +138,12 @@ export function MemberPortalExperience({
         isActive: membershipActive,
       })
     : null;
-  const portalPath = `/homecare/${data.homeowner.slug}/${data.property.slug}/portal`;
+  const resolvedPortalPath =
+    portalBasePath ??
+    `/homecare/${data.homeowner.slug}/${data.property.slug}/portal`;
   const resolvedHomeHealthHref =
-    homeHealthHref ?? `${portalPath}/home-health`;
+    homeHealthHref ?? `${resolvedPortalPath}/home-health`;
+  const showInternalPlanLink = customerPortalMode === "slug";
   const returningMember = !fromUnlock;
   const foundingDisplay = resolveFoundingMemberDisplay(portalData);
   const isFoundingMember = Boolean(foundingDisplay);
@@ -212,7 +219,7 @@ export function MemberPortalExperience({
               <FoundingMemberHonor display={foundingDisplay} variant="compact" />
             )}
             <MembershipActiveBadge variant="hero" />
-            {liveData && (
+            {liveData && customerPortalMode === "slug" && (
               <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300/90">
                 Live
               </span>
@@ -307,7 +314,7 @@ export function MemberPortalExperience({
         {walletCard && (
           <MemberWalletCard
             data={walletCard}
-            portalUrl={portalPath}
+            portalUrl={resolvedPortalPath}
             foundingDisplay={foundingDisplay}
             entranceDelay={entranceBase + (returningMember ? 0.35 : 0.28)}
           />
@@ -333,7 +340,9 @@ export function MemberPortalExperience({
           entranceDelay={entranceBase + 0.5}
         />
 
-        {portalData?.observations && portalData.observations.length > 0 && (
+        {customerPortalMode === "slug" &&
+          portalData?.observations &&
+          portalData.observations.length > 0 && (
           <MemberFieldNotes
             observations={portalData.observations}
             entranceDelay={entranceBase + 0.6}
@@ -341,18 +350,20 @@ export function MemberPortalExperience({
         )}
 
         <div className="mt-10 space-y-4">
-          <PortalCard href={planPath} index={0} fromUnlock={fromUnlock}>
-            <span className="font-serif text-lg font-light">
-              Your Home Care Plan
-            </span>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-accent">
-              View
-            </span>
-          </PortalCard>
+          {showInternalPlanLink && (
+            <PortalCard href={planPath} index={0} fromUnlock={fromUnlock}>
+              <span className="font-serif text-lg font-light">
+                Your Home Care Plan
+              </span>
+              <span className="text-[10px] uppercase tracking-[0.18em] text-accent">
+                View
+              </span>
+            </PortalCard>
+          )}
 
           <PortalCard
             href={resolvedHomeHealthHref}
-            index={1}
+            index={showInternalPlanLink ? 1 : 0}
             fromUnlock={fromUnlock}
           >
             <span className="font-serif text-lg font-light">Home Health</span>
@@ -361,7 +372,7 @@ export function MemberPortalExperience({
             </span>
           </PortalCard>
 
-          <PortalCard index={2} comingSoon fromUnlock={fromUnlock}>
+          <PortalCard index={showInternalPlanLink ? 2 : 1} comingSoon fromUnlock={fromUnlock}>
             <span className="font-serif text-lg font-light text-muted">
               Documents & Agreements
             </span>
