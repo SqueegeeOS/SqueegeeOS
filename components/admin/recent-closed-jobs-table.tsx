@@ -1,6 +1,7 @@
 "use client";
 
 import type { ClosedJob } from "@/lib/admin/closed-jobs-types";
+import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 import {
   formatCurrency,
   formatDisplayDate,
@@ -46,7 +47,9 @@ export function RecentClosedJobsTable({
               className="border-b border-border/40 text-foreground/90 last:border-0"
             >
               <td className="py-4 pr-4 align-top font-medium text-foreground">
-                {job.customerName}
+                <CustomerWorkspaceLink type="closed-job" id={job.id}>
+                  {job.customerName}
+                </CustomerWorkspaceLink>
               </td>
               <td className="py-4 pr-4 align-top text-muted">
                 {job.serviceCategory}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { markRequestsInboxOpened } from "@/lib/admin/requests-inbox-read-state";
@@ -18,6 +19,7 @@ import {
 } from "@/lib/acquisition/leads/inbox";
 import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
 import { ROUTES } from "@/lib/navigation/config";
+import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 
 const FILTERS: Array<{ id: LeadIntakeFilter; label: string }> = [
   { id: "new", label: "New" },
@@ -211,12 +213,18 @@ export function PendingRequestsInbox() {
                     <tr
                       key={lead.id}
                       onClick={() =>
-                        router.push(`${ROUTES.hqPendingRequests}/${lead.id}`)
+                        router.push(customerWorkspaceHref("lead", lead.id))
                       }
                       className="cursor-pointer border-b border-border/30 last:border-0 hover:bg-surface/20"
                     >
                       <td className="px-4 py-4 align-top font-medium text-foreground">
-                        {lead.name}
+                        <CustomerWorkspaceLink
+                          type="lead"
+                          id={lead.id}
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {lead.name}
+                        </CustomerWorkspaceLink>
                       </td>
                       <td className="max-w-[12rem] px-4 py-4 align-top text-muted">
                         {lead.serviceAddress}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { HQAssessmentTimeline } from "@/components/hq/HQAssessmentTimeline";
+import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 import {
   listStaffAssessments,
 } from "@/lib/health/assessment-repository";
@@ -40,16 +41,32 @@ export default async function PropertyHealthPage({
           {property?.address ?? "Property"}
         </h1>
         {property?.customerName && (
-          <p className="mt-0.5 text-sm text-[#444]">{property.customerName}</p>
+          <p className="mt-0.5 text-sm text-[#444]">
+            <CustomerWorkspaceLink
+              type="property"
+              id={id}
+              className="text-[#888] hover:text-[#c9a96e]"
+            >
+              {property.customerName}
+            </CustomerWorkspaceLink>
+          </p>
         )}
       </div>
 
-      <Link
-        href={`/tech/properties/${id}/assessment`}
-        className="mb-8 inline-block rounded-lg border border-[#333] px-4 py-2 text-xs text-[#888] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
-      >
-        + Record Assessment
-      </Link>
+      <div className="mb-8 flex flex-wrap items-center gap-3">
+        <Link
+          href={`/hq/customers/property/${id}`}
+          className="inline-block rounded-lg border border-[#333] px-4 py-2 text-xs text-[#888] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
+        >
+          Customer workspace
+        </Link>
+        <Link
+          href={`/tech/properties/${id}/assessment`}
+          className="inline-block rounded-lg border border-[#333] px-4 py-2 text-xs text-[#888] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
+        >
+          + Record Assessment
+        </Link>
+      </div>
 
       {hasRecords ? (
         <HQAssessmentTimeline
