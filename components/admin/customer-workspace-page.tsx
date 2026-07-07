@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { GlassCard } from "@/components/craft/glass-card";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
@@ -10,6 +11,7 @@ import {
   updateLeadIntakeStatusClient,
 } from "@/lib/acquisition/leads/inbox-client";
 import { formatLeadIntakeStatus } from "@/lib/acquisition/leads/inbox";
+import { craftEyebrow, craftInput, craftTextarea } from "@/lib/craft/tokens";
 import type { CustomerWorkspace, CustomerWorkspaceRefType } from "@/lib/hq/customer-workspace/types";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { ROUTES } from "@/lib/navigation/config";
@@ -18,15 +20,17 @@ import { formatTierPrice } from "@/lib/membership/tier-config";
 function Section({
   title,
   children,
+  index = 0,
 }: {
   title: string;
   children: React.ReactNode;
+  index?: number;
 }) {
   return (
-    <section className="rounded-2xl border border-border/30 bg-surface/20 px-5 py-5">
-      <h2 className="text-[10px] uppercase tracking-[0.22em] text-muted">{title}</h2>
-      <div className="mt-4 space-y-3 text-sm leading-relaxed">{children}</div>
-    </section>
+    <GlassCard as="section" tone="subtle" motion="rise" index={index}>
+      <h2 className={craftEyebrow}>{title}</h2>
+      <div className="mt-5 space-y-4 text-sm leading-relaxed">{children}</div>
+    </GlassCard>
   );
 }
 
@@ -195,8 +199,9 @@ export function CustomerWorkspacePage({
   };
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
-      <div className="mx-auto max-w-5xl">
+    <div className="craft-stage relative min-h-screen px-4 py-10 text-foreground sm:px-6">
+      <div className="craft-stage-warmth pointer-events-none absolute inset-0" aria-hidden />
+      <div className="relative mx-auto max-w-5xl">
         <HqFounderNav />
 
         <Link
@@ -212,21 +217,23 @@ export function CustomerWorkspacePage({
           <p className="mt-8 text-sm text-red-500">{error}</p>
         ) : workspace ? (
           <>
-            <header className="mt-6 mb-8">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-accent">
+            <header className="mt-8 mb-10">
+              <p className="text-[10px] uppercase tracking-[0.24em] text-accent">
                 Customer workspace · {workspace.stageLabel}
               </p>
-              <h1 className="mt-2 font-serif text-3xl font-light sm:text-4xl">
+              <h1 className="mt-3 font-serif text-3xl font-light tracking-[-0.02em] sm:text-4xl">
                 {workspace.headline}
               </h1>
               {workspace.subheadline ? (
-                <p className="mt-2 text-sm text-muted">{workspace.subheadline}</p>
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
+                  {workspace.subheadline}
+                </p>
               ) : null}
             </header>
 
             {error ? <p className="mb-4 text-sm text-red-500">{error}</p> : null}
 
-            <div className="mb-8 flex flex-wrap gap-2">
+            <div className="mb-10 flex flex-wrap gap-2.5">
               {workspace.actions.map((action) => (
                 <Link
                   key={action.id}
@@ -291,7 +298,7 @@ export function CustomerWorkspacePage({
               ) : null}
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-2">
               <Section title="Contact">
                 <label className="block">
                   <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
@@ -300,7 +307,7 @@ export function CustomerWorkspacePage({
                   <input
                     value={draft.name}
                     onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                    className={`mt-1.5 ${craftInput}`}
                   />
                 </label>
                 <label className="block">
@@ -310,7 +317,7 @@ export function CustomerWorkspacePage({
                   <input
                     value={draft.email}
                     onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                    className={`mt-1.5 ${craftInput}`}
                   />
                 </label>
                 <label className="block">
@@ -320,7 +327,7 @@ export function CustomerWorkspacePage({
                   <input
                     value={draft.phone}
                     onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
-                    className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                    className={`mt-1.5 ${craftInput}`}
                   />
                 </label>
                 {workspace.contact.preferredContact ? (
@@ -344,7 +351,7 @@ export function CustomerWorkspacePage({
                         onChange={(e) =>
                           setDraft((d) => ({ ...d, address: e.target.value }))
                         }
-                        className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                        className={`mt-1.5 ${craftInput}`}
                       />
                     </label>
                     <div className="grid grid-cols-3 gap-2">
@@ -357,7 +364,7 @@ export function CustomerWorkspacePage({
                           onChange={(e) =>
                             setDraft((d) => ({ ...d, city: e.target.value }))
                           }
-                          className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                          className={`mt-1.5 ${craftInput}`}
                         />
                       </label>
                       <label className="block">
@@ -369,7 +376,7 @@ export function CustomerWorkspacePage({
                           onChange={(e) =>
                             setDraft((d) => ({ ...d, state: e.target.value }))
                           }
-                          className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                          className={`mt-1.5 ${craftInput}`}
                         />
                       </label>
                       <label className="block">
@@ -381,7 +388,7 @@ export function CustomerWorkspacePage({
                           onChange={(e) =>
                             setDraft((d) => ({ ...d, zip: e.target.value }))
                           }
-                          className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                          className={`mt-1.5 ${craftInput}`}
                         />
                       </label>
                     </div>
@@ -394,7 +401,7 @@ export function CustomerWorkspacePage({
                         onChange={(e) =>
                           setDraft((d) => ({ ...d, squareFeet: e.target.value }))
                         }
-                        className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                        className={`mt-1.5 ${craftInput}`}
                       />
                     </label>
                   </>
@@ -409,7 +416,7 @@ export function CustomerWorkspacePage({
                         onChange={(e) =>
                           setDraft((d) => ({ ...d, address: e.target.value }))
                         }
-                        className="mt-1 w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                        className={`mt-1.5 ${craftInput}`}
                       />
                     </label>
                     {workspace.lead?.squareFootage ? (
@@ -542,7 +549,7 @@ export function CustomerWorkspacePage({
                   value={draft.notes}
                   onChange={(e) => setDraft((d) => ({ ...d, notes: e.target.value }))}
                   rows={5}
-                  className="w-full rounded-xl border border-border/40 bg-background px-3 py-2"
+                  className={craftTextarea}
                 />
                 <button
                   type="button"

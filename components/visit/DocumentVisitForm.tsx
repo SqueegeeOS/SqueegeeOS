@@ -3,6 +3,13 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import {
+  craftEyebrow,
+  craftGhostLink,
+  craftInput,
+  craftPrimaryButton,
+  craftTextarea,
+} from "@/lib/craft/tokens";
 import type {
   AssessmentFormState,
   RecommendedService,
@@ -148,43 +155,47 @@ export function DocumentVisitForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="space-y-7">
       <header>
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-[#555]">
+        <p className={craftEyebrow}>
           {mode === "tech" ? "Document visit" : "HQ · Document visit"}
         </p>
-        <h1 className="font-serif text-2xl text-white">{propertyName}</h1>
+        <h1 className="mt-3 font-serif text-2xl font-light tracking-[-0.02em] text-white sm:text-3xl">
+          {propertyName}
+        </h1>
         {propertyAddress ? (
-          <p className="mt-1 text-sm text-[#666]">{propertyAddress}</p>
+          <p className="mt-2 text-sm leading-relaxed text-foreground/55">
+            {propertyAddress}
+          </p>
         ) : null}
       </header>
 
       <label className="block">
-        <span className="mb-2 block text-[10px] uppercase tracking-widest text-[#555]">
+        <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
           Your name
         </span>
         <input
           value={technicianName}
           onChange={(event) => setTechnicianName(event.target.value)}
           placeholder="Technician name"
-          className="w-full rounded-xl border border-[#222] bg-[#111] px-4 py-3 text-sm text-white outline-none placeholder:text-[#444] focus:border-[#c9a96e44]"
+          className={craftInput}
         />
       </label>
 
       <label className="block">
-        <span className="mb-2 block text-[10px] uppercase tracking-widest text-[#555]">
+        <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
           Visit date
         </span>
         <input
           type="date"
           value={visitDate}
           onChange={(event) => setVisitDate(event.target.value)}
-          className="w-full rounded-xl border border-[#222] bg-[#111] px-4 py-3 text-sm text-white outline-none focus:border-[#c9a96e44]"
+          className={craftInput}
         />
       </label>
 
       <label className="block">
-        <span className="mb-2 block text-[10px] uppercase tracking-widest text-[#555]">
+        <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
           {mode === "tech" ? "Visit note" : "Short note"}
         </span>
         <textarea
@@ -196,14 +207,14 @@ export function DocumentVisitForm({
               : "Brief visit summary for the property record."
           }
           rows={mode === "tech" ? 5 : 4}
-          className="w-full resize-none rounded-xl border border-[#222] bg-[#111] px-4 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-[#444] focus:border-[#c9a96e44]"
+          className={craftTextarea}
         />
       </label>
 
       {mode === "founder" ? (
         <>
           <label className="block">
-            <span className="mb-2 block text-[10px] uppercase tracking-widest text-[#555]">
+            <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
               Customer-visible summary (optional)
             </span>
             <textarea
@@ -211,12 +222,12 @@ export function DocumentVisitForm({
               onChange={(event) => setCustomerSummary(event.target.value)}
               placeholder="What the homeowner should see in their portal."
               rows={3}
-              className="w-full resize-none rounded-xl border border-[#222] bg-[#111] px-4 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-[#444] focus:border-[#c9a96e44]"
+              className={craftTextarea}
             />
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-[10px] uppercase tracking-widest text-[#555]">
+            <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
               Internal note (optional)
             </span>
             <textarea
@@ -224,13 +235,13 @@ export function DocumentVisitForm({
               onChange={(event) => setInternalNote(event.target.value)}
               placeholder="Founder-only context. Never shown in the customer portal."
               rows={3}
-              className="w-full resize-none rounded-xl border border-[#222] bg-[#111] px-4 py-3 text-sm leading-relaxed text-white outline-none placeholder:text-[#444] focus:border-[#c9a96e44]"
+              className={craftTextarea}
             />
           </label>
         </>
       ) : null}
 
-      <label className="flex items-start gap-3 rounded-xl border border-[#222] bg-[#111] px-4 py-3">
+      <label className="craft-glass-subtle flex items-start gap-3 rounded-[var(--radius-card)] p-4 shadow-[var(--shadow-ambient)]">
         <input
           type="checkbox"
           checked={followUpNeeded}
@@ -238,8 +249,8 @@ export function DocumentVisitForm({
           className="mt-1"
         />
         <span>
-          <span className="block text-sm text-white">Follow-up recommended</span>
-          <span className="mt-0.5 block text-xs text-[#666]">
+          <span className="block text-sm text-foreground">Follow-up recommended</span>
+          <span className="mt-1 block text-xs leading-relaxed text-muted">
             Flags this visit for a future recommendation or callback.
           </span>
         </span>
@@ -247,18 +258,11 @@ export function DocumentVisitForm({
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="flex min-h-[52px] w-full items-center justify-center rounded-2xl bg-[#c9a96e] px-6 text-base font-medium tracking-wide text-black transition-transform active:scale-[0.98] disabled:opacity-50"
-      >
+      <button type="submit" disabled={saving} className={`w-full ${craftPrimaryButton}`}>
         {saving ? "Saving…" : "Save visit memory"}
       </button>
 
-      <Link
-        href={cancelHref}
-        className="block text-center text-xs text-[#555] underline underline-offset-2 hover:text-[#c9a96e]"
-      >
+      <Link href={cancelHref} className={`block text-center ${craftGhostLink}`}>
         Cancel
       </Link>
     </form>

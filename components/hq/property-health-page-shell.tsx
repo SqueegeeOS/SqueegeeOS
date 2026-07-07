@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { AmbientStage } from "@/components/craft/ambient-stage";
+import { GlassCard } from "@/components/craft/glass-card";
+import { MotionReveal } from "@/components/craft/motion-reveal";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 import { HQAssessmentTimeline } from "@/components/hq/HQAssessmentTimeline";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { craftEyebrow, craftHeading, craftSecondaryButton } from "@/lib/craft/tokens";
 import { isAdminUnlocked } from "@/lib/admin/pin";
 import type { PropertyAssessment } from "@/lib/health/assessment-types";
 import type { PropertyHealthHeader } from "@/lib/health/repository";
@@ -49,15 +53,15 @@ function PropertyHealthContent({ propertyId }: { propertyId: string }) {
 
   if (loading) {
     return (
-      <div className="mx-auto min-h-screen max-w-3xl bg-[#0a0a0a] px-4 py-10 text-white">
-        <p className="text-sm text-[#666]">Loading property memory…</p>
+      <div className="mx-auto max-w-3xl px-4 py-14">
+        <p className="text-sm text-muted">Loading property memory…</p>
       </div>
     );
   }
 
   if (error || !data) {
     return (
-      <div className="mx-auto min-h-screen max-w-3xl bg-[#0a0a0a] px-4 py-10 text-white">
+      <div className="mx-auto max-w-3xl px-4 py-14">
         <p className="text-sm text-red-400">{error ?? "Property not found."}</p>
       </div>
     );
@@ -67,47 +71,45 @@ function PropertyHealthContent({ propertyId }: { propertyId: string }) {
   const hasRecords = assessments.length > 0 || legacyChecks.length > 0;
 
   return (
-    <div className="mx-auto min-h-screen max-w-3xl bg-[#0a0a0a] px-4 py-10 text-white">
-      <div className="mb-8">
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-[#444]">
-          HQ · Property Memory
-        </p>
-        <h1 className="font-serif text-2xl text-white">
+    <div className="mx-auto max-w-3xl px-4 py-12 sm:py-14">
+      <MotionReveal className="mb-10">
+        <p className={craftEyebrow}>HQ · Property Memory</p>
+        <h1 className={`${craftHeading} mt-3 text-2xl sm:text-3xl`}>
           {property?.address ?? "Property"}
         </h1>
         {property?.customerName ? (
-          <p className="mt-0.5 text-sm text-[#444]">
+          <p className="mt-2 text-sm text-muted">
             <CustomerWorkspaceLink
               type="property"
               id={propertyId}
-              className="text-[#888] hover:text-[#c9a96e]"
+              className="transition-colors hover:text-accent"
             >
               {property.customerName}
             </CustomerWorkspaceLink>
           </p>
         ) : null}
-      </div>
+      </MotionReveal>
 
-      <div className="mb-8 flex flex-wrap items-center gap-3">
+      <MotionReveal index={1} className="mb-10 flex flex-wrap items-center gap-2.5">
         <Link
           href={`/hq/properties/${propertyId}/visit`}
-          className="inline-block rounded-lg border border-[#c9a96e44] bg-[#c9a96e14] px-4 py-2 text-xs text-[#c9a96e] transition-colors hover:border-[#c9a96e]"
+          className={`${craftSecondaryButton} !min-h-[40px] !px-4 !text-[10px] !tracking-[0.16em] border-accent/25 bg-accent/10 text-accent hover:border-accent/40`}
         >
           Document visit
         </Link>
         <Link
           href={`/hq/customers/property/${propertyId}`}
-          className="inline-block rounded-lg border border-[#333] px-4 py-2 text-xs text-[#888] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
+          className={`${craftSecondaryButton} !min-h-[40px] !px-4 !text-[10px] !tracking-[0.16em]`}
         >
           Customer workspace
         </Link>
         <Link
           href={`/tech/properties/${propertyId}/assessment`}
-          className="inline-block rounded-lg border border-[#333] px-4 py-2 text-xs text-[#888] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
+          className={`${craftSecondaryButton} !min-h-[40px] !px-4 !text-[10px] !tracking-[0.16em]`}
         >
           + Record Assessment
         </Link>
-      </div>
+      </MotionReveal>
 
       {hasRecords ? (
         <HQAssessmentTimeline
@@ -115,11 +117,11 @@ function PropertyHealthContent({ propertyId }: { propertyId: string }) {
           legacyChecks={legacyChecks}
         />
       ) : (
-        <div className="rounded-2xl bg-[#111] px-6 py-12 text-center">
-          <p className="text-sm text-[#333]">
+        <GlassCard tone="subtle" motion="rise" className="px-6 py-14 text-center">
+          <p className="text-sm text-muted">
             No assessments recorded yet for this property.
           </p>
-        </div>
+        </GlassCard>
       )}
     </div>
   );
@@ -132,5 +134,9 @@ export function PropertyHealthPageShell({ propertyId }: { propertyId: string }) 
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
   }
 
-  return <PropertyHealthContent propertyId={propertyId} />;
+  return (
+    <AmbientStage className="text-white">
+      <PropertyHealthContent propertyId={propertyId} />
+    </AmbientStage>
+  );
 }

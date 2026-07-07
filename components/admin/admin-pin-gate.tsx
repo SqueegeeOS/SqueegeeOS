@@ -2,18 +2,20 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
+import { GlassCard } from "@/components/craft/glass-card";
+import { AmbientStage } from "@/components/craft/ambient-stage";
 import {
   ADMIN_PIN_ARCHITECTURE_NOTE,
   isAdminPrivateBeta,
 } from "@/lib/admin/config";
+import { craftInput, craftPrimaryButton } from "@/lib/craft/tokens";
 import {
   clearAdminSession,
   isAdminUnlocked,
   markAdminUnlocked,
   verifyAdminPin,
 } from "@/lib/admin/pin";
-
-const easeLuxury = [0.22, 1, 0.36, 1] as const;
+import { materialize } from "@/lib/motion/system";
 
 interface AdminPinGateProps {
   onUnlock: () => void;
@@ -56,15 +58,14 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
   };
 
   return (
-    <div className="relative flex min-h-[100svh] items-center justify-center overflow-hidden bg-background px-5 py-16">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(201,184,150,0.08),transparent_55%)]" />
-
+    <AmbientStage className="flex min-h-[100svh] items-center justify-center px-5 py-16">
       <motion.div
-        initial={reduceMotion ? false : { opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.9, ease: easeLuxury }}
-        className="relative w-full max-w-md rounded-[2rem] border border-border bg-surface/80 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl sm:p-10"
+        initial={reduceMotion ? false : "hidden"}
+        animate="visible"
+        variants={materialize}
+        className="relative w-full max-w-md"
       >
+        <GlassCard tone="elevated" padding="lg" className="sm:!p-10">
         <p className="text-[10px] uppercase tracking-[0.3em] text-accent">
           Owner Access
         </p>
@@ -75,7 +76,7 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
           Private access for Noah Thomas and Dasan Gramps.
         </p>
 
-        <p className="mt-6 rounded-2xl border border-accent/20 bg-accent/[0.05] px-4 py-3 text-xs leading-relaxed text-muted">
+        <p className="mt-6 craft-glass-subtle rounded-[1.1rem] px-4 py-3 text-xs leading-relaxed text-muted">
           {ADMIN_PIN_ARCHITECTURE_NOTE}
         </p>
 
@@ -95,7 +96,7 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
                 autoComplete="off"
                 value={pin}
                 onChange={(event) => setPin(event.target.value)}
-                className="w-full rounded-2xl border border-border bg-background px-4 py-3.5 text-base text-foreground placeholder:text-muted/50 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20"
+                className={craftInput}
                 placeholder="Enter PIN"
               />
             </div>
@@ -118,7 +119,7 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
           <button
             type="submit"
             disabled={submitting || (!privateBeta && pin.trim().length === 0)}
-            className="flex min-h-[52px] w-full items-center justify-center rounded-full border border-accent/30 bg-accent px-6 text-sm font-medium tracking-[0.12em] text-background transition-opacity hover:opacity-95 disabled:opacity-50"
+            className={`w-full ${craftPrimaryButton}`}
           >
             {privateBeta ? "Enter headquarters" : "Unlock headquarters"}
           </button>
@@ -134,7 +135,8 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
         >
           Return Home
         </button>
+        </GlassCard>
       </motion.div>
-    </div>
+    </AmbientStage>
   );
 }

@@ -119,4 +119,23 @@ export const staggerDepth = {
   },
 } satisfies Variants;
 
+export const pageEnter: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 10,
+    filter: "blur(4px)",
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    filter: "blur(0px)",
+    transition: spring.settle,
+  },
+};
+
+export const buttonPress = {
+  whileTap: { scale: 0.985 },
+  transition: spring.press,
+} as const;
+
 export const staggerItem = (index: number) => index * 0.05;

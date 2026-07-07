@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AmbientStage } from "@/components/craft/ambient-stage";
 import {
   listVisitMemory,
 } from "@/lib/health/assessment-repository";
@@ -7,6 +8,13 @@ import {
   getPropertyHealthHeader,
 } from "@/lib/health/repository";
 import { assessmentTypeLabel } from "@/lib/health/assessment-types";
+import {
+  craftEyebrow,
+  craftGhostLink,
+  craftHeading,
+  craftPrimaryButton,
+  craftSecondaryButton,
+} from "@/lib/craft/tokens";
 
 export const metadata: Metadata = {
   title: "Property Visit | Technician",
@@ -45,51 +53,48 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
   const latest = visits[0] ?? null;
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-8 pb-16">
+    <AmbientStage className="text-white">
+      <div className="mx-auto max-w-lg px-4 py-10 pb-20 sm:py-12">
       <Link
         href="/tech"
-        className="mb-6 inline-block text-[10px] uppercase tracking-widest text-[#555] hover:text-[#c9a96e]"
+        className={`mb-8 inline-block ${craftGhostLink} !text-[10px] !uppercase !tracking-[0.2em] !no-underline`}
       >
         ← All properties
       </Link>
 
-      <header className="mb-8">
-        <p className="mb-1 text-[10px] uppercase tracking-widest text-[#555]">
-          Today&apos;s visit
-        </p>
-        <h1 className="font-serif text-2xl text-white">{property.name}</h1>
-        <p className="mt-1 text-sm text-[#666]">{property.address}</p>
+      <header className="mb-10">
+        <p className={craftEyebrow}>Today&apos;s visit</p>
+        <h1 className={`${craftHeading} mt-3 text-2xl sm:text-3xl`}>{property.name}</h1>
+        <p className="mt-2 text-sm leading-relaxed text-foreground/55">{property.address}</p>
         {property.customerName && (
-          <p className="mt-1 text-xs text-[#444]">{property.customerName}</p>
+          <p className="mt-1 text-xs text-muted">{property.customerName}</p>
         )}
       </header>
 
       <Link
         href={`/tech/properties/${id}/visit`}
-        className="mb-3 flex min-h-[56px] items-center justify-center rounded-2xl bg-[#c9a96e] px-6 text-center text-base font-medium tracking-wide text-black transition-transform active:scale-[0.98]"
+        className={`mb-3 block w-full text-center ${craftPrimaryButton}`}
       >
         Document today&apos;s visit
       </Link>
 
       <Link
         href={`/tech/properties/${id}/assessment`}
-        className="mb-3 flex min-h-[48px] items-center justify-center rounded-2xl border border-[#333] px-6 text-center text-sm text-[#aaa] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
+        className={`mb-3 block w-full text-center ${craftSecondaryButton}`}
       >
         Full health assessment
       </Link>
 
       <Link
         href={`/tech/properties/${id}/assessment?mode=window_service`}
-        className="mb-8 block text-center text-xs text-[#555] underline underline-offset-2 hover:text-[#c9a96e]"
+        className={`mb-10 block text-center ${craftGhostLink}`}
       >
         Quick window check only (~2 min)
       </Link>
 
       {latest && (
-        <section className="mb-8 rounded-2xl border border-[#222] bg-[#111] px-5 py-5">
-          <p className="text-[10px] uppercase tracking-widest text-[#444]">
-            Latest care score
-          </p>
+        <section className="craft-glass-subtle mb-10 rounded-[var(--radius-card)] px-5 py-5 shadow-[var(--shadow-ambient)]">
+          <p className={craftEyebrow}>Latest care score</p>
           <p className="mt-2 font-serif text-4xl text-[#c9a96e]">
             {latest.overallScore ?? "—"}
             {latest.overallScore != null && (
@@ -113,7 +118,7 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
             {visits.map((visit) => (
               <li
                 key={visit.id}
-                className="rounded-xl border border-[#1a1a1a] bg-[#0d0d0d] px-4 py-3"
+                className="craft-glass-subtle rounded-[1.1rem] px-4 py-3.5 shadow-[var(--shadow-ambient)]"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -141,6 +146,7 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
           </p>
         )}
       </section>
-    </div>
+      </div>
+    </AmbientStage>
   );
 }

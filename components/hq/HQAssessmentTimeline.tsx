@@ -47,7 +47,7 @@ function AssessmentCard({ assessment }: { assessment: PropertyAssessment }) {
   const isVisitNote = assessment.assessmentType === "visit_note";
 
   return (
-    <div className="rounded-2xl bg-[#111] px-6 py-5">
+    <div className="craft-glass-subtle rounded-[var(--radius-card)] px-6 py-5 shadow-[var(--shadow-ambient)]">
       <div className="mb-5 flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-white">
@@ -154,7 +154,7 @@ function LegacyCheckCard({ check }: { check: PropertyHealthCheck }) {
   ];
 
   return (
-    <div className="rounded-2xl bg-[#111] px-6 py-5 opacity-90">
+    <div className="craft-glass-subtle rounded-[var(--radius-card)] px-6 py-5 opacity-90 shadow-[var(--shadow-ambient)]">
       <div className="mb-5 flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-white">

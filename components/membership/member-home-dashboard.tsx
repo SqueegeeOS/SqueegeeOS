@@ -4,8 +4,9 @@ import Link from "next/link";
 import { motion, useReducedMotion } from "framer-motion";
 import type { MemberHomeDashboardView } from "@/lib/membership/member-home-dashboard-data";
 import { formatTierPrice } from "@/lib/membership/tier-config";
-
-const easeLuxury = [0.16, 1, 0.3, 1] as const;
+import { GlassCard } from "@/components/craft/glass-card";
+import { craftEyebrow, craftHeading, craftPrimaryButton, craftSecondaryButton } from "@/lib/craft/tokens";
+import { pageEnter } from "@/lib/motion/system";
 
 function HealthBar({
   label,
@@ -37,17 +38,17 @@ function HealthBar({
 function DashboardPanel({
   title,
   children,
+  index = 0,
 }: {
   title: string;
   children: React.ReactNode;
+  index?: number;
 }) {
   return (
-    <section className="rounded-[1.35rem] border border-border/80 bg-surface/50 px-5 py-6 sm:px-7">
-      <h2 className="text-[10px] uppercase tracking-[0.28em] text-accent">
-        {title}
-      </h2>
-      <div className="mt-4">{children}</div>
-    </section>
+    <GlassCard as="section" tone="default" motion="rise" index={index}>
+      <h2 className={craftEyebrow}>{title}</h2>
+      <div className="mt-5">{children}</div>
+    </GlassCard>
   );
 }
 
@@ -62,17 +63,14 @@ export function MemberHomeDashboard({
 
   return (
     <motion.div
-      initial={reduceMotion ? false : { opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.95,
-        delay: reduceMotion ? 0 : entranceDelay,
-        ease: easeLuxury,
-      }}
-      className="space-y-4"
+      initial={reduceMotion ? false : "hidden"}
+      animate="visible"
+      variants={pageEnter}
+      transition={{ delay: reduceMotion ? 0 : entranceDelay }}
+      className="space-y-5"
     >
       <header>
-        <h1 className="font-serif text-3xl font-light text-foreground sm:text-4xl">
+        <h1 className={`${craftHeading} text-3xl sm:text-4xl`}>
           Welcome back, {dashboard.memberFirstName}.
         </h1>
       </header>
@@ -176,21 +174,21 @@ export function MemberHomeDashboard({
       >
         <Link
           href={dashboard.bookAddOnHref}
-          className="inline-flex min-h-[48px] items-center justify-center rounded-full bg-accent px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-background transition-opacity hover:opacity-90 touch-manipulation"
+          className={`${craftPrimaryButton} !min-h-[48px] !text-[10px] !uppercase !tracking-[0.14em] touch-manipulation`}
         >
           Book Add-On
         </Link>
         {dashboard.hasCompletedVisits && (
           <Link
             href={dashboard.viewHistoryHref}
-            className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-border bg-surface px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-foreground transition-colors hover:border-accent/35 touch-manipulation"
+            className={`${craftSecondaryButton} touch-manipulation`}
           >
             View History
           </Link>
         )}
         <Link
           href={dashboard.agreementHref}
-          className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-border bg-surface px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-foreground transition-colors hover:border-accent/35 touch-manipulation"
+          className={`${craftSecondaryButton} touch-manipulation`}
         >
           Your Agreement
         </Link>
