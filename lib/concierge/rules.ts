@@ -180,14 +180,19 @@ export const activeMembersRule: ConciergeRule = (input) => {
 };
 
 export const missionHighlightRule: ConciergeRule = (input) => {
+  if (input.missions.length === 0) return null;
+
   const top = input.missions[0];
-  if (!top) return null;
+  const body = input.missions
+    .slice(0, 4)
+    .map((mission) => mission.text)
+    .join(" ");
 
   return {
     id: `mission_${top.id}`,
     category: "operations",
-    title: "Current Mission",
-    body: top.text,
+    title: "Today's focus",
+    body,
     priority: 90,
   };
 };

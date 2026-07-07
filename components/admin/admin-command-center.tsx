@@ -49,7 +49,6 @@ import {
 } from "./headquarters-cloud-status";
 import { AdminCeoScoreboard } from "./admin-ceo-scoreboard";
 import { AdminCockpitSidebar } from "./admin-cockpit-sidebar";
-import { AdminCurrentMission } from "./admin-current-mission";
 import { AdminSection } from "./admin-section";
 import { ClosedJobsForm } from "./closed-jobs-form";
 import { MonthlySalesLedger } from "./monthly-sales-ledger";
@@ -275,10 +274,7 @@ export function AdminCommandCenter({
               <div className="space-y-14">
                 <MorningBriefSection brief={morningBrief} />
 
-                <div className="grid gap-14 lg:grid-cols-2 lg:gap-12">
-                  <AdminCurrentMission missions={missions} />
-                  <AdminCeoScoreboard scoreboard={scoreboard} />
-                </div>
+                <AdminCeoScoreboard scoreboard={scoreboard} />
 
                 <div
                   id="work"
