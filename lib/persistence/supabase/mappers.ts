@@ -63,12 +63,22 @@ export interface MembershipRow {
   homeowner_id: string;
   property_id: string;
   home_care_plan_id: string | null;
+  presentation_id: string | null;
+  agreement_id: string | null;
   plan_id: string;
   plan_name: string;
   price_display: string;
   billing_period: string;
+  sales_tier: string | null;
+  visit_price: number | null;
+  annual_rate: number | null;
+  visits_per_year: number | null;
+  billing_schedule: string;
+  next_billing_date: string | null;
+  payment_setup_completed_at: string | null;
   status: string;
   stripe_customer_id: string | null;
+  stripe_payment_method_id: string | null;
   stripe_subscription_id: string | null;
   stripe_price_id: string | null;
   started_at: string | null;
@@ -82,6 +92,7 @@ export interface SignedAgreementRow {
   homeowner_id: string | null;
   property_id: string | null;
   membership_id: string | null;
+  presentation_id: string | null;
   homeowner_slug: string;
   property_slug: string;
   homeowner_name: string;
@@ -184,12 +195,24 @@ export function membershipFromRow(row: MembershipRow): PersistedMembership {
     homeownerId: row.homeowner_id,
     propertyId: row.property_id,
     homeCarePlanId: row.home_care_plan_id,
+    presentationId: row.presentation_id,
+    agreementId: row.agreement_id,
     planId: row.plan_id as PersistedMembership["planId"],
     planName: row.plan_name,
     priceDisplay: row.price_display,
     billingPeriod: row.billing_period,
+    salesTier: row.sales_tier as PersistedMembership["salesTier"],
+    visitPrice: row.visit_price != null ? Number(row.visit_price) : null,
+    annualRate: row.annual_rate != null ? Number(row.annual_rate) : null,
+    visitsPerYear: row.visits_per_year,
+    billingSchedule:
+      (row.billing_schedule as PersistedMembership["billingSchedule"]) ??
+      "first_of_service_month",
+    nextBillingDate: row.next_billing_date,
+    paymentSetupCompletedAt: row.payment_setup_completed_at,
     status: row.status as PersistedMembership["status"],
     stripeCustomerId: row.stripe_customer_id,
+    stripePaymentMethodId: row.stripe_payment_method_id,
     stripeSubscriptionId: row.stripe_subscription_id,
     stripePriceId: row.stripe_price_id,
     startedAt: row.started_at,
@@ -207,6 +230,7 @@ export function signedAgreementFromRow(
     homeownerId: row.homeowner_id,
     propertyId: row.property_id,
     membershipId: row.membership_id,
+    presentationId: row.presentation_id,
     homeownerSlug: row.homeowner_slug,
     propertySlug: row.property_slug,
     homeownerName: row.homeowner_name,

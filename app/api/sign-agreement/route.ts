@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processSignAgreement } from "@/lib/agreement/process-sign-agreement";
-import { getPresentation, patchPresentation } from "@/lib/presentations/repository";
+import {
+  completeSignOnboarding,
+  SignOnboardingError,
+} from "@/lib/membership/complete-sign-onboarding";
+import { getPresentation } from "@/lib/presentations/repository";
 import { slugifyPresentation } from "@/lib/presentations/calculations";
 import {
   normalizeToSqueegeeKingTier,
@@ -14,15 +18,10 @@ import {
 import type { MembershipPlanId } from "@/lib/membership/types";
 import { isCarePlanQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
+import { visitRateFromPresentation } from "@/lib/presentations/calculations";
 
 function tierToPlanId(_tier: string): MembershipPlanId {
   return "preferred";
-}
-
-function isUuid(value: string): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-    value,
-  );
 }
 
 function isSignatureDataUrl(value: string): boolean {
@@ -52,8 +51,9 @@ export async function POST(req: NextRequest) {
       quoteSnapshot,
     } = body;
 
+    let presentation = null;
     if (presentationId) {
-      const presentation = await getPresentation(presentationId);
+      presentation = await getPresentation(presentationId);
       if (!presentation) {
         return NextResponse.json(
           { error: "Presentation not found" },
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
       planId = planId || tierToPlanId(agreementTier);
       planName =
         planName || planNameForAgreement(normalizeToSqueegeeKingTier(agreementTier));
-      monthlyPrice = monthlyPrice ?? presentation.monthlyRate;
+      monthlyPrice = monthlyPrice ?? visitRateFromPresentation(presentation);
       homeSqft = homeSqft ?? presentation.homeSqft;
       twoStory = twoStory ?? presentation.twoStory;
       includeScreens = includeScreens ?? presentation.includeScreens;
@@ -122,6 +122,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const visitPrice =
+      typeof monthlyPrice === "number" ? monthlyPrice : undefined;
+
+    if (presentation && !isOneTime && resolvedTier) {
+      const result = await completeSignOnboarding({
+        presentation,
+        agreementTier: resolvedTier,
+        visitPrice: visitPrice ?? visitRateFromPresentation(presentation),
+        signedAt,
+        signatureDataUrl,
+        planId: planId as MembershipPlanId,
+        planName,
+        homeownerSlug,
+        propertySlug,
+        memberEmail,
+        quoteSnapshot: quoteSnapshot as PresentationQuoteSnapshot | null | undefined,
+        ipAddress: req.headers.get("x-forwarded-for"),
+        userAgent: req.headers.get("user-agent"),
+      });
+
+      return NextResponse.json({
+        pdfUrl: result.pdfUrl,
+        agreementId: result.agreementId,
+        membershipId: result.membershipId,
+        homeownerId: result.homeownerId,
+        propertyId: result.propertyId,
+        emailSent: result.emailSent,
+        onboardingStatus: result.onboardingStatus,
+      });
+    }
+
     const result = await processSignAgreement({
       memberName,
       memberEmail,
@@ -132,8 +163,7 @@ export async function POST(req: NextRequest) {
       planName,
       signatureDataUrl,
       signedAt,
-      monthlyPrice:
-        typeof monthlyPrice === "number" ? monthlyPrice : undefined,
+      monthlyPrice: visitPrice,
       agreementTier: resolvedTier,
       agreementKind,
       homeSqft: typeof homeSqft === "number" ? homeSqft : undefined,
@@ -147,31 +177,25 @@ export async function POST(req: NextRequest) {
       userAgent: req.headers.get("user-agent"),
     });
 
-    if (presentationId && !isOneTime) {
-      try {
-        const presentationPatch: Parameters<typeof patchPresentation>[1] = {
-          status: "signed",
-          signedAt,
-          tier: resolvedTier ?? "quarterly",
-        };
-        if (isUuid(result.agreementId)) {
-          presentationPatch.agreementId = result.agreementId;
-        }
-        await patchPresentation(presentationId, presentationPatch);
-      } catch (patchError) {
-        console.warn(
-          "[sign-agreement] Presentation patch failed after signing:",
-          patchError,
-        );
-      }
-    }
-
     return NextResponse.json({
       pdfUrl: result.pdfUrl,
       agreementId: result.agreementId,
       emailSent: result.emailSent,
     });
   } catch (error) {
+    if (error instanceof SignOnboardingError) {
+      const status = error.partial?.agreementId ? 207 : 500;
+      return NextResponse.json(
+        {
+          error: error.message,
+          membershipId: error.partial?.membershipId,
+          agreementId: error.partial?.agreementId,
+          onboardingStatus: error.partial?.onboardingStatus,
+        },
+        { status },
+      );
+    }
+
     const message =
       error instanceof Error ? error.message : "Failed to process agreement";
     console.error("[sign-agreement] error:", error);

@@ -4,16 +4,19 @@ export interface SaveCardOnFileInput {
   memberName: string;
   memberEmail?: string | null;
   presentationId?: string;
+  membershipId?: string;
 }
 
 export interface SaveCardOnFileResult {
   saved: boolean;
   mode: "mock" | "live";
+  membershipId?: string;
+  onboardingStatus?: string;
 }
 
 /**
  * Saves a payment method on file for membership billing.
- * Mock mode simulates success until Stripe Setup / Checkout is wired.
+ * Mock mode activates membership via setup-payment — no raw card data is sent or stored.
  */
 export async function saveCardOnFile(
   input: SaveCardOnFileInput,
@@ -32,7 +35,33 @@ export async function saveCardOnFile(
     return { saved: true, mode: "live" };
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 900));
-  void input;
-  return { saved: true, mode: "mock" };
+  if (!input.presentationId && !input.membershipId) {
+    throw new Error("Missing presentation or membership reference");
+  }
+
+  const response = await fetch("/api/membership/setup-payment", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      presentationId: input.presentationId,
+      membershipId: input.membershipId,
+    }),
+  });
+
+  const body = (await response.json().catch(() => null)) as {
+    error?: string;
+    membershipId?: string;
+    onboardingStatus?: string;
+  } | null;
+
+  if (!response.ok) {
+    throw new Error(body?.error ?? "Unable to save payment method");
+  }
+
+  return {
+    saved: true,
+    mode: "mock",
+    membershipId: body?.membershipId,
+    onboardingStatus: body?.onboardingStatus,
+  };
 }

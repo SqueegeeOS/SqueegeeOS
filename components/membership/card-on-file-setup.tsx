@@ -13,6 +13,7 @@ export function CardOnFileSetup({
   memberName,
   memberEmail,
   presentationId,
+  membershipId,
   theme = "presentation",
   onSuccess,
   onBack,
@@ -20,6 +21,7 @@ export function CardOnFileSetup({
   memberName: string;
   memberEmail?: string | null;
   presentationId?: string;
+  membershipId?: string;
   theme?: "presentation" | "portal";
   onSuccess: () => void;
   onBack?: () => void;
@@ -62,6 +64,7 @@ export function CardOnFileSetup({
         memberName: cardholderName.trim(),
         memberEmail,
         presentationId,
+        membershipId,
       });
       onSuccess();
     } catch (err) {

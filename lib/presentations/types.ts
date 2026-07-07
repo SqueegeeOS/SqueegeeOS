@@ -12,6 +12,8 @@ import {
 export type PresentationTier = SqueegeeKingTierId;
 export type PresentationStatus = "draft" | "presented" | "signed";
 
+export type PresentationOnboardingStatus = "pending_payment" | "complete";
+
 export interface SlideOverride {
   headline?: string;
   body?: string;
@@ -124,6 +126,10 @@ export interface PresentationData {
   status: PresentationStatus;
   signedAt: string | null;
   agreementId: string | null;
+  homeownerId: string | null;
+  propertyId: string | null;
+  membershipId: string | null;
+  onboardingStatus: PresentationOnboardingStatus | null;
   createdAt: string;
   updatedAt: string;
 }

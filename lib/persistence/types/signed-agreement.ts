@@ -18,6 +18,7 @@ export interface PersistedSignedAgreement {
   homeownerId: string | null;
   propertyId: string | null;
   membershipId: string | null;
+  presentationId: string | null;
   homeownerSlug: string;
   propertySlug: string;
   homeownerName: string;

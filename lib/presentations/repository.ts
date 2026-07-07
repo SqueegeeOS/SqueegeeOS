@@ -11,6 +11,7 @@ import {
 import { normalizePresentationTier } from "./types";
 import type {
   PresentationData,
+  PresentationOnboardingStatus,
   PresentationStatus,
   PresentationTier,
   SlideOverride,
@@ -33,6 +34,10 @@ interface PresentationRow {
   status: PresentationStatus;
   signed_at: string | null;
   agreement_id: string | null;
+  homeowner_id: string | null;
+  property_id: string | null;
+  membership_id: string | null;
+  onboarding_status: string | null;
   quote_snapshot: PresentationQuoteSnapshot | null;
   created_at: string;
   updated_at: string;
@@ -115,6 +120,10 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     status: row.status,
     signedAt: row.signed_at,
     agreementId: row.agreement_id,
+    homeownerId: row.homeowner_id,
+    propertyId: row.property_id,
+    membershipId: row.membership_id,
+    onboardingStatus: row.onboarding_status as PresentationOnboardingStatus | null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
@@ -137,6 +146,10 @@ function presentationToRow(data: PresentationData): Record<string, unknown> {
     status: data.status,
     signed_at: data.signedAt,
     agreement_id: data.agreementId,
+    homeowner_id: data.homeownerId,
+    property_id: data.propertyId,
+    membership_id: data.membershipId,
+    onboarding_status: data.onboardingStatus,
   };
 }
 
@@ -236,6 +249,10 @@ export function createDefaultPresentation(input?: {
     status: "draft",
     signedAt: null,
     agreementId: null,
+    homeownerId: null,
+    propertyId: null,
+    membershipId: null,
+    onboardingStatus: null,
     createdAt: now,
     updatedAt: now,
   };

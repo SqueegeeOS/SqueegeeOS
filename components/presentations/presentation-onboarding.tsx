@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AgreementSignaturePad } from "@/components/agreement/agreement-signature-pad";
 import { CardOnFileSetup } from "@/components/membership/card-on-file-setup";
 import {
@@ -23,6 +23,7 @@ import {
   tierLabel,
   tierTagline,
   type PresentationData,
+  type PresentationOnboardingStatus,
   type PresentationTier,
 } from "@/lib/presentations/types";
 import {
@@ -68,6 +69,11 @@ export function PresentationOnboarding({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentSaved, setPaymentSaved] = useState(false);
+  const [membershipId, setMembershipId] = useState<string | null>(
+    presentation.membershipId,
+  );
+  const [onboardingStatus, setOnboardingStatus] =
+    useState<PresentationOnboardingStatus | null>(presentation.onboardingStatus);
 
   const rates = computePresentationRates({ ...presentation, tier });
   const visitPrice =
@@ -77,6 +83,68 @@ export function PresentationOnboarding({
         ? rates.biannualVisit
         : rates.quarterlyVisit;
   const annualTotal = calculateAnnualFromVisits(tier, visitPrice);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resumeOnboarding() {
+      if (presentation.onboardingStatus === "complete") {
+        setStep("complete");
+        setPaymentSaved(true);
+        return;
+      }
+
+      if (
+        presentation.onboardingStatus === "pending_payment" &&
+        presentation.membershipId
+      ) {
+        setMembershipId(presentation.membershipId);
+        setOnboardingStatus("pending_payment");
+        setStep("welcome");
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          `/api/membership/onboarding-status?presentationId=${presentation.id}`,
+        );
+        if (!res.ok || cancelled) return;
+
+        const data = (await res.json()) as {
+          onboardingStatus?: PresentationOnboardingStatus | null;
+          membershipId?: string | null;
+          onboardingIncomplete?: boolean;
+        };
+
+        if (cancelled) return;
+
+        if (data.onboardingStatus === "complete") {
+          setStep("complete");
+          setPaymentSaved(true);
+          setOnboardingStatus("complete");
+          if (data.membershipId) setMembershipId(data.membershipId);
+          return;
+        }
+
+        if (data.onboardingIncomplete && data.membershipId) {
+          setMembershipId(data.membershipId);
+          setOnboardingStatus("pending_payment");
+          setStep("welcome");
+        }
+      } catch {
+        // Local-only presentations have no cloud status — stay on sign step.
+      }
+    }
+
+    void resumeOnboarding();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    presentation.id,
+    presentation.membershipId,
+    presentation.onboardingStatus,
+  ]);
 
   const handleSign = async () => {
     if (!signature || !agreed) return;
@@ -115,6 +183,10 @@ export function PresentationOnboarding({
 
       const signBody = (await signRes.json().catch(() => null)) as {
         agreementId?: string;
+        membershipId?: string;
+        homeownerId?: string;
+        propertyId?: string;
+        onboardingStatus?: PresentationOnboardingStatus;
         error?: string;
       } | null;
 
@@ -122,23 +194,29 @@ export function PresentationOnboarding({
         throw new Error(signBody?.error ?? "Signing failed");
       }
 
+      if (!signBody?.agreementId) {
+        throw new Error("Agreement was not saved — please try again.");
+      }
+
       const signedPresentation: PresentationData = {
         ...presentation,
         status: "signed",
         signedAt,
-        agreementId: signBody?.agreementId ?? "",
+        agreementId: signBody.agreementId,
+        membershipId: signBody.membershipId ?? null,
+        homeownerId: signBody.homeownerId ?? null,
+        propertyId: signBody.propertyId ?? null,
+        onboardingStatus: signBody.onboardingStatus ?? "pending_payment",
         tier,
         monthlyRate: visitPrice,
         annualRate: annualTotal,
       };
       cachePresentation(signedPresentation);
 
-      await fetch(`/api/presentations/${presentation.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(signedPresentation),
-      });
-
+      if (signBody.membershipId) {
+        setMembershipId(signBody.membershipId);
+      }
+      setOnboardingStatus(signBody.onboardingStatus ?? "pending_payment");
       setStep("welcome");
     } catch (err) {
       setError(
@@ -244,20 +322,23 @@ export function PresentationOnboarding({
           <div className="rounded-lg border border-white/10 bg-[#0d0d0d] p-8 text-center sm:p-10">
             <p className="text-4xl">🎉</p>
             <h2 className="mt-5 font-serif text-3xl font-light text-[#f5f2eb] sm:text-4xl">
-              Welcome to {PLATFORM_BRAND.name}!
+              Agreement signed!
             </h2>
             <p className="mt-3 text-base text-accent/90">
-              You&apos;re officially a {PLATFORM_BRAND.name} member.
+              Welcome to {PLATFORM_BRAND.name} — one more step to activate your
+              membership.
             </p>
 
             <ul className="mt-8 space-y-3 text-left">
-              <ChecklistItem>Your membership is active.</ChecklistItem>
+              <ChecklistItem>Your membership agreement is on file.</ChecklistItem>
               <ChecklistItem>
-                We&apos;ll contact you before each scheduled service.
+                Membership status:{" "}
+                {onboardingStatus === "pending_payment"
+                  ? "pending payment setup"
+                  : "processing"}
               </ChecklistItem>
               <ChecklistItem>
-                Your home&apos;s history will now be maintained in{" "}
-                {PLATFORM_BRAND.name}.
+                Add a card on file to activate billing and scheduling.
               </ChecklistItem>
             </ul>
 
@@ -277,7 +358,7 @@ export function PresentationOnboarding({
               Why we keep a card on file
             </p>
             <h2 className="mt-2 font-serif text-3xl font-light text-[#f5f2eb]">
-              Complete your membership
+              Activate your membership
             </h2>
             <p className="mt-3 font-serif text-sm italic leading-relaxed text-accent/75">
               {MEMBERSHIP_BILLING_PHILOSOPHY}
@@ -291,10 +372,12 @@ export function PresentationOnboarding({
                 memberName={presentation.clientName}
                 memberEmail={presentation.clientEmail}
                 presentationId={presentation.id}
+                membershipId={membershipId ?? undefined}
                 theme="presentation"
                 onBack={() => setStep("welcome")}
                 onSuccess={() => {
                   setPaymentSaved(true);
+                  setOnboardingStatus("complete");
                   setStep("complete");
                 }}
               />

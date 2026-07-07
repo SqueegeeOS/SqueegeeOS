@@ -14,10 +14,48 @@ export function PresentationViewer({
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [signing, setSigning] = useState(false);
-  const [signingTier, setSigningTier] = useState<PresentationData["tier"]>("quarterly");
+  const [signingTier, setSigningTier] = useState<PresentationData["tier"]>(
+    presentation.tier,
+  );
   const slides = getPresentationSlides(presentation);
   const totalSlides = slides.length;
   const currentSlide = slides[currentIndex] ?? slides[0];
+
+  useEffect(() => {
+    if (presentation.onboardingStatus === "pending_payment") {
+      setSigning(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function checkRecovery() {
+      try {
+        const res = await fetch(
+          `/api/membership/onboarding-status?presentationId=${presentation.id}`,
+        );
+        if (!res.ok || cancelled) return;
+        const data = (await res.json()) as { onboardingIncomplete?: boolean };
+        if (!cancelled && data.onboardingIncomplete) {
+          setSigning(true);
+        }
+      } catch {
+        // Local-only — no cloud recovery.
+      }
+    }
+
+    if (presentation.status === "signed" && !presentation.onboardingStatus) {
+      void checkRecovery();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    presentation.id,
+    presentation.onboardingStatus,
+    presentation.status,
+  ]);
 
   const next = useCallback(() => {
     setCurrentIndex((i) => Math.min(i + 1, totalSlides - 1));

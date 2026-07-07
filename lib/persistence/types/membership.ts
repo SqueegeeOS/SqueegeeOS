@@ -3,9 +3,14 @@ import type { MembershipPlanId } from "@/lib/membership/types";
 export type MembershipStatus =
   | "inactive"
   | "pending_checkout"
+  | "pending_payment"
   | "active"
   | "paused"
   | "cancelled";
+
+export type MembershipBillingSchedule = "first_of_service_month";
+
+export type MembershipSalesTier = "biannual" | "quarterly";
 
 /**
  * Persisted membership — maps to `memberships` table in Supabase.
@@ -16,12 +21,22 @@ export interface PersistedMembership {
   homeownerId: string;
   propertyId: string;
   homeCarePlanId: string | null;
+  presentationId: string | null;
+  agreementId: string | null;
   planId: MembershipPlanId;
   planName: string;
   priceDisplay: string;
   billingPeriod: string;
+  salesTier: MembershipSalesTier | null;
+  visitPrice: number | null;
+  annualRate: number | null;
+  visitsPerYear: number | null;
+  billingSchedule: MembershipBillingSchedule;
+  nextBillingDate: string | null;
+  paymentSetupCompletedAt: string | null;
   status: MembershipStatus;
   stripeCustomerId: string | null;
+  stripePaymentMethodId: string | null;
   stripeSubscriptionId: string | null;
   stripePriceId: string | null;
   startedAt: string | null;
