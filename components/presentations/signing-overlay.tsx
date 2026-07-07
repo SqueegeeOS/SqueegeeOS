@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AgreementSignaturePad } from "@/components/agreement/agreement-signature-pad";
+import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
   computePresentationRates,
   slugifyPresentation,
@@ -82,34 +83,47 @@ export function SigningOverlay({
         }),
       });
 
-      if (!signRes.ok) throw new Error("Signing failed");
+      const signBody = (await signRes.json().catch(() => null)) as {
+        agreementId?: string;
+        error?: string;
+      } | null;
 
-      const { agreementId } = (await signRes.json()) as { agreementId: string };
+      if (!signRes.ok) {
+        throw new Error(signBody?.error ?? "Signing failed");
+      }
+
+      const agreementId = signBody?.agreementId ?? "";
+
+      const signedPresentation: PresentationData = {
+        ...presentation,
+        status: "signed",
+        signedAt,
+        agreementId,
+        tier,
+        monthlyRate: visitPrice,
+        annualRate: annualTotal,
+      };
+      cachePresentation(signedPresentation);
 
       await fetch(`/api/presentations/${presentation.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "signed",
-          signedAt,
-          agreementId,
-          tier,
-          monthlyRate: visitPrice,
-          annualRate: annualTotal,
-        }),
+        body: JSON.stringify(signedPresentation),
       });
 
       setDone(true);
       setTimeout(onComplete, 2500);
-    } catch {
-      setError("Something went wrong. Please try again.");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      setError(message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-[300] flex items-center justify-center bg-[#060606]/92 p-5 backdrop-blur-md">
+    <div className="fixed inset-0 z-[300] flex items-end justify-center overflow-y-auto bg-[#060606]/92 p-5 backdrop-blur-md sm:items-center">
       {done ? (
         <div className="text-center">
           <p className="text-4xl text-accent">✦</p>

@@ -30,7 +30,7 @@ export function FullSlide({
 }) {
   return (
     <div
-      className={`flex h-full min-h-[calc(100vh-60px)] items-center justify-center px-6 py-12 sm:px-12 ${className}`}
+      className={`flex min-h-full w-full items-start justify-center px-6 py-10 sm:px-12 sm:py-12 ${className}`}
       style={{ background }}
     >
       <div className="w-full max-w-5xl">{children}</div>

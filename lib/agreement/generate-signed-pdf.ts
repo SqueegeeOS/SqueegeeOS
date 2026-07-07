@@ -109,7 +109,7 @@ async function buildProgrammaticAgreement(
   y -= 4;
 
   for (const benefit of def.benefits) {
-    draw(`  ◈  ${benefit}`, 9);
+    draw(`  -  ${benefit}`, 9);
   }
 
   if (def.exclusions.length > 0) {
@@ -200,7 +200,7 @@ async function buildProgrammaticOneTimeAgreement(
   draw("SCOPE OF WORK", 11, true);
   y -= 4;
   for (const item of ONE_TIME_SERVICE_SCOPE) {
-    draw(`  ◈  ${item}`, 9);
+    draw(`  -  ${item}`, 9);
   }
   y -= 10;
   draw(`VISIT PRICE: $${visitPrice}`, 10, true);

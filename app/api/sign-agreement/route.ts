@@ -17,6 +17,16 @@ function tierToPlanId(_tier: string): MembershipPlanId {
   return "preferred";
 }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+    value,
+  );
+}
+
+function isSignatureDataUrl(value: string): boolean {
+  return /^data:image\/png;base64,/i.test(value);
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -87,7 +97,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!signatureDataUrl.startsWith("data:image/png;base64,")) {
+    if (!isSignatureDataUrl(signatureDataUrl)) {
       return NextResponse.json(
         { error: "Signature must be a PNG data URL" },
         { status: 400 },
@@ -113,12 +123,22 @@ export async function POST(req: NextRequest) {
     });
 
     if (presentationId && !isOneTime) {
-      await patchPresentation(presentationId, {
-        status: "signed",
-        signedAt,
-        agreementId: result.agreementId,
-        tier: resolvedTier ?? "quarterly",
-      });
+      try {
+        const presentationPatch: Parameters<typeof patchPresentation>[1] = {
+          status: "signed",
+          signedAt,
+          tier: resolvedTier ?? "quarterly",
+        };
+        if (isUuid(result.agreementId)) {
+          presentationPatch.agreementId = result.agreementId;
+        }
+        await patchPresentation(presentationId, presentationPatch);
+      } catch (patchError) {
+        console.warn(
+          "[sign-agreement] Presentation patch failed after signing:",
+          patchError,
+        );
+      }
     }
 
     return NextResponse.json({
@@ -127,10 +147,9 @@ export async function POST(req: NextRequest) {
       emailSent: result.emailSent,
     });
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to process agreement";
     console.error("[sign-agreement] error:", error);
-    return NextResponse.json(
-      { error: "Failed to process agreement" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

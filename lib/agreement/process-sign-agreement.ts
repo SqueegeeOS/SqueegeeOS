@@ -86,7 +86,7 @@ export async function processSignAgreement(
   const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;
   const pdfUrl = await storeSignedPdf(pdfBytes, fileName);
 
-  let agreementId = `agreement_${input.propertySlug}_${Date.now()}`;
+  let agreementId = crypto.randomUUID();
 
   if (isSupabaseConfigured()) {
     const supabase = createServerSupabaseClient();

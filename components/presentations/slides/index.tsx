@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   BigNumber,
   Eyebrow,
@@ -18,17 +19,13 @@ import {
 import { computePresentationRates } from "@/lib/presentations/calculations";
 import { formatDollars, memberSavingsQuoteLine } from "@/lib/pricing/format";
 import {
-  addonSavingsExample,
   formatTierPrice,
   HARDWATER_RETAIL_VALUE,
   RAINBLOCK_RETAIL_VALUE,
   SQUEEGEEKING_TIERS,
 } from "@/lib/membership/tier-config";
 import type { PresentationTier } from "@/lib/presentations/types";
-import {
-  quarterlyNetAdvantageLine,
-  quarterlyUpgradeSummary,
-} from "@/lib/presentations/upgrade-copy";
+import { quarterlyNetAdvantageLine } from "@/lib/presentations/upgrade-copy";
 
 interface SlideComponentProps {
   presentation: PresentationData;
@@ -215,93 +212,78 @@ export function ComparisonSlide({ overrides }: SlideComponentProps) {
 export function SavingsSlide({ presentation }: SlideComponentProps) {
   const rates = computePresentationRates(presentation);
   const { upgrade } = rates;
-  const addon = addonSavingsExample();
+  const [showBreakdown, setShowBreakdown] = useState(false);
 
   return (
     <FullSlide>
       <Eyebrow>The math</Eyebrow>
       <HeroText>Value beyond the upgrade.</HeroText>
-      <SubText>{quarterlyUpgradeSummary(upgrade)}</SubText>
+      <p className="mt-4 text-base leading-relaxed text-white/50 sm:text-lg">
+        Compare the yearly investment — and what Quarterly includes beyond Bi-Annual.
+      </p>
+
       <div className="mt-8 space-y-3 rounded-lg border border-white/10 bg-white/[0.03] p-6 text-sm">
-        <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">
-          Plan cost per year
-        </p>
         <div className="flex justify-between gap-4">
-          <span className="text-white/50">Bi-Annual membership</span>
+          <span className="text-white/50">Bi-Annual yearly investment</span>
           <span>{formatTierPrice(upgrade.biannualAnnual)}/yr</span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-white/50">Quarterly membership</span>
+          <span className="text-white/50">Quarterly yearly investment</span>
           <span>{formatTierPrice(upgrade.quarterlyAnnual)}/yr</span>
         </div>
-        <div className="flex justify-between gap-4 border-b border-white/10 pb-3">
-          <span className="text-white/50">Extra cost to upgrade</span>
+        <div className="flex justify-between gap-4">
+          <span className="text-white/50">Additional yearly investment to upgrade</span>
           <span>{formatTierPrice(upgrade.upgradeCost)}/yr</span>
         </div>
-
-        <p className="pt-1 text-[10px] uppercase tracking-[0.16em] text-white/40">
-          Added treatment value (Quarterly only)
-        </p>
-        <div className="flex justify-between gap-4">
-          <span className="text-white/50">RainBlock at retail</span>
-          <span>
-            {formatTierPrice(RAINBLOCK_RETAIL_VALUE)} × 4 ={" "}
-            {formatTierPrice(upgrade.rainblockAnnual)}/yr
-          </span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-white/50">Hard Water at retail</span>
-          <span>
-            {formatTierPrice(HARDWATER_RETAIL_VALUE)} × 4 ={" "}
-            {formatTierPrice(upgrade.hardWaterAnnual)}/yr
-          </span>
-        </div>
         <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
-          <span className="text-white/50">Total added value at retail</span>
+          <span className="text-white/50">Added yearly value included with Quarterly</span>
           <span className="text-accent">
             {formatTierPrice(upgrade.includedTreatmentValue)}/yr
           </span>
         </div>
         <div className="flex justify-between gap-4 font-medium text-[#f5f2eb]">
-          <span>Compared to the upgrade cost</span>
+          <span>Net value beyond the upgrade</span>
           <span className="text-accent">
             {quarterlyNetAdvantageLine(upgrade)}
           </span>
         </div>
       </div>
 
-      <div className="mt-6 space-y-3 rounded-lg border border-accent/20 bg-accent/[0.04] p-6 text-sm">
-        <p className="text-[10px] uppercase tracking-[0.16em] text-accent/70">
-          Add-on savings example
-        </p>
-        <p className="text-xs text-white/45">
-          Screen cleaning ({formatTierPrice(addon.screenCleaning)}/visit) +
-          interior windows ({formatTierPrice(addon.interiorWindows)}/visit) ={" "}
-          {formatTierPrice(addon.perVisit)}/visit
-        </p>
-        <div className="flex justify-between gap-4">
-          <span className="text-white/50">
-            Bi-Annual ({addon.biannualVisits} visits)
-          </span>
-          <span>
-            {formatTierPrice(addon.biannualAddonTotal)} × 20% ={" "}
-            {formatTierPrice(addon.biannualSavings)}/yr saved
-          </span>
+      <button
+        type="button"
+        onClick={() => setShowBreakdown((open) => !open)}
+        className="mt-6 text-sm text-accent underline-offset-4 hover:underline"
+      >
+        {showBreakdown ? "Hide breakdown" : "View breakdown"}
+      </button>
+
+      {showBreakdown ? (
+        <div className="mt-4 space-y-3 rounded-lg border border-white/10 bg-white/[0.03] p-6 text-sm">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+            Where the added value comes from
+          </p>
+          <div className="flex justify-between gap-4">
+            <span className="text-white/50">RainBlock Technology</span>
+            <span>
+              {formatTierPrice(RAINBLOCK_RETAIL_VALUE)}/visit × 4 ={" "}
+              {formatTierPrice(upgrade.rainblockAnnual)}/yr
+            </span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-white/50">Hard Water Removal</span>
+            <span>
+              {formatTierPrice(HARDWATER_RETAIL_VALUE)}/visit × 4 ={" "}
+              {formatTierPrice(upgrade.hardWaterAnnual)}/yr
+            </span>
+          </div>
+          <div className="flex justify-between gap-4 border-t border-white/10 pt-3 font-medium">
+            <span className="text-[#f5f2eb]">Total retail value</span>
+            <span className="text-accent">
+              {formatTierPrice(upgrade.includedTreatmentValue)}/yr
+            </span>
+          </div>
         </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-white/50">
-            Quarterly ({addon.quarterlyVisits} visits)
-          </span>
-          <span className="text-accent">
-            {formatTierPrice(addon.quarterlyAddonTotal)} × 25% ={" "}
-            {formatTierPrice(addon.quarterlySavings)}/yr saved
-          </span>
-        </div>
-        <p className="border-t border-white/10 pt-3 text-xs text-white/40">
-          The 25% Quarterly discount can save $200–300+ per year on add-ons alone
-          — before RainBlock and Hard Water value.
-        </p>
-      </div>
+      ) : null}
     </FullSlide>
   );
 }

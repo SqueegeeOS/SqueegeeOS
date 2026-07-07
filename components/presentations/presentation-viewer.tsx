@@ -63,7 +63,7 @@ export function PresentationViewer({
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-[#060606] text-[#f5f2eb]">
-      <div className="relative flex-1 overflow-hidden">
+      <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-y-contain">
         <SlideRenderer
           slideType={currentSlide.id}
           presentation={presentation}
