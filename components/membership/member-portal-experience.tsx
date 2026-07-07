@@ -2,442 +2,425 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
-import Link from "next/link";
-import { useEffect, useState } from "react";
-import { MEMBER_PRIVILEGES } from "@/lib/membership/member-privileges";
-import {
-  hasSeenUnlockCeremony,
-  unlockContextFromPlanData,
-  UNLOCK_WELCOME_COPY,
-} from "@/lib/membership/unlock-sequence";
-import type { CustomerHealthView } from "@/lib/health/types";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { MEMBERSHIP_CLOSE_BILLING_BULLETS } from "@/lib/agreement/agreement-content";
+import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
-import { useMembershipUnlock } from "@/components/membership/unlock-provider";
-import { MemberPrivilegeCard } from "./member-privilege-card";
-import { MembershipActiveBadge } from "./membership-active-badge";
+import { Eyebrow, HeroText } from "@/components/presentations/slide-primitives";
 import {
-  MemberAddOnServices,
-  MemberCareSummary,
-} from "./member-care-summary";
-import { MemberFieldNotes } from "./member-field-notes";
-import { MemberHomeDashboard } from "./member-home-dashboard";
-import { MemberPremiumCard } from "./member-premium-card";
-import { MemberWalletCard } from "./member-wallet-card";
-import { FoundingMemberHonor } from "./founding-member-honor";
-import { resolvePortalViews } from "@/lib/membership/portal-from-supabase";
-import { resolveFoundingMemberDisplay } from "@/lib/membership/founding-member";
-import {
-  buildMemberWalletCardData,
-  isMemberMembershipActive,
-} from "@/lib/membership/member-wallet-card-data";
-import { buildMemberHomeDashboardView } from "@/lib/membership/member-home-dashboard-data";
-
-const easeLuxury = [0.16, 1, 0.3, 1] as const;
-
-/** Daedalus reveal — portal card stagger after unlock ceremony */
-const REVEAL_STAGGER_S = 0.08;
-const REVEAL_RISE_PX = 20;
+  ExpandLink,
+  HouseIllustration,
+  ProcessTimeline,
+} from "@/components/presentations/slides/visual-primitives";
+import { CardOnFileSetup } from "@/components/membership/card-on-file-setup";
+import { FoundingMemberHonor } from "@/components/membership/founding-member-honor";
+import { MemberWalletCard } from "@/components/membership/member-wallet-card";
+import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-data";
+import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
+import { PortalCard, PortalSection } from "@/components/portal/portal-section";
+import { PortalStage } from "@/components/portal/portal-stage";
+import { materialize } from "@/lib/motion/system";
 
 interface MemberPortalExperienceProps {
   data: HomeCarePlanData;
   portalData?: MemberPortalData | null;
-  planName?: string;
-  fromUnlock?: boolean;
-  homeHealth?: CustomerHealthView | null;
-  homeHealthHref?: string;
   portalBasePath?: string;
   customerPortalMode?: "token" | "slug";
 }
 
-function PortalCard({
-  children,
-  href,
-  index,
-  comingSoon,
-  fromUnlock,
-}: {
-  children: React.ReactNode;
-  href?: string;
-  index: number;
-  comingSoon?: boolean;
-  fromUnlock?: boolean;
-}) {
-  const reduceMotion = useReducedMotion();
-  const baseDelay = fromUnlock ? 0.05 : 0.4;
-  const stagger = fromUnlock ? REVEAL_STAGGER_S : 0.14;
-  const rise = fromUnlock ? REVEAL_RISE_PX : 8;
-  const className = `flex min-h-[60px] items-center justify-between rounded-2xl border px-5 py-5 transition-colors ${
-    comingSoon
-      ? "border-border/60 bg-surface/50 opacity-60"
-      : "border-border bg-surface hover:border-accent/30 active:border-accent/40"
-  }`;
-
-  const motionProps = {
-    initial: reduceMotion ? false : { opacity: 0, y: rise },
-    animate: { opacity: 1, y: 0 },
-    transition: {
-      duration: reduceMotion ? 0.15 : fromUnlock ? 0.55 : 1.1,
-      delay: reduceMotion ? 0 : baseDelay + index * stagger,
-      ease: easeLuxury,
-    },
-    style: {
-      boxShadow: comingSoon ? undefined : "0 4px 20px rgba(0,0,0,0.1)",
-    },
-  };
-
-  if (href && !comingSoon) {
-    return (
-      <motion.div {...motionProps}>
-        <Link href={href} className={className}>
-          {children}
-        </Link>
-      </motion.div>
-    );
-  }
-
+function CheckBullet({ children }: { children: React.ReactNode }) {
   return (
-    <motion.div {...motionProps} className={className}>
-      {children}
-    </motion.div>
+    <li className="flex items-start gap-3 text-sm leading-relaxed text-white/70">
+      <span className="mt-0.5 text-accent" aria-hidden>
+        ✓
+      </span>
+      <span>{children}</span>
+    </li>
   );
 }
 
 export function MemberPortalExperience({
   data,
   portalData,
-  planName,
-  fromUnlock = false,
-  homeHealth = null,
-  homeHealthHref,
   portalBasePath,
   customerPortalMode = "slug",
 }: MemberPortalExperienceProps) {
-  const planPath = `/homecare/${data.homeowner.slug}/${data.property.slug}/plan`;
+  const router = useRouter();
   const reduceMotion = useReducedMotion();
-  const [canReplayCeremony, setCanReplayCeremony] = useState(false);
-  const { beginMembershipUnlock } = useMembershipUnlock();
-
-  useEffect(() => {
-    setCanReplayCeremony(
-      hasSeenUnlockCeremony(data.homeowner.slug, data.property.slug),
-    );
-  }, [data.homeowner.slug, data.property.slug]);
-
-  const entranceBase = fromUnlock ? 0.05 : 0.25;
-  const { status: careStatus, membership, liveData } = resolvePortalViews(
-    data,
-    portalData,
-    planName ? { planName } : undefined,
-  );
-  const displayPlanName = careStatus.planName;
-  const welcomeName = portalData?.profile.firstName ?? data.homeowner.firstName;
-  const membershipActive = isMemberMembershipActive(portalData);
-  const walletCard = membershipActive
-    ? buildMemberWalletCardData(membership, careStatus, {
-        isActive: membershipActive,
-      })
-    : null;
+  const view = buildPortalCareRecordView(data, portalData);
+  const isCustomerPortal = customerPortalMode === "token";
   const resolvedPortalPath =
     portalBasePath ??
     `/homecare/${data.homeowner.slug}/${data.property.slug}/portal`;
-  const resolvedHomeHealthHref =
-    homeHealthHref ?? `${resolvedPortalPath}/home-health`;
-  const showInternalPlanLink = customerPortalMode === "slug";
-  const returningMember = !fromUnlock;
-  const foundingDisplay = resolveFoundingMemberDisplay(portalData);
-  const isFoundingMember = Boolean(foundingDisplay);
-  const homeDashboard = returningMember
-    ? buildMemberHomeDashboardView(data, careStatus, membership, {
-        portalData,
-        planPath,
-        homeHealth,
-        homeHealthHref: resolvedHomeHealthHref,
-      })
-    : null;
+
+  const [membershipOpen, setMembershipOpen] = useState(false);
+  const [whatsNextOpen, setWhatsNextOpen] = useState(false);
+
+  const walletCard: MemberWalletCardData = {
+    brandName: CUSTOMER_BRAND.name,
+    memberName: view.firstName,
+    tierLabel: view.tierMemberLabel,
+    addonDiscountLabel: view.addonDiscountLabel,
+    memberSinceLabel: `Member since ${view.memberSinceFormatted}`,
+    isActive: view.membershipActive,
+  };
+
+  const agreementPdfHref =
+    view.agreement?.pdfUrl?.startsWith("http") ||
+    view.agreement?.pdfUrl?.startsWith("/")
+      ? view.agreement.pdfUrl
+      : null;
+
+  const showAgreement =
+    view.agreement &&
+    (view.membershipActive || view.pendingPayment || view.paymentOnFile);
+
+  const paymentHeadline = view.paymentOnFile
+    ? (view.paymentMethodLabel ?? "Card on file ✓")
+    : "Add your card";
+
+  const handlePaymentSuccess = () => {
+    router.refresh();
+  };
 
   return (
-    <div
-      className={`min-h-[100svh] overflow-x-hidden bg-background text-foreground ${
-        isFoundingMember ? "founding-portal-theme" : ""
-      }`}
-    >
-      <div
-        className={`relative overflow-hidden ${
-          returningMember
-            ? "min-h-[36vh] sm:min-h-[40vh]"
-            : "min-h-[52vh] sm:min-h-[58vh]"
-        } ${fromUnlock ? "member-portal-shimmer" : ""}`}
-      >
-        {isFoundingMember && (
+    <PortalStage founding={Boolean(view.foundingDisplay)}>
+      <div className="mx-auto max-w-2xl px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))] sm:px-10 sm:pb-16 sm:pt-14">
+        {/* §1 — Landing */}
+        <motion.header
+          initial={reduceMotion ? false : "hidden"}
+          animate="visible"
+          variants={materialize}
+          className="text-center"
+        >
+          <p className="text-[11px] uppercase tracking-[0.35em] text-accent/70">
+            {CUSTOMER_BRAND.name}
+          </p>
           <div
-            className="founding-hero-glow pointer-events-none absolute inset-0 z-[1] bg-[radial-gradient(ellipse_at_top,rgba(212,175,55,0.12),transparent_68%)]"
+            className="mx-auto mt-6 mb-8 h-px w-12 bg-accent/25"
             aria-hidden
           />
-        )}
-        <motion.div
-          className="absolute inset-0"
-          initial={reduceMotion ? false : { opacity: 0, scale: 1.02 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{
-            duration: reduceMotion ? 0.2 : 1.8,
-            ease: easeLuxury,
-          }}
-        >
-          <Image
-            src={data.property.heroImage}
-            alt={data.property.name}
-            fill
-            priority
-            className="object-cover"
-            sizes="100vw"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/45 to-background" />
-        </motion.div>
-
-        <div
-          className={`relative flex flex-col justify-end px-5 pb-10 pt-28 sm:px-10 sm:pb-12 ${
-            returningMember
-              ? "min-h-[36vh] sm:min-h-[40vh]"
-              : "min-h-[52vh] sm:min-h-[58vh]"
-          }`}
-        >
-          <motion.div
-            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 1,
-              ease: easeLuxury,
-              delay: reduceMotion ? 0 : entranceBase,
-            }}
-            className="flex flex-wrap items-center gap-3"
-          >
-            <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
-              Member Portal
+          <HeroText>{view.landingHeadline}</HeroText>
+          <p className="mt-5 text-base text-white/55 sm:text-lg">
+            {view.propertyAddress}
+          </p>
+          {view.syncNote && (
+            <p className="mt-4 text-sm text-white/40">{view.syncNote}</p>
+          )}
+          {view.membershipActive && (
+            <p className="mt-6 inline-flex rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-accent">
+              {view.tierMemberLabel} · Active
             </p>
-            {foundingDisplay && (
-              <FoundingMemberHonor display={foundingDisplay} variant="compact" />
-            )}
-            <MembershipActiveBadge variant="hero" />
-            {liveData && customerPortalMode === "slug" && (
-              <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-emerald-300/90">
-                Live
-              </span>
-            )}
-          </motion.div>
-          <motion.h1
-            initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 1.1,
-              ease: easeLuxury,
-              delay: reduceMotion ? 0 : entranceBase + 0.2,
-            }}
-            className="mt-4 max-w-xl font-serif text-3xl font-light leading-[1.08] tracking-tight sm:text-4xl md:text-5xl"
-          >
-            {fromUnlock
-              ? UNLOCK_WELCOME_COPY.family
-              : returningMember
-                ? data.property.name
-                : `Welcome home, ${welcomeName}.`}
-          </motion.h1>
-          {foundingDisplay && (
-            <motion.div
-              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 1,
-                ease: easeLuxury,
-                delay: reduceMotion ? 0 : entranceBase + 0.35,
-              }}
-            >
-              <FoundingMemberHonor display={foundingDisplay} variant="hero" />
-            </motion.div>
           )}
-          <motion.p
-            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 1,
-              ease: easeLuxury,
-              delay: reduceMotion ? 0 : entranceBase + 0.45,
-            }}
-            className="mt-4 max-w-lg text-sm leading-relaxed text-white/80 sm:text-base"
-          >
-            {fromUnlock
-              ? UNLOCK_WELCOME_COPY.care
-              : returningMember
-                ? `${careStatus.planName} · ${careStatus.cadenceLabel} membership`
-                : `${data.property.name} is under our care.`}
-          </motion.p>
-          {!returningMember && (
-            <motion.p
-              initial={reduceMotion ? false : { opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{
-                delay: reduceMotion ? 0 : entranceBase + 0.65,
-                duration: 0.9,
-              }}
-              className="mt-3 text-[10px] uppercase tracking-[0.22em] text-white/45"
-            >
-              {data.property.name} · {careStatus.planName}
-            </motion.p>
+          {view.pendingPayment && (
+            <p className="mt-6 inline-flex rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-amber-100/90">
+              Almost there
+            </p>
           )}
-        </div>
-      </div>
+          <p className="mt-6 text-sm text-white/50">{view.whatsNextHeadline}</p>
+        </motion.header>
 
-      <div className="mx-auto max-w-2xl px-5 py-10 sm:px-10 sm:py-14">
-        {homeDashboard && (
-          <MemberHomeDashboard
-            dashboard={homeDashboard}
-            entranceDelay={entranceBase + 0.15}
-          />
-        )}
-
-        {!returningMember && (
-          <motion.p
-            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 1,
-              delay: reduceMotion ? 0 : entranceBase + 0.55,
-              ease: easeLuxury,
-            }}
-            className="text-base leading-relaxed text-muted"
+        <div className="mt-14 space-y-16 sm:mt-20 sm:space-y-20">
+          {/* §2 — Membership */}
+          <PortalSection
+            id="membership"
+            index={1}
+            eyebrow="Membership"
+            headline={
+              view.pendingPayment ? (
+                "Almost there."
+              ) : (
+                <>
+                  {view.tierMemberLabel}
+                  <span className="mt-2 block text-lg font-normal text-white/50 sm:text-xl">
+                    since {view.memberSinceFormatted}
+                  </span>
+                </>
+              )
+            }
+            support={
+              view.pendingPayment
+                ? "Finish setting up your card to activate your membership."
+                : undefined
+            }
           >
-            {fromUnlock
-              ? "Everything here has been prepared for you. Your home is in capable hands."
-              : "Your membership is active. Your care schedule and member pricing are below."}
-          </motion.p>
-        )}
-
-        {walletCard && (
-          <MemberWalletCard
-            data={walletCard}
-            portalUrl={resolvedPortalPath}
-            foundingDisplay={foundingDisplay}
-            entranceDelay={entranceBase + (returningMember ? 0.35 : 0.28)}
-          />
-        )}
-
-        <MemberPremiumCard
-          membership={membership}
-          foundingDisplay={foundingDisplay}
-          entranceDelay={entranceBase + (returningMember ? 0.45 : 0.35)}
-        />
-
-        {!returningMember && (
-          <MemberCareSummary
-            status={careStatus}
-            propertySlug={data.property.slug}
-            entranceDelay={entranceBase + 0.35}
-          />
-        )}
-
-        <MemberAddOnServices
-          status={careStatus}
-          propertySlug={data.property.slug}
-          entranceDelay={entranceBase + 0.5}
-        />
-
-        {customerPortalMode === "slug" &&
-          portalData?.observations &&
-          portalData.observations.length > 0 && (
-          <MemberFieldNotes
-            observations={portalData.observations}
-            entranceDelay={entranceBase + 0.6}
-          />
-        )}
-
-        <div className="mt-10 space-y-4">
-          {showInternalPlanLink && (
-            <PortalCard href={planPath} index={0} fromUnlock={fromUnlock}>
-              <span className="font-serif text-lg font-light">
-                Your Home Care Plan
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.18em] text-accent">
-                View
-              </span>
-            </PortalCard>
-          )}
-
-          <PortalCard
-            href={resolvedHomeHealthHref}
-            index={showInternalPlanLink ? 1 : 0}
-            fromUnlock={fromUnlock}
-          >
-            <span className="font-serif text-lg font-light">Home Health</span>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-accent">
-              View
-            </span>
-          </PortalCard>
-
-          <PortalCard index={showInternalPlanLink ? 2 : 1} comingSoon fromUnlock={fromUnlock}>
-            <span className="font-serif text-lg font-light text-muted">
-              Documents & Agreements
-            </span>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted">
-              Coming soon
-            </span>
-          </PortalCard>
-
-          {canReplayCeremony && (
-            <motion.button
-              type="button"
-              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{
-                duration: 0.9,
-                delay: reduceMotion ? 0 : entranceBase + 0.5,
-                ease: easeLuxury,
-              }}
-              onClick={() =>
-                beginMembershipUnlock(
-                  unlockContextFromPlanData(data, displayPlanName),
-                  { forceReplay: true, profile: "full" },
-                )
-              }
-              className="mt-2 w-full min-h-[48px] rounded-2xl border border-border/80 bg-transparent px-5 py-3 text-[11px] uppercase tracking-[0.2em] text-muted transition-colors hover:border-accent/30 hover:text-accent touch-manipulation"
-            >
-              Watch welcome ceremony again
-            </motion.button>
-          )}
-        </div>
-
-        <motion.div
-          initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration: 1.1,
-            delay: reduceMotion ? 0 : entranceBase + 0.85,
-            ease: easeLuxury,
-          }}
-          className="mt-16 sm:mt-20"
-        >
-          <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
-            Member Privileges
-          </p>
-          <h2 className="mt-3 font-serif text-2xl font-light text-foreground sm:text-3xl">
-            Yours, by membership.
-          </h2>
-          <p className="mt-4 text-sm leading-relaxed text-muted">
-            These are not perks on a brochure. They are the standards we hold
-            ourselves to — because you trusted us with your home.
-          </p>
-
-          <div className="mt-10 space-y-5">
-            {MEMBER_PRIVILEGES.map((privilege, index) => (
-              <MemberPrivilegeCard
-                key={privilege.id}
-                privilege={privilege}
-                index={index}
-                animate={fromUnlock || !reduceMotion}
-                fromUnlock={fromUnlock}
+            {view.pendingPayment && view.membershipId ? (
+              <CardOnFileSetup
+                memberName={data.homeowner.fullName}
+                memberEmail={portalData?.profile.email}
+                presentationId={view.presentationId ?? undefined}
+                membershipId={view.membershipId}
+                theme="presentation"
+                onSuccess={handlePaymentSuccess}
               />
-            ))}
-          </div>
-        </motion.div>
+            ) : (
+              <>
+                <MemberWalletCard
+                  data={walletCard}
+                  portalUrl={resolvedPortalPath}
+                  foundingDisplay={view.foundingDisplay}
+                  showActions={!isCustomerPortal}
+                  embedded
+                  entranceDelay={0}
+                />
+                {view.foundingDisplay && (
+                  <div className="mt-6 flex justify-center">
+                    <FoundingMemberHonor
+                      display={view.foundingDisplay}
+                      variant="hero"
+                    />
+                  </div>
+                )}
+                {view.foundingPrologue && (
+                  <p className="mt-6 text-sm leading-relaxed text-amber-100/75">
+                    {view.foundingPrologue}
+                  </p>
+                )}
+                {view.showSavings && view.savingsLabel && (
+                  <p className="mt-4 text-sm text-accent/90">
+                    {view.savingsLabel}
+                  </p>
+                )}
+                <div className="mt-5">
+                  <ExpandLink
+                    open={membershipOpen}
+                    onClick={() => setMembershipOpen((v) => !v)}
+                  />
+                </div>
+                {membershipOpen && (
+                  <PortalCard className="mt-4 space-y-4">
+                    {view.visitPriceLabel && (
+                      <p className="text-sm text-[#f5f2eb]/90">
+                        {view.visitPriceLabel}
+                      </p>
+                    )}
+                    {view.annualMathLabel && (
+                      <p className="text-sm text-white/60">
+                        {view.annualMathLabel}
+                      </p>
+                    )}
+                    {view.addonDiscountLabel && (
+                      <p className="text-sm text-white/60">
+                        {view.addonDiscountLabel}
+                      </p>
+                    )}
+                    <ul className="space-y-3 border-t border-white/[0.06] pt-4">
+                      {MEMBERSHIP_CLOSE_BILLING_BULLETS.map((bullet) => (
+                        <CheckBullet key={bullet}>{bullet}</CheckBullet>
+                      ))}
+                    </ul>
+                    <p className="text-xs leading-relaxed text-white/45">
+                      {view.billingReminder}
+                    </p>
+                  </PortalCard>
+                )}
+              </>
+            )}
+          </PortalSection>
+
+          {/* §4 — Agreement */}
+          {showAgreement && view.agreement && (
+            <PortalSection
+              id="agreement"
+              index={2}
+              eyebrow="Documents"
+              headline="Your agreement."
+            >
+              <PortalCard>
+                <p className="font-serif text-lg text-[#f5f2eb]">
+                  {view.agreement.planName}
+                </p>
+                <p className="mt-2 text-sm text-white/55">
+                  Signed {view.agreement.signedAtFormatted}
+                </p>
+                {agreementPdfHref ? (
+                  <a
+                    href={agreementPdfHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-5 inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-accent/40 bg-accent/10 text-sm font-medium tracking-[0.1em] text-accent transition-colors hover:bg-accent/15"
+                  >
+                    View PDF
+                  </a>
+                ) : (
+                  <>
+                    <p className="mt-5 text-sm leading-relaxed text-white/55">
+                      Your signed agreement is on file — we&apos;ll re-send your
+                      copy.
+                    </p>
+                    <a
+                      href={`mailto:agreements@squeegeeking.net?subject=${encodeURIComponent(`Agreement copy — ${view.propertyName}`)}`}
+                      className="mt-5 inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-sm font-medium tracking-[0.08em] text-white/80 transition-colors hover:bg-white/[0.07]"
+                    >
+                      Request a copy
+                    </a>
+                  </>
+                )}
+              </PortalCard>
+            </PortalSection>
+          )}
+
+          {/* §5 — Payment */}
+          <PortalSection
+            id="payment"
+            index={3}
+            eyebrow="Payment"
+            headline={paymentHeadline}
+            support={
+              view.paymentOnFile
+                ? "Billed on the 1st of your service month."
+                : "Add your card to complete your membership."
+            }
+          >
+            {view.paymentOnFile ? (
+              <PortalCard>
+                <p className="text-sm text-white/70">
+                  Secured card on file. {view.billingReminder}
+                </p>
+              </PortalCard>
+            ) : view.pendingPayment ? (
+              <PortalCard>
+                <p className="text-sm text-white/55">
+                  Complete your card setup in Membership above.
+                </p>
+              </PortalCard>
+            ) : view.membershipId ? (
+              <CardOnFileSetup
+                memberName={data.homeowner.fullName}
+                memberEmail={portalData?.profile.email}
+                presentationId={view.presentationId ?? undefined}
+                membershipId={view.membershipId}
+                theme="presentation"
+                onSuccess={handlePaymentSuccess}
+              />
+            ) : null}
+          </PortalSection>
+
+          {/* §3 — What's Next */}
+          <PortalSection
+            id="whats-next"
+            index={4}
+            eyebrow="What's next"
+            headline={view.whatsNextHeadline}
+            support={view.whatsNextSupport}
+          >
+            <p className="text-sm text-white/50">{view.cadenceNote}</p>
+            <div className="mt-4">
+              <ExpandLink
+                open={whatsNextOpen}
+                onClick={() => setWhatsNextOpen((v) => !v)}
+              />
+            </div>
+            {whatsNextOpen && (
+              <div className="mt-4">
+                <ProcessTimeline />
+              </div>
+            )}
+          </PortalSection>
+
+          {/* §6 — Care Record */}
+          <PortalSection
+            id="care-record"
+            index={5}
+            eyebrow="Care record"
+            headline={view.propertyName}
+            support={view.propertyAddress}
+          >
+            <div className="relative mb-6 overflow-hidden rounded-2xl border border-white/[0.08]">
+              {data.property.heroImage ? (
+                <div className="relative aspect-[16/10] w-full">
+                  <Image
+                    src={data.property.heroImage}
+                    alt={view.propertyName}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 768px) 100vw, 640px"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#060606]/80 via-transparent to-transparent" />
+                </div>
+              ) : (
+                <div className="flex aspect-[16/10] items-center justify-center bg-gradient-to-b from-accent/[0.06] to-transparent py-10">
+                  <HouseIllustration />
+                </div>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {view.propertyFacts.map((fact) => (
+                <span
+                  key={fact}
+                  className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] tracking-wide text-white/55"
+                >
+                  {fact}
+                </span>
+              ))}
+            </div>
+          </PortalSection>
+
+          {/* §7 — Timeline */}
+          <PortalSection
+            id="timeline"
+            index={6}
+            eyebrow="Visit history"
+            headline={view.storyHeadline}
+          >
+            {view.timelineEntries.length > 0 ? (
+              <ul className="space-y-4">
+                {view.timelineEntries.map((entry) => (
+                  <li key={entry.id}>
+                    <PortalCard>
+                      <p className="font-serif text-lg text-[#f5f2eb]">
+                        {entry.monthYear}
+                      </p>
+                      <p className="mt-2 flex items-start gap-2 text-sm text-white/70">
+                        <span className="text-accent" aria-hidden>
+                          ✓
+                        </span>
+                        {entry.label}
+                      </p>
+                      {entry.note && (
+                        <p className="mt-2 text-sm text-white/45">
+                          {entry.note}
+                        </p>
+                      )}
+                    </PortalCard>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <PortalCard className="text-center">
+                <p className="text-sm text-white/55">
+                  {view.timelineEmptyCopy}
+                </p>
+              </PortalCard>
+            )}
+          </PortalSection>
+
+          {/* §8 — Photos */}
+          <PortalSection
+            id="photos"
+            index={7}
+            eyebrow="Photos"
+            headline={`${view.propertyName}, cared for.`}
+          >
+            {view.completedVisitCount > 0 ? (
+              <PortalCard>
+                <p className="text-sm text-white/55">
+                  Photos from your visits appear here.
+                </p>
+              </PortalCard>
+            ) : (
+              <div className="rounded-3xl border border-accent/15 bg-gradient-to-b from-accent/[0.06] to-transparent py-10 text-center">
+                <HouseIllustration />
+                <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-white/55">
+                  {view.photosEmptyCopy}
+                </p>
+              </div>
+            )}
+          </PortalSection>
+        </div>
       </div>
-    </div>
+    </PortalStage>
   );
 }

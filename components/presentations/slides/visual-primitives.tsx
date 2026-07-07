@@ -43,7 +43,7 @@ const INCLUDED_ITEMS = [
   { label: "Add-on savings", detail: "Up to 25% off" },
 ] as const;
 
-function HouseIllustration() {
+export function HouseIllustration() {
   return (
     <svg
       viewBox="0 0 120 120"

@@ -14,6 +14,7 @@ import type {
   MemberSavingsEntry,
   PropertyRecord,
 } from "@/lib/member-intelligence/types";
+import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 
 export interface ServiceObservationView {
   id: string;
@@ -37,9 +38,16 @@ export interface MemberPortalLifetimeSavings {
   entries: MemberSavingsEntry[];
 }
 
+export interface MemberPortalAgreement {
+  planName: string;
+  signedAt: string;
+  pdfUrl: string | null;
+}
+
 export interface MemberPortalData {
   profile: MemberProfile;
   property: PropertyRecord;
+  propertyName: string;
   appointments: MemberAppointmentSummary[];
   nextAppointment: MemberAppointmentSummary | null;
   ytdSavings: MemberPortalYTDSavings;
@@ -50,6 +58,15 @@ export interface MemberPortalData {
   memberSince: string | null;
   foundingMember: boolean;
   foundingMemberSince: string | null;
+  salesTier: string | null;
+  visitPrice: number | null;
+  visitsPerYear: number | null;
+  membershipStatus: string;
+  paymentSetupCompletedAt: string | null;
+  agreement: MemberPortalAgreement | null;
+  presentationId: string | null;
+  membershipId: string | null;
+  paymentMethodLabel: string | null;
 }
 
 interface HomeownerRow {
@@ -79,12 +96,26 @@ interface PropertyRow {
 }
 
 interface MembershipRow {
+  id: string;
   plan_name: string;
   price_display: string;
   started_at: string | null;
   status: string;
   founding_member: boolean;
   founding_member_since: string | null;
+  sales_tier: string | null;
+  visit_price: number | null;
+  visits_per_year: number | null;
+  payment_setup_completed_at: string | null;
+  presentation_id: string | null;
+  stripe_payment_method_id: string | null;
+}
+
+interface SignedAgreementRow {
+  plan_name: string;
+  signed_at: string;
+  agreement_pdf_url: string | null;
+  status: string;
 }
 
 interface MemberProfileRow {
@@ -272,12 +303,27 @@ export async function getMemberPortalDataBySlugs(
   const { data: membership } = await supabase
     .from("memberships")
     .select(
-      "plan_name, price_display, started_at, status, founding_member, founding_member_since",
+      "id, plan_name, price_display, started_at, status, founding_member, founding_member_since, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, presentation_id, stripe_payment_method_id",
     )
     .eq("property_id", propertyRow.id)
     .maybeSingle();
 
   const membershipRow = (membership as MembershipRow | null) ?? null;
+
+  const paymentMethodLabel = membershipRow?.payment_setup_completed_at
+    ? await resolvePortalPaymentMethodLabel(
+        membershipRow.stripe_payment_method_id,
+      )
+    : null;
+
+  const { data: agreementRow } = await supabase
+    .from("signed_agreements")
+    .select("plan_name, signed_at, agreement_pdf_url, status")
+    .eq("property_id", propertyRow.id)
+    .eq("status", "complete")
+    .order("signed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
   const { data: appointmentRows } = await supabase
     .from("member_appointments")
@@ -358,6 +404,7 @@ export async function getMemberPortalDataBySlugs(
   return {
     profile: memberProfile,
     property: buildPropertyRecord(propertyRow, profile.id),
+    propertyName: propertyRow.name,
     appointments,
     nextAppointment,
     ytdSavings,
@@ -370,6 +417,22 @@ export async function getMemberPortalDataBySlugs(
     memberSince: membershipRow?.started_at ?? profile.created_at,
     foundingMember: membershipRow?.founding_member ?? false,
     foundingMemberSince: membershipRow?.founding_member_since ?? null,
+    salesTier: membershipRow?.sales_tier ?? null,
+    visitPrice: membershipRow?.visit_price ?? null,
+    visitsPerYear: membershipRow?.visits_per_year ?? null,
+    membershipStatus: membershipRow?.status ?? "inactive",
+    paymentSetupCompletedAt:
+      membershipRow?.payment_setup_completed_at ?? null,
+    agreement: agreementRow
+      ? {
+          planName: (agreementRow as SignedAgreementRow).plan_name,
+          signedAt: (agreementRow as SignedAgreementRow).signed_at,
+          pdfUrl: (agreementRow as SignedAgreementRow).agreement_pdf_url,
+        }
+      : null,
+    presentationId: membershipRow?.presentation_id ?? null,
+    membershipId: membershipRow?.id ?? null,
+    paymentMethodLabel,
   };
 }
 

@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import { formatTierPrice } from "@/lib/membership/tier-config";
+import type { ScheduledServiceItem } from "@/lib/membership/member-schedule";
 import type { MemberMembershipView } from "@/lib/membership/resolve-member-membership";
 import type { ServiceScheduleStatus } from "@/lib/membership/tier-config";
 import { FOUNDING_HOME_PROLOGUE } from "@/lib/membership/founding-member";
@@ -56,10 +57,13 @@ export function MemberPremiumCard({
   membership,
   foundingDisplay = null,
   entranceDelay = 0.45,
+  hideInternalPricing = false,
 }: {
   membership: MemberMembershipView;
   foundingDisplay?: FoundingMemberDisplay | null;
   entranceDelay?: number;
+  /** Customer token portal — no visit pricing or internal calculations */
+  hideInternalPricing?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
   const { schedule, value } = membership;
@@ -110,7 +114,7 @@ export function MemberPremiumCard({
           </p>
           {hasVisitHistory ? (
             <ul className="mt-4 space-y-2.5">
-              {schedule.items.map((item) => (
+              {schedule.items.map((item: ScheduledServiceItem) => (
                 <li
                   key={item.id}
                   className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/30 px-4 py-3 text-sm"
@@ -175,12 +179,14 @@ export function MemberPremiumCard({
               Your Membership
             </p>
             <dl className="mt-3 space-y-2 text-sm">
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted">Monthly</dt>
-                <dd className="font-serif text-lg font-light text-foreground">
-                  {formatTierPrice(membership.monthlyPrice)}
-                </dd>
-              </div>
+              {!hideInternalPricing && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted">Monthly</dt>
+                  <dd className="font-serif text-lg font-light text-foreground">
+                    {formatTierPrice(membership.monthlyPrice)}
+                  </dd>
+                </div>
+              )}
               {schedule.completedCount > 0 && (
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted">Services completed</dt>
@@ -211,7 +217,11 @@ export function MemberPremiumCard({
               </div>
             </dl>
 
-            {value.narrative === "certainty" ? (
+            {hideInternalPricing ? (
+              <p className="mt-4 text-xs leading-relaxed text-muted/90 italic">
+                Member pricing applies automatically — nothing to track.
+              </p>
+            ) : value.narrative === "certainty" ? (
               <p className="mt-4 text-xs leading-relaxed text-muted/90 italic">
                 {value.certaintyCopy}
               </p>

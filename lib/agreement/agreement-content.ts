@@ -25,8 +25,19 @@ export const MEMBERSHIP_BILLING_REMINDER =
 export const MEMBERSHIP_NEXT_BILLING_LABEL =
   "The 1st of each scheduled service month";
 
-export const MEMBERSHIP_CONFIRMATION_PHILOSOPHY =
-  "Payment disappears into the experience — your technician arrives ready to care for your home, not to collect payment.";
+export const MEMBERSHIP_CLOSE_BILLING_BULLETS = [
+  "Nothing to pay at signing today",
+  "Billed on the 1st of your scheduled service month",
+  "No payment when we arrive — care stays at the center",
+] as const;
+
+export const PORTAL_EMPTY_COPY = {
+  storyHeadline: "Your home's story starts soon.",
+  nextVisit:
+    "We're scheduling your first visit — you'll hear from us, nothing to do.",
+  timeline: "Chapter one begins with your first visit.",
+  photos: "Your home's gallery begins with your first visit.",
+} as const;
 
 export const MEMBERSHIP_ONBOARDING_PAYMENT_POINTS = [
   {

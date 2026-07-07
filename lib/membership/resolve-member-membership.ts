@@ -1,5 +1,5 @@
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
-import { buildEmptyMemberSchedule } from "./member-schedule";
+import { buildEmptyMemberSchedule, type MemberScheduleView } from "./member-schedule";
 import { buildMemberSavingsSummary } from "./member-savings-tracker";
 import {
   calculateMembershipPrice,

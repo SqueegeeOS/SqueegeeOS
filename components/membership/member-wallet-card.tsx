@@ -18,6 +18,8 @@ interface MemberWalletCardProps {
   portalUrl: string;
   foundingDisplay?: FoundingMemberDisplay | null;
   entranceDelay?: number;
+  showActions?: boolean;
+  embedded?: boolean;
 }
 
 function isMobileDevice(): boolean {
@@ -30,6 +32,8 @@ export function MemberWalletCard({
   portalUrl,
   foundingDisplay = null,
   entranceDelay = 0.3,
+  showActions = true,
+  embedded = false,
 }: MemberWalletCardProps) {
   const reduceMotion = useReducedMotion();
   const [busy, setBusy] = useState<"share" | "save" | null>(null);
@@ -127,30 +131,10 @@ export function MemberWalletCard({
     }
   }, [data, portalUrl, runExport]);
 
-  return (
-    <motion.section
-      initial={reduceMotion ? false : { opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{
-        duration: 0.95,
-        delay: reduceMotion ? 0 : entranceDelay,
-        ease: easeLuxury,
-      }}
-      className="mt-10"
-      aria-labelledby="member-wallet-card-heading"
-    >
-      <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
-        Your membership
-      </p>
-      <h2
-        id="member-wallet-card-heading"
-        className="sr-only"
-      >
-        {data.memberName} — {data.tierLabel}
-      </h2>
-
+  const card = (
+    <>
       <article
-        className="relative mx-auto mt-4 max-w-[358px] overflow-hidden rounded-[1.35rem] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
+        className="relative mx-auto max-w-[358px] overflow-hidden rounded-[1.35rem] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
         style={{ aspectRatio: "358 / 220" }}
       >
         <div
@@ -215,6 +199,7 @@ export function MemberWalletCard({
         </div>
       </article>
 
+      {showActions && (
       <div className="mx-auto mt-5 flex max-w-[358px] flex-col gap-3 sm:flex-row">
         <button
           type="button"
@@ -233,12 +218,39 @@ export function MemberWalletCard({
           {busy === "save" ? "Saving…" : "Save to Phone"}
         </button>
       </div>
+      )}
 
-      {feedback && (
+      {feedback && showActions && (
         <p className="mx-auto mt-3 max-w-[358px] text-center text-xs text-muted">
           {feedback}
         </p>
       )}
+    </>
+  );
+
+  if (embedded) {
+    return card;
+  }
+
+  return (
+    <motion.section
+      initial={reduceMotion ? false : { opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{
+        duration: 0.95,
+        delay: reduceMotion ? 0 : entranceDelay,
+        ease: easeLuxury,
+      }}
+      className="mt-10"
+      aria-labelledby="member-wallet-card-heading"
+    >
+      <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
+        Your membership
+      </p>
+      <h2 id="member-wallet-card-heading" className="sr-only">
+        {data.memberName} — {data.tierLabel}
+      </h2>
+      <div className="mt-4">{card}</div>
     </motion.section>
   );
 }

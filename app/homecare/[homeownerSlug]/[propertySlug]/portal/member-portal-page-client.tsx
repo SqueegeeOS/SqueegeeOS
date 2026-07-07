@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { PortalStage } from "@/components/portal/portal-stage";
 import { useEffect, useState } from "react";
 import UnlockCeremony from "@/components/UnlockCeremony";
 import { MemberPortalExperience } from "@/components/membership/member-portal-experience";
@@ -59,18 +60,14 @@ function MemberPortalWithCeremony({
   portalData,
   homeownerSlug,
   propertySlug,
-  homeHealth = null,
-  homeHealthHref,
   portalBasePath,
   customerPortalMode = "slug",
 }: MemberPortalPageClientProps) {
-  const [fromUnlock, setFromUnlock] = useState(false);
   const [showCeremony, setShowCeremony] = useState(false);
 
   useEffect(() => {
     function applyWelcomePending(forceCeremony: boolean) {
       const pending = consumeMemberWelcomePending();
-      if (pending) setFromUnlock(true);
       if (
         forceCeremony ||
         (pending && !hasSeenUnlockCeremony(homeownerSlug, propertySlug))
@@ -105,9 +102,6 @@ function MemberPortalWithCeremony({
       <MemberPortalExperience
         data={planData}
         portalData={portalData}
-        fromUnlock={fromUnlock}
-        homeHealth={homeHealth}
-        homeHealthHref={homeHealthHref}
         portalBasePath={
           portalBasePath ??
           `/homecare/${homeownerSlug}/${propertySlug}/portal`
@@ -120,19 +114,21 @@ function MemberPortalWithCeremony({
 
 export function MemberPortalNotFound() {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background px-6 text-center">
-      <p className="font-serif text-3xl font-light text-foreground">
-        Portal not found
-      </p>
-      <p className="mt-4 max-w-md text-sm text-muted">
-        We could not find a membership portal for this property.
-      </p>
-      <Link
-        href="/"
-        className="mt-8 inline-flex min-h-[52px] items-center justify-center rounded-full bg-accent px-8 text-sm font-medium tracking-[0.12em] text-background"
-      >
-        Return home
-      </Link>
-    </div>
+    <PortalStage>
+      <div className="flex min-h-[100svh] flex-col items-center justify-center px-6 text-center">
+        <p className="font-serif text-3xl font-light text-[#f5f2eb]">
+          Portal not found
+        </p>
+        <p className="mt-4 max-w-md text-sm text-white/50">
+          We could not find a membership portal for this property.
+        </p>
+        <Link
+          href="/"
+          className="mt-8 inline-flex min-h-[52px] items-center justify-center rounded-full bg-accent px-8 text-sm font-medium tracking-[0.12em] text-[#060606]"
+        >
+          Return home
+        </Link>
+      </div>
+    </PortalStage>
   );
 }
