@@ -1,12 +1,14 @@
-/** Shared PWA configuration */
-import { CUSTOMER_BRAND } from "@/lib/brand/customer";
+/** Shared PWA configuration — HomeAtlas member portal */
+import { PLATFORM_BRAND } from "@/lib/brand/platform";
 
 export const pwaConfig = {
-  name: CUSTOMER_BRAND.name,
-  shortName: CUSTOMER_BRAND.name,
-  description: CUSTOMER_BRAND.tagline,
+  name: PLATFORM_BRAND.name,
+  shortName: PLATFORM_BRAND.name,
+  description: "Your home's care record — visits, health, and membership in one place.",
   themeColor: "#060606",
   backgroundColor: "#060606",
-  startUrl: "/",
+  /** PWA opens portal entry; stored token resolves to /portal/[token] */
+  startUrl: "/portal",
+  scope: "/portal",
   display: "standalone" as const,
 } as const;

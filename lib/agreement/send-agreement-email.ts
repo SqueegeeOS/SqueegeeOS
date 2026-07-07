@@ -90,13 +90,8 @@ export async function sendAgreementEmail(
   const emailFooter = `${CUSTOMER_BRAND.name} · ${CUSTOMER_BRAND.location}<br/>Powered by ${PLATFORM_BRAND.name}`;
   const portalBlock = input.portalUrl
     ? `
-          <p style="margin-top: 28px;">
-            <a href="${input.portalUrl}" style="display: inline-block; padding: 14px 24px; background: #1a1a1a; color: #f5f2eb; text-decoration: none; border-radius: 8px; font-size: 14px;">
-              Open your ${PLATFORM_BRAND.name} portal
-            </a>
-          </p>
-          <p style="color: #666; font-size: 12px; margin-top: 12px;">
-            Save this link — it is your private access to your home&apos;s care record.
+          <p style="color: #666; font-size: 13px; margin-top: 20px;">
+            One more step: add your card on file to activate billing. Your welcome email with portal access arrives when setup is complete.
           </p>
         `
     : "";

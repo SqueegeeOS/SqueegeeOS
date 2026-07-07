@@ -8,11 +8,13 @@ import {
   MEMBERSHIP_BILLING_SCHEDULE_BODY,
   MEMBERSHIP_BILLING_SCHEDULE_HEADLINE,
   MEMBERSHIP_CARD_ON_FILE_WHY,
-  MEMBERSHIP_CONFIRMATION_PHILOSOPHY,
-  MEMBERSHIP_NEXT_BILLING_LABEL,
   membershipAgreementCheckboxText,
 } from "@/lib/agreement/agreement-content";
+import {
+  markMemberWelcomePending,
+} from "@/lib/membership/unlock-sequence";
 import { PLATFORM_BRAND } from "@/lib/brand/platform";
+import { portalWelcomePathFromUrl } from "@/lib/pwa/install-welcome";
 import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
   computePresentationRates,
@@ -326,6 +328,7 @@ export function PresentationOnboarding({
     syncPresentation(completedPresentation);
     setPaymentSaved(true);
     setOnboardingStatus("complete");
+    markMemberWelcomePending();
     goToStep("complete");
   };
 
@@ -456,15 +459,6 @@ export function PresentationOnboarding({
             >
               Continue to payment method
             </button>
-
-            {portalUrl ? (
-              <a
-                href={portalUrl}
-                className="mt-4 flex w-full min-h-[48px] items-center justify-center rounded-lg border border-white/20 py-4 text-sm font-medium text-[#f5f2eb] transition hover:border-white/40"
-              >
-                Open my home portal
-              </a>
-            ) : null}
           </div>
         ) : null}
 
@@ -500,35 +494,27 @@ export function PresentationOnboarding({
         {step === "complete" ? (
           <div className="rounded-lg border border-white/10 bg-[#0d0d0d] p-8 text-center sm:p-10">
             <h2 className="font-serif text-3xl font-light text-[#f5f2eb] sm:text-4xl">
-              You&apos;re all set!
+              Your home is now under care.
             </h2>
-            <p className="mt-3 text-sm text-white/45">
-              {presentation.clientName}, welcome to the family.
+            <p className="mt-3 text-sm leading-relaxed text-white/50">
+              {presentation.clientName}, your membership is active. Your private
+              portal is ready whenever you are.
             </p>
 
             <ul className="mt-8 space-y-3 text-left">
+              <ChecklistItem>Agreement Complete</ChecklistItem>
               <ChecklistItem>Membership Active</ChecklistItem>
               <ChecklistItem>
-                {paymentSaved
-                  ? "Payment Method Saved"
-                  : "Payment Method — add from your member portal anytime"}
+                {paymentSaved ? "Card On File" : "Card On File — saved"}
               </ChecklistItem>
-              <ChecklistItem>
-                Next billing: {MEMBERSHIP_NEXT_BILLING_LABEL}
-              </ChecklistItem>
-              <ChecklistItem>We&apos;ll contact you before each visit.</ChecklistItem>
             </ul>
-
-            <p className="mt-6 text-left text-sm italic leading-relaxed text-white/45">
-              {MEMBERSHIP_CONFIRMATION_PHILOSOPHY}
-            </p>
 
             {portalUrl ? (
               <a
-                href={portalUrl}
+                href={portalWelcomePathFromUrl(portalUrl)}
                 className="mt-8 flex w-full min-h-[52px] items-center justify-center rounded-lg bg-gradient-to-br from-accent to-[#e8d5a3] py-4 text-sm font-bold text-[#060606]"
               >
-                Open my home portal
+                Open My Home
               </a>
             ) : null}
 

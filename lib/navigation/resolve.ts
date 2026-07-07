@@ -29,6 +29,9 @@ export function getNavigationMode(pathname: string): NavigationMode {
   if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
     return "hidden";
   }
+  if (pathname === "/portal" || pathname.startsWith("/portal/")) {
+    return "hidden";
+  }
   if (isPresentationPresentMode(pathname)) {
     return "hidden";
   }
@@ -40,6 +43,7 @@ export function getNavigationMode(pathname: string): NavigationMode {
 
 export function shouldUseOverlayNav(pathname: string): boolean {
   if (pathname === ROUTES.home) return true;
+  if (pathname === "/portal" || pathname.startsWith("/portal/")) return true;
   if (pathname.startsWith("/homecare/") && pathname.endsWith("/portal")) {
     return true;
   }

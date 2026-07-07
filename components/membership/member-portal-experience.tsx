@@ -21,6 +21,7 @@ import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-d
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
 import { PortalStage } from "@/components/portal/portal-stage";
+import { InstallHomeAtlas } from "@/components/pwa/InstallHomeAtlas";
 import { materialize } from "@/lib/motion/system";
 
 interface MemberPortalExperienceProps {
@@ -420,6 +421,12 @@ export function MemberPortalExperience({
             )}
           </PortalSection>
         </div>
+
+        {isCustomerPortal && (
+          <div className="mt-16">
+            <InstallHomeAtlas />
+          </div>
+        )}
       </div>
     </PortalStage>
   );

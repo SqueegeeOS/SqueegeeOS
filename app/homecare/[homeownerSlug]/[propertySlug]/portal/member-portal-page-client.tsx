@@ -5,6 +5,7 @@ import { PortalStage } from "@/components/portal/portal-stage";
 import { useEffect, useState } from "react";
 import UnlockCeremony from "@/components/UnlockCeremony";
 import { MemberPortalExperience } from "@/components/membership/member-portal-experience";
+import { PortalEntry } from "@/components/pwa/PortalEntry";
 import {
   MembershipUnlockProvider,
   UNLOCK_CEREMONY_REQUEST,
@@ -91,6 +92,7 @@ function MemberPortalWithCeremony({
 
   return (
     <>
+      {customerPortalMode === "token" && <PortalEntry />}
       {showCeremony && (
         <UnlockCeremony
           onComplete={() => {

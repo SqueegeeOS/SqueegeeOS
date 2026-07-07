@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
+import { sendWelcomeEmail } from "@/lib/agreement/send-welcome-email";
 import { loadMembershipForPayment } from "@/lib/membership/load-membership-for-payment";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import {
@@ -178,6 +180,43 @@ export async function POST(req: NextRequest) {
       membership.id,
       req.nextUrl.origin,
     );
+
+    if (portalUrl) {
+      const [{ data: homeowner }, { data: presentation }] = await Promise.all([
+        supabase
+          .from("homeowners")
+          .select("full_name, email")
+          .eq("id", membership.homeowner_id)
+          .maybeSingle(),
+        resolvedPresentationId
+          ? supabase
+              .from("presentations")
+              .select("client_email, client_name")
+              .eq("id", resolvedPresentationId)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+
+      const memberEmail = resolveMemberEmail(
+        presentation?.client_email as string | null | undefined,
+        homeowner?.email as string | null | undefined,
+      );
+      const memberName =
+        (presentation?.client_name as string | null | undefined)?.trim() ||
+        (homeowner?.full_name as string | null | undefined)?.trim() ||
+        "Member";
+
+      if (memberEmail) {
+        const welcomeEmail = await sendWelcomeEmail({
+          to: memberEmail,
+          name: memberName,
+          portalUrl,
+        });
+        if (welcomeEmail.status !== "sent") {
+          console.warn("[setup-payment] welcome email not sent", welcomeEmail);
+        }
+      }
+    }
 
     return NextResponse.json({
       membershipId: membership.id,
