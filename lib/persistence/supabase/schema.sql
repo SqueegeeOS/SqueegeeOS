@@ -72,6 +72,8 @@ create table if not exists memberships (
   stripe_subscription_id text,
   stripe_price_id text,
   started_at timestamptz,
+  founding_member boolean not null default false,
+  founding_member_since timestamptz,
   cancelled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

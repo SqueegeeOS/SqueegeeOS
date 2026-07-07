@@ -82,6 +82,8 @@ export interface MembershipRow {
   stripe_subscription_id: string | null;
   stripe_price_id: string | null;
   started_at: string | null;
+  founding_member: boolean;
+  founding_member_since: string | null;
   cancelled_at: string | null;
   created_at: string;
   updated_at: string;
@@ -216,6 +218,8 @@ export function membershipFromRow(row: MembershipRow): PersistedMembership {
     stripeSubscriptionId: row.stripe_subscription_id,
     stripePriceId: row.stripe_price_id,
     startedAt: row.started_at,
+    foundingMember: row.founding_member ?? false,
+    foundingMemberSince: row.founding_member_since,
     cancelledAt: row.cancelled_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

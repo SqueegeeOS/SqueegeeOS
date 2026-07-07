@@ -40,6 +40,9 @@ export interface PersistedMembership {
   stripeSubscriptionId: string | null;
   stripePriceId: string | null;
   startedAt: string | null;
+  /** Early launch founding cohort — set at creation only */
+  foundingMember: boolean;
+  foundingMemberSince: string | null;
   cancelledAt: string | null;
   createdAt: string;
   updatedAt: string;

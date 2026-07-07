@@ -245,6 +245,8 @@ export const sessionStorageAdapter: PersistenceAdapter = {
       stripeSubscriptionId: input.stripeSubscriptionId,
       stripePriceId: input.stripePriceId,
       startedAt: input.startedAt,
+      foundingMember: input.foundingMember ?? false,
+      foundingMemberSince: input.foundingMemberSince ?? null,
       cancelledAt: input.cancelledAt,
       createdAt: now,
       updatedAt: now,

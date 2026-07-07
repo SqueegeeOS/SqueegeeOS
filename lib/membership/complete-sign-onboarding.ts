@@ -14,6 +14,9 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import {
+  resolveFoundingMemberFields,
+} from "@/lib/membership/founding-member";
 import type { MembershipSalesTier } from "@/lib/persistence/types/membership";
 import {
   firstNameFromFullName,
@@ -150,6 +153,8 @@ export async function completeSignOnboarding(
     );
   }
 
+  const founding = resolveFoundingMemberFields(input.signedAt);
+
   const { data: membership, error: membershipError } = await supabase
     .from("memberships")
     .upsert(
@@ -167,6 +172,9 @@ export async function completeSignOnboarding(
         visits_per_year: pricing.visitsPerYear,
         billing_schedule: "first_of_service_month",
         status: "pending_payment",
+        started_at: input.signedAt,
+        founding_member: founding.foundingMember,
+        founding_member_since: founding.foundingMemberSince,
       },
       { onConflict: "property_id" },
     )

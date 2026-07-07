@@ -257,6 +257,8 @@ export const supabaseAdapter: PersistenceAdapter = {
           stripe_subscription_id: input.stripeSubscriptionId,
           stripe_price_id: input.stripePriceId,
           started_at: input.startedAt,
+          founding_member: input.foundingMember,
+          founding_member_since: input.foundingMemberSince,
           cancelled_at: input.cancelledAt,
         },
         { onConflict: "property_id" },
