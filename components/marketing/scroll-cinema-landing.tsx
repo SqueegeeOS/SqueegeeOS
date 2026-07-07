@@ -10,7 +10,7 @@ import { TestimonialsSection } from "./sections/testimonials-section";
 
 export function ScrollCinemaLanding() {
   return (
-    <CursorSpotlightPage intensity="bright">
+    <CursorSpotlightPage intensity="whisper">
       <HeroSection />
       <ReflectionSection />
       <ServicesSection />

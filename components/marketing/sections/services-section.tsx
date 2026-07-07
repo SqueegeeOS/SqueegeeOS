@@ -1,5 +1,6 @@
 "use client";
 
+import { AmbientLight } from "@/components/craft/ambient-light";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { GlassCard } from "@/components/scroll-cinema/glass-card";
 import { ParallaxLayer } from "@/components/scroll-cinema/parallax-layer";
@@ -26,8 +27,9 @@ const pillars = [
 
 export function ServicesSection() {
   return (
-    <section className="relative bg-background px-5 py-28 sm:px-10 sm:py-36 lg:px-16">
-      <div className="mx-auto max-w-6xl">
+    <section className="relative overflow-hidden bg-background px-5 py-28 sm:px-10 sm:py-36 lg:px-16">
+      <AmbientLight variant="section" />
+      <div className="relative mx-auto max-w-6xl">
         <ScrollReveal>
           <Eyebrow>What we do</Eyebrow>
           <h2 className="mt-6 max-w-2xl font-serif text-4xl font-light leading-tight text-foreground sm:text-5xl">

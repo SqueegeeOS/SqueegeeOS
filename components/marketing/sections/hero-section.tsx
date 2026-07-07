@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { AmbientLight } from "@/components/craft/ambient-light";
 import { CUSTOMER_CTAS } from "@/lib/brand/customer";
 import { Eyebrow, easeLuxury } from "@/components/marketing/ui";
 
@@ -24,6 +25,7 @@ export function HeroSection() {
           sizes="100vw"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-black/55 to-background" />
+        <AmbientLight variant="hero" />
         <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(105deg,transparent_40%,rgba(255,255,255,0.04)_50%,transparent_60%)] opacity-60" />
       </div>
 

@@ -8,16 +8,50 @@ import {
 } from "framer-motion";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
-export type CursorSpotlightIntensity = "subtle" | "medium" | "bright";
+export type CursorSpotlightIntensity =
+  | "whisper"
+  | "subtle"
+  | "medium"
+  | "bright";
 
 const INTENSITY: Record<
   CursorSpotlightIntensity,
   { core: number; halo: number; size: number }
 > = {
+  whisper: { core: 0.028, halo: 0.014, size: 520 },
   subtle: { core: 0.09, halo: 0.045, size: 560 },
   medium: { core: 0.12, halo: 0.06, size: 680 },
   bright: { core: 0.16, halo: 0.08, size: 800 },
 };
+
+const SPRING: Record<
+  CursorSpotlightIntensity,
+  { stiffness: number; damping: number; mass: number }
+> = {
+  whisper: { stiffness: 38, damping: 24, mass: 1.4 },
+  subtle: { stiffness: 90, damping: 26, mass: 0.7 },
+  medium: { stiffness: 140, damping: 28, mass: 0.45 },
+  bright: { stiffness: 140, damping: 28, mass: 0.45 },
+};
+
+function shouldDisableCursorWake(): boolean {
+  if (typeof window === "undefined") return true;
+
+  const finePointer = window.matchMedia("(pointer: fine)").matches;
+  if (!finePointer) return true;
+
+  const nav = navigator as Navigator & {
+    hardwareConcurrency?: number;
+    connection?: { saveData?: boolean };
+  };
+
+  if (nav.connection?.saveData) return true;
+  if (typeof nav.hardwareConcurrency === "number" && nav.hardwareConcurrency <= 4) {
+    return true;
+  }
+
+  return false;
+}
 
 interface CursorSpotlightProps {
   /** `fixed` — full viewport (landing, marketing). `absolute` — contained in parent. */
@@ -43,9 +77,10 @@ export function CursorSpotlight({
   const reduceMotion = useReducedMotion();
   const [enabled, setEnabled] = useState(false);
   const { core, halo, size } = INTENSITY[intensity];
+  const spring = SPRING[intensity];
 
-  const pointerX = useSpring(50, { stiffness: 140, damping: 28, mass: 0.45 });
-  const pointerY = useSpring(38, { stiffness: 140, damping: 28, mass: 0.45 });
+  const pointerX = useSpring(50, spring);
+  const pointerY = useSpring(38, spring);
 
   const spotlight = useMotionTemplate`radial-gradient(${size}px circle at ${pointerX}% ${pointerY}%, rgba(255, 248, 235, ${core}) 0%, rgba(201, 184, 150, ${halo}) 22%, transparent 52%)`;
 
@@ -60,9 +95,9 @@ export function CursorSpotlight({
   useEffect(() => {
     if (reduceMotion) return;
 
-    const finePointer = window.matchMedia("(pointer: fine)").matches;
-    setEnabled(finePointer);
-    if (!finePointer) return;
+    const active = !shouldDisableCursorWake();
+    setEnabled(active);
+    if (!active) return;
 
     window.addEventListener("pointermove", handleMove, { passive: true });
     return () => window.removeEventListener("pointermove", handleMove);
@@ -74,9 +109,12 @@ export function CursorSpotlight({
       ? `pointer-events-none fixed inset-0 ${zClass}`
       : `pointer-events-none absolute inset-0 ${zClass}`;
 
-  const blendStyle = overlay
+  const useOverlayBlend = overlay && intensity !== "whisper";
+  const blendStyle = useOverlayBlend
     ? ({ mixBlendMode: "soft-light" as const })
     : undefined;
+
+  const staticGlowOpacity = intensity === "whisper" ? 0.035 : 0.06;
 
   const staticGlow = (
     <div
@@ -84,8 +122,7 @@ export function CursorSpotlight({
       className={`${positionClass} ${className}`}
       style={{
         ...blendStyle,
-        background:
-          "radial-gradient(ellipse at 50% 28%, rgba(255,248,235,0.06), transparent 58%)",
+        background: `radial-gradient(ellipse at 50% 28%, rgba(255,248,235,${staticGlowOpacity}), transparent 58%)`,
       }}
     />
   );
@@ -114,15 +151,17 @@ export function CursorSpotlight({
 /** Wrapper for marketing pages — spotlight + content stack. */
 export function CursorSpotlightPage({
   children,
-  intensity = "medium",
+  intensity = "whisper",
 }: {
   children: ReactNode;
   intensity?: CursorSpotlightIntensity;
 }) {
+  const overlay = intensity !== "whisper";
+
   return (
     <div className="relative isolate min-h-screen overflow-x-hidden bg-background">
+      <CursorSpotlight scope="fixed" overlay={overlay} intensity={intensity} />
       <div className="relative z-[2]">{children}</div>
-      <CursorSpotlight scope="fixed" overlay intensity={intensity} />
     </div>
   );
 }
