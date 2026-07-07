@@ -135,10 +135,13 @@ This repository maintains a permanent knowledge base:
 | [MOTION_LANGUAGE.md](./MOTION_LANGUAGE.md) | **Canonical motion playbook** — timing, rules, checklist |
 | [HOMEATLAS_STORY.md](./HOMEATLAS_STORY.md) | Why we exist |
 | [ARCHITECTURE_GUIDELINES.md](./ARCHITECTURE_GUIDELINES.md) | How code is organized |
+| [CORPUS_ALIGNMENT_REPORT.md](./CORPUS_ALIGNMENT_REPORT.md) | Documentation consistency audit |
 | [AI_CONCIERGE.md](./AI_CONCIERGE.md) | Atlas intelligence layer |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Module map and implementation status |
 
 **After every major feature:** update the relevant doc if vision, architecture, design, motion, or roadmap changed. AI coding sessions should read `/docs` before large tasks.
+
+**HomeAtlas Standard:** The full Standard (Volumes I–VII) lives outside this repository. Engineering constitution in this repo is [ENGINEERING_BIBLE.md](./ENGINEERING_BIBLE.md). Wargames reference Standard principles — see [CORPUS_ALIGNMENT_REPORT.md](./CORPUS_ALIGNMENT_REPORT.md).
 
 Reference material lives in `/reference` — design philosophy of companies we admire, not assets to copy.
 

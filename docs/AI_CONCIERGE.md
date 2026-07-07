@@ -131,7 +131,7 @@ Post-visit automation (Technician App integration):
 - Home Care Score update explanations
 - Follow-up email/SMS drafts for founder approval
 
-This is the **AI Engine** in ARCHITECTURE.md — Atlas becomes the orchestration layer name.
+This is **Atlas** field automation — see [AI_CONCIERGE.md](./AI_CONCIERGE.md) Phase 5 and [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ---
 
@@ -200,7 +200,7 @@ Extend interfaces in `types.ts` — do not fork ad-hoc AI calls across component
 
 - [BRAND.md](./BRAND.md) — Atlas vs HomeAtlas naming
 - [ROADMAP.md](./ROADMAP.md) — V1.1 brief enrichment, V2 copilot
-- [ARCHITECTURE.md](./ARCHITECTURE.md) — AI Engine module map
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — Atlas module map
 
 ---
 

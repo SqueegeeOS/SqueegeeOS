@@ -52,8 +52,8 @@ ai_quotes
 Phase 1 (Week 1–2) — Foundation
 ├── Run migration 005
 ├── Run seed: lib/persistence/supabase/seeds/001_canyon_oaks_demo.sql
-├── Wire saveMembership() after checkout
-├── Portal reads member_profiles + appointments (larry-buckley / canyon-oaks-residence)
+├── Wire saveMembership() after payment setup (`setup-payment`)
+├── Portal reads member_profiles + appointments via token route `/portal/[token]`
 └── Enable NEXT_PUBLIC_SUPABASE_ENABLED=true + PERSISTENCE_BACKEND=supabase
 
 Phase 2 (Week 3–4) — Property Intelligence

@@ -40,7 +40,7 @@ SqueegeeKing remains the canonical design reference implementation.
 
 ### Years 5–6 (2030–2031): Field and intelligence
 
-The **Technician App** and **AI Engine** mature: arrive → document → finish visit. AI writes notes, updates Home Care Score, generates customer summaries, and queues follow-ups — invisibly.
+The **Technician App** and **Atlas** mature: arrive → document → finish visit. Atlas writes notes, updates Home Care Score, generates customer summaries, and queues follow-ups — invisibly.
 
 Atlas evolves from rule-based Morning Brief to contextual operator copilot: scheduling hints, revenue anomalies, reputation alerts, membership churn risk.
 

@@ -1,25 +1,28 @@
-# SqueegeeOS Architecture
+# HomeAtlas Architecture
 
 > The world's best luxury home care platform — not a window cleaning CRM.
 
 We are not tracking jobs. We are **documenting the life of a property**.
+
+**Repository:** `squeegeeos` (npm package name). **Platform brand:** HomeAtlas. **First tenant:** SqueegeeKing.  
+**Constitution:** [ENGINEERING_BIBLE.md](./ENGINEERING_BIBLE.md) · **Brand rules:** [BRAND.md](./BRAND.md)
 
 ---
 
 ## Product Modules
 
 ```
-SqueegeeOS
-├── Employee Dashboard        # Daily operations for care team
+HomeAtlas (platform)
+├── Employee Dashboard        # Daily operations for care team — `/employee`
 ├── Technician App            # Simple field workflow: arrive → document → finish
-├── Customer Home Care Portal # Luxury portfolio experience per property
-├── AI Engine                 # Notes, summaries, scores, recommendations, comms
+├── Member portal             # Luxury portfolio experience per property — `/portal/[token]`
+├── Atlas                     # Notes, summaries, scores, recommendations, comms (`lib/concierge/`)
 ├── Property Timeline         # Chronological story of every visit
-├── Membership System         # Tiers, benefits, agreements
-├── Proposal Generator        # Care recommendations → proposals
+├── Membership System         # Tiers, benefits, agreements, portal access
+├── Proposal Generator        # Care recommendations → Home Care Plans
 ├── Photo Library             # Every photo ever taken, per property
 ├── Annual Home Care Review   # Year-in-review for the home
-└── Admin Dashboard           # Configuration, users, system oversight
+└── Headquarters              # Founder command center — `/hq`
 ```
 
 Build incrementally. Every feature must fit naturally into this map.
@@ -54,13 +57,13 @@ AI Intelligence
 |-------|---------|
 | **Marketing Website** | Acquisition — luxury first impression, drive to assessment |
 | **Home Care Assessment** | Entry point — evaluate the home, begin the relationship |
-| **Homeowner Portal** | Homeowner's view — their properties, membership, experience |
+| **Homeowner Portal** | Member portal — enrolled homeowner's private care surface |
 | **Property Hub** | All properties for a homeowner — choose where to go |
 | **Property Dashboard** | Single property's brain — score, status, connected systems |
 | **Property Timeline** | Chronological story — every visit, every chapter |
 | **Visits** | Atomic field events — technician captures, AI processes |
 | **Photos** | Visual archive — every image tied to visits and timeline |
-| **AI Intelligence** | Layer across all — summaries, scores, recommendations, comms |
+| **AI Intelligence** | Atlas — summaries, scores, recommendations, comms (see [AI_CONCIERGE.md](./AI_CONCIERGE.md)) |
 
 Everything downstream of **Property Hub** is property-scoped. The timeline is the spine; visits and photos feed it; AI enriches it.
 
@@ -70,13 +73,13 @@ Everything downstream of **Property Hub** is property-scoped. The timeline is th
 |-------|--------|-------|
 | Marketing Website | Not started | — |
 | Home Care Assessment | Not started | — |
-| Homeowner Portal | Prototype | `/homecare/larry-buckley`, `/homecare/.../portal` |
+| Homeowner Portal (Member portal) | **Built** (token) + demo (slug) | `/portal/[token]` production; `/homecare/.../portal` internal |
 | Property Hub | Built | `/properties` |
 | Property Dashboard | Built | `/properties/[slug]` |
 | Property Timeline | Preview | Dashboard `recentTimeline` |
 | Visits | Not started | — |
 | Photos | Counts only | Property Hub cards |
-| AI Intelligence | Mock status | Property cards & dashboard |
+| AI Intelligence (Atlas) | Morning Brief shipped; field automation planned | `/hq`, property cards |
 
 ---
 
@@ -148,9 +151,9 @@ That's it. AI handles the rest.
 
 ---
 
-## AI Engine (post-visit automation)
+## Atlas (post-visit automation)
 
-When a technician finishes a visit, AI automatically:
+When a technician finishes a visit, **Atlas** (platform intelligence layer) will automatically:
 
 - Writes professional notes
 - Generates the visit summary
@@ -162,21 +165,27 @@ When a technician finishes a visit, AI automatically:
 
 ---
 
-## Customer Home Care Portal
+## Member Portal
 
-- Luxury, personalized, property-specific
-- Not a proposal — a **digital experience**
+- Luxury, personalized, property-specific — see [BRAND.md](./BRAND.md)
+- Not a proposal — a **digital experience** for enrolled members
 - Design inspiration: Apple, Lusion, Rolex, Audemars Piguet
 - Dark luxury aesthetic, generous spacing, cinematic typography
-- Each property gets its own independent experience
 
-**Target routing (evolution):**
+**Production routing (customer):**
 
 ```
-/homecare/[homeowner-slug]/[property-slug]
+/portal/[token]              # Magic-link access — customer emails and onboarding
+/portal/[token]/home-health
 ```
 
-Current prototype: `/homecare/larry-buckley` (single-property preview)
+**Demo / internal routing (slug):**
+
+```
+/homecare/[homeowner-slug]/[property-slug]/portal
+```
+
+Token URLs are unguessable (`memberships.portal_access_token`). Slug routes remain for demos and employee preview — never in customer email.
 
 ---
 
@@ -184,12 +193,12 @@ Current prototype: `/homecare/larry-buckley` (single-property preview)
 
 Operations hub for the care team — members, revenue, visits, pending plans. Premium and spacious; not contractor software. No clutter, no dense tables.
 
-**Route:** `/`
+**Route:** `/employee` (public landing is `/`)
 
 **Connected to Property Hub:**
 
 - **Properties** — top-right nav link → `/properties`
-- **New Home Care Plan** — primary gold CTA (global; not yet routed)
+- **New Home Care Plan** — primary gold CTA → `/employee/home-care-plan/create`
 - **Open Property Hub** — premium secondary card → `/properties`
   - Subtitle: *"Browse properties, timelines, and living archives"*
 
@@ -229,7 +238,7 @@ Per-property Home Care Plan creation — foundation for future proposal generati
 
 ### Create Home Care Plan (employee — built, local persistence)
 
-Noah can generate personalized plans from the internal wizard. Plans persist via the **persistence layer** — sessionStorage adapter active now; Supabase adapter ready but not connected.
+Noah can generate personalized plans from the internal wizard. Plans persist via the **persistence layer** — sessionStorage adapter when Supabase is disabled; Supabase adapter when `NEXT_PUBLIC_SUPABASE_ENABLED=true` (dual-writes to session mirror when cloud is on).
 
 | Entry | Route |
 |-------|-------|
@@ -252,8 +261,10 @@ Adapter pattern — app code calls `lib/persistence/repository.ts`; backend is s
 
 | Adapter | Status | When |
 |---------|--------|------|
-| `sessionStorageAdapter` | **Active** | Now — browser-local, same keys as before |
-| `supabaseAdapter` | Stub | After keys + `NEXT_PUBLIC_SUPABASE_ENABLED=true` |
+| `sessionStorageAdapter` | **Default** | When Supabase env not enabled |
+| `supabaseAdapter` | **Implemented** | When `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `NEXT_PUBLIC_SUPABASE_ENABLED=true` |
+
+Membership onboarding (`complete-sign-onboarding`, portal tokens, signed agreements) **requires** Supabase at runtime.
 
 **Data models** (`lib/persistence/types/`):
 
@@ -270,13 +281,13 @@ Adapter pattern — app code calls `lib/persistence/repository.ts`; backend is s
 
 **Backward compatibility:** Legacy sessionStorage entries (raw `HomeCarePlanData` JSON) are auto-migrated on read. Storage key unchanged: `squeegeeos:hcp:{homeowner}:{property}`.
 
-**To connect Supabase later:** Run schema → add `@supabase/supabase-js` + client → implement `supabaseAdapter` → set env vars. No Supabase keys in repo yet.
+**To enable Supabase:** Run schema + migrations → set env vars in `.env.local` / Vercel → set `NEXT_PUBLIC_SUPABASE_ENABLED=true`. See `lib/persistence/supabase/schema.sql` and `migrations/`.
 
 ---
 
 ## People & team content
 
-**All customer-facing people must be real Squeegeeking team members or clearly marked portrait placeholders. Never stock photos or fictional names.**
+**All customer-facing people must be real SqueegeeKing team members or clearly marked portrait placeholders. Never stock photos or fictional names.**
 
 | Role | Name | Source |
 |------|------|--------|
@@ -349,77 +360,63 @@ interface Review {
 
 ## Progressive Web App (PWA)
 
-Squeegeeking will ship as a **Progressive Web App** — not an App Store download.
+The **Member portal** ships as a **Progressive Web App** — not an App Store download. See [BRAND.md](./BRAND.md).
 
-| Piece | Plan |
-|-------|------|
-| **Public site** | `Squeegeeking.net` — marketing, assessment, acquisition |
-| **Member experience** | Logged-in Home Care Plan & homeowner portal |
-| **Onboarding** | Team guides homeowners through **Add to Home Screen** during onboarding |
-| **Goal** | Squeegeeking app icon on the homeowner's phone — native feel, zero App Store friction |
+| Piece | Detail |
+|-------|--------|
+| **Public site** | `squeegeeking.net` — marketing, assessment, acquisition (infra domain; customer brand is **SqueegeeKing**) |
+| **Member PWA** | Scoped to `/portal` — `start_url: /portal`, token resolves via `lib/pwa/portal-session.ts` |
+| **Goal** | HomeAtlas icon on the homeowner's phone — native feel, zero App Store friction |
 
-**Design implications for all customer-facing pages:**
+**Design implications for customer-facing pages:**
 
 - Mobile-first layouts; thumb-friendly CTAs (min 52px touch targets)
-- `viewport-fit: cover` + safe-area insets for iPhone notch/home indicator
-- Standalone display (`display: standalone`) when installed
-- Fast load, responsive images (`sizes` on every `next/image`)
+- `viewport-fit: cover` + safe-area insets (`.portal-safe-area` in `globals.css`)
+- Standalone display when installed
 - `prefers-reduced-motion` respected on animations
-- Feels like an app, not a website in a browser tab
 
-**Implemented (foundation):**
+**Implemented:**
 
 | Piece | Location |
 |-------|----------|
-| Web manifest | `app/manifest.ts` → `/manifest.webmanifest` |
-| Theme color | `#060606` via `viewport.themeColor` |
-| App icons (placeholder) | `public/icons/*.svg`, `app/icon.tsx`, `app/apple-icon.tsx` |
-| Apple Web App | `appleWebApp` metadata in root layout |
-| PWA config | `lib/pwa/config.ts` |
+| Web manifest | `app/manifest.ts` — HomeAtlas branding, `/portal` scope |
+| Portal entry | `app/portal/page.tsx` — resolves stored token |
+| Token persistence | `lib/pwa/portal-session.ts`, `components/pwa/PortalEntry.tsx` |
+| Install prompt | `components/pwa/InstallHomeAtlas.tsx` — token portal only |
+| Icons | `public/icons/*.svg` (HomeAtlas **H** mark) |
 
-**Not yet:** service worker, offline shell, install prompt UI, Add to Home Screen onboarding flow.
+**Not yet:** service worker, offline shell.
 
 ---
 
-## Stripe Checkout (membership — future)
+## Stripe membership payment (SetupIntent — shipped)
 
-Become a Member flow is designed for **Stripe Checkout redirect** — no card data collected in-app.
+Production onboarding uses **Stripe SetupIntent + Payment Element** — card on file without Checkout redirect.
 
-| Step | Now | When Stripe is live |
-|------|-----|---------------------|
-| 1–3 | Plan, agreement, signature | Same |
-| 4 | Checkout preview (not active) | Explains redirect |
-| 5 | Confirm → `createMembershipCheckoutSession()` | Redirect to `checkout.stripe.com` |
+| Step | Flow |
+|------|------|
+| Sign | `POST /api/sign-agreement` → agreement PDF, customer email |
+| Payment | `CardOnFileSetup` → `StripePaymentSetup` → `confirmSetup` |
+| Activate | `POST /api/membership/setup-payment` → membership `active`, welcome email |
+| Portal | `portal_access_token` minted at sign; customer opens `/portal/[token]` |
 
-**Stripe Checkout handles:** card on file, initial payment, recurring billing.
+**Key routes:** `POST /api/stripe/setup-intent`, `POST /api/membership/setup-payment`
 
-**Integration:** Set `STRIPE_CHECKOUT_ENABLED` in `lib/membership/types.ts`, implement `POST /api/stripe/checkout`, map plan IDs to Stripe Price IDs in `lib/membership/plans.ts`.
+**Legacy (not production path):** `membership-checkout-modal.tsx` on Home Care Plan page — Checkout redirect (`POST /api/stripe/checkout`) still **not implemented**.
 
-**On success:** Do not show a loading spinner or inline welcome in the checkout modal. Close the modal and trigger the **Membership Unlock Sequence** (below).
+**Gap:** Stripe webhook for `setup_intent.succeeded` not wired — activation is inline after client confirms setup.
+
+**On success:** `markMemberWelcomePending()` → user opens portal → **Unlock Ceremony** (below).
 
 ---
 
 ## Membership Unlock Sequence
 
-Signature ceremonial moment — welcoming a new member into the SqueegeeKing family after successful Stripe Checkout. Not a loading screen. Not a web animation — an exclusive club unlock.
+Signature ceremonial moment — welcoming a new member after **payment setup completes**. Not a loading screen.
 
-**Design intent:** Apple product reveal · luxury automotive delivery · opening a Rolex box. Slow, confident, cinematic. Brushed chrome lock, crown key, mechanical unlock, soft white light escape, camera push forward.
+**Trigger:** `presentation-onboarding.tsx` → `markMemberWelcomePending()` after successful `setup-payment` → first visit to Member portal.
 
-### Sequence
-
-| Phase | What happens |
-|-------|----------------|
-| 1 | Stripe Checkout succeeds |
-| 2 | Screen fades to black |
-| 3 | High-detail chrome padlock appears — brushed silver, machined depth |
-| 4 | Crown key approaches head-on (no sideways glide) |
-| 5 | Key inserts and rotates — mechanically correct |
-| 6 | Satisfying mechanical click (Web Audio) |
-| 7 | Shackle releases; soft white light escapes from keyhole |
-| 8 | Camera subtly pushes forward; light radiates outward |
-| 9 | *"Welcome to the SqueegeeKing Family."* |
-| 10 | *"Your home is now under our care."* |
-| 11 | White handoff → Member Portal with staggered privilege cards |
+**Ceremony:** `UnlockCeremony` (`components/UnlockCeremony.jsx`) — diamond unlock overlay; see [MOTION_LANGUAGE.md](./MOTION_LANGUAGE.md).
 
 ### Accessibility & timing
 
@@ -437,38 +434,29 @@ Signature ceremonial moment — welcoming a new member into the SqueegeeKing fam
 | Piece | Location |
 |-------|----------|
 | Timing, context, welcome copy | `lib/membership/unlock-sequence.ts` |
-| Member privileges copy | `lib/membership/member-privileges.ts` |
-| Mechanical click | `lib/membership/unlock-sound.ts` |
-| Chrome lock & crown key | `components/membership/unlock/chrome-padlock.tsx`, `crown-key.tsx` |
-| Full overlay | `components/membership/unlock/membership-unlock-sequence.tsx` |
-| Privilege cards | `components/membership/member-privilege-card.tsx` |
-| Provider & trigger | `components/membership/unlock-provider.tsx` |
-| Member Portal | `components/membership/member-portal-experience.tsx` |
-| Checkout trigger | `membership-checkout-modal.tsx` → `beginMembershipUnlock()` |
-
-**Production:** After Stripe redirect return (`?session_id=`), verify session server-side, then trigger the same unlock sequence before routing to the portal.
+| Ceremony overlay | `components/UnlockCeremony.jsx` |
+| Portal integration | `member-portal-page-client.tsx` |
+| Member portal UI | `components/membership/member-portal-experience.tsx` |
+| Legacy checkout trigger | `membership-checkout-modal.tsx` (alternate path on Home Care Plan) |
 
 ---
 
-## Membership Agreement & Signature (future production)
+## Membership Agreement & Signature (shipped)
 
-Signature step supports **typed** or **drawn** signatures (canvas pad, mobile-friendly). Mock save only — no PDF, email, or storage yet.
+Presentation onboarding signs agreements via `POST /api/sign-agreement` → `completeSignOnboarding()`.
 
-**Data layer:** `lib/membership/types.ts` (`MembershipSignature`, `MembershipAgreementRecord`), `lib/membership/agreement.ts` (`saveMembershipAgreementMock`).
-
-**When membership completes (after Stripe Checkout success):**
-
-| Step | Action |
+| Step | Status |
 |------|--------|
-| 1 | Generate signed agreement PDF |
-| 2 | Save PDF to property documents |
-| 3 | Save signature image |
-| 4 | Persist signed timestamp, IP/user metadata, plan, property, customer name |
-| 5 | Email signed agreement to Noah / Squeegeeking |
-| 6 | Email signed agreement to customer |
-| 7 | Store in Member Portal → Documents |
+| Generate signed agreement PDF | **Shipped** — `lib/agreement/generate-signed-pdf.ts` |
+| Save PDF to Supabase storage | **Shipped** — `signed-agreements` bucket |
+| Persist `signed_agreements` row | **Shipped** |
+| Email PDF to customer | **Shipped** — `send-agreement-email.ts` (requires `RESEND_API_KEY`) |
+| Welcome email after payment | **Shipped** — `send-welcome-email.ts` on `setup-payment` |
+| Portal access token | **Shipped** — `memberships.portal_access_token` |
+| Email to founders / internal copy | Not built |
+| Member Portal → Documents UI | Not built — card shows "Coming soon" |
 
-**Not connected:** PDF generation, property document storage, email delivery, Member Portal documents UI.
+**Legacy mock path:** `saveMembershipAgreementMock` in `lib/membership/agreement.ts` — unused by production onboarding.
 
 ---
 
@@ -481,27 +469,27 @@ Signature step supports **typed** or **drawn** signatures (canvas pad, mobile-fr
 | Employee Dashboard | **Built** | `/employee` |
 | **Public Landing** | **Built** | `/` |
 | **Lead Intake** | **Built** (mock submit) | `/request` |
-| Proposal Generator | **V1** + create wizard + membership checkout + unlock sequence | `/employee/home-care-plan/create`, `/homecare/.../plan`, `/homecare/.../portal` |
-| Customer Home Care Portal | Prototype + Member Portal landing | `/homecare/larry-buckley`, `/homecare/.../portal` |
+| Proposal Generator / Home Care Plan | **V1** — create wizard, presentation, onboarding | `/employee/home-care-plan/create`, `/homecare/.../plan` |
+| Member portal | **Built** (token) + demo (slug) | `/portal/[token]`, `/homecare/.../portal` |
 | Technician App | Not started | — |
-| AI Engine | Mock status only | Property cards & dashboard |
+| Atlas | Morning Brief shipped; field automation planned | `/hq`, `lib/concierge/` |
 | Property Timeline | Preview on dashboard | `recentTimeline` mock data |
-| Membership System | Status badges only | Property Hub cards |
+| Membership System | **Built** — sign, payment, portal token, founding member | `lib/membership/`, presentation onboarding |
 | Photo Library | Counts only | Property Hub cards |
 | Annual Home Care Review | Not started | — |
-| Admin Command Center | **Built** (PIN + sales tracker) | `/admin`, `closed_jobs` table |
+| Headquarters | **Built** (PIN + sales tracker) | `/hq` (canonical); `/admin` legacy alias |
 | Marketing Website | Not started | — |
 | Home Care Assessment | Not started | — |
 
 ---
 
-## Admin Command Center (`/admin`)
+## Headquarters (`/hq`)
 
-Private owner page for **Noah Thomas** and **Dasan Gramps** — executive revenue room with Closed Jobs / Sales Tracker.
+Founder command center for **Noah Thomas** and **Dasan Gramps** — executive revenue room with Closed Jobs / Sales Tracker. User-facing name is **Headquarters**, not "Admin" — see [BRAND.md](./BRAND.md).
 
 | Item | Detail |
 |------|--------|
-| Route | `/admin` |
+| Route | `/hq` (canonical) · `/admin` (legacy redirect if present) |
 | Access | Temporary PIN via `NEXT_PUBLIC_ADMIN_PIN` |
 | Private beta | If PIN unset → beta entry + mock/local ledger |
 | APIs | `GET /api/admin/overview`, `GET|POST /api/admin/closed-jobs` |
@@ -573,9 +561,9 @@ Month · Revenue Collected · ARR Generated · Monthly Sales Performance · Jobs
 
 ---
 
-**Current priority:** Home Care Plan V1 production quality — polished enough for Noah to send to a real customer. Then PWA manifest + Add to Home Screen onboarding.
+**Current priority:** Operator completeness — first real members through presentation → sign → payment → portal → PWA install. Close operating gaps in wargame 007 (scheduling handoff, documents UI).
 
-Not next: Timeline, Visits, or AI (unless required for V1 launch).
+Not next: Full Property Timeline, Visits, or field Atlas automation (unless required for first member launch).
 
 ---
 

@@ -35,9 +35,9 @@ SqueegeeKing
 │
 ├── HomeAtlas Headquarters
 │
-├── HomeAtlas Home
+├── Member portal (SqueegeeKing homeowner surface)
 │
-├── Atlas — AI Concierge
+├── Atlas — intelligence layer (`lib/concierge/`)
 │
 └── Atlas Engine
       Pricing

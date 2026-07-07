@@ -4,6 +4,27 @@
 
 ---
 
+## Canonical Terminology
+
+Use one name per concept across docs and UI copy. Wargames may use exploratory language; product docs use these terms.
+
+| Concept | Canonical term | Avoid (unless quoting) |
+|---------|----------------|------------------------|
+| Enrolled homeowner surface | **Member portal** | Customer portal, Homeowner Portal, HomeAtlas Home |
+| Pre-membership presentation | **Home Care Plan** | Proposal only |
+| Chronological visit history | **Property Timeline** | Care Record, visit log |
+| Platform intelligence | **Atlas** (`lib/concierge/`) | AI Engine, AI Intelligence |
+| Founder command center | **Headquarters** (`/hq`) | Admin, Admin Dashboard |
+| Customer brand | **SqueegeeKing** | Squeegeeking (domain `squeegeeking.net` is infra only) |
+| Platform brand | **HomeAtlas** | SqueegeeOS (repo name only) |
+| Home metric | **Home Care Score** | Property health (informal) |
+| Field worker | **Technician** | Tech (informal) |
+| Entity | **Homeowner** → **Member** (after enrollment) | Customer (post-signup product copy) |
+
+Strategic terms used in wargames only until promoted: *Care Record*, *Promise Ledger*, *Property Memory*.
+
+---
+
 ## The Four Names
 
 HomeAtlas uses four distinct names. They are not interchangeable.

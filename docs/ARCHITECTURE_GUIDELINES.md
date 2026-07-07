@@ -29,7 +29,7 @@ SqueegeeOS/                    # npm package name (unchanged)
 | **Concierge (Atlas)** | `lib/concierge/` | `components/admin/morning-brief.tsx` | `/hq` |
 | **Home Care Plan** | `lib/home-care-plan/` | `components/home-care-plan/` | `/homecare/.../plan` |
 | **Property** | `lib/property/` | `components/property/` | `/properties` |
-| **Membership** | `lib/membership/` | `components/membership/` | portal, checkout modal |
+| **Membership** | `lib/membership/` | `components/membership/` | `/portal/[token]`, presentation onboarding |
 | **Reviews** | `lib/reviews/` | `components/reviews/` | `/api/reviews/google` |
 | **Acquisition** | `lib/acquisition/` | `components/acquisition/` | `/request` |
 | **Persistence** | `lib/persistence/` | — | `/api/persistence/*` |
@@ -71,7 +71,8 @@ Admin routes require `x-admin-pin` header — see `lib/admin/pin.ts`, `getAdminR
 |--------|--------|
 | `/hq`, `/setup`, `/experience` | Admin PIN |
 | `/employee` | Employee nav (future auth) |
-| `/homecare/[slug]/...` | Customer experiences |
+| `/homecare/[slug]/...` | Customer experiences (demo slug routes) |
+| `/portal/[token]` | Member portal (production customer access) |
 | `/api/admin/*` | PIN + server secrets |
 
 ---
@@ -104,7 +105,7 @@ Property slug drives URLs: `/properties/[slug]`, `/homecare/[homeownerSlug]/[pro
 
 ```typescript
 // lib/persistence/repository.ts — single entry point
-// Adapters: sessionStorageAdapter (active), supabaseAdapter (partial)
+// Adapters: sessionStorageAdapter (default), supabaseAdapter (implemented)
 ```
 
 Never write `sessionStorage` in random components — go through persistence layer for plan data.
@@ -132,7 +133,7 @@ Never write `sessionStorage` in random components — go through persistence lay
 | Google Business Profile | OAuth session | `lib/reviews/google-business-profile.ts` |
 | Google OAuth | Redirect flow | `app/api/admin/google-reviews/oauth/*` |
 | Supabase | Anon + service patterns | `lib/persistence/supabase/` |
-| Stripe | None (future) | `app/api/stripe/*` (planned) |
+| Stripe | None | `app/api/stripe/setup-intent`, `app/api/membership/setup-payment` |
 
 Cache Google reviews 8 hours — `unstable_cache` on route.
 
@@ -218,8 +219,8 @@ No exhaustive test suite yet — manual verification on `/hq`, flagship plan, an
 |------|-----------|
 | Multiple `easeLuxury` copies in older components | Consolidate to `lib/motion/system.ts` |
 | `Reveal` fade-up in marketing | Migrate to HeadlineReveal / BootLayer |
-| Session-first persistence | Supabase default for plans + jobs |
-| `/admin` vs `/hq` | HQ is canonical; admin redirects if any |
+| Session-first persistence | Supabase default for plans + jobs + memberships |
+| `/admin` vs `/hq` | **Headquarters** (`/hq`) is canonical per [BRAND.md](./BRAND.md) |
 
 ---
 
