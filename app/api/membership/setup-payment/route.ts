@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendWelcomeEmail } from "@/lib/agreement/send-welcome-email";
 import { loadMembershipForPayment } from "@/lib/membership/load-membership-for-payment";
+import type { MembershipRowForPayment } from "@/lib/membership/load-membership-for-payment";
+import { ensureMembershipObligations } from "@/lib/obligations/ensure-membership-obligations";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import {
   createServerSupabaseClient,
@@ -9,6 +11,32 @@ import {
 } from "@/lib/persistence/supabase/client";
 import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { getStripe } from "@/lib/stripe/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+async function recordMembershipObligations(
+  supabase: SupabaseClient,
+  membership: MembershipRowForPayment,
+  startedAt: string,
+) {
+  try {
+    const result = await ensureMembershipObligations(supabase, {
+      membershipId: membership.id,
+      homeownerId: membership.homeowner_id,
+      propertyId: membership.property_id,
+      visitsPerYear: membership.visits_per_year,
+      startedAt,
+    });
+
+    if (result.created > 0) {
+      console.info("[setup-payment] obligations generated", {
+        membershipId: membership.id,
+        created: result.created,
+      });
+    }
+  } catch (error) {
+    console.error("[setup-payment] obligation generation failed:", error);
+  }
+}
 
 /**
  * Activates membership after payment method is on file.
@@ -58,6 +86,11 @@ export async function POST(req: NextRequest) {
       const portalUrl = await getPortalAccessUrlForMembership(
         membership.id,
         req.nextUrl.origin,
+      );
+      await recordMembershipObligations(
+        supabase,
+        membership,
+        membership.started_at ?? membership.payment_setup_completed_at,
       );
       return NextResponse.json({
         membershipId: membership.id,
@@ -140,13 +173,14 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
+    const startedAt = membership.started_at ?? now;
 
     const { error: updateMembershipError } = await supabase
       .from("memberships")
       .update({
         status: "active",
         payment_setup_completed_at: now,
-        started_at: membership.started_at ?? now,
+        started_at: startedAt,
         stripe_customer_id: stripeCustomerId,
         stripe_payment_method_id: stripePaymentMethodId,
       })
@@ -158,6 +192,8 @@ export async function POST(req: NextRequest) {
         { status: 500 },
       );
     }
+
+    await recordMembershipObligations(supabase, membership, startedAt);
 
     const resolvedPresentationId =
       presentationId ?? membership.presentation_id;

@@ -10,6 +10,7 @@ export interface MembershipRowForPayment {
   stripe_payment_method_id: string | null;
   payment_setup_completed_at: string | null;
   started_at: string | null;
+  visits_per_year: number | null;
 }
 
 export async function loadMembershipForPayment(
@@ -17,7 +18,7 @@ export async function loadMembershipForPayment(
   input: { presentationId?: string | null; membershipId?: string | null },
 ): Promise<MembershipRowForPayment | null> {
   let query = supabase.from("memberships").select(
-    "id, homeowner_id, property_id, presentation_id, status, stripe_customer_id, stripe_payment_method_id, payment_setup_completed_at, started_at",
+    "id, homeowner_id, property_id, presentation_id, status, stripe_customer_id, stripe_payment_method_id, payment_setup_completed_at, started_at, visits_per_year",
   );
 
   if (input.membershipId) {
