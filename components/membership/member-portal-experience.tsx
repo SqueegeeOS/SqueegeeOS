@@ -58,6 +58,7 @@ export function MemberPortalExperience({
 
   const [membershipOpen, setMembershipOpen] = useState(false);
   const [whatsNextOpen, setWhatsNextOpen] = useState(false);
+  const [updatePaymentOpen, setUpdatePaymentOpen] = useState(false);
 
   const walletCard: MemberWalletCardData = {
     brandName: CUSTOMER_BRAND.name,
@@ -78,11 +79,10 @@ export function MemberPortalExperience({
     view.agreement &&
     (view.membershipActive || view.pendingPayment || view.paymentOnFile);
 
-  const paymentHeadline = view.paymentOnFile
-    ? (view.paymentMethodLabel ?? "Card on file ✓")
-    : "Add your card";
+  const paymentHeadline = view.paymentHeadline;
 
   const handlePaymentSuccess = () => {
+    setUpdatePaymentOpen(false);
     router.refresh();
   };
 
@@ -143,7 +143,7 @@ export function MemberPortalExperience({
             }
             support={
               view.pendingPayment
-                ? "Finish setting up your card to activate your membership."
+                ? "Finish setting up your payment method to activate your membership."
                 : undefined
             }
           >
@@ -269,22 +269,41 @@ export function MemberPortalExperience({
             index={3}
             eyebrow="Payment"
             headline={paymentHeadline}
-            support={
-              view.paymentOnFile
-                ? "Billed on the 1st of your service month."
-                : "Add your card to complete your membership."
-            }
+            support={view.paymentSupport}
           >
             {view.paymentOnFile ? (
-              <PortalCard>
+              <PortalCard className="space-y-4">
                 <p className="text-sm text-white/70">
-                  Secured card on file. {view.billingReminder}
+                  {view.paymentDetailLine} {view.billingReminder}
                 </p>
+                {view.showUpdatePaymentMethod && view.membershipId && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setUpdatePaymentOpen((open) => !open)}
+                      className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-sm font-medium tracking-[0.08em] text-white/80 transition-colors hover:bg-white/[0.07]"
+                    >
+                      {updatePaymentOpen
+                        ? "Cancel"
+                        : "Update payment method"}
+                    </button>
+                    {updatePaymentOpen && (
+                      <CardOnFileSetup
+                        memberName={data.homeowner.fullName}
+                        memberEmail={portalData?.profile.email}
+                        presentationId={view.presentationId ?? undefined}
+                        membershipId={view.membershipId}
+                        theme="presentation"
+                        onSuccess={handlePaymentSuccess}
+                      />
+                    )}
+                  </>
+                )}
               </PortalCard>
             ) : view.pendingPayment ? (
               <PortalCard>
                 <p className="text-sm text-white/55">
-                  Complete your card setup in Membership above.
+                  Complete your payment setup in Membership above.
                 </p>
               </PortalCard>
             ) : view.membershipId ? (

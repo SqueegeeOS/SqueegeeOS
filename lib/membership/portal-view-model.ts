@@ -17,6 +17,7 @@ import {
   SQUEEGEEKING_TIERS,
   squeegeeKingTierLabel,
 } from "@/lib/membership/tier-config";
+import { resolvePortalPaymentState } from "@/lib/membership/portal-payment-state";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 
 export interface PortalTimelineEntry {
@@ -53,6 +54,10 @@ export interface PortalCareRecordView {
   } | null;
   paymentOnFile: boolean;
   paymentMethodLabel: string | null;
+  paymentHeadline: string;
+  paymentSupport: string;
+  paymentDetailLine: string;
+  showUpdatePaymentMethod: boolean;
   propertyFacts: string[];
   timelineEntries: PortalTimelineEntry[];
   timelineEmptyCopy: string;
@@ -159,13 +164,15 @@ export function buildPortalCareRecordView(
   const memberSinceIso =
     portalData?.memberSince ?? portalData?.profile.memberSince ?? new Date().toISOString();
 
-  const membershipActive =
-    portalData?.membershipStatus === "active" &&
-    Boolean(portalData.paymentSetupCompletedAt);
-  const pendingPayment =
-    portalData?.membershipStatus === "pending_payment" ||
-    (portalData?.membershipStatus === "active" &&
-      !portalData.paymentSetupCompletedAt);
+  const paymentState = resolvePortalPaymentState({
+    membershipStatus: portalData?.membershipStatus ?? "inactive",
+    paymentSetupCompletedAt: portalData?.paymentSetupCompletedAt ?? null,
+    paymentMethodLabel: portalData?.paymentMethodLabel ?? null,
+    hasMembership: Boolean(portalData?.membershipId),
+  });
+
+  const membershipActive = paymentState.membershipActive;
+  const pendingPayment = paymentState.pendingPayment;
 
   const nextAppt = portalData?.nextAppointment ?? null;
   const completedVisits = (portalData?.appointments ?? []).filter(
@@ -250,8 +257,12 @@ export function buildPortalCareRecordView(
             pdfUrl: null,
           }
         : null,
-    paymentOnFile: Boolean(portalData?.paymentSetupCompletedAt),
+    paymentOnFile: paymentState.paymentOnFile,
     paymentMethodLabel: portalData?.paymentMethodLabel ?? null,
+    paymentHeadline: paymentState.headline,
+    paymentSupport: paymentState.support,
+    paymentDetailLine: paymentState.detailLine,
+    showUpdatePaymentMethod: paymentState.showUpdatePaymentMethod,
     propertyFacts,
     timelineEntries: buildTimelineEntries(portalData?.appointments ?? []),
     timelineEmptyCopy: PORTAL_EMPTY_COPY.timeline,

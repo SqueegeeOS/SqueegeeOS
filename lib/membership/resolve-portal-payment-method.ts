@@ -8,8 +8,8 @@ function formatCardBrand(brand: string): string {
 }
 
 /**
- * Server-only — resolves member-facing card label (e.g. "Visa ···· 4242").
- * Degrades to null when Stripe is unavailable; caller shows "Card on file ✓".
+ * Server-only — resolves member-facing payment label (e.g. "Visa ···· 4242").
+ * Degrades to null when Stripe is unavailable; caller shows on-file fallback.
  */
 export async function resolvePortalPaymentMethodLabel(
   stripePaymentMethodId: string | null | undefined,
@@ -22,13 +22,24 @@ export async function resolvePortalPaymentMethodLabel(
   try {
     const stripe = getStripe();
     const method = await stripe.paymentMethods.retrieve(id);
-    if (method.type !== "card" || !method.card?.last4) {
-      return null;
+
+    if (method.type === "card" && method.card?.last4) {
+      const brand = method.card.brand
+        ? formatCardBrand(method.card.brand)
+        : "Card";
+      return `${brand} ···· ${method.card.last4}`;
     }
-    const brand = method.card.brand
-      ? formatCardBrand(method.card.brand)
-      : "Card";
-    return `${brand} ···· ${method.card.last4}`;
+
+    if (method.type === "us_bank_account") {
+      const last4 = method.us_bank_account?.last4;
+      return last4 ? `Bank account ···· ${last4}` : "Bank account on file";
+    }
+
+    if (method.type === "link") {
+      return "Payment method on file";
+    }
+
+    return null;
   } catch {
     return null;
   }

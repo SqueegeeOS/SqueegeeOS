@@ -44,10 +44,13 @@ describe("buildPortalCareRecordView", () => {
       },
       presentationId: "pres-1",
       membershipId: "mem-1",
-      paymentMethodLabel: "Visa ···· 4242",
+      paymentMethodLabel: "Bank account ···· 6789",
     });
 
     expect(view.tierMemberLabel).toMatch(/Quarterly Member/);
+    expect(view.paymentOnFile).toBe(true);
+    expect(view.pendingPayment).toBe(false);
+    expect(view.paymentHeadline).toBe("Bank account ···· 6789");
     expect(view.tierMemberLabel).not.toMatch(/Premium|Essential|Elite/);
     expect(view.landingHeadline).toBe(
       "Larry, Canyon Oaks Residence is under care.",

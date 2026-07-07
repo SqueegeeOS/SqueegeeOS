@@ -198,6 +198,41 @@ function mapObservation(row: ObservationRow): ServiceObservationView {
   };
 }
 
+function buildMemberProfileFromHomeowner(
+  homeowner: HomeownerRow,
+  membership: MembershipRow | null,
+  savingsHistory: MemberSavingsEntry[],
+  appointments: MemberAppointmentSummary[],
+  nextAppointment: MemberAppointmentSummary | null,
+  propertyId: string,
+): MemberProfile {
+  const nameParts = homeowner.full_name.trim().split(/\s+/);
+  const firstName = homeowner.first_name || nameParts[0] || "Member";
+  const lastName =
+    nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+
+  return {
+    id: `homeowner-${homeowner.id}`,
+    firstName,
+    lastName,
+    email: homeowner.email,
+    phone: homeowner.phone,
+    memberSince: membership?.started_at ?? null,
+    membershipTier: "premium",
+    membershipStatus:
+      membership?.status === "active"
+        ? "active"
+        : membership?.status === "cancelled"
+          ? "cancelled"
+          : "inactive",
+    totalSaved: savingsHistory.reduce((sum, row) => sum + row.saved, 0),
+    savingsHistory,
+    nextAppointment,
+    appointmentHistory: appointments,
+    propertyId,
+  };
+}
+
 function buildMemberProfile(
   homeowner: HomeownerRow,
   profileRow: MemberProfileRow,
@@ -288,18 +323,6 @@ export async function getMemberPortalDataBySlugs(
 
   const propertyRow = property as PropertyRow;
 
-  const { data: profileRow, error: profileError } = await supabase
-    .from("member_profiles")
-    .select("id, homeowner_id, membership_tier, total_saved_cents, preferred_services, created_at")
-    .eq("homeowner_id", homeownerRow.id)
-    .maybeSingle();
-
-  if (profileError || !profileRow) {
-    return null;
-  }
-
-  const profile = profileRow as MemberProfileRow;
-
   const { data: membership } = await supabase
     .from("memberships")
     .select(
@@ -309,6 +332,18 @@ export async function getMemberPortalDataBySlugs(
     .maybeSingle();
 
   const membershipRow = (membership as MembershipRow | null) ?? null;
+
+  const { data: profileRow, error: profileError } = await supabase
+    .from("member_profiles")
+    .select("id, homeowner_id, membership_tier, total_saved_cents, preferred_services, created_at")
+    .eq("homeowner_id", homeownerRow.id)
+    .maybeSingle();
+
+  if (profileError) {
+    return null;
+  }
+
+  const profile = profileRow as MemberProfileRow | null;
 
   const paymentMethodLabel = membershipRow?.payment_setup_completed_at
     ? await resolvePortalPaymentMethodLabel(
@@ -325,14 +360,16 @@ export async function getMemberPortalDataBySlugs(
     .limit(1)
     .maybeSingle();
 
-  const { data: appointmentRows } = await supabase
-    .from("member_appointments")
-    .select(
-      "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
-    )
-    .eq("member_profile_id", profile.id)
-    .eq("property_id", propertyRow.id)
-    .order("scheduled_at", { ascending: true });
+  const { data: appointmentRows } = profile
+    ? await supabase
+        .from("member_appointments")
+        .select(
+          "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
+        )
+        .eq("member_profile_id", profile.id)
+        .eq("property_id", propertyRow.id)
+        .order("scheduled_at", { ascending: true })
+    : { data: [] };
 
   const appointments = ((appointmentRows ?? []) as AppointmentRow[]).map(
     mapAppointment,
@@ -348,13 +385,15 @@ export async function getMemberPortalDataBySlugs(
 
   const yearStart = `${new Date().getFullYear()}-01-01T00:00:00Z`;
 
-  const { data: allSavingsRows } = await supabase
-    .from("member_savings_transactions")
-    .select(
-      "saved_cents, regular_price_cents, member_price_cents, service_type, occurred_at",
-    )
-    .eq("member_profile_id", profile.id)
-    .order("occurred_at", { ascending: false });
+  const { data: allSavingsRows } = profile
+    ? await supabase
+        .from("member_savings_transactions")
+        .select(
+          "saved_cents, regular_price_cents, member_price_cents, service_type, occurred_at",
+        )
+        .eq("member_profile_id", profile.id)
+        .order("occurred_at", { ascending: false })
+    : { data: [] };
 
   const allSavingsEntries = ((allSavingsRows ?? []) as SavingsRow[]).map(
     mapSavingsRow,
@@ -391,19 +430,28 @@ export async function getMemberPortalDataBySlugs(
     mapObservation,
   );
 
-  const memberProfile = buildMemberProfile(
-    homeownerRow,
-    profile,
-    membershipRow,
-    allSavingsEntries,
-    appointments,
-    nextAppointment,
-    propertyRow.id,
-  );
+  const memberProfile = profile
+    ? buildMemberProfile(
+        homeownerRow,
+        profile,
+        membershipRow,
+        allSavingsEntries,
+        appointments,
+        nextAppointment,
+        propertyRow.id,
+      )
+    : buildMemberProfileFromHomeowner(
+        homeownerRow,
+        membershipRow,
+        allSavingsEntries,
+        appointments,
+        nextAppointment,
+        propertyRow.id,
+      );
 
   return {
     profile: memberProfile,
-    property: buildPropertyRecord(propertyRow, profile.id),
+    property: buildPropertyRecord(propertyRow, memberProfile.id),
     propertyName: propertyRow.name,
     appointments,
     nextAppointment,
@@ -414,7 +462,7 @@ export async function getMemberPortalDataBySlugs(
     monthlyRate: membershipRow
       ? parsePriceDisplay(membershipRow.price_display)
       : 0,
-    memberSince: membershipRow?.started_at ?? profile.created_at,
+    memberSince: membershipRow?.started_at ?? profile?.created_at ?? null,
     foundingMember: membershipRow?.founding_member ?? false,
     foundingMemberSince: membershipRow?.founding_member_since ?? null,
     salesTier: membershipRow?.sales_tier ?? null,
