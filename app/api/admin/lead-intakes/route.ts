@@ -10,8 +10,17 @@ export async function GET(request: Request) {
 
   try {
     const leads = await listLeadIntakes();
-    const newCount = leads.filter((lead) => lead.status === "new").length;
-    return NextResponse.json({ leads, newCount });
+    const newLeads = leads.filter((lead) => lead.status === "new");
+    const newCount = newLeads.length;
+    const latestNewSubmittedAt =
+      newLeads.length > 0
+        ? newLeads.reduce(
+            (latest, lead) =>
+              lead.submittedAt > latest ? lead.submittedAt : latest,
+            newLeads[0].submittedAt,
+          )
+        : null;
+    return NextResponse.json({ leads, newCount, latestNewSubmittedAt });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load lead intakes";

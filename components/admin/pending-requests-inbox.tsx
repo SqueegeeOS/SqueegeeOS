@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { markRequestsInboxOpened } from "@/lib/admin/requests-inbox-read-state";
 import {
   schedulePresentationFromLead,
   updateLeadIntakeStatusClient,
@@ -88,6 +89,10 @@ export function PendingRequestsInbox() {
   useEffect(() => {
     void loadLeads();
   }, [loadLeads]);
+
+  useEffect(() => {
+    markRequestsInboxOpened();
+  }, []);
 
   const filteredLeads = useMemo(
     () => filterLeads(leads, statusFilter, searchQuery),
