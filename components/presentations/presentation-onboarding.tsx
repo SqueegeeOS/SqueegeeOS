@@ -430,9 +430,9 @@ export function PresentationOnboarding({
 
         {step === "welcome" ? (
           <div className="rounded-lg border border-white/10 bg-[#0d0d0d] p-8 text-center sm:p-10">
-            <p className="text-4xl">🎉</p>
-            <h2 className="mt-5 font-serif text-3xl font-light text-[#f5f2eb] sm:text-4xl">
-              Agreement signed!
+            <div className="mx-auto mb-6 h-px w-12 bg-accent/30" aria-hidden />
+            <h2 className="font-serif text-3xl font-light text-[#f5f2eb] sm:text-4xl">
+              Agreement signed.
             </h2>
             <p className="mt-3 text-base text-accent/90">
               Welcome to {PLATFORM_BRAND.name} — one more step to activate your

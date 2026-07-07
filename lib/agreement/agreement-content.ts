@@ -84,7 +84,7 @@ export const MEMBERSHIP_SUMMARY_POINTS = [
 ] as const;
 
 export function membershipAgreementCheckboxText(): string {
-  return "I have read and agree to the HomeAtlas Membership Agreement, including billing on the 1st of each scheduled service month with no payment collected at the door. I understand this is a legally binding signature.";
+  return "I have read and agree to the SqueegeeKing Membership Agreement, including billing on the 1st of each scheduled service month with no payment collected at the door. I understand this is a legally binding signature.";
 }
 
 export function oneTimeAgreementCheckboxText(): string {

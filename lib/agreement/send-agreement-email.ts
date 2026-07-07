@@ -86,7 +86,7 @@ export async function sendAgreementEmail(
     };
   }
 
-  const emailBodyIntro = `Thanks for joining ${CUSTOMER_BRAND.name}'s ${PLATFORM_BRAND.name} membership experience, ${input.name}.`;
+  const emailBodyIntro = `Thanks for becoming a ${CUSTOMER_BRAND.name} member, ${input.name}.`;
   const emailFooter = `${CUSTOMER_BRAND.name} · ${CUSTOMER_BRAND.location}<br/>Powered by ${PLATFORM_BRAND.name}`;
   const portalBlock = input.portalUrl
     ? `

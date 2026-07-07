@@ -55,11 +55,11 @@ export async function sendWelcomeEmail(
   const payload = {
     from,
     to: recipient,
-    subject: `Welcome to ${PLATFORM_BRAND.name}`,
+    subject: `Your home is now under care`,
     html: `
       <div style="font-family: Georgia, serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
         <p style="font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #8a8680; margin: 0 0 8px;">
-          ${CUSTOMER_BRAND.name} · ${PLATFORM_BRAND.name}
+          ${CUSTOMER_BRAND.name}
         </p>
         <h2 style="font-weight: 400; font-size: 28px; margin: 0 0 12px; line-height: 1.25;">
           Your home is now under care.
@@ -76,7 +76,7 @@ export async function sendWelcomeEmail(
 
         <p style="margin: 0 0 28px;">
           <a href="${input.portalUrl}" style="display: inline-block; padding: 16px 28px; background: #1a1a1a; color: #f5f2eb; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 500;">
-            Open Your ${PLATFORM_BRAND.name} Portal
+            Open Your Home
           </a>
         </p>
 
@@ -87,6 +87,7 @@ export async function sendWelcomeEmail(
 
         <p style="color: #666; font-size: 13px; margin-top: 28px;">
           ${CUSTOMER_BRAND.name} · ${CUSTOMER_BRAND.location}<br/>
+          Powered by ${PLATFORM_BRAND.name}<br/>
           Questions? Reply to this email.
         </p>
       </div>

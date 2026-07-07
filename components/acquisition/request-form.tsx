@@ -216,8 +216,7 @@ function RequestFormFields() {
                 Your estimated{" "}
                 <span className="font-medium">
                   {buildSqueegeeKingTierQuote(form.membershipTier, sqftValue).label}
-                </span>{" "}
-                investment:{" "}
+                </span>:{" "}
                 <span className="font-medium">{priceLabel}</span>
                 {form.squareFootage
                   ? ` for ${form.squareFootage.toLocaleString()} sq ft`

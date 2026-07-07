@@ -95,7 +95,7 @@ export function InvestmentSlide({ presentation, overrides }: SlideComponentProps
   return (
     <FullSlide>
       <div className="mx-auto max-w-4xl">
-        <Eyebrow>{overrides?.headline ?? "Your investment"}</Eyebrow>
+        <Eyebrow>{overrides?.headline ?? "Your plan"}</Eyebrow>
         <HeroText>Simple. Transparent.</HeroText>
         <div className="mt-10 grid gap-5 sm:grid-cols-2">
           <PricingColumn tier="biannual" visitPrice={rates.biannualVisit} />
@@ -251,6 +251,9 @@ export function CloseSlide({ presentation, overrides, onSign }: SlideComponentPr
 
         <p className="mt-6 text-[11px] tracking-wide text-white/40">
           7-day guarantee · PDF agreement · {MEMBERSHIP_BILLING_REMINDER.split(".")[0]}
+        </p>
+        <p className="mt-10 text-[10px] uppercase tracking-[0.28em] text-white/25">
+          Powered by HomeAtlas
         </p>
       </div>
     </FullSlide>

@@ -121,7 +121,7 @@ async function buildProgrammaticAgreement(
     }
   }
 
-  layout.drawHeading(`${def.label} Investment`);
+  layout.drawHeading(`${def.label} Membership`);
   layout.drawParagraph(
     `${formatAgreementDollars(pricing.membershipPerVisit)} per visit · ${pricing.visitsPerYear} visits per year`,
   );
@@ -129,7 +129,7 @@ async function buildProgrammaticAgreement(
     `Member discount on add-ons: ${def.addonDiscount}% off (while payments active)`,
   );
   layout.drawParagraph(
-    `Annual membership investment: ${formatAgreementDollars(pricing.membershipAnnual)}`,
+    `Annual membership: ${formatAgreementDollars(pricing.membershipAnnual)}`,
     { bold: true },
   );
 

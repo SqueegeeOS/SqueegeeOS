@@ -155,6 +155,10 @@ export function PortalWelcomeHome({ token }: PortalWelcomeHomeProps) {
             Continue to My Home
           </button>
         </div>
+
+        <p className="mt-12 text-[10px] uppercase tracking-[0.3em] text-white/25">
+          Powered by {PLATFORM_BRAND.name}
+        </p>
       </motion.div>
     </div>
   );

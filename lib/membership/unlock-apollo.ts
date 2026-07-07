@@ -130,7 +130,7 @@ export function buildApolloWelcomeContent(
     headlineSecondary: "Membership is Active.",
     subtitle: `${context.propertyName} now has a dedicated maintenance plan built around your home — ${context.planName}.`,
     statementOne: "You're no longer booking appointments.",
-    statementTwo: "You're protecting your investment.",
+    statementTwo: "You're protecting your home.",
     emblem: PLATFORM_BRAND.name,
     finalLine: "Welcome Home.",
   };

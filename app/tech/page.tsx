@@ -65,8 +65,8 @@ export default async function TechHomePage() {
       ) : (
         <div className="rounded-2xl border border-[#222] bg-[#111] px-6 py-12 text-center">
           <p className="text-sm leading-relaxed text-[#555]">
-            No properties in the database yet. Properties appear here once they
-            are saved to Supabase.
+            No properties yet. Homes you care for appear here once they&apos;ve
+            been added.
           </p>
         </div>
       )}

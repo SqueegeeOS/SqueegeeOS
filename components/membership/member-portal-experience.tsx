@@ -446,6 +446,12 @@ export function MemberPortalExperience({
             <InstallHomeAtlas />
           </div>
         )}
+
+        <footer className="mt-16 border-t border-white/[0.06] pt-8 text-center">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-white/25">
+            Powered by HomeAtlas
+          </p>
+        </footer>
       </div>
     </PortalStage>
   );

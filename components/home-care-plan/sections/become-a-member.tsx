@@ -4,12 +4,9 @@ import { motion } from "framer-motion";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/canyon-oaks";
 import { fadeUp } from "../ui/primitives";
 import { CraftedLine, Eyebrow, Reveal, Section } from "../ui/primitives";
-import { PrimaryButton } from "../ui/primary-button";
-import { useMembershipCheckout } from "@/components/membership/checkout-context";
 
 export function BecomeAMember({ data }: { data: HomeCarePlanData }) {
   const { closing, brand } = data;
-  const { openCheckout } = useMembershipCheckout();
   const telHref = `tel:${closing.phone.replace(/\D/g, "")}`;
 
   return (
@@ -45,17 +42,11 @@ export function BecomeAMember({ data }: { data: HomeCarePlanData }) {
             </motion.p>
 
             <motion.div variants={fadeUp} className="mt-10 sm:mt-12">
-              <PrimaryButton type="button" onClick={openCheckout}>
-                {closing.cta}
-              </PrimaryButton>
-            </motion.div>
-
-            <motion.div variants={fadeUp} className="mt-6">
               <a
                 href={telHref}
                 className="inline-block min-h-[44px] py-2 text-sm text-muted transition-colors active:text-accent"
               >
-                Or call {closing.phone}
+                Call {closing.phone}
               </a>
             </motion.div>
           </motion.div>

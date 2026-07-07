@@ -21,10 +21,10 @@ export function AgreementModal({
   const isOneTime = kind === "one_time";
   const title = isOneTime
     ? ONE_TIME_AGREEMENT_TITLE
-    : "HomeAtlas Membership Agreement";
+    : "SqueegeeKing Membership Agreement";
   const downloadName = isOneTime
     ? "SqueegeeKing-One-Time-Service-Agreement.pdf"
-    : "HomeAtlas-Membership-Agreement.pdf";
+    : "SqueegeeKing-Membership-Agreement.pdf";
 
   return (
     <div

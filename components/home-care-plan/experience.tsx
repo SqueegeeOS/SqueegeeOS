@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect } from "react";
-import { MembershipCheckoutModal } from "@/components/membership/membership-checkout-modal";
 import { MembershipCheckoutProvider } from "@/components/membership/checkout-context";
 import { MembershipUnlockProvider } from "@/components/membership/unlock-provider";
 import { canyonOaksHomeCarePlan } from "@/lib/home-care-plan/canyon-oaks";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
-import { MobileCtaBar } from "./mobile-cta-bar";
 import { BecomeAMember } from "./sections/become-a-member";
 import { PlanHero } from "./sections/hero";
 import { HomeCareJourney } from "./sections/home-care-journey";
@@ -51,8 +49,6 @@ function HomeCarePlanContent({ data }: { data: HomeCarePlanData }) {
       <Divider />
       <Reviews />
       <BecomeAMember data={data} />
-      <MobileCtaBar phone={data.closing.phone} label={data.closing.cta} />
-      <MembershipCheckoutModal />
     </div>
   );
 }

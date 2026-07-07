@@ -24,7 +24,7 @@ export function Recommendations() {
 
       <Reveal delay={0.16} className="mt-8">
         <SectionLead>
-          Three priorities we believe will protect your investment this year —
+          Three priorities we believe will protect your home this year —
           sequenced by urgency, not upsell.
         </SectionLead>
       </Reveal>
@@ -47,7 +47,7 @@ export function Recommendations() {
                 </div>
                 <div className="shrink-0 lg:pt-2 lg:text-right">
                   <p className="text-[10px] uppercase tracking-[0.3em] text-muted">
-                    Estimated Investment
+                    Estimated Care
                   </p>
                   <p className="mt-2 font-serif text-2xl font-light text-foreground">
                     {rec.investment}
