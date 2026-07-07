@@ -14,17 +14,17 @@ export function AdminCockpitSidebar({
   legacyBaseline,
 }: AdminCockpitSidebarProps) {
   return (
-    <div className="space-y-6">
+    <div className="space-y-10">
       <FounderJournal compact />
       <Link
         href={ROUTES.hqOurStory}
-        className="block rounded-[1.75rem] border border-border/70 bg-surface/40 p-6 text-center transition-colors hover:border-accent/25 sm:p-7"
+        className="block border-t border-border/25 pt-8 transition-colors hover:text-foreground"
       >
-        <p className="text-[10px] uppercase tracking-[0.24em] text-accent">
+        <p className="text-[10px] uppercase tracking-[0.24em] text-muted/80">
           Our Story
         </p>
         <p className="mt-2 text-sm leading-relaxed text-muted">
-          The living memory of SqueegeeKing — scroll back to the beginning.
+          The living memory of SqueegeeKing.
         </p>
       </Link>
       <AdminBusinessHistory legacyBaseline={legacyBaseline} />

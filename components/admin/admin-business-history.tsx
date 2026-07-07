@@ -37,7 +37,7 @@ export function AdminBusinessHistory({ legacyBaseline }: AdminBusinessHistoryPro
       : null;
 
   return (
-    <article className="rounded-[1.75rem] border border-border/80 bg-background/30 p-6 sm:p-7">
+    <article className="border-t border-border/25 pt-8">
       <div className="space-y-6">
         <section>
           <p className="text-[10px] uppercase tracking-[0.28em] text-muted">

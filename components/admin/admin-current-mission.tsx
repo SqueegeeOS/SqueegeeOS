@@ -19,19 +19,19 @@ export function AdminCurrentMission({ missions }: AdminCurrentMissionProps) {
       animate="visible"
       variants={riseSubtle}
       transition={{ delay }}
-      className="rounded-[1.75rem] border border-accent/20 bg-gradient-to-br from-accent/[0.07] via-surface/70 to-background/30 p-6 sm:p-7"
+      className="border-t border-border/25 pt-10"
     >
-      <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
-        Current Mission
+      <p className="text-[10px] uppercase tracking-[0.28em] text-muted/80">
+        Today&apos;s focus
       </p>
-      <ul className="mt-5 space-y-3.5">
+      <ul className="mt-5 space-y-4">
         {missions.map((mission, index) => (
           <motion.li
             key={mission.id}
             initial={reduceMotion ? false : { opacity: 0, y: 4 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: delay + 0.06 + index * 0.05 }}
-            className="flex items-start gap-3 text-sm leading-relaxed text-foreground/90"
+            className="flex items-start gap-3 text-sm leading-relaxed text-foreground/85"
           >
             <span
               className="mt-2 h-1 w-1 shrink-0 rounded-full bg-accent"
@@ -41,9 +41,6 @@ export function AdminCurrentMission({ missions }: AdminCurrentMissionProps) {
           </motion.li>
         ))}
       </ul>
-      <p className="mt-5 border-t border-border/50 pt-4 text-[10px] uppercase tracking-[0.16em] text-muted/70">
-        Updated as the company moves forward
-      </p>
     </motion.article>
   );
 }

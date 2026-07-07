@@ -45,25 +45,22 @@ export function FounderJournal({ compact = false }: FounderJournalProps) {
   if (compact) {
     const latest = entries[0];
     return (
-      <article className="rounded-[1.75rem] border border-border/70 bg-background/30 p-6 sm:p-7">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
+      <article className="border-t border-border/25 pt-8">
+        <p className="text-[10px] uppercase tracking-[0.28em] text-muted/80">
           Founder Journal
         </p>
-        <p className="mt-2 text-xs leading-relaxed text-muted/85">
-          Private reflections for Noah &amp; Dasan.
-        </p>
         {latest ? (
-          <div className="mt-5">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-accent">
+          <div className="mt-4">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-muted/70">
               {latest.monthLabel}
             </p>
-            <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-foreground/85">
+            <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-foreground/85">
               {latest.becoming || latest.proud || latest.learned}
             </p>
           </div>
         ) : (
-          <p className="mt-5 text-sm text-muted">
-            No entries yet. Begin when you&apos;re ready.
+          <p className="mt-4 text-sm text-muted">
+            No entries yet.
           </p>
         )}
       </article>
