@@ -105,6 +105,11 @@ export function PresentationOnboarding({
           monthlyPrice: visitPrice,
           presentationId: presentation.id,
           agreementTier: tier,
+          homeSqft: presentation.homeSqft,
+          twoStory: presentation.twoStory,
+          includeScreens: presentation.includeScreens,
+          includeInterior: presentation.quoteSnapshot?.includeInterior ?? false,
+          quoteSnapshot: presentation.quoteSnapshot ?? null,
         }),
       });
 

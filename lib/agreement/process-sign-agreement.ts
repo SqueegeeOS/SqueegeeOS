@@ -10,6 +10,7 @@ import type { AgreementKind } from "@/lib/agreement/one-time-agreement";
 import {
   agreementKindForPlan,
 } from "@/lib/agreement/one-time-agreement";
+import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 
 export interface SignAgreementRequest {
   memberName: string;
@@ -24,6 +25,11 @@ export interface SignAgreementRequest {
   monthlyPrice?: number;
   agreementTier?: SqueegeeKingTierId;
   agreementKind?: AgreementKind;
+  homeSqft?: number;
+  twoStory?: boolean;
+  includeScreens?: boolean;
+  includeInterior?: boolean;
+  quoteSnapshot?: PresentationQuoteSnapshot | null;
   ipAddress?: string | null;
   userAgent?: string | null;
 }
@@ -81,6 +87,11 @@ export async function processSignAgreement(
     agreementKind: input.agreementKind ?? agreementKindForPlan(input.planId),
     propertyName: input.propertyName,
     monthlyPrice: parsePriceNumber(input.monthlyPrice),
+    homeSqft: input.homeSqft,
+    twoStory: input.twoStory,
+    includeScreens: input.includeScreens,
+    includeInterior: input.includeInterior,
+    quoteSnapshot: input.quoteSnapshot,
   });
 
   const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;

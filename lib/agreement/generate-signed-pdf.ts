@@ -4,17 +4,20 @@ import path from "path";
 import {
   ADDON_DISCOUNT_FINE_PRINT,
   agreementTemplateFilename,
-  calculateAnnualFromVisits,
-  HARDWATER_RETAIL_VALUE,
   normalizeToSqueegeeKingTier,
   planNameForAgreement,
-  QUARTERLY_INCLUDED_TREATMENT_ANNUAL,
-  RAINBLOCK_RETAIL_VALUE,
   SQUEEGEEKING_TIERS,
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
-import { MEMBERSHIP_BILLING_FINE_PRINT } from "@/lib/agreement/agreement-content";
+import {
+  buildAgreementPricingSnapshot,
+  formatAgreementDollars,
+  type AgreementPricingSnapshot,
+} from "@/lib/agreement/agreement-pricing";
+import { MEMBERSHIP_BILLING_FINE_PRINT_BODY } from "@/lib/agreement/agreement-content";
+import { AgreementPdfLayout } from "@/lib/agreement/pdf-layout";
 import type { AgreementKind } from "@/lib/agreement/one-time-agreement";
+import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import {
   ONE_TIME_AGREEMENT_TITLE,
   ONE_TIME_AGREEMENT_TEMPLATE,
@@ -30,6 +33,12 @@ export interface GenerateSignedPDFInput {
   agreementKind?: AgreementKind;
   propertyName: string;
   monthlyPrice?: number;
+  homeSqft?: number;
+  twoStory?: boolean;
+  includeScreens?: boolean;
+  includeInterior?: boolean;
+  quoteSnapshot?: PresentationQuoteSnapshot | null;
+  pricingSnapshot?: AgreementPricingSnapshot;
 }
 
 function formatSignedDate(iso: string): string {
@@ -74,85 +83,75 @@ async function buildProgrammaticAgreement(
   skTier: SqueegeeKingTierId,
 ): Promise<PDFDocument> {
   const def = SQUEEGEEKING_TIERS[skTier];
-  const visitPrice = input.monthlyPrice ?? def.defaultVisitPrice;
-  const annualTotal = calculateAnnualFromVisits(skTier, visitPrice);
+  const pricing =
+    input.pricingSnapshot ??
+    buildAgreementPricingSnapshot({
+      tier: skTier,
+      visitPrice: input.monthlyPrice,
+      quoteSnapshot: input.quoteSnapshot,
+      homeSqft: input.homeSqft,
+      twoStory: input.twoStory,
+      includeScreens: input.includeScreens,
+      includeInterior: input.includeInterior,
+    });
 
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([612, 792]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const { height } = page.getSize();
-  let y = height - 56;
+  const layout = new AgreementPdfLayout(pdfDoc, font, fontBold);
 
-  const draw = (text: string, size = 10, bold = false) => {
-    const lines = text.split("\n");
-    for (const line of lines) {
-      page.drawText(line, {
-        x: 54,
-        y,
-        size,
-        font: bold ? fontBold : font,
-        color: rgb(0.1, 0.1, 0.1),
-        maxWidth: 504,
-      });
-      y -= size * 1.45;
-    }
-  };
+  layout.drawParagraph(planNameForAgreement(skTier).toUpperCase(), {
+    size: 14,
+    bold: true,
+  });
+  layout.gap(6);
+  layout.drawParagraph(`Member: ${input.memberName}`);
+  layout.drawParagraph(`Property: ${input.propertyName}`);
+  layout.drawParagraph(`Signed: ${formatSignedDate(input.signedAt)}`);
 
-  draw(planNameForAgreement(skTier).toUpperCase(), 14, true);
-  y -= 6;
-  draw(`Member: ${input.memberName}`, 10);
-  draw(`Property: ${input.propertyName}`, 10);
-  draw(`Signed: ${formatSignedDate(input.signedAt)}`, 10);
-  y -= 8;
-  draw("MEMBERSHIP BENEFITS", 11, true);
-  y -= 4;
-
+  layout.drawHeading("Membership Benefits");
   for (const benefit of def.benefits) {
-    draw(`  -  ${benefit}`, 9);
+    layout.drawBullet(benefit);
   }
 
   if (def.exclusions.length > 0) {
-    y -= 6;
-    draw("Upgrade to Quarterly for:", 10, true);
+    layout.drawHeading("Upgrade to Quarterly for");
     for (const item of def.exclusions) {
-      draw(`  — ${item}`, 9);
+      layout.drawParagraph(`  —  ${item}`, { size: 9 });
     }
   }
 
-  y -= 10;
-  draw(
-    `${def.label.toUpperCase()} INVESTMENT: $${visitPrice} / visit`,
-    10,
-    true,
+  layout.drawHeading(`${def.label} Investment`);
+  layout.drawParagraph(
+    `${formatAgreementDollars(pricing.membershipPerVisit)} per visit · ${pricing.visitsPerYear} visits per year`,
   );
-  draw(
-    `MEMBER DISCOUNT ON ADD-ONS: ${def.addonDiscount}% OFF (while payments active)`,
-    10,
+  layout.drawParagraph(
+    `Member discount on add-ons: ${def.addonDiscount}% off (while payments active)`,
   );
-  draw(`ANNUAL TOTAL: $${annualTotal}`, 10);
+  layout.drawParagraph(
+    `Annual membership investment: ${formatAgreementDollars(pricing.membershipAnnual)}`,
+    { bold: true },
+  );
 
-  if (skTier === "quarterly") {
-    draw(
-      `ANNUAL VALUE INCLUDED: $${QUARTERLY_INCLUDED_TREATMENT_ANNUAL} in RainBlock ($${RAINBLOCK_RETAIL_VALUE}/visit) + Hard Water ($${HARDWATER_RETAIL_VALUE}/visit) treatments`,
-      9,
-    );
+  if (pricing.kind === "included") {
+    layout.drawQuarterlyIncludedHighlight(pricing);
+  } else {
+    layout.drawBiannualSavingsHighlight(pricing);
   }
 
-  y -= 12;
-  draw("TERMS — BILLING & PAYMENT", 10, true);
-  for (const line of MEMBERSHIP_BILLING_FINE_PRINT.split("\n")) {
-    draw(line, 8);
-  }
+  layout.drawHeading("Terms — Billing & Payment");
+  layout.drawParagraph(MEMBERSHIP_BILLING_FINE_PRINT_BODY, {
+    size: 8,
+    lineHeight: 12,
+  });
 
-  y -= 12;
-  draw("TERMS — ADD-ON SERVICE DISCOUNT", 10, true);
-  for (const line of ADDON_DISCOUNT_FINE_PRINT.split("\n")) {
-    draw(line, 8);
-  }
+  layout.drawHeading("Terms — Add-On Service Discount");
+  layout.drawParagraph(
+    ADDON_DISCOUNT_FINE_PRINT.replace(/^ADD-ON SERVICE DISCOUNT\s*\n+/i, "").trim(),
+    { size: 8, lineHeight: 12 },
+  );
 
-  y -= 16;
-  draw("Member signature", 11, true);
+  layout.reserveSignatureBlock("Member signature");
 
   return pdfDoc;
 }
@@ -163,61 +162,48 @@ async function buildProgrammaticOneTimeAgreement(
   const visitPrice = input.monthlyPrice ?? 0;
 
   const pdfDoc = await PDFDocument.create();
-  const page = pdfDoc.addPage([612, 792]);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const { height } = page.getSize();
-  let y = height - 56;
+  const layout = new AgreementPdfLayout(pdfDoc, font, fontBold);
 
-  const draw = (text: string, size = 10, bold = false) => {
-    const lines = text.split("\n");
-    for (const line of lines) {
-      page.drawText(line, {
-        x: 54,
-        y,
-        size,
-        font: bold ? fontBold : font,
-        color: rgb(0.1, 0.1, 0.1),
-        maxWidth: 504,
-      });
-      y -= size * 1.45;
-    }
-  };
+  layout.drawParagraph(ONE_TIME_AGREEMENT_TITLE.toUpperCase(), {
+    size: 14,
+    bold: true,
+  });
+  layout.gap(6);
+  layout.drawParagraph(`Client: ${input.memberName}`);
+  layout.drawParagraph(`Property: ${input.propertyName}`);
+  layout.drawParagraph(`Signed: ${formatSignedDate(input.signedAt)}`);
 
-  draw(ONE_TIME_AGREEMENT_TITLE.toUpperCase(), 14, true);
-  y -= 6;
-  draw(`Client: ${input.memberName}`, 10);
-  draw(`Property: ${input.propertyName}`, 10);
-  draw(`Signed: ${formatSignedDate(input.signedAt)}`, 10);
-  y -= 8;
-  draw("ONE-TIME SERVICE — NOT A MEMBERSHIP", 11, true);
-  y -= 4;
-  draw(
+  layout.drawHeading("One-Time Service — Not a Membership");
+  layout.drawParagraph(
     "This agreement covers a single scheduled visit only. No recurring membership, member portal access, priority booking, or add-on discounts are included unless you separately enroll in a membership plan.",
-    9,
+    { size: 9 },
   );
-  y -= 8;
-  draw("SCOPE OF WORK", 11, true);
-  y -= 4;
+
+  layout.drawHeading("Scope of Work");
   for (const item of ONE_TIME_SERVICE_SCOPE) {
-    draw(`  -  ${item}`, 9);
+    layout.drawBullet(item);
   }
-  y -= 10;
-  draw(`VISIT PRICE: $${visitPrice}`, 10, true);
-  draw("PAYMENT: Due per booking terms agreed at scheduling.", 10);
-  y -= 8;
-  draw("7-DAY WORKMANSHIP GUARANTEE", 11, true);
-  draw(
+
+  layout.drawHeading("Visit Price");
+  layout.drawParagraph(formatAgreementDollars(visitPrice), { bold: true });
+  layout.drawParagraph("Payment: Due per booking terms agreed at scheduling.");
+
+  layout.drawHeading("7-Day Workmanship Guarantee");
+  layout.drawParagraph(
     "If you are not satisfied with workmanship on the completed visit, contact us within seven (7) days and we will make it right.",
-    9,
+    { size: 9 },
   );
-  y -= 12;
-  draw("EXCLUSIONS", 10, true);
-  draw("  —  No RainBlock or Hard Water unless explicitly quoted", 9);
-  draw("  —  No member pricing on future add-on services", 9);
-  draw("  —  No automatic rebooking or recurring billing", 9);
-  y -= 16;
-  draw("Client signature", 11, true);
+
+  layout.drawHeading("Exclusions");
+  layout.drawParagraph("  —  No RainBlock or Hard Water unless explicitly quoted", {
+    size: 9,
+  });
+  layout.drawParagraph("  —  No member pricing on future add-on services", { size: 9 });
+  layout.drawParagraph("  —  No automatic rebooking or recurring billing", { size: 9 });
+
+  layout.reserveSignatureBlock("Client signature");
 
   return pdfDoc;
 }
@@ -320,13 +306,15 @@ export async function generateSignedPDF(
   }
 
   const pdfDoc = await buildProgrammaticAgreement(input, skTier);
-  await embedSignatureOnPage(pdfDoc, 0, input, {
+  const signaturePage = Math.max(0, pdfDoc.getPageCount() - 1);
+  const signatureY = 120;
+  await embedSignatureOnPage(pdfDoc, signaturePage, input, {
     nameX: 72,
-    nameY: 72,
+    nameY: signatureY,
     dateX: 360,
-    dateY: 72,
+    dateY: signatureY,
     sigX: 72,
-    sigY: 82,
+    sigY: signatureY + 10,
     sigW: 200,
     sigH: 56,
   });

@@ -12,6 +12,8 @@ import {
   planNameForOneTimeAgreement,
 } from "@/lib/agreement/one-time-agreement";
 import type { MembershipPlanId } from "@/lib/membership/types";
+import { isCarePlanQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
+import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 
 function tierToPlanId(_tier: string): MembershipPlanId {
   return "preferred";
@@ -43,9 +45,14 @@ export async function POST(req: NextRequest) {
       monthlyPrice,
       presentationId,
       agreementTier,
+      homeSqft,
+      twoStory,
+      includeScreens,
+      includeInterior,
+      quoteSnapshot,
     } = body;
 
-    if (presentationId && !memberName) {
+    if (presentationId) {
       const presentation = await getPresentation(presentationId);
       if (!presentation) {
         return NextResponse.json(
@@ -53,7 +60,8 @@ export async function POST(req: NextRequest) {
           { status: 404 },
         );
       }
-      memberName = presentation.clientName;
+
+      memberName = memberName || presentation.clientName;
       memberEmail = memberEmail || presentation.clientEmail;
       homeownerSlug =
         homeownerSlug || slugifyPresentation(presentation.clientName) || "client";
@@ -68,6 +76,16 @@ export async function POST(req: NextRequest) {
       planName =
         planName || planNameForAgreement(normalizeToSqueegeeKingTier(agreementTier));
       monthlyPrice = monthlyPrice ?? presentation.monthlyRate;
+      homeSqft = homeSqft ?? presentation.homeSqft;
+      twoStory = twoStory ?? presentation.twoStory;
+      includeScreens = includeScreens ?? presentation.includeScreens;
+      quoteSnapshot =
+        quoteSnapshot ??
+        (isCarePlanQuoteSnapshot(presentation.quoteSnapshot)
+          ? presentation.quoteSnapshot
+          : null);
+      includeInterior =
+        includeInterior ?? presentation.quoteSnapshot?.includeInterior ?? false;
     }
 
     const agreementKind = agreementKindForPlan(planId);
@@ -118,6 +136,13 @@ export async function POST(req: NextRequest) {
         typeof monthlyPrice === "number" ? monthlyPrice : undefined,
       agreementTier: resolvedTier,
       agreementKind,
+      homeSqft: typeof homeSqft === "number" ? homeSqft : undefined,
+      twoStory: typeof twoStory === "boolean" ? twoStory : undefined,
+      includeScreens:
+        typeof includeScreens === "boolean" ? includeScreens : undefined,
+      includeInterior:
+        typeof includeInterior === "boolean" ? includeInterior : undefined,
+      quoteSnapshot: quoteSnapshot as PresentationQuoteSnapshot | null | undefined,
       ipAddress: req.headers.get("x-forwarded-for"),
       userAgent: req.headers.get("user-agent"),
     });

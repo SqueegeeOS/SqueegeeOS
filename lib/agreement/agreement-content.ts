@@ -59,6 +59,10 @@ Your payment method on file will be charged on the 1st day of each month in whic
 
 If a charge fails, scheduling and member benefits (including add-on discounts) may be suspended until payment is resolved.`;
 
+/** Body copy only — use when the PDF section heading is drawn separately */
+export const MEMBERSHIP_BILLING_FINE_PRINT_BODY =
+  MEMBERSHIP_BILLING_FINE_PRINT.replace(/^BILLING & PAYMENT\s*\n+/i, "").trim();
+
 export const MEMBERSHIP_SUMMARY_POINTS = [
   MEMBERSHIP_BILLING_SUMMARY,
   "Scheduled home care visits based on your membership tier",
