@@ -99,6 +99,16 @@ export function validateAssessmentForm(
   if (!form.propertyId?.trim()) return "propertyId is required.";
   if (!form.technicianName?.trim()) return "technicianName is required.";
   if (!form.visitDate?.trim()) return "visitDate is required.";
+
+  if (form.assessmentType === "visit_note") {
+    const hasNote =
+      form.internalNote?.trim() ||
+      form.customerNote?.trim() ||
+      form.proposalSummary?.trim();
+    if (!hasNote) return "Add a visit note before saving.";
+    return null;
+  }
+
   if (!form.activeAreas?.length) return "At least one assessment area is required.";
 
   const scoreable = form.activeAreas.filter(

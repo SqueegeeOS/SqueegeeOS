@@ -44,6 +44,8 @@ function ScoreChip({ label, score }: { label: string; score: number | null }) {
 }
 
 function AssessmentCard({ assessment }: { assessment: PropertyAssessment }) {
+  const isVisitNote = assessment.assessmentType === "visit_note";
+
   return (
     <div className="rounded-2xl bg-[#111] px-6 py-5">
       <div className="mb-5 flex items-start justify-between">
@@ -56,7 +58,7 @@ function AssessmentCard({ assessment }: { assessment: PropertyAssessment }) {
             {assessmentTypeLabel(assessment.assessmentType)}
           </p>
         </div>
-        {assessment.overallScore !== null && (
+        {!isVisitNote && assessment.overallScore !== null && (
           <div className="text-right">
             <p className="font-serif text-2xl text-[#c9a96e]">
               {assessment.overallScore}%
@@ -66,40 +68,42 @@ function AssessmentCard({ assessment }: { assessment: PropertyAssessment }) {
         )}
       </div>
 
-      <div className="mb-5 grid grid-cols-3 gap-2">
-        {assessment.assessedAreas.map((key) => {
-          const def = getAreaDefinition(key as AssessmentAreaKey);
-          const isNA = assessment.naAreas.includes(key as AssessmentAreaKey);
-          const score = assessment.scores[key];
-          return (
-            <div
-              key={key}
-              className="rounded-lg bg-[#0d0d0d] px-2 py-2.5 text-center"
-            >
-              <p className="mb-1 text-[10px] text-[#333]">
-                {def?.label ?? key}
-              </p>
-              {isNA ? (
-                <p className="text-xs text-[#444]">N/A</p>
-              ) : score != null ? (
-                <p
-                  className="font-serif text-base"
-                  style={{ color: SCORE_COLORS[score] }}
-                >
-                  {score}
+      {!isVisitNote ? (
+        <div className="mb-5 grid grid-cols-3 gap-2">
+          {assessment.assessedAreas.map((key) => {
+            const def = getAreaDefinition(key as AssessmentAreaKey);
+            const isNA = assessment.naAreas.includes(key as AssessmentAreaKey);
+            const score = assessment.scores[key];
+            return (
+              <div
+                key={key}
+                className="rounded-lg bg-[#0d0d0d] px-2 py-2.5 text-center"
+              >
+                <p className="mb-1 text-[10px] text-[#333]">
+                  {def?.label ?? key}
                 </p>
-              ) : (
-                <p className="text-sm text-[#222]">—</p>
-              )}
-            </div>
-          );
-        })}
-      </div>
+                {isNA ? (
+                  <p className="text-xs text-[#444]">N/A</p>
+                ) : score != null ? (
+                  <p
+                    className="font-serif text-base"
+                    style={{ color: SCORE_COLORS[score] }}
+                  >
+                    {score}
+                  </p>
+                ) : (
+                  <p className="text-sm text-[#222]">—</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       {assessment.proposalSummary && (
         <div className="mb-2 rounded-lg border border-[#c9a96e18] px-3 py-2.5">
           <p className="mb-1 text-[10px] uppercase tracking-widest text-[#c9a96e]">
-            Proposal Summary
+            {isVisitNote ? "Follow-up" : "Proposal Summary"}
           </p>
           <p className="text-xs leading-relaxed text-[#777]">
             {assessment.proposalSummary}

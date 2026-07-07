@@ -299,6 +299,12 @@ async function loadPropertyWorkspace(
     label: "Property memory",
     href: `/hq/properties/${propertyId}/health`,
   });
+  actions.push({
+    id: "document_visit",
+    label: "Document visit",
+    href: `/hq/properties/${propertyId}/visit`,
+    primary: stage === "active",
+  });
 
   const upcomingWork = (obligations ?? [])
     .filter((row) => row.status === "promised" || row.status === "scheduled")

@@ -90,6 +90,12 @@ function PropertyHealthContent({ propertyId }: { propertyId: string }) {
 
       <div className="mb-8 flex flex-wrap items-center gap-3">
         <Link
+          href={`/hq/properties/${propertyId}/visit`}
+          className="inline-block rounded-lg border border-[#c9a96e44] bg-[#c9a96e14] px-4 py-2 text-xs text-[#c9a96e] transition-colors hover:border-[#c9a96e]"
+        >
+          Document visit
+        </Link>
+        <Link
           href={`/hq/customers/property/${propertyId}`}
           className="inline-block rounded-lg border border-[#333] px-4 py-2 text-xs text-[#888] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
         >

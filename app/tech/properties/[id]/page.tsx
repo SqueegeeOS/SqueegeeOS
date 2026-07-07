@@ -43,8 +43,6 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
   }
 
   const latest = visits[0] ?? null;
-  const today = new Date().toISOString().split("T")[0]!;
-  const hasVisitToday = visits.some((v) => v.visitDate === today);
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8 pb-16">
@@ -67,10 +65,17 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
       </header>
 
       <Link
-        href={`/tech/properties/${id}/assessment`}
+        href={`/tech/properties/${id}/visit`}
         className="mb-3 flex min-h-[56px] items-center justify-center rounded-2xl bg-[#c9a96e] px-6 text-center text-base font-medium tracking-wide text-black transition-transform active:scale-[0.98]"
       >
-        {hasVisitToday ? "Continue today&apos;s assessment" : "Start visit assessment"}
+        Document today&apos;s visit
+      </Link>
+
+      <Link
+        href={`/tech/properties/${id}/assessment`}
+        className="mb-3 flex min-h-[48px] items-center justify-center rounded-2xl border border-[#333] px-6 text-center text-sm text-[#aaa] transition-colors hover:border-[#c9a96e] hover:text-[#c9a96e]"
+      >
+        Full health assessment
       </Link>
 
       <Link

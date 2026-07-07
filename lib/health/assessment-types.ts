@@ -2,7 +2,11 @@ import type { AssessmentAreaKey } from "./assessment-areas";
 
 export type ScoreValue = 1 | 2 | 3 | 4 | 5 | null;
 
-export type AssessmentType = "window_service" | "care_package" | "custom";
+export type AssessmentType =
+  | "window_service"
+  | "care_package"
+  | "custom"
+  | "visit_note";
 
 export interface RecommendedService {
   id: string;
@@ -100,5 +104,7 @@ export function assessmentTypeLabel(type: AssessmentType): string {
       return "Care Package";
     case "custom":
       return "Custom";
+    case "visit_note":
+      return "Visit Note";
   }
 }
