@@ -10,11 +10,11 @@ import {
 } from "@/lib/admin/config";
 import { craftInput, craftPrimaryButton } from "@/lib/craft/tokens";
 import {
-  clearAdminSession,
   isAdminUnlocked,
   markAdminUnlocked,
   verifyAdminPin,
 } from "@/lib/admin/pin";
+import { ROUTES } from "@/lib/navigation/config";
 import { materialize } from "@/lib/motion/system";
 
 interface AdminPinGateProps {
@@ -125,16 +125,15 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
           </button>
         </form>
 
-        <button
-          type="button"
-          onClick={() => {
-            clearAdminSession();
-            window.location.href = "/";
-          }}
-          className="mt-6 w-full text-center text-[11px] uppercase tracking-[0.2em] text-muted transition-colors hover:text-accent"
+        <a
+          href={ROUTES.home}
+          className="relative z-10 mt-6 flex min-h-[44px] w-full items-center justify-center text-center text-[11px] uppercase tracking-[0.2em] text-muted transition-colors hover:text-accent touch-manipulation"
         >
           Return Home
-        </button>
+        </a>
+        <p className="mt-2 text-center text-[10px] text-muted/60">
+          Opens the public marketing site
+        </p>
         </GlassCard>
       </motion.div>
     </AmbientStage>
