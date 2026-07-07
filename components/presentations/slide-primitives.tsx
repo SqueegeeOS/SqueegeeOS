@@ -214,8 +214,8 @@ export function BreakdownCard({ presentation }: { presentation: PresentationData
         </div>
         {selected === "quarterly" && (
           <div className="flex justify-between gap-4">
-            <dt className="text-white/40">Included treatments</dt>
-            <dd>{formatTierPrice(rates.retailValue)}/yr</dd>
+            <dt className="text-white/40">Added treatment value</dt>
+            <dd>{formatTierPrice(rates.retailValue)}/yr at retail</dd>
           </div>
         )}
         <div className="flex justify-between gap-4">

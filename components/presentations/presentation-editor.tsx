@@ -320,8 +320,8 @@ export function PresentationEditor({
               />
             </EditorField>
             <EditorField
-              label="Included treatment value (annual)"
-              hint="Usually auto-calculated for Quarterly. Office staff only."
+              label="Added treatment value (Quarterly slide)"
+              hint="Retail value of RainBlock + Hard Water included with Quarterly — not the plan price. Shown on The Math slide only."
             >
               <EditorTextInput
                 type="number"

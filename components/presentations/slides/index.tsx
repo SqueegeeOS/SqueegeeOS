@@ -25,6 +25,10 @@ import {
   SQUEEGEEKING_TIERS,
 } from "@/lib/membership/tier-config";
 import type { PresentationTier } from "@/lib/presentations/types";
+import {
+  quarterlyNetAdvantageLine,
+  quarterlyUpgradeSummary,
+} from "@/lib/presentations/upgrade-copy";
 
 interface SlideComponentProps {
   presentation: PresentationData;
@@ -216,39 +220,52 @@ export function SavingsSlide({ presentation }: SlideComponentProps) {
   return (
     <FullSlide>
       <Eyebrow>The math</Eyebrow>
-      <HeroText>Quarterly pays for the upgrade.</HeroText>
+      <HeroText>Value beyond the upgrade.</HeroText>
+      <SubText>{quarterlyUpgradeSummary(upgrade)}</SubText>
       <div className="mt-8 space-y-3 rounded-lg border border-white/10 bg-white/[0.03] p-6 text-sm">
         <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">
-          Included treatments (Quarterly)
+          Plan cost per year
         </p>
         <div className="flex justify-between gap-4">
-          <span className="text-white/50">RainBlock retail</span>
+          <span className="text-white/50">Bi-Annual membership</span>
+          <span>{formatTierPrice(upgrade.biannualAnnual)}/yr</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-white/50">Quarterly membership</span>
+          <span>{formatTierPrice(upgrade.quarterlyAnnual)}/yr</span>
+        </div>
+        <div className="flex justify-between gap-4 border-b border-white/10 pb-3">
+          <span className="text-white/50">Extra cost to upgrade</span>
+          <span>{formatTierPrice(upgrade.upgradeCost)}/yr</span>
+        </div>
+
+        <p className="pt-1 text-[10px] uppercase tracking-[0.16em] text-white/40">
+          Added treatment value (Quarterly only)
+        </p>
+        <div className="flex justify-between gap-4">
+          <span className="text-white/50">RainBlock at retail</span>
           <span>
             {formatTierPrice(RAINBLOCK_RETAIL_VALUE)} × 4 ={" "}
             {formatTierPrice(upgrade.rainblockAnnual)}/yr
           </span>
         </div>
         <div className="flex justify-between gap-4">
-          <span className="text-white/50">Hard Water retail</span>
+          <span className="text-white/50">Hard Water at retail</span>
           <span>
             {formatTierPrice(HARDWATER_RETAIL_VALUE)} × 4 ={" "}
             {formatTierPrice(upgrade.hardWaterAnnual)}/yr
           </span>
         </div>
         <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
-          <span className="text-white/50">Included in Quarterly</span>
+          <span className="text-white/50">Total added value at retail</span>
           <span className="text-accent">
             {formatTierPrice(upgrade.includedTreatmentValue)}/yr
           </span>
         </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-white/50">Upgrade vs Bi-Annual</span>
-          <span>{formatTierPrice(upgrade.upgradeCost)}/yr more</span>
-        </div>
         <div className="flex justify-between gap-4 font-medium text-[#f5f2eb]">
-          <span>Net advantage (treatments)</span>
+          <span>Compared to the upgrade cost</span>
           <span className="text-accent">
-            {formatTierPrice(Math.max(0, upgrade.netAdvantage))} in your favor
+            {quarterlyNetAdvantageLine(upgrade)}
           </span>
         </div>
       </div>

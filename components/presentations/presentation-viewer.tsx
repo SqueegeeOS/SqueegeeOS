@@ -17,15 +17,7 @@ export function PresentationViewer({
   const [signingTier, setSigningTier] = useState<PresentationData["tier"]>("quarterly");
   const slides = getPresentationSlides(presentation);
   const totalSlides = slides.length;
-  const currentSlide = slides[currentIndex];
-
-  if (!currentSlide) {
-    return (
-      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#060606] text-[#f5f2eb]">
-        <p className="text-sm text-white/50">No slides available for this presentation.</p>
-      </div>
-    );
-  }
+  const currentSlide = slides[currentIndex] ?? slides[0];
 
   const next = useCallback(() => {
     setCurrentIndex((i) => Math.min(i + 1, totalSlides - 1));
@@ -60,6 +52,14 @@ export function PresentationViewer({
       });
     }
   }, [currentIndex, presentation.id, presentation.status]);
+
+  if (!currentSlide) {
+    return (
+      <div className="fixed inset-0 z-[200] flex items-center justify-center bg-[#060606] text-[#f5f2eb]">
+        <p className="text-sm text-white/50">No slides available for this presentation.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[200] flex flex-col bg-[#060606] text-[#f5f2eb]">

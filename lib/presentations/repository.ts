@@ -244,17 +244,21 @@ export async function listPresentations(): Promise<PresentationData[]> {
 export async function getPresentation(
   id: string,
 ): Promise<PresentationData | null> {
+  let data: PresentationData | null = null;
+
   if (isCloudPersistenceConnected()) {
     try {
-      return await getFromSupabase(id);
+      data = await getFromSupabase(id);
     } catch (error) {
       logCloudFallback("get", error);
     }
   }
 
-  return getLocalPresentation(id).then((data) =>
-    data ? normalizePresentation(data) : null,
-  );
+  if (!data) {
+    data = await getLocalPresentation(id);
+  }
+
+  return data ? normalizePresentation(data) : null;
 }
 
 export async function savePresentation(
@@ -269,13 +273,13 @@ export async function savePresentation(
 
   if (isCloudPersistenceConnected()) {
     try {
-      return await saveToSupabase(merged);
+      return normalizePresentation(await saveToSupabase(merged));
     } catch (error) {
       logCloudFallback("save", error);
     }
   }
 
-  return saveLocalPresentation(merged);
+  return normalizePresentation(await saveLocalPresentation(merged));
 }
 
 export async function createPresentation(input?: {
