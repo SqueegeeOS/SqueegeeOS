@@ -8,6 +8,7 @@ import {
   formatRecurringFrequency,
   getArrValue,
 } from "@/lib/admin/sales-calculations";
+import { craftTableHead } from "@/lib/craft/tokens";
 import { AdminEmptySalesState } from "./admin-empty-sales-state";
 
 interface RecentClosedJobsTableProps {
@@ -31,7 +32,7 @@ export function RecentClosedJobsTable({
     <div className="overflow-x-auto">
       <table className="min-w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-border/70 text-[10px] uppercase tracking-[0.22em] text-muted">
+          <tr className={`border-b border-border/70 ${craftTableHead}`}>
             <th className="pb-3 pr-4 font-medium">Customer</th>
             <th className="pb-3 pr-4 font-medium">Service</th>
             <th className="pb-3 pr-4 font-medium">Sale Amount</th>

@@ -3,6 +3,10 @@
 export const craftEyebrow =
   "text-[10px] uppercase tracking-[0.28em] text-muted";
 
+/** Accent eyebrow — stage/state context lines. Same scale as craftEyebrow. */
+export const craftEyebrowAccent =
+  "text-[10px] uppercase tracking-[0.28em] text-accent";
+
 /** Form and field labels — label above value. */
 export const craftLabel =
   "mb-2 block text-[10px] uppercase tracking-[0.24em] text-muted";
@@ -14,6 +18,10 @@ export const craftFieldLabel =
 /** Metric and date values — tabular, foreground. */
 export const craftValue =
   "text-base font-medium tabular-nums text-foreground sm:text-lg";
+
+/** Table header type — <th>/<tr> typography only; borders stay per-table. */
+export const craftTableHead =
+  "text-[10px] uppercase tracking-[0.2em] text-muted";
 
 export const craftHeading =
   "font-serif font-light tracking-[-0.015em] text-foreground [text-wrap:balance]";

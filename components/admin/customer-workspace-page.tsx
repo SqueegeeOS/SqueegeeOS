@@ -11,7 +11,7 @@ import {
   updateLeadIntakeStatusClient,
 } from "@/lib/acquisition/leads/inbox-client";
 import { formatLeadIntakeStatus } from "@/lib/acquisition/leads/inbox";
-import { craftEyebrow, craftFieldLabel, craftInput, craftTextarea } from "@/lib/craft/tokens";
+import { craftEyebrow, craftEyebrowAccent, craftFieldLabel, craftInput, craftTextarea } from "@/lib/craft/tokens";
 import type { CustomerWorkspace, CustomerWorkspaceRefType } from "@/lib/hq/customer-workspace/types";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { ROUTES } from "@/lib/navigation/config";
@@ -29,7 +29,13 @@ function Section({
   rim?: boolean;
 }) {
   return (
-    <GlassCard as="section" tone="subtle" motion="rise" index={index} rim={rim}>
+    <GlassCard
+      as="section"
+      tone={rim ? "default" : "subtle"}
+      motion="rise"
+      index={index}
+      rim={rim}
+    >
       <h2 className={craftEyebrow}>{title}</h2>
       <div className="mt-5 space-y-4 text-sm leading-relaxed">{children}</div>
     </GlassCard>
@@ -220,7 +226,7 @@ export function CustomerWorkspacePage({
         ) : workspace ? (
           <>
             <header className="mt-8 mb-10">
-              <p className="text-[10px] uppercase tracking-[0.24em] text-accent">
+              <p className={craftEyebrowAccent}>
                 Customer workspace · {workspace.stageLabel}
               </p>
               <h1 className="mt-3 font-serif text-3xl font-light tracking-[-0.02em] sm:text-4xl">
@@ -303,7 +309,7 @@ export function CustomerWorkspacePage({
             <div className="grid gap-6 lg:grid-cols-2">
               <Section title="Contact">
                 <label className="block">
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                  <span className={craftFieldLabel}>
                     Name
                   </span>
                   <input
@@ -313,7 +319,7 @@ export function CustomerWorkspacePage({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                  <span className={craftFieldLabel}>
                     Email
                   </span>
                   <input
@@ -323,7 +329,7 @@ export function CustomerWorkspacePage({
                   />
                 </label>
                 <label className="block">
-                  <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                  <span className={craftFieldLabel}>
                     Phone
                   </span>
                   <input
@@ -345,7 +351,7 @@ export function CustomerWorkspacePage({
                   <>
                     <Field label="Property name" value={workspace.property.name} />
                     <label className="block">
-                      <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                      <span className={craftFieldLabel}>
                         Address
                       </span>
                       <input
@@ -358,7 +364,7 @@ export function CustomerWorkspacePage({
                     </label>
                     <div className="grid grid-cols-3 gap-2">
                       <label className="block">
-                        <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                        <span className={craftFieldLabel}>
                           City
                         </span>
                         <input
@@ -370,7 +376,7 @@ export function CustomerWorkspacePage({
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                        <span className={craftFieldLabel}>
                           State
                         </span>
                         <input
@@ -382,7 +388,7 @@ export function CustomerWorkspacePage({
                         />
                       </label>
                       <label className="block">
-                        <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                        <span className={craftFieldLabel}>
                           Zip
                         </span>
                         <input
@@ -395,7 +401,7 @@ export function CustomerWorkspacePage({
                       </label>
                     </div>
                     <label className="block">
-                      <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                      <span className={craftFieldLabel}>
                         Square feet
                       </span>
                       <input
@@ -410,7 +416,7 @@ export function CustomerWorkspacePage({
                 ) : (
                   <>
                     <label className="block">
-                      <span className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                      <span className={craftFieldLabel}>
                         Service address
                       </span>
                       <input

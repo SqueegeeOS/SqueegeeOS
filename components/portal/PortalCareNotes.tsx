@@ -1,3 +1,4 @@
+import { craftEyebrow } from "@/lib/craft/tokens";
 import type { CustomerHealthNote } from "@/lib/health/types";
 
 function formatDate(iso: string): string {
@@ -18,7 +19,7 @@ export function PortalCareNotes({
   if (themed) {
     return (
       <section className="rounded-[1.35rem] border border-border/80 bg-surface/50 px-6 py-5">
-        <p className="mb-4 text-[10px] uppercase tracking-[0.28em] text-muted">
+        <p className={`mb-4 ${craftEyebrow}`}>
           Care Notes from Your Technician
         </p>
         <div className="space-y-5">

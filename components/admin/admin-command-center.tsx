@@ -57,7 +57,7 @@ import { RevenuePeriodFilterBar } from "./revenue-period-filter";
 import { MorningBriefSection } from "./morning-brief";
 import { HqFounderNav } from "./hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
-import { craftPrimaryButton } from "@/lib/craft/tokens";
+import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
 
 const QUICK_ACTIONS = [
   { label: "New Presentation", href: ROUTES.newPresentation, primary: true },
@@ -252,7 +252,7 @@ export function AdminCommandCenter({
             <BootLayer layer="navigation" subtle>
               <header className="flex flex-col gap-8 border-b border-border/15 pb-12 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <p className="text-[10px] uppercase tracking-[0.28em] text-muted/80">
+                  <p className={craftEyebrow}>
                     Headquarters
                   </p>
                   <HeadlineReveal

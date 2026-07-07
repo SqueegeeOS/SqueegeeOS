@@ -2,6 +2,7 @@
 
 import type { MonthlyLedgerEntry } from "@/lib/admin/closed-jobs-types";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
+import { craftTableHead } from "@/lib/craft/tokens";
 import { AdminEmptySalesState } from "./admin-empty-sales-state";
 
 interface MonthlySalesLedgerProps {
@@ -25,7 +26,7 @@ export function MonthlySalesLedger({
     <div className="overflow-x-auto rounded-[1.25rem] border border-border/70">
       <table className="min-w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-border/70 bg-surface/40 text-[10px] uppercase tracking-[0.2em] text-muted">
+          <tr className={`border-b border-border/70 bg-surface/40 ${craftTableHead}`}>
             <th className="px-4 py-3 font-medium">Month</th>
             <th className="px-4 py-3 font-medium">Revenue Collected</th>
             <th className="px-4 py-3 font-medium">ARR Generated</th>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { PortalCareNotes } from "@/components/portal/PortalCareNotes";
 import { PortalScoreCard } from "@/components/portal/PortalScoreCard";
+import { craftEyebrow, craftEyebrowAccent } from "@/lib/craft/tokens";
 import type { CustomerHealthNote, CustomerHealthView } from "@/lib/health/types";
 
 function formatDate(iso: string): string {
@@ -36,7 +37,7 @@ export function HomeHealthPanel({
       )}
 
       <header className="mb-8">
-        <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
+        <p className={craftEyebrowAccent}>
           Your Home
         </p>
         <h1 className="mt-2 font-serif text-3xl font-light text-foreground sm:text-4xl">
@@ -55,7 +56,7 @@ export function HomeHealthPanel({
       {latest ? (
         <>
           <section className="mb-4 rounded-[1.35rem] border border-border/80 bg-surface/50 px-6 py-6">
-            <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
+            <p className={craftEyebrow}>
               Overall Care Score
             </p>
             <p className="mt-2 font-serif text-5xl font-light text-accent sm:text-6xl">

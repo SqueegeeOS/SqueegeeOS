@@ -5,7 +5,7 @@ import { GlassCard } from "@/components/craft/glass-card";
 import type { CeoScoreboard } from "@/lib/admin/ceo-scoreboard";
 import type { OperatingSnapshot } from "@/lib/admin/growth-journey";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
-import { craftEyebrow } from "@/lib/craft/tokens";
+import { craftEyebrow, craftFieldLabel, craftTableHead } from "@/lib/craft/tokens";
 import { pageEnter } from "@/lib/motion/system";
 
 interface AdminCeoScoreboardProps {
@@ -134,7 +134,7 @@ export function AdminCeoScoreboard({
             variants={pageEnter}
             transition={{ delay: reduceMotion ? 0 : index * 0.05 }}
           >
-            <p className="text-[10px] uppercase tracking-[0.18em] text-muted/70">
+            <p className={craftFieldLabel}>
               {metric.label}
             </p>
             <p className="mt-1.5 font-serif text-2xl font-light text-foreground sm:text-3xl">
@@ -150,7 +150,7 @@ export function AdminCeoScoreboard({
       <div className="mt-8 overflow-x-auto border-t border-white/[0.06] pt-6">
         <table className="min-w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-border/20 text-[10px] uppercase tracking-[0.16em] text-muted/70">
+            <tr className={`border-b border-border/20 ${craftTableHead}`}>
               <th className="pb-3 font-medium">Metric</th>
               <th className="pb-3 text-right font-medium">Legacy</th>
               <th className="pb-3 text-right font-medium">OS</th>
