@@ -47,16 +47,16 @@ export const stripeCheckoutCapabilities = [
   {
     title: "Monthly billing",
     description:
-      "Your card is charged on the 1st of each month for that month's membership visit.",
+      "Your card is charged on the 1st of the month in which your scheduled membership visit occurs.",
   },
   {
     title: "Card on file",
-    description: "Securely save your payment method for automatic monthly billing.",
+    description: "Securely save your payment method — payment disappears into the experience, not the visit.",
   },
   {
-    title: "Service timing",
+    title: "Care at the center",
     description:
-      "Visits are scheduled and completed during the same calendar month as payment.",
+      "Your technician arrives ready to care for your home — not to collect payment at the door.",
   },
 ] as const;
 

@@ -19,6 +19,11 @@ import {
 import { computePresentationRates } from "@/lib/presentations/calculations";
 import { formatDollars, memberSavingsQuoteLine } from "@/lib/pricing/format";
 import {
+  MEMBERSHIP_BILLING_PHILOSOPHY,
+  MEMBERSHIP_BILLING_SCHEDULE_BODY,
+  MEMBERSHIP_BILLING_SCHEDULE_HEADLINE,
+} from "@/lib/agreement/agreement-content";
+import {
   formatTierPrice,
   HARDWATER_RETAIL_VALUE,
   RAINBLOCK_RETAIL_VALUE,
@@ -330,6 +335,18 @@ export function CloseSlide({ presentation, overrides, onSign }: SlideComponentPr
             (presentation.customNotes ||
               `${presentation.clientName}, choose the membership that fits your home. We recommend Quarterly for year-round protection.`)}
         </SubText>
+
+        <div className="mx-auto mt-8 max-w-md rounded-lg border border-white/10 bg-white/[0.03] p-5 text-left">
+          <p className="font-serif text-sm italic leading-relaxed text-accent/80">
+            {MEMBERSHIP_BILLING_PHILOSOPHY}
+          </p>
+          <p className="mt-4 text-[10px] uppercase tracking-[0.16em] text-accent/70">
+            {MEMBERSHIP_BILLING_SCHEDULE_HEADLINE}
+          </p>
+          <p className="mt-2 text-sm leading-relaxed text-white/50">
+            {MEMBERSHIP_BILLING_SCHEDULE_BODY}
+          </p>
+        </div>
 
         <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
           <button

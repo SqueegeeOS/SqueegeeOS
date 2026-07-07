@@ -2,25 +2,12 @@
 
 import { useState } from "react";
 import { saveCardOnFile } from "@/lib/membership/card-on-file";
+import {
+  MEMBERSHIP_BILLING_PHILOSOPHY,
+  MEMBERSHIP_BILLING_REMINDER,
+  MEMBERSHIP_ONBOARDING_PAYMENT_POINTS,
+} from "@/lib/agreement/agreement-content";
 import { STRIPE_CHECKOUT_ENABLED } from "@/lib/membership/types";
-
-const ONBOARDING_PAYMENT_POINTS = [
-  {
-    title: "Card on file",
-    description:
-      "Your payment method is stored securely — you won't need to enter it again.",
-  },
-  {
-    title: "Bill after service",
-    description:
-      "You're charged automatically after each completed membership visit.",
-  },
-  {
-    title: "No checkout at the door",
-    description:
-      "Your technician focuses on your home, not collecting payment.",
-  },
-] as const;
 
 export function CardOnFileSetup({
   memberName,
@@ -88,8 +75,18 @@ export function CardOnFileSetup({
 
   return (
     <div className="space-y-5">
+      <p
+        className={
+          isPresentation
+            ? "font-serif text-sm italic leading-relaxed text-accent/75"
+            : "font-serif text-sm italic leading-relaxed text-accent/90"
+        }
+      >
+        {MEMBERSHIP_BILLING_PHILOSOPHY}
+      </p>
+
       <div className="space-y-3">
-        {ONBOARDING_PAYMENT_POINTS.map((item) => (
+        {MEMBERSHIP_ONBOARDING_PAYMENT_POINTS.map((item) => (
           <div key={item.title} className={pointCardClass}>
             <p className={pointTitleClass}>{item.title}</p>
             <p className={pointBodyClass}>{item.description}</p>
@@ -167,13 +164,32 @@ export function CardOnFileSetup({
               />
             </div>
           </div>
-          {!STRIPE_CHECKOUT_ENABLED ? (
-            <p className="text-xs text-white/30">
-              Demo mode — card is not charged. Stripe connects in production.
-            </p>
-          ) : null}
+          <p className="text-xs text-white/30">
+            Demo mode — card is not charged. Stripe connects in production.
+          </p>
         </div>
       )}
+
+      <div
+        className={
+          isPresentation
+            ? "rounded-lg border border-accent/15 bg-accent/[0.04] p-4"
+            : "rounded-2xl border border-accent/20 bg-accent/5 p-4"
+        }
+      >
+        <p
+          className={
+            isPresentation
+              ? "text-[10px] uppercase tracking-[0.14em] text-accent/70"
+              : "text-[10px] uppercase tracking-[0.14em] text-accent"
+          }
+        >
+          Billing reminder
+        </p>
+        <p className={`mt-2 text-sm leading-relaxed ${pointBodyClass}`}>
+          {MEMBERSHIP_BILLING_REMINDER}
+        </p>
+      </div>
 
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
 

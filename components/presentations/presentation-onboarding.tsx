@@ -3,6 +3,15 @@
 import { useState, type ReactNode } from "react";
 import { AgreementSignaturePad } from "@/components/agreement/agreement-signature-pad";
 import { CardOnFileSetup } from "@/components/membership/card-on-file-setup";
+import {
+  MEMBERSHIP_BILLING_PHILOSOPHY,
+  MEMBERSHIP_BILLING_SCHEDULE_BODY,
+  MEMBERSHIP_BILLING_SCHEDULE_HEADLINE,
+  MEMBERSHIP_CARD_ON_FILE_WHY,
+  MEMBERSHIP_CONFIRMATION_PHILOSOPHY,
+  MEMBERSHIP_NEXT_BILLING_LABEL,
+  membershipAgreementCheckboxText,
+} from "@/lib/agreement/agreement-content";
 import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
@@ -178,6 +187,18 @@ export function PresentationOnboarding({
               ))}
             </div>
 
+            <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left">
+              <p className="font-serif text-sm italic leading-relaxed text-accent/80">
+                {MEMBERSHIP_BILLING_PHILOSOPHY}
+              </p>
+              <p className="mt-4 text-[10px] uppercase tracking-[0.16em] text-accent/70">
+                {MEMBERSHIP_BILLING_SCHEDULE_HEADLINE}
+              </p>
+              <p className="mt-2 text-sm leading-relaxed text-white/55">
+                {MEMBERSHIP_BILLING_SCHEDULE_BODY}
+              </p>
+            </div>
+
             <div className="mt-6">
               <AgreementSignaturePad
                 onSigned={setSignature}
@@ -194,9 +215,10 @@ export function PresentationOnboarding({
                 className="mt-1 accent-accent"
               />
               <span className="text-xs leading-relaxed text-white/50">
-                I agree to the SqueegeeKing {tierLabel(tier)} Membership Agreement
-                and authorize {formatTierPrice(visitPrice)} per visit (
-                {formatTierPrice(annualTotal)}/year).
+                {membershipAgreementCheckboxText()} I authorize{" "}
+                {formatTierPrice(visitPrice)} per visit (
+                {formatTierPrice(annualTotal)}/year) for the SqueegeeKing{" "}
+                {tierLabel(tier)} plan.
               </span>
             </label>
 
@@ -247,14 +269,16 @@ export function PresentationOnboarding({
         {step === "payment" ? (
           <div className="rounded-lg border border-white/10 bg-[#0d0d0d] p-8 sm:p-10">
             <p className="text-[10px] uppercase tracking-[0.18em] text-accent/60">
-              One last step
+              Why we keep a card on file
             </p>
             <h2 className="mt-2 font-serif text-3xl font-light text-[#f5f2eb]">
               Complete your membership
             </h2>
+            <p className="mt-3 font-serif text-sm italic leading-relaxed text-accent/75">
+              {MEMBERSHIP_BILLING_PHILOSOPHY}
+            </p>
             <p className="mt-3 text-sm leading-relaxed text-white/50">
-              We keep a secure payment method on file so your scheduled services
-              can be billed automatically after each visit.
+              {MEMBERSHIP_CARD_ON_FILE_WHY}
             </p>
 
             <div className="mt-6">
@@ -290,9 +314,14 @@ export function PresentationOnboarding({
                   : "Payment Method — add from your member portal anytime"}
               </ChecklistItem>
               <ChecklistItem>
-                We&apos;ll contact you to schedule your first service.
+                Next billing: {MEMBERSHIP_NEXT_BILLING_LABEL}
               </ChecklistItem>
+              <ChecklistItem>We&apos;ll contact you before each visit.</ChecklistItem>
             </ul>
+
+            <p className="mt-6 text-left text-sm italic leading-relaxed text-white/45">
+              {MEMBERSHIP_CONFIRMATION_PHILOSOPHY}
+            </p>
 
             <button
               type="button"
