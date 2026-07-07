@@ -8,7 +8,7 @@ import {
   ADMIN_PIN_ARCHITECTURE_NOTE,
   isAdminPrivateBeta,
 } from "@/lib/admin/config";
-import { craftInput, craftPrimaryButton } from "@/lib/craft/tokens";
+import { craftInput, craftLabel, craftPrimaryButton } from "@/lib/craft/tokens";
 import {
   isAdminUnlocked,
   markAdminUnlocked,
@@ -85,7 +85,7 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
             <div>
               <label
                 htmlFor="admin-pin"
-                className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                className={craftLabel}
               >
                 Access PIN
               </label>

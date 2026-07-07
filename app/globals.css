@@ -107,12 +107,64 @@ body {
   -webkit-backdrop-filter: blur(12px);
 }
 
+/* Nested tray — one level inside a card only. */
+.craft-glass-inset {
+  border: 1px solid rgba(255, 248, 235, 0.04);
+  background: linear-gradient(
+    180deg,
+    rgba(5, 4, 3, 0.35) 0%,
+    rgba(255, 248, 235, 0.015) 100%
+  );
+  border-radius: calc(var(--radius-card) - 0.45rem);
+}
+
+/* Directional warm rim — one hero surface per view. */
+.craft-rim {
+  position: relative;
+}
+
+.craft-rim::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from 210deg at var(--rim-x, 18%) var(--rim-y, 0%),
+    rgba(212, 185, 140, 0.55),
+    rgba(212, 185, 140, 0.12) 22%,
+    rgba(255, 248, 235, 0.05) 45%,
+    transparent 70%,
+    rgba(212, 185, 140, 0.18)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+  transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .craft-glass,
   .craft-glass-elevated,
   .craft-glass-subtle {
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+  }
+
+  .craft-glass-inset {
+    background: linear-gradient(
+      180deg,
+      rgba(8, 7, 6, 0.55) 0%,
+      rgba(255, 248, 235, 0.02) 100%
+    );
+  }
+
+  .craft-rim::before {
+    opacity: 0.65;
+    transition: none;
   }
 }
 

@@ -41,7 +41,7 @@ function InsightCard({
       transition={{ delay }}
       className="craft-glass-subtle rounded-[var(--radius-card)] p-5 shadow-[var(--shadow-ambient)] sm:p-6"
     >
-      <p className="text-[10px] uppercase tracking-[0.2em] text-muted/70">
+      <p className={`${craftEyebrow} opacity-70`}>
         {CATEGORY_LABELS[category] ?? category}
       </p>
       <h3 className="mt-2 font-serif text-xl font-light text-foreground">
@@ -66,42 +66,44 @@ export function MorningBriefSection({ brief }: { brief: MorningBrief }) {
       className="border-t border-border/15 pt-14"
       aria-labelledby="morning-brief-heading"
     >
-      <div>
-        <p className={craftEyebrow}>{PLATFORM_BRAND.morningBriefEyebrow}</p>
-        <h2
-          id="morning-brief-heading"
-          className={`${craftHeading} mt-3 text-2xl sm:text-[1.75rem]`}
-        >
-          {PLATFORM_BRAND.morningBriefTitle}
-        </h2>
-      </div>
-
-      {cards.length > 0 ? (
-        <div className="mt-8 grid gap-4">
-          {cards.map((insight, index) => (
-            <InsightCard
-              key={insight.id}
-              title={insight.title}
-              body={insight.body}
-              category={insight.category}
-              index={index}
-              baseDelay={baseDelay + 0.08}
-            />
-          ))}
+      <GlassCard tone="default" rim padding="lg" motion="none">
+        <div>
+          <p className={craftEyebrow}>{PLATFORM_BRAND.morningBriefEyebrow}</p>
+          <h2
+            id="morning-brief-heading"
+            className={`${craftHeading} mt-3 text-2xl sm:text-[1.75rem]`}
+          >
+            {PLATFORM_BRAND.morningBriefTitle}
+          </h2>
         </div>
-      ) : brief.fallbackMessage ? (
-        <GlassCard tone="subtle" motion="rise" className="mt-8 px-6 py-8 text-center">
-          <p className="font-serif text-xl font-light text-foreground/90">
+
+        {cards.length > 0 ? (
+          <div className="mt-8 grid gap-4">
+            {cards.map((insight, index) => (
+              <InsightCard
+                key={insight.id}
+                title={insight.title}
+                body={insight.body}
+                category={insight.category}
+                index={index}
+                baseDelay={baseDelay + 0.08}
+              />
+            ))}
+          </div>
+        ) : brief.fallbackMessage ? (
+          <GlassCard tone="subtle" motion="rise" className="mt-8 px-6 py-8 text-center">
+            <p className="font-serif text-xl font-light text-foreground/90">
+              {brief.fallbackMessage}
+            </p>
+          </GlassCard>
+        ) : null}
+
+        {brief.fallbackMessage && cards.length > 0 && cards.length < 3 && (
+          <p className="mt-6 text-center text-sm text-muted">
             {brief.fallbackMessage}
           </p>
-        </GlassCard>
-      ) : null}
-
-      {brief.fallbackMessage && cards.length > 0 && cards.length < 3 && (
-        <p className="mt-6 text-center text-sm text-muted">
-          {brief.fallbackMessage}
-        </p>
-      )}
+        )}
+      </GlassCard>
     </motion.section>
   );
 }

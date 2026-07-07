@@ -11,7 +11,7 @@ import {
   updateLeadIntakeStatusClient,
 } from "@/lib/acquisition/leads/inbox-client";
 import { formatLeadIntakeStatus } from "@/lib/acquisition/leads/inbox";
-import { craftEyebrow, craftInput, craftTextarea } from "@/lib/craft/tokens";
+import { craftEyebrow, craftFieldLabel, craftInput, craftTextarea } from "@/lib/craft/tokens";
 import type { CustomerWorkspace, CustomerWorkspaceRefType } from "@/lib/hq/customer-workspace/types";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { ROUTES } from "@/lib/navigation/config";
@@ -21,13 +21,15 @@ function Section({
   title,
   children,
   index = 0,
+  rim = false,
 }: {
   title: string;
   children: React.ReactNode;
   index?: number;
+  rim?: boolean;
 }) {
   return (
-    <GlassCard as="section" tone="subtle" motion="rise" index={index}>
+    <GlassCard as="section" tone="subtle" motion="rise" index={index} rim={rim}>
       <h2 className={craftEyebrow}>{title}</h2>
       <div className="mt-5 space-y-4 text-sm leading-relaxed">{children}</div>
     </GlassCard>
@@ -45,7 +47,7 @@ function Field({
 }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-[0.16em] text-muted/80">{label}</p>
+      <p className={craftFieldLabel}>{label}</p>
       {href && value ? (
         <a href={href} className="mt-1 block text-foreground hover:text-accent">
           {value}
@@ -561,7 +563,7 @@ export function CustomerWorkspacePage({
                 </button>
               </Section>
 
-              <Section title="Timeline">
+              <Section title="Timeline" rim>
                 {workspace.timeline.length > 0 ? (
                   workspace.timeline.map((entry) => (
                     <div key={entry.id} className="border-b border-border/20 pb-3 last:border-0">

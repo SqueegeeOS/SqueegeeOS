@@ -3,6 +3,18 @@
 export const craftEyebrow =
   "text-[10px] uppercase tracking-[0.28em] text-muted";
 
+/** Form and field labels — label above value. */
+export const craftLabel =
+  "mb-2 block text-[10px] uppercase tracking-[0.24em] text-muted";
+
+/** Read-only field label in workspace rows. */
+export const craftFieldLabel =
+  "text-[10px] uppercase tracking-[0.16em] text-muted/80";
+
+/** Metric and date values — tabular, foreground. */
+export const craftValue =
+  "text-base font-medium tabular-nums text-foreground sm:text-lg";
+
 export const craftHeading =
   "font-serif font-light tracking-[-0.015em] text-foreground [text-wrap:balance]";
 
@@ -29,3 +41,5 @@ export const craftGlassSurface =
 
 export const craftGlassElevated =
   "craft-glass-elevated rounded-[var(--radius-card-lg)] shadow-[var(--shadow-lift)]";
+
+export const craftGlassInset = "craft-glass-inset";

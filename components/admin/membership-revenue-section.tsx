@@ -2,6 +2,7 @@
 
 import type { MembershipRevenueOverview } from "@/lib/admin/closed-jobs-types";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
+import { craftEyebrow } from "@/lib/craft/tokens";
 
 export function MembershipRevenueSection({
   membership,
@@ -29,11 +30,9 @@ export function MembershipRevenueSection({
           key={item.label}
           className="rounded-2xl border border-border/80 bg-background/40 p-5"
         >
-          <p className="text-[10px] uppercase tracking-[0.22em] text-muted">
-            {item.label}
-          </p>
+          <p className={craftEyebrow}>{item.label}</p>
           <p
-            className={`mt-2 font-serif text-3xl font-light ${
+            className={`mt-2 font-serif text-3xl font-light tabular-nums ${
               item.accent ? "text-accent" : "text-foreground"
             }`}
           >

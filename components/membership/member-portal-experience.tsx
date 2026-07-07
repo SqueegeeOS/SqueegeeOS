@@ -20,6 +20,7 @@ import { MemberWalletCard } from "@/components/membership/member-wallet-card";
 import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-data";
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
+import { GlassCard } from "@/components/craft/glass-card";
 import { PortalStage } from "@/components/portal/portal-stage";
 import { InstallHomeAtlas } from "@/components/pwa/InstallHomeAtlas";
 import { craftPrimaryButton, craftSecondaryButton } from "@/lib/craft/tokens";
@@ -159,14 +160,16 @@ export function MemberPortalExperience({
               />
             ) : (
               <>
-                <MemberWalletCard
-                  data={walletCard}
-                  portalUrl={resolvedPortalPath}
-                  foundingDisplay={view.foundingDisplay}
-                  showActions={!isCustomerPortal}
-                  embedded
-                  entranceDelay={0}
-                />
+                <GlassCard tone="default" rim padding="md">
+                  <MemberWalletCard
+                    data={walletCard}
+                    portalUrl={resolvedPortalPath}
+                    foundingDisplay={view.foundingDisplay}
+                    showActions={!isCustomerPortal}
+                    embedded
+                    entranceDelay={0}
+                  />
+                </GlassCard>
                 {view.foundingDisplay && (
                   <div className="mt-6 flex justify-center">
                     <FoundingMemberHonor

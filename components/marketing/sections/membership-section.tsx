@@ -2,6 +2,7 @@
 
 import { AmbientBackground } from "@/components/scroll-cinema/ambient-background";
 import { ScrollReveal } from "@/components/scroll-cinema/scroll-reveal";
+import { GlassCard } from "@/components/craft/glass-card";
 import { SqueegeeKingTierComparison } from "@/components/membership/squeegeeking-tier-comparison";
 import { Eyebrow } from "@/components/marketing/ui";
 
@@ -25,11 +26,12 @@ export function MembershipSection() {
         </ScrollReveal>
 
         <ScrollReveal delay={120}>
-          <SqueegeeKingTierComparison
-            squareFootage={demoSqft}
-            variant="marketing"
-            className="mt-14"
-          />
+          <GlassCard tone="default" rim padding="sm" className="mt-14">
+            <SqueegeeKingTierComparison
+              squareFootage={demoSqft}
+              variant="marketing"
+            />
+          </GlassCard>
         </ScrollReveal>
       </div>
     </section>

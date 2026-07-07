@@ -13,11 +13,12 @@ import {
   SERVICE_CATEGORIES,
 } from "@/lib/admin/closed-jobs-types";
 
+import { craftLabel } from "@/lib/craft/tokens";
+
 const inputClassName =
   "w-full rounded-2xl border border-border bg-background px-4 py-3.5 text-base text-foreground placeholder:text-muted/50 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20";
 
-const labelClassName =
-  "mb-2 block text-[10px] uppercase tracking-[0.24em] text-muted";
+const labelClassName = craftLabel;
 
 const emptyForm = (): ClosedJobInput => ({
   customerName: "",

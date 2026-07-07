@@ -30,7 +30,7 @@ import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import { buildMorningBrief } from "@/lib/concierge/build-morning-brief";
 import { toGoogleReviewsSnapshot } from "@/lib/concierge/rules";
 import { useGoogleReviewsClient } from "@/lib/reviews/use-google-reviews-client";
-import { AmbientFieldScoped } from "@/components/motion/ambient-field";
+import { CursorSpotlightPage } from "@/components/motion/cursor-spotlight";
 import { BootLayer } from "@/components/motion/boot-layer";
 import { BootProvider } from "@/components/motion/boot-provider";
 import { HeadquartersLoadingShell } from "@/components/motion/shimmer-block";
@@ -245,9 +245,9 @@ export function AdminCommandCenter({
 
   return (
     <BootProvider profile={motionProfile}>
-      <AmbientStage>
-      <AmbientFieldScoped variant="minimal">
-        <div className="relative min-h-[100svh] overflow-x-hidden pb-24">
+      <CursorSpotlightPage intensity="whisper">
+        <AmbientStage>
+          <div className="relative min-h-[100svh] overflow-x-hidden pb-24">
           <div className="relative mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-16 lg:px-10">
             <BootLayer layer="navigation" subtle>
               <header className="flex flex-col gap-8 border-b border-border/15 pb-12 lg:flex-row lg:items-end lg:justify-between">
@@ -371,9 +371,9 @@ export function AdminCommandCenter({
               </footer>
             </BootLayer>
           </div>
-        </div>
-      </AmbientFieldScoped>
-      </AmbientStage>
+          </div>
+        </AmbientStage>
+      </CursorSpotlightPage>
     </BootProvider>
   );
 }

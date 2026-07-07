@@ -15,14 +15,14 @@ import {
 } from "@/lib/admin/headquarters-profile-client";
 import { ensureOsLaunchedDate } from "@/lib/admin/business-timeline";
 import { buildLegacyStory } from "@/lib/admin/legacy-story";
+import { craftLabel } from "@/lib/craft/tokens";
 
 const easeLuxury = [0.22, 1, 0.36, 1] as const;
 
 const inputClassName =
   "w-full rounded-2xl border border-border bg-background px-4 py-3.5 text-base text-foreground placeholder:text-muted/50 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20";
 
-const labelClassName =
-  "mb-2 block text-[10px] uppercase tracking-[0.24em] text-muted";
+const labelClassName = craftLabel;
 
 type PreserveStep = "welcome" | "facts" | "founders" | "ceremony";
 

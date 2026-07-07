@@ -7,6 +7,7 @@ import {
   craftEyebrow,
   craftGhostLink,
   craftInput,
+  craftLabel,
   craftPrimaryButton,
   craftTextarea,
 } from "@/lib/craft/tokens";
@@ -171,7 +172,7 @@ export function DocumentVisitForm({
       </header>
 
       <label className="block">
-        <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
+        <span className={craftLabel}>
           Your name
         </span>
         <input
@@ -183,7 +184,7 @@ export function DocumentVisitForm({
       </label>
 
       <label className="block">
-        <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
+        <span className={craftLabel}>
           Visit date
         </span>
         <input
@@ -195,7 +196,7 @@ export function DocumentVisitForm({
       </label>
 
       <label className="block">
-        <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
+        <span className={craftLabel}>
           {mode === "tech" ? "Visit note" : "Short note"}
         </span>
         <textarea
@@ -214,7 +215,7 @@ export function DocumentVisitForm({
       {mode === "founder" ? (
         <>
           <label className="block">
-            <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
+            <span className={craftLabel}>
               Customer-visible summary (optional)
             </span>
             <textarea
@@ -227,7 +228,7 @@ export function DocumentVisitForm({
           </label>
 
           <label className="block">
-            <span className="mb-2 block text-[10px] uppercase tracking-[0.22em] text-muted">
+            <span className={craftLabel}>
               Internal note (optional)
             </span>
             <textarea

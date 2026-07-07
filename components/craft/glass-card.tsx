@@ -1,10 +1,11 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
-import type { ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { materialize, riseSubtle } from "@/lib/motion/system";
+import { useRimPointer } from "./use-rim-pointer";
 
-type GlassCardTone = "default" | "elevated" | "subtle";
+type GlassCardTone = "default" | "elevated" | "subtle" | "inset";
 type GlassCardMotion = "none" | "materialize" | "rise";
 
 interface GlassCardProps {
@@ -15,12 +16,15 @@ interface GlassCardProps {
   motion?: GlassCardMotion;
   index?: number;
   padding?: "none" | "sm" | "md" | "lg";
+  /** One hero surface per view — directional champagne edge. */
+  rim?: boolean;
 }
 
 const toneClass: Record<GlassCardTone, string> = {
   default: "craft-glass shadow-[var(--shadow-float)]",
   elevated: "craft-glass-elevated shadow-[var(--shadow-lift)]",
   subtle: "craft-glass-subtle shadow-[var(--shadow-ambient)]",
+  inset: "craft-glass-inset",
 };
 
 const paddingClass: Record<NonNullable<GlassCardProps["padding"]>, string> = {
@@ -42,8 +46,12 @@ export function GlassCard({
   motion: motionKind = "none",
   index = 0,
   padding = "md",
+  rim = false,
 }: GlassCardProps) {
   const reduceMotion = useReducedMotion();
+  const rimRef = useRef<HTMLDivElement>(null);
+  useRimPointer(rimRef, rim);
+
   const variants = motionKind === "rise" ? riseSubtle : materialize;
   const delay = reduceMotion ? 0 : index * 0.06;
 
@@ -51,22 +59,40 @@ export function GlassCard({
     "rounded-[var(--radius-card)]",
     toneClass[tone],
     paddingClass[padding],
+    rim && "craft-rim",
     className,
   );
 
+  const setRef = (node: HTMLDivElement | null) => {
+    rimRef.current = node;
+  };
+
   if (motionKind === "none") {
     if (as === "section") {
-      return <section className={classes}>{children}</section>;
+      return (
+        <section ref={setRef} className={classes}>
+          {children}
+        </section>
+      );
     }
     if (as === "article") {
-      return <article className={classes}>{children}</article>;
+      return (
+        <article ref={setRef} className={classes}>
+          {children}
+        </article>
+      );
     }
-    return <div className={classes}>{children}</div>;
+    return (
+      <div ref={setRef} className={classes}>
+        {children}
+      </div>
+    );
   }
 
   if (as === "section") {
     return (
       <motion.section
+        ref={setRef}
         initial={reduceMotion ? false : "hidden"}
         animate="visible"
         variants={variants}
@@ -81,6 +107,7 @@ export function GlassCard({
   if (as === "article") {
     return (
       <motion.article
+        ref={setRef}
         initial={reduceMotion ? false : "hidden"}
         animate="visible"
         variants={variants}
@@ -94,6 +121,7 @@ export function GlassCard({
 
   return (
     <motion.div
+      ref={setRef}
       initial={reduceMotion ? false : "hidden"}
       animate="visible"
       variants={variants}
