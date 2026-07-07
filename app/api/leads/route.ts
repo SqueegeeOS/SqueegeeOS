@@ -3,6 +3,7 @@ import { estimatedPriceForLead } from "@/lib/acquisition/request-params";
 import { createLeadIntake } from "@/lib/acquisition/leads/repository";
 import type { CreateLeadIntakeInput } from "@/lib/acquisition/lead-record";
 import { sendLeadConfirmationEmail } from "@/lib/acquisition/send-lead-confirmation-email";
+import { sendLeadNotificationEmail } from "@/lib/acquisition/send-lead-notification-email";
 import {
   contactMethods,
   preferredStartWindows,
@@ -97,10 +98,19 @@ export async function POST(request: Request) {
       estimatedVisitPrice: record.estimatedVisitPrice,
     });
 
+    const notifyResult = await sendLeadNotificationEmail(record);
+    if (!notifyResult.sent) {
+      console.warn("[leads] founder notification not sent", {
+        leadId: record.id,
+        reason: notifyResult.reason,
+      });
+    }
+
     return NextResponse.json({
       id: record.id,
       storage,
       emailSent: emailResult.sent,
+      notifySent: notifyResult.sent,
     });
   } catch (error) {
     console.error("[leads] POST error:", error);

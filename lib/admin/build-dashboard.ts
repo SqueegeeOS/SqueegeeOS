@@ -46,17 +46,21 @@ async function loadPlatformCounts(): Promise<{
 
   try {
     const supabase = createServerSupabaseClient();
-    const [plansRes, agreementsRes, membershipsRes] = await Promise.all([
+    const [plansRes, agreementsRes, membershipsRes, leadsRes] = await Promise.all([
       supabase.from("home_care_plans").select("*", { count: "exact", head: true }),
       supabase.from("signed_agreements").select("*", { count: "exact", head: true }),
       supabase.from("memberships").select("status, plan_name"),
+      supabase
+        .from("lead_intakes")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "new"),
     ]);
 
     return {
       activeMembers:
         membershipsRes.data?.filter((row) => row.status === "active").length ?? 0,
       homeCarePlansCreated: countOrZero(plansRes.count),
-      pendingRequests: 0,
+      pendingRequests: countOrZero(leadsRes.count),
       signedAgreements: countOrZero(agreementsRes.count),
     };
   } catch {

@@ -101,22 +101,20 @@ export async function createLeadIntake(
   };
 
   if (isCloudPersistenceConnected()) {
-    try {
-      const supabase = createServerSupabaseClient();
-      const { data, error } = await supabase
-        .from("lead_intakes")
-        .insert(inputToRow(id, input, submittedAt))
-        .select()
-        .single();
+    const supabase = createServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("lead_intakes")
+      .insert(inputToRow(id, input, submittedAt))
+      .select()
+      .single();
 
-      if (!error && data) {
-        return { record: rowToRecord(data as LeadIntakeRow), storage: "supabase" };
-      }
-
-      console.warn("[lead-intakes] Supabase insert failed — using local store:", error);
-    } catch (error) {
-      console.warn("[lead-intakes] Supabase unavailable — using local store:", error);
+    if (error || !data) {
+      throw new Error(
+        `Failed to save lead intake: ${error?.message ?? "unknown error"}`,
+      );
     }
+
+    return { record: rowToRecord(data as LeadIntakeRow), storage: "supabase" };
   }
 
   const saved = await saveLocalLeadIntake(record);
