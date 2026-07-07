@@ -21,6 +21,10 @@ import {
   buildPortalAccessUrl,
   generatePortalAccessToken,
 } from "@/lib/membership/portal-access";
+import {
+  buildPortalHomeCarePlanFromPresentation,
+  persistPortalHomeCarePlan,
+} from "@/lib/membership/portal-home-care-plan";
 import type { MembershipSalesTier } from "@/lib/persistence/types/membership";
 import {
   firstNameFromFullName,
@@ -205,6 +209,32 @@ export async function completeSignOnboarding(
 
   const membershipId = membership.id as string;
   const portalUrl = buildPortalAccessUrl(portalAccessToken);
+
+  const portalPlan = buildPortalHomeCarePlanFromPresentation({
+    presentation,
+    homeownerSlug: input.homeownerSlug,
+    propertySlug: input.propertySlug,
+    planName: pricing.planName,
+    agreementTier: input.agreementTier,
+    visitPrice: input.visitPrice,
+  });
+
+  try {
+    await persistPortalHomeCarePlan(supabase, {
+      homeownerId: homeowner.id as string,
+      propertyId: property.id as string,
+      homeownerSlug: input.homeownerSlug,
+      propertySlug: input.propertySlug,
+      plan: portalPlan,
+    });
+  } catch (error) {
+    throw new SignOnboardingError(
+      error instanceof Error
+        ? error.message
+        : "Failed to save portal home care plan",
+      { membershipId, onboardingStatus: "pending_payment" },
+    );
+  }
 
   const pdfBytes = await generateSignedPDF({
     memberName: presentation.clientName,

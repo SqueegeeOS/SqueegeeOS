@@ -2,7 +2,7 @@ import { getLatestCustomerHealthUnified } from "@/lib/health/assessment-reposito
 import { getPropertyIdBySlugs } from "@/lib/health/repository";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import { buildPortalHomeHealthPath } from "@/lib/membership/portal-access";
-import { loadGeneratedHomeCarePlan } from "@/lib/persistence/repository";
+import { loadPortalHomeCarePlan } from "@/lib/membership/portal-home-care-plan";
 import { getMemberPortalDataBySlugs } from "@/lib/persistence/queries/member-portal";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
@@ -25,7 +25,7 @@ export async function loadMemberPortalPageBySlugs(
   options?: { portalBasePath?: string; customerPortalMode?: "token" | "slug" },
 ): Promise<MemberPortalPageModel | null> {
   const planData =
-    (await loadGeneratedHomeCarePlan(homeownerSlug, propertySlug)) ?? null;
+    (await loadPortalHomeCarePlan(homeownerSlug, propertySlug)) ?? null;
 
   if (!planData) {
     return null;
