@@ -10,10 +10,13 @@ import type { PresentationData, PresentationInput } from "./types";
 
 /** In presentations, `monthlyRate` stores per-visit price. */
 export function visitRateFromPresentation(
-  data: Pick<PresentationData, "monthlyRate" | "tier" | "homeSqft">,
+  data: Pick<PresentationData, "monthlyRate" | "tier" | "homeSqft" | "quoteSnapshot">,
 ): number {
   if (data.monthlyRate > 0) return data.monthlyRate;
-  return calculateVisitPrice(normalizeToSqueegeeKingTier(data.tier), data.homeSqft);
+  return calculateVisitPrice(data.tier, data.homeSqft, {
+    twoStory: data.quoteSnapshot?.twoStory,
+    includeScreens: data.quoteSnapshot?.includeScreens,
+  });
 }
 
 export function computePresentationRates(input: {

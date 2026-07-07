@@ -4,34 +4,40 @@ import Link from "next/link";
 import type { PresentationData } from "@/lib/presentations/types";
 import { tierLabel } from "@/lib/presentations/types";
 import { formatTierPrice } from "@/lib/membership/tier-config";
+import { visitRateFromPresentation } from "@/lib/presentations/calculations";
 
 export function PresentationCard({
   presentation,
 }: {
   presentation: PresentationData;
 }) {
+  const visitRate = visitRateFromPresentation(presentation);
+
   return (
     <Link
       href={`/presentations/${presentation.id}/edit`}
-      className="block rounded-2xl border border-border bg-surface p-5 transition-colors hover:border-accent/30"
+      className="block rounded-2xl border border-[#1a1a1a] bg-[#0d0d0d] px-5 py-4 transition-colors active:border-[#c9a96e]/30"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <p className="font-serif text-xl text-foreground">
-            {presentation.clientName}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate font-medium text-white">
+            {presentation.clientName || "Untitled client"}
           </p>
-          <p className="mt-1 text-sm text-muted">
-            {presentation.clientAddress || "Address pending"}
+          <p className="mt-0.5 truncate text-sm text-[#555]">
+            {presentation.clientAddress || "Address not set"}
           </p>
         </div>
-        <span className="rounded-full border border-border px-2.5 py-1 text-[10px] uppercase tracking-[0.14em] text-muted capitalize">
+        <span className="shrink-0 rounded-full border border-[#222] px-2 py-0.5 text-[9px] uppercase tracking-widest text-[#555]">
           {presentation.status}
         </span>
       </div>
-      <p className="mt-4 text-sm text-muted">
-        {tierLabel(presentation.tier)} ·{" "}
-        {formatTierPrice(presentation.monthlyRate)}/mo
-      </p>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <p className="text-xs text-[#666]">
+          {tierLabel(presentation.tier)} · {formatTierPrice(visitRate)}/visit
+        </p>
+        <span className="text-xs text-[#c9a96e]">Open →</span>
+      </div>
     </Link>
   );
 }

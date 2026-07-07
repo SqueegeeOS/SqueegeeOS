@@ -6,7 +6,18 @@ export interface PricingInput {
   squareFeet: number;
   frequency: CareFrequency;
   includeInterior: boolean;
+  /** Optional screen cleaning add-on (flat rate from company settings). */
   includeScreens?: boolean;
+  /** Two-story homes add a flat surcharge (company settings). */
+  twoStory?: boolean;
+}
+
+export interface ExteriorWindowPriceBreakdown {
+  /** Sq ft × rate for the selected frequency */
+  sqftBase: number;
+  twoStorySurcharge: number;
+  screenCleaning: number;
+  visitTotal: number;
 }
 
 /**
@@ -54,6 +65,10 @@ export interface PricingOutput {
   oneTimePremium: number;
   notes: string[];
   exclusions: string[];
+  /** Line-item math for the exterior visit (selected frequency). */
+  exteriorBreakdown: ExteriorWindowPriceBreakdown;
+  /** Line-item math for one-time exterior (always based on bi-annual sq ft rate). */
+  oneTimeExteriorBreakdown: ExteriorWindowPriceBreakdown;
   /** Populated when Atlas reasoning is enabled (v2+). */
   recommendation?: PricingRecommendation;
 }

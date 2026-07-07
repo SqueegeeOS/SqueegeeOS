@@ -4,6 +4,8 @@ export interface PresentationQuoteSnapshot {
   sqft: number;
   frequency: CareFrequency;
   includeInterior: boolean;
+  twoStory: boolean;
+  includeScreens: boolean;
   windowCareVisitPrice: number;
   frequencyLabel: string;
   exteriorAddOnQuote: ExteriorAddOnQuote;
@@ -14,6 +16,8 @@ export function buildPresentationQuoteSnapshot(input: {
   sqft: number;
   frequency: CareFrequency;
   includeInterior: boolean;
+  twoStory?: boolean;
+  includeScreens?: boolean;
   pricing: PricingOutput;
   addOnQuote: ExteriorAddOnQuote | null;
 }): PresentationQuoteSnapshot {
@@ -33,6 +37,8 @@ export function buildPresentationQuoteSnapshot(input: {
     sqft: input.sqft,
     frequency: input.frequency,
     includeInterior: input.includeInterior,
+    twoStory: input.twoStory ?? false,
+    includeScreens: input.includeScreens ?? false,
     windowCareVisitPrice,
     frequencyLabel: input.pricing.frequencyLabel,
     exteriorAddOnQuote,

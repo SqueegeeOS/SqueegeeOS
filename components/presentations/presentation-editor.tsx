@@ -1,12 +1,31 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  computePresentationRates,
+  visitRateFromPresentation,
+  withComputedRates,
+} from "@/lib/presentations/calculations";
+import { buildExteriorWindowBreakdown } from "@/lib/pricing/window-care-pricing";
+import type { CareFrequency } from "@/lib/pricing/types";
+import {
   getPresentationSlides,
+  tierLabel,
   type PresentationData,
+  type SlideOverride,
+  type SlideType,
 } from "@/lib/presentations/types";
-import { withComputedRates } from "@/lib/presentations/calculations";
+import { formatTierPrice } from "@/lib/membership/tier-config";
+import {
+  CollapsibleSection,
+  EditorField,
+  EditorTextArea,
+  EditorTextInput,
+  SlideOverrideAccordion,
+  TierPicker,
+} from "./presentation-editor-kit";
 
 export function PresentationEditor({
   presentation: initial,
@@ -16,6 +35,69 @@ export function PresentationEditor({
   const router = useRouter();
   const [data, setData] = useState(initial);
   const [saving, setSaving] = useState(false);
+  const [presenting, setPresenting] = useState(false);
+
+  const slides = useMemo(() => getPresentationSlides(data), [data]);
+  const editableSlides = useMemo(
+    () => slides.filter((slide) => slide.editable.length > 0),
+    [slides],
+  );
+  const rates = useMemo(() => computePresentationRates(data), [data]);
+  const visitRate = visitRateFromPresentation(data);
+
+  const twoStory = data.quoteSnapshot?.twoStory ?? false;
+  const includeScreens = data.quoteSnapshot?.includeScreens ?? false;
+
+  const setPricingOption = (
+    patch: Partial<{ twoStory: boolean; includeScreens: boolean }>,
+  ) => {
+    setData((prev) => {
+      const frequency: CareFrequency =
+        prev.tier === "quarterly" ? "quarterly" : "bi_annual";
+      const quoteSnapshot = {
+        sqft: prev.homeSqft,
+        frequency,
+        includeInterior: prev.quoteSnapshot?.includeInterior ?? false,
+        twoStory: patch.twoStory ?? prev.quoteSnapshot?.twoStory ?? false,
+        includeScreens:
+          patch.includeScreens ?? prev.quoteSnapshot?.includeScreens ?? false,
+        windowCareVisitPrice: prev.quoteSnapshot?.windowCareVisitPrice ?? 0,
+        frequencyLabel: prev.quoteSnapshot?.frequencyLabel ?? "",
+        exteriorAddOnQuote: prev.quoteSnapshot?.exteriorAddOnQuote ?? {
+          lineItems: [],
+          subtotal: 0,
+          listSubtotal: 0,
+          memberDiscountPercent: null,
+          memberSavings: 0,
+        },
+        totalEstimate: prev.quoteSnapshot?.totalEstimate ?? 0,
+      };
+      const visitRate = visitRateFromPresentation({
+        monthlyRate: 0,
+        tier: prev.tier,
+        homeSqft: prev.homeSqft,
+        quoteSnapshot,
+      });
+      const next = {
+        ...prev,
+        quoteSnapshot,
+        ...withComputedRates({
+          ...prev,
+          monthlyRate: visitRate,
+        }),
+      };
+      return next;
+    });
+  };
+
+  const exteriorBreakdown =
+    data.homeSqft > 0
+      ? buildExteriorWindowBreakdown(
+          data.homeSqft,
+          data.tier === "quarterly" ? "quarterly" : "bi_annual",
+          { twoStory, includeScreens },
+        )
+      : null;
 
   const update = <K extends keyof PresentationData>(
     field: K,
@@ -32,6 +114,20 @@ export function PresentationEditor({
         return { ...next, ...withComputedRates(next) };
       }
       return next;
+    });
+  };
+
+  const setSlideOverride = (
+    slideId: SlideType,
+    field: keyof SlideOverride,
+    value: string,
+  ) => {
+    update("slideOverrides", {
+      ...data.slideOverrides,
+      [slideId]: {
+        ...data.slideOverrides?.[slideId as SlideType],
+        [field]: value,
+      },
     });
   };
 
@@ -53,161 +149,304 @@ export function PresentationEditor({
   };
 
   const present = async () => {
-    await save();
-    router.push(`/presentations/${data.id}/present`);
+    setPresenting(true);
+    try {
+      await save();
+      router.push(`/presentations/${data.id}/present`);
+    } finally {
+      setPresenting(false);
+    }
   };
 
+  const readyToPresent =
+    data.clientName.trim().length > 0 && data.clientAddress.trim().length > 0;
+
+  const pricingSummary =
+    data.homeSqft > 0
+      ? `${data.homeSqft.toLocaleString()} sq ft`
+      : "Standard pricing";
+
   return (
-    <div className="min-h-screen bg-[#060606] text-[#f5f2eb]">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-6 py-5 sm:px-8">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.15em] text-accent/70">
-            Presentation Editor
+    <div className="min-h-screen bg-[#0a0a0a] pb-36 text-white">
+      <div className="mx-auto max-w-lg px-4 py-6">
+        <Link
+          href="/presentations"
+          className="mb-6 inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-[#444] transition-colors hover:text-[#888]"
+        >
+          ← Presentations
+        </Link>
+
+        <header className="mb-8">
+          <p className="mb-1 text-[10px] uppercase tracking-widest text-[#555]">
+            Field presentation
           </p>
-          <h1 className="text-xl font-medium">{data.clientName}</h1>
-        </div>
-        <div className="flex gap-3">
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="rounded border border-white/15 px-5 py-2.5 text-sm"
+          <h1 className="font-serif text-2xl text-white">
+            {data.clientName.trim() || "New client"}
+          </h1>
+          <p className="mt-1 text-sm text-[#666]">
+            {data.clientAddress.trim() || "Add the property address below"}
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <span className="text-[#c9a96e]">
+              {formatTierPrice(visitRate)}/visit
+            </span>
+            <span className="text-[#333]">·</span>
+            <span className="text-[#888]">
+              {formatTierPrice(data.annualRate)}/yr
+            </span>
+            <span className="text-[#333]">·</span>
+            <span className="text-[#666]">{tierLabel(data.tier)}</span>
+          </div>
+        </header>
+
+        <div className="space-y-6">
+          <section>
+            <p className="mb-3 text-[10px] uppercase tracking-widest text-[#444]">
+              Before you present
+            </p>
+            <div className="space-y-4 rounded-2xl border border-[#1a1a1a] bg-[#0d0d0d] p-4">
+              <EditorField label="Client name">
+                <EditorTextInput
+                  value={data.clientName}
+                  placeholder="Larry Buckley"
+                  onChange={(v) => update("clientName", v)}
+                />
+              </EditorField>
+              <EditorField label="Property address">
+                <EditorTextInput
+                  value={data.clientAddress}
+                  placeholder="123 Canyon Oaks Dr, Chico"
+                  onChange={(v) => update("clientAddress", v)}
+                />
+              </EditorField>
+            </div>
+          </section>
+
+          <section>
+            <p className="mb-3 text-[10px] uppercase tracking-widest text-[#444]">
+              Recommended care plan
+            </p>
+            <TierPicker
+              value={data.tier}
+              onChange={(tier) => update("tier", tier)}
+            />
+            {data.tier === "quarterly" ? (
+              <p className="mt-3 text-[11px] leading-relaxed text-[#555]">
+                Quarterly includes RainBlock + Hard Water protection on every
+                visit.
+              </p>
+            ) : null}
+          </section>
+
+          <CollapsibleSection
+            title="Home size & visit rate"
+            summary={pricingSummary}
+            defaultOpen={data.homeSqft <= 0}
           >
-            {saving ? "Saving…" : "Save"}
-          </button>
+            <EditorField
+              label="Home square footage"
+              hint="Standard visit rate is calculated from sq ft and options below."
+            >
+              <EditorTextInput
+                type="number"
+                inputMode="numeric"
+                value={data.homeSqft > 0 ? String(data.homeSqft) : ""}
+                placeholder="e.g. 2800"
+                onChange={(v) => {
+                  const homeSqft = Number.parseInt(v, 10) || 0;
+                  setData((prev) => {
+                    const quoteSnapshot = prev.quoteSnapshot
+                      ? { ...prev.quoteSnapshot, sqft: homeSqft }
+                      : prev.quoteSnapshot;
+                    const visitRate = visitRateFromPresentation({
+                      monthlyRate: 0,
+                      tier: prev.tier,
+                      homeSqft,
+                      quoteSnapshot,
+                    });
+                    return {
+                      ...prev,
+                      homeSqft,
+                      quoteSnapshot,
+                      ...withComputedRates({
+                        ...prev,
+                        homeSqft,
+                        monthlyRate: visitRate,
+                      }),
+                    };
+                  });
+                }}
+              />
+            </EditorField>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPricingOption({ twoStory: !twoStory })}
+                className="rounded-lg border px-3 py-2 text-xs transition-colors"
+                style={{
+                  borderColor: twoStory ? "#c9a96e55" : "#222",
+                  color: twoStory ? "#c9a96e" : "#555",
+                  backgroundColor: twoStory ? "#141008" : "#111",
+                }}
+              >
+                Two-story (+$100)
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPricingOption({ includeScreens: !includeScreens })
+                }
+                className="rounded-lg border px-3 py-2 text-xs transition-colors"
+                style={{
+                  borderColor: includeScreens ? "#c9a96e55" : "#222",
+                  color: includeScreens ? "#c9a96e" : "#555",
+                  backgroundColor: includeScreens ? "#141008" : "#111",
+                }}
+              >
+                Screens (+$50)
+              </button>
+            </div>
+
+            {exteriorBreakdown ? (
+              <div className="rounded-lg bg-[#111] px-3 py-2.5 text-[11px] text-[#555]">
+                <p className="flex justify-between">
+                  <span>Sq ft base</span>
+                  <span>${exteriorBreakdown.sqftBase}</span>
+                </p>
+                {exteriorBreakdown.twoStorySurcharge > 0 ? (
+                  <p className="mt-1 flex justify-between">
+                    <span>Two-story</span>
+                    <span>+${exteriorBreakdown.twoStorySurcharge}</span>
+                  </p>
+                ) : null}
+                {exteriorBreakdown.screenCleaning > 0 ? (
+                  <p className="mt-1 flex justify-between">
+                    <span>Screens</span>
+                    <span>+${exteriorBreakdown.screenCleaning}</span>
+                  </p>
+                ) : null}
+                <p className="mt-1.5 flex justify-between border-t border-[#1a1a1a] pt-1.5 text-[#888]">
+                  <span>Per visit</span>
+                  <span>${exteriorBreakdown.visitTotal}</span>
+                </p>
+              </div>
+            ) : null}
+
+            <EditorField
+              label="Per-visit rate override"
+              hint="Optional. Standard pricing applies when blank."
+            >
+              <EditorTextInput
+                type="number"
+                inputMode="decimal"
+                value={data.monthlyRate > 0 ? String(data.monthlyRate) : ""}
+                placeholder={String(Math.round(rates.visitRate))}
+                onChange={(v) =>
+                  update("monthlyRate", Number.parseFloat(v) || 0)
+                }
+              />
+            </EditorField>
+            <EditorField
+              label="Included treatment value (annual)"
+              hint="Usually auto-calculated for Quarterly. Office staff only."
+            >
+              <EditorTextInput
+                type="number"
+                inputMode="decimal"
+                value={data.retailValue > 0 ? String(data.retailValue) : ""}
+                placeholder={String(data.retailValue)}
+                onChange={(v) =>
+                  update("retailValue", Number.parseFloat(v) || 0)
+                }
+              />
+            </EditorField>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Closing slide note"
+            summary={
+              data.customNotes.trim()
+                ? data.customNotes.trim()
+                : "Optional personal note on the final slide"
+            }
+          >
+            <EditorField label="What to say when you close">
+              <EditorTextArea
+                value={data.customNotes}
+                placeholder="Your home is in great shape — quarterly care would keep it that way…"
+                rows={4}
+                onChange={(v) => update("customNotes", v)}
+              />
+            </EditorField>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Agreement email"
+            summary={
+              data.clientEmail.trim() || "Needed when the customer signs"
+            }
+          >
+            <EditorField
+              label="Customer email"
+              hint="Collected at signing. You can add this after the presentation if needed."
+            >
+              <EditorTextInput
+                type="email"
+                inputMode="email"
+                value={data.clientEmail}
+                placeholder="client@email.com"
+                onChange={(v) => update("clientEmail", v)}
+              />
+            </EditorField>
+          </CollapsibleSection>
+
+          <CollapsibleSection
+            title="Customize slide copy"
+            summary={`${editableSlides.length} slides · office / advanced`}
+          >
+            <p className="text-[11px] leading-relaxed text-[#555]">
+              Default slides work for most driveway presentations. Expand only
+              when you need custom wording.
+            </p>
+            <SlideOverrideAccordion
+              slides={editableSlides}
+              overrides={data.slideOverrides ?? {}}
+              onOverride={setSlideOverride}
+            />
+          </CollapsibleSection>
+        </div>
+
+        <p className="mt-8 text-center text-[10px] uppercase tracking-widest text-[#333]">
+          {slides.length} slides · {data.status}
+        </p>
+      </div>
+
+      <div className="fixed bottom-0 left-0 right-0 border-t border-[#1a1a1a] bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-[#0a0a0a]/95 px-4 pb-6 pt-4">
+        <div className="mx-auto flex max-w-lg flex-col gap-2">
           <button
             type="button"
             onClick={present}
-            className="rounded bg-accent px-5 py-2.5 text-sm font-semibold text-[#060606]"
+            disabled={!readyToPresent || presenting || saving}
+            className="w-full rounded-xl bg-[#c9a96e] py-4 text-base font-medium tracking-wide text-black transition-transform active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-30"
           >
-            Present →
+            {presenting ? "Opening…" : "Start Presentation"}
           </button>
-        </div>
-      </header>
-
-      <div className="grid min-h-[calc(100vh-73px)] lg:grid-cols-[320px_1fr]">
-        <aside className="border-b border-white/10 p-6 lg:border-b-0 lg:border-r">
-          <p className="mb-5 text-[10px] uppercase tracking-[0.18em] text-white/30">
-            Client details
-          </p>
-
-          {(
-            [
-              ["Client Name", "clientName", "text"],
-              ["Address", "clientAddress", "text"],
-              ["Email", "clientEmail", "email"],
-              ["Home Sq Ft", "homeSqft", "number"],
-              ["Per Visit Rate", "monthlyRate", "number"],
-              ["Included Treatment Value", "retailValue", "number"],
-            ] as const
-          ).map(([label, field, type]) => (
-            <label key={field} className="mb-5 block">
-              <span className="mb-1.5 block text-[11px] text-white/40">
-                {label}
-              </span>
-              <input
-                type={type}
-                value={String(data[field] ?? "")}
-                onChange={(e) =>
-                  update(
-                    field,
-                    (type === "number"
-                      ? Number.parseFloat(e.target.value) || 0
-                      : e.target.value) as PresentationData[typeof field],
-                  )
-                }
-                className="w-full rounded border border-white/10 bg-white/5 px-3 py-2.5 text-sm outline-none focus:border-accent/40"
-              />
-            </label>
-          ))}
-
-          <label className="mb-5 block">
-            <span className="mb-1.5 block text-[11px] text-white/40">Tier</span>
-            <select
-              value={data.tier}
-              onChange={(e) =>
-                update("tier", e.target.value as PresentationData["tier"])
-              }
-              className="w-full rounded border border-white/10 bg-white/5 px-3 py-2.5 text-sm"
-            >
-              <option value="biannual">Bi-Annual — Consistent Care</option>
-              <option value="quarterly">Quarterly — Total Protection</option>
-            </select>
-          </label>
-
-          <label className="mb-5 block">
-            <span className="mb-1.5 block text-[11px] text-white/40">
-              Custom notes (close slide)
-            </span>
-            <textarea
-              value={data.customNotes}
-              onChange={(e) => update("customNotes", e.target.value)}
-              rows={4}
-              className="w-full rounded border border-white/10 bg-white/5 px-3 py-2.5 text-sm"
-            />
-          </label>
-
-          <div className="mt-6 rounded border border-accent/15 bg-accent/5 p-4 text-sm">
-            <p className="mb-3 text-[10px] uppercase tracking-[0.16em] text-accent/70">
-              Calculated
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || presenting}
+            className="w-full py-2 text-xs text-[#555] underline underline-offset-2 transition-colors hover:text-[#888] disabled:opacity-40"
+          >
+            {saving ? "Saving…" : "Save draft"}
+          </button>
+          {!readyToPresent ? (
+            <p className="text-center text-[10px] text-[#444]">
+              Add client name and address to present
             </p>
-            <div className="flex justify-between">
-              <span className="text-white/40">Annual</span>
-              <span>${data.annualRate.toFixed(0)}/yr</span>
-            </div>
-            <div className="mt-2 flex justify-between">
-              <span className="text-white/40">Status</span>
-              <span className="capitalize">{data.status}</span>
-            </div>
-          </div>
-        </aside>
-
-        <main className="p-6 sm:p-8">
-          {(() => {
-            const slides = getPresentationSlides(data);
-            return (
-              <>
-          <p className="mb-5 text-[10px] uppercase tracking-[0.18em] text-white/30">
-            Slides — {slides.length} total
-          </p>
-          <div className="grid gap-4 sm:grid-cols-2">
-            {slides.map((slide, index) => (
-              <div
-                key={slide.id}
-                className="rounded border border-white/10 bg-white/[0.03] p-5"
-              >
-                <div className="mb-2 flex justify-between text-[11px] text-accent/60">
-                  <span>{String(index + 1).padStart(2, "0")}</span>
-                  {slide.editable.length > 0 && (
-                    <span className="text-white/30">editable</span>
-                  )}
-                </div>
-                <p className="font-medium">{slide.label}</p>
-                <p className="mt-1 text-xs text-white/40">{slide.description}</p>
-                {slide.editable.map((field) => (
-                  <input
-                    key={field}
-                    placeholder={`Custom ${field}…`}
-                    value={data.slideOverrides?.[slide.id]?.[field] ?? ""}
-                    onChange={(e) =>
-                      update("slideOverrides", {
-                        ...data.slideOverrides,
-                        [slide.id]: {
-                          ...data.slideOverrides?.[slide.id],
-                          [field]: e.target.value,
-                        },
-                      })
-                    }
-                    className="mt-2 w-full rounded border border-white/10 bg-white/5 px-3 py-2 text-xs"
-                  />
-                ))}
-              </div>
-            ))}
-          </div>
-              </>
-            );
-          })()}
-        </main>
+          ) : null}
+        </div>
       </div>
     </div>
   );

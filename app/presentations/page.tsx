@@ -15,46 +15,42 @@ export default async function PresentationsPage() {
   const presentations = await listPresentations();
 
   return (
-    <div
-      className="min-h-screen bg-background px-5 pb-20 sm:px-10"
-      style={{ paddingTop: "calc(var(--site-chrome-offset) + 1.5rem)" }}
-    >
-      <div className="mx-auto max-w-4xl">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
-              HomeAtlas
-            </p>
-            <h1 className="mt-2 font-serif text-4xl font-light text-foreground">
-              Presentations
-            </h1>
-            <p className="mt-3 max-w-lg text-sm text-muted">
-              Pre-load client details, present full-screen, and close with a live
-              signature.
+    <div className="min-h-screen bg-[#0a0a0a] px-4 pb-20 pt-[calc(var(--site-chrome-offset)+1.5rem)] text-white">
+      <div className="mx-auto max-w-lg">
+        <header className="mb-8">
+          <p className="text-[10px] uppercase tracking-widest text-[#555]">
+            Field · Presentations
+          </p>
+          <h1 className="mt-1 font-serif text-2xl text-white">Your clients</h1>
+          <p className="mt-2 text-sm text-[#555]">
+            Tap a home to review details, then present full-screen at the
+            driveway.
+          </p>
+        </header>
+
+        <Link
+          href="/presentations/new"
+          className="mb-8 flex min-h-[52px] items-center justify-center rounded-xl border border-dashed border-[#2a2a2a] text-sm text-[#666] transition-colors hover:border-[#c9a96e]/40 hover:text-[#c9a96e]"
+        >
+          + New presentation
+        </Link>
+
+        {presentations.length === 0 ? (
+          <div className="rounded-2xl border border-[#1a1a1a] bg-[#0d0d0d] px-6 py-12 text-center">
+            <p className="text-sm text-[#444]">No presentations yet.</p>
+            <p className="mt-2 text-xs text-[#333]">
+              Create one before your next in-home close.
             </p>
           </div>
-          <Link
-            href="/presentations/new"
-            className="inline-flex min-h-[48px] items-center rounded-full bg-accent px-6 text-sm font-medium tracking-[0.08em] text-background"
-          >
-            New Presentation
-          </Link>
-        </div>
-
-        <div className="mt-10 space-y-4">
-          {presentations.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-border p-10 text-center text-sm text-muted">
-              No presentations yet. Create one to start a live close.
-            </div>
-          ) : (
-            presentations.map((presentation) => (
-              <PresentationCard
-                key={presentation.id}
-                presentation={presentation}
-              />
-            ))
-          )}
-        </div>
+        ) : (
+          <ul className="space-y-3">
+            {presentations.map((presentation) => (
+              <li key={presentation.id}>
+                <PresentationCard presentation={presentation} />
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

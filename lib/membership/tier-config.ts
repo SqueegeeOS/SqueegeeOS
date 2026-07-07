@@ -4,6 +4,8 @@
  * member portal math until fully migrated.
  */
 
+import { visitPriceForMembershipTier } from "@/lib/pricing/window-care-pricing";
+
 export type SqueegeeKingTierId = "biannual" | "quarterly";
 
 export interface SqueegeeKingTierDefinition {
@@ -207,9 +209,9 @@ export function squeegeeKingTierLabel(tier: SqueegeeKingTierId): string {
 export function calculateVisitPrice(
   tier: SqueegeeKingTierId,
   squareFootage = 2500,
+  options: { twoStory?: boolean; includeScreens?: boolean } = {},
 ): number {
-  const base = SQUEEGEEKING_TIERS[tier].defaultVisitPrice;
-  return Math.round(base * getSqftPriceMultiplier(squareFootage));
+  return visitPriceForMembershipTier(tier, squareFootage, options);
 }
 
 export function calculateAnnualFromVisits(

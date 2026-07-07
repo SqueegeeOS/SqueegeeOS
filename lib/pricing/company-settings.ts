@@ -54,6 +54,10 @@ export interface CompanySettings {
   };
   interiorMultiplier: number;
   oneTimePremium: number;
+  /** Flat add-on when screen cleaning is included on a window visit. */
+  screenCleaningAddOn: number;
+  /** Flat surcharge for two-story homes (exterior window care). */
+  twoStorySurcharge: number;
   exteriorAddOns: ExteriorAddOnSettings;
 }
 
@@ -99,7 +103,9 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     },
   },
   interiorMultiplier: 1.6,
-  oneTimePremium: 150,
+  oneTimePremium: 100,
+  screenCleaningAddOn: 50,
+  twoStorySurcharge: 100,
   exteriorAddOns: DEFAULT_EXTERIOR_ADD_ONS,
 };
 
@@ -262,6 +268,16 @@ export function normalizeCompanySettings(
       input.interiorMultiplier ?? base.interiorMultiplier,
     ),
     oneTimePremium: clampInt(input.oneTimePremium ?? base.oneTimePremium, 0, 5000),
+    screenCleaningAddOn: clampInt(
+      input.screenCleaningAddOn ?? base.screenCleaningAddOn,
+      0,
+      5000,
+    ),
+    twoStorySurcharge: clampInt(
+      input.twoStorySurcharge ?? base.twoStorySurcharge,
+      0,
+      5000,
+    ),
     exteriorAddOns: normalizeExteriorAddOns(input.exteriorAddOns),
   };
 }

@@ -4,6 +4,11 @@
  * Central pricing law for HomeAtlas / SqueegeeKing.
  * North star: trust first, consistency second — not just calculations.
  *
+ * Residential exterior window care (Noah's field rules):
+ * - Quarterly: sq ft × quarterly rate + two-story surcharge + optional screens
+ * - Bi-annual: sq ft × bi-annual rate + two-story surcharge + optional screens
+ * - One-time exterior: bi-annual visit math + one-time premium + optional screens
+ *
  * @see docs/ATLAS_PRICING_ENGINE.md
  */
 import {
@@ -13,6 +18,7 @@ import {
 } from "./company-settings";
 import type {
   CareFrequency,
+  ExteriorWindowPriceBreakdown,
   PricingComparison,
   PricingInput,
   PricingOutput,
@@ -32,6 +38,7 @@ export type { CompanySettings, ExteriorAddOnSettings } from "./company-settings"
 export type {
   CareFrequency,
   CustomerRelationship,
+  ExteriorWindowPriceBreakdown,
   PricingComparison,
   PricingInput,
   PricingOutput,
@@ -93,12 +100,42 @@ export function validateInput(
   return null;
 }
 
+export function buildExteriorWindowBreakdown(
+  squareFeet: number,
+  frequency: CareFrequency,
+  options: {
+    twoStory?: boolean;
+    includeScreens?: boolean;
+  } = {},
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
+): ExteriorWindowPriceBreakdown {
+  const resolved = normalizeCompanySettings(settings);
+  const sqftBase = Math.floor(
+    squareFeet * resolved.rates[frequency].ratePerSqft,
+  );
+  const twoStorySurcharge = options.twoStory
+    ? resolved.twoStorySurcharge
+    : 0;
+  const screenCleaning = options.includeScreens
+    ? resolved.screenCleaningAddOn
+    : 0;
+
+  return {
+    sqftBase,
+    twoStorySurcharge,
+    screenCleaning,
+    visitTotal: sqftBase + twoStorySurcharge + screenCleaning,
+  };
+}
+
 export function calculateExteriorPrice(
   sqft: number,
   frequency: CareFrequency,
   settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
+  options: { twoStory?: boolean; includeScreens?: boolean } = {},
 ): number {
-  return Math.round(sqft * settings.rates[frequency].ratePerSqft);
+  return buildExteriorWindowBreakdown(sqft, frequency, options, settings)
+    .visitTotal;
 }
 
 export function calculateInteriorExteriorPrice(
@@ -108,6 +145,22 @@ export function calculateInteriorExteriorPrice(
   return Math.round(exteriorPrice * settings.interiorMultiplier);
 }
 
+export function calculateOneTimeExteriorPrice(
+  input: Pick<PricingInput, "squareFeet" | "twoStory" | "includeScreens">,
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
+): number {
+  const resolved = normalizeCompanySettings(settings);
+  const biAnnualVisit = buildExteriorWindowBreakdown(
+    input.squareFeet,
+    "bi_annual",
+    { twoStory: input.twoStory, includeScreens: false },
+    resolved,
+  );
+  const screens = input.includeScreens ? resolved.screenCleaningAddOn : 0;
+  return biAnnualVisit.visitTotal + resolved.oneTimePremium + screens;
+}
+
+/** @deprecated Use calculateOneTimeExteriorPrice for exterior scope. */
 export function calculateOneTimePrice(
   memberPrice: number,
   settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
@@ -132,23 +185,50 @@ export function calculateWindowCarePricing(
   const rateConfig = resolved.rates[input.frequency];
   const frequencyLabel = FREQUENCY_LABELS[input.frequency];
 
-  const exteriorMemberPrice = calculateExteriorPrice(
+  const exteriorBreakdown = buildExteriorWindowBreakdown(
     input.squareFeet,
     input.frequency,
+    {
+      twoStory: input.twoStory,
+      includeScreens: input.includeScreens,
+    },
     resolved,
   );
 
+  const oneTimeExteriorBreakdown: ExteriorWindowPriceBreakdown = {
+    ...buildExteriorWindowBreakdown(
+      input.squareFeet,
+      "bi_annual",
+      { twoStory: input.twoStory, includeScreens: false },
+      resolved,
+    ),
+    screenCleaning: input.includeScreens ? resolved.screenCleaningAddOn : 0,
+    visitTotal: 0,
+  };
+  oneTimeExteriorBreakdown.visitTotal =
+    oneTimeExteriorBreakdown.sqftBase +
+    oneTimeExteriorBreakdown.twoStorySurcharge +
+    resolved.oneTimePremium +
+    oneTimeExteriorBreakdown.screenCleaning;
+
+  const exteriorMemberPrice = exteriorBreakdown.visitTotal;
   const interiorExteriorMemberPrice = calculateInteriorExteriorPrice(
     exteriorMemberPrice,
     resolved,
   );
 
-  const exteriorOneTimePrice = calculateOneTimePrice(exteriorMemberPrice, resolved);
+  const exteriorOneTimePrice = oneTimeExteriorBreakdown.visitTotal;
 
-  const interiorExteriorOneTimePrice = calculateOneTimePrice(
-    interiorExteriorMemberPrice,
+  const biAnnualExteriorForInterior = buildExteriorWindowBreakdown(
+    input.squareFeet,
+    "bi_annual",
+    { twoStory: input.twoStory, includeScreens: false },
     resolved,
-  );
+  ).visitTotal;
+  const interiorExteriorOneTimePrice =
+    calculateInteriorExteriorPrice(biAnnualExteriorForInterior, resolved) +
+    resolved.oneTimePremium +
+    (input.includeScreens ? resolved.screenCleaningAddOn : 0);
 
   const annualExteriorValue = exteriorMemberPrice * rateConfig.annualVisits;
   const annualInteriorExteriorValue =
@@ -156,14 +236,25 @@ export function calculateWindowCarePricing(
 
   const notes: string[] = [];
   const exclusions: string[] = [
-    "Screens are not included in base pricing.",
-    "Tracks, frames, and sills are not included.",
+    "Tracks, frames, and sills are not included in base pricing.",
     "Hard water restoration beyond package allowance is priced separately.",
     "Heavy debris, oxidation, and construction residue are priced separately.",
   ];
 
-  if (input.includeScreens) {
-    notes.push("Screens are priced separately. Ask for a screen add-on quote.");
+  if (!input.includeScreens) {
+    exclusions.push(
+      `Screen cleaning is optional (+${resolved.screenCleaningAddOn}).`,
+    );
+  } else {
+    notes.push(
+      `Screen cleaning included (+${resolved.screenCleaningAddOn} per visit).`,
+    );
+  }
+
+  if (input.twoStory) {
+    notes.push(
+      `Two-story surcharge applied (+${resolved.twoStorySurcharge}).`,
+    );
   }
 
   if (input.frequency === "quarterly") {
@@ -171,6 +262,10 @@ export function calculateWindowCarePricing(
       "Every 3 Months care qualifies for RainBlock Technology and complimentary hard water treatment where included in package.",
     );
   }
+
+  notes.push(
+    `One-time exterior visits are based on the Every 6 Months rate plus a ${resolved.oneTimePremium} service premium.`,
+  );
 
   const base: Omit<PricingOutput, "recommendation"> = {
     frequencyLabel,
@@ -184,6 +279,8 @@ export function calculateWindowCarePricing(
     oneTimePremium: resolved.oneTimePremium,
     notes,
     exclusions,
+    exteriorBreakdown,
+    oneTimeExteriorBreakdown,
   };
 
   const recommendation = buildPricingRecommendation(input, base, context);
@@ -202,10 +299,23 @@ export function getPricingComparison(
     recurringInteriorExterior: output.interiorExteriorMemberPrice,
     oneTimeExterior: output.exteriorOneTimePrice,
     oneTimeInteriorExterior: output.interiorExteriorOneTimePrice,
-    differenceExterior: output.oneTimePremium,
-    differenceInteriorExterior: output.oneTimePremium,
+    differenceExterior: output.exteriorOneTimePrice - output.exteriorMemberPrice,
+    differenceInteriorExterior:
+      output.interiorExteriorOneTimePrice - output.interiorExteriorMemberPrice,
     frequencyLabel: output.frequencyLabel,
   };
+}
+
+/** Bridge for presentations / membership quotes — Law 008 single source. */
+export function visitPriceForMembershipTier(
+  tier: "quarterly" | "biannual",
+  squareFeet: number,
+  options: { twoStory?: boolean; includeScreens?: boolean } = {},
+  settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
+): number {
+  const frequency: CareFrequency =
+    tier === "quarterly" ? "quarterly" : "bi_annual";
+  return calculateExteriorPrice(squareFeet, frequency, settings, options);
 }
 
 /** @deprecated Use getMinSqft(settings) */

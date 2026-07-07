@@ -264,9 +264,35 @@ export function PricingSettingsPage() {
                   }
                 />
                 <p className="mt-1 text-xs text-muted">
-                  One-time exterior = recurring exterior +{" "}
-                  {formatDollars(draft.oneTimePremium)}
+                  One-time exterior = Every 6 Months visit rate +{" "}
+                  {formatDollars(draft.oneTimePremium)} (+ screens when selected)
                 </p>
+              </label>
+              <label className="block">
+                <span className={labelClass}>Two-story surcharge ($)</span>
+                <input
+                  type="number"
+                  step={5}
+                  min={0}
+                  className={`${inputClass} mt-2`}
+                  value={draft.twoStorySurcharge}
+                  onChange={(e) =>
+                    updateDraft({ twoStorySurcharge: Number(e.target.value) })
+                  }
+                />
+              </label>
+              <label className="block">
+                <span className={labelClass}>Screen cleaning add-on ($)</span>
+                <input
+                  type="number"
+                  step={5}
+                  min={0}
+                  className={`${inputClass} mt-2`}
+                  value={draft.screenCleaningAddOn}
+                  onChange={(e) =>
+                    updateDraft({ screenCleaningAddOn: Number(e.target.value) })
+                  }
+                />
               </label>
             </div>
           </section>

@@ -45,6 +45,8 @@ export function CarePlanBuilderPage() {
   const maxSqft = getMaxSqft(settings);
   const [frequency, setFrequency] = useState<CareFrequency>("quarterly");
   const [sqft, setSqft] = useState(2500);
+  const [twoStory, setTwoStory] = useState(false);
+  const [includeScreens, setIncludeScreens] = useState(false);
   const [includeInterior, setIncludeInterior] = useState(false);
   const [addOnSelections, setAddOnSelections] = useState<ExteriorAddOnSelection[]>(
     () => defaultExteriorAddOnSelections(),
@@ -61,10 +63,12 @@ export function CarePlanBuilderPage() {
           squareFeet: sqft,
           frequency,
           includeInterior,
+          twoStory,
+          includeScreens,
         },
         settings,
       ),
-    [sqft, frequency, includeInterior, settings],
+    [sqft, frequency, includeInterior, twoStory, includeScreens, settings],
   );
 
   const pricing = useMemo(() => {
@@ -74,11 +78,13 @@ export function CarePlanBuilderPage() {
         squareFeet: clampedSqft,
         frequency,
         includeInterior,
+        twoStory,
+        includeScreens,
       },
       undefined,
       settings,
     );
-  }, [clampedSqft, frequency, includeInterior, validationError, settings]);
+  }, [clampedSqft, frequency, includeInterior, twoStory, includeScreens, validationError, settings]);
 
   const addOnQuote = useMemo(() => {
     if (validationError) return null;
@@ -97,11 +103,13 @@ export function CarePlanBuilderPage() {
         squareFeet: clampedSqft,
         frequency,
         includeInterior,
+        twoStory,
+        includeScreens,
       },
       undefined,
       settings,
     );
-  }, [clampedSqft, frequency, includeInterior, validationError, settings]);
+  }, [clampedSqft, frequency, includeInterior, twoStory, includeScreens, validationError, settings]);
 
   const recurringPrice = includeInterior
     ? pricing?.interiorExteriorMemberPrice ?? 0
@@ -115,7 +123,7 @@ export function CarePlanBuilderPage() {
     ? pricing?.annualInteriorExteriorValue ?? 0
     : pricing?.annualExteriorValue ?? 0;
 
-  const priceKey = `${frequency}-${clampedSqft}-${includeInterior}`;
+  const priceKey = `${frequency}-${clampedSqft}-${includeInterior}-${twoStory}-${includeScreens}`;
 
   const handleSqftChange = (raw: number) => {
     if (raw < 0) {
@@ -140,6 +148,9 @@ export function CarePlanBuilderPage() {
     const text = buildCopyQuote(clampedSqft, pricing, addOnQuote, {
       frequency,
       windowCareVisitPrice: recurringPrice,
+      exteriorBreakdown: pricing.exteriorBreakdown,
+      oneTimeExteriorPrice: oneTimePrice,
+      oneTimeBreakdown: pricing.oneTimeExteriorBreakdown,
     });
     await navigator.clipboard.writeText(text);
     setCopied(true);
@@ -155,6 +166,8 @@ export function CarePlanBuilderPage() {
         sqft: clampedSqft,
         frequency,
         includeInterior,
+        twoStory,
+        includeScreens,
         pricing,
         addOnQuote,
       });
@@ -312,8 +325,31 @@ export function CarePlanBuilderPage() {
               </button>
             </div>
             <p className="mt-3 text-xs text-muted">
-              Base pricing includes glass only. Screens are not included.
+              Base pricing is exterior glass. Screen cleaning and two-story
+              surcharges are optional add-ons below.
             </p>
+          </div>
+
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
+              Property Details
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setTwoStory((v) => !v)}
+                className={`${pillBase} ${twoStory ? pillSelected : pillIdle}`}
+              >
+                Two-Story (+{formatDollars(settings.twoStorySurcharge)})
+              </button>
+              <button
+                type="button"
+                onClick={() => setIncludeScreens((v) => !v)}
+                className={`${pillBase} ${includeScreens ? pillSelected : pillIdle}`}
+              >
+                Screen Cleaning (+{formatDollars(settings.screenCleaningAddOn)})
+              </button>
+            </div>
           </div>
 
           <div>

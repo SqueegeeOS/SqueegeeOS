@@ -1,7 +1,12 @@
 /**
  * Atlas Pricing Engine — quote copy helpers.
  */
-import type { CareFrequency, ExteriorAddOnQuote, PricingOutput } from "./types";
+import type {
+  CareFrequency,
+  ExteriorAddOnQuote,
+  ExteriorWindowPriceBreakdown,
+  PricingOutput,
+} from "./types";
 
 export function formatDollars(amount: number): string {
   const cents = Math.round(amount * 100) % 100;
@@ -39,6 +44,28 @@ export interface StructuredQuoteInput {
   windowCareVisitPrice: number;
   frequencyLabel: string;
   addOns?: ExteriorAddOnQuote | null;
+  exteriorBreakdown?: ExteriorWindowPriceBreakdown;
+  oneTimeExteriorPrice?: number;
+  oneTimeBreakdown?: ExteriorWindowPriceBreakdown;
+}
+
+function appendExteriorBreakdown(
+  lines: string[],
+  breakdown: ExteriorWindowPriceBreakdown,
+): void {
+  lines.push(
+    `  Sq ft base`.padEnd(28) + formatDollars(breakdown.sqftBase),
+  );
+  if (breakdown.twoStorySurcharge > 0) {
+    lines.push(
+      `  Two-story`.padEnd(28) + formatDollars(breakdown.twoStorySurcharge),
+    );
+  }
+  if (breakdown.screenCleaning > 0) {
+    lines.push(
+      `  Screen cleaning`.padEnd(28) + formatDollars(breakdown.screenCleaning),
+    );
+  }
 }
 
 export function buildStructuredQuoteSummary(input: StructuredQuoteInput): string {
@@ -49,6 +76,20 @@ export function buildStructuredQuoteSummary(input: StructuredQuoteInput): string
     `Window Care (${input.frequencyLabel.toLowerCase()})`.padEnd(28) +
       formatDollars(input.windowCareVisitPrice),
   ];
+
+  if (input.exteriorBreakdown) {
+    appendExteriorBreakdown(lines, input.exteriorBreakdown);
+  }
+
+  if (input.oneTimeExteriorPrice != null) {
+    lines.push("");
+    lines.push(
+      `One-Time Exterior`.padEnd(28) + formatDollars(input.oneTimeExteriorPrice),
+    );
+    if (input.oneTimeBreakdown) {
+      appendExteriorBreakdown(lines, input.oneTimeBreakdown);
+    }
+  }
 
   const addOns = input.addOns;
   if (addOns && addOns.lineItems.length > 0) {
@@ -117,6 +158,9 @@ export function buildCopyQuote(
   options?: {
     frequency?: CareFrequency;
     windowCareVisitPrice?: number;
+    exteriorBreakdown?: ExteriorWindowPriceBreakdown;
+    oneTimeExteriorPrice?: number;
+    oneTimeBreakdown?: ExteriorWindowPriceBreakdown;
   },
 ): string {
   const windowCareVisitPrice =
@@ -129,6 +173,9 @@ export function buildCopyQuote(
       windowCareVisitPrice,
       frequencyLabel: output.frequencyLabel,
       addOns,
+      exteriorBreakdown: options.exteriorBreakdown,
+      oneTimeExteriorPrice: options.oneTimeExteriorPrice,
+      oneTimeBreakdown: options.oneTimeBreakdown,
     });
   }
 
