@@ -76,6 +76,46 @@ function inputToRow(
   };
 }
 
+export async function listLeadIntakes(): Promise<LeadIntakeRecord[]> {
+  if (!isCloudPersistenceConnected()) {
+    return [];
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("lead_intakes")
+    .select("*")
+    .order("submitted_at", { ascending: false });
+
+  if (error || !data) {
+    throw new Error(`Failed to list lead intakes: ${error?.message ?? "unknown"}`);
+  }
+
+  return (data as LeadIntakeRow[]).map(rowToRecord);
+}
+
+export async function getLeadIntakeById(
+  id: string,
+): Promise<LeadIntakeRecord | null> {
+  if (!isCloudPersistenceConnected()) {
+    return null;
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("lead_intakes")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load lead intake: ${error.message}`);
+  }
+
+  if (!data) return null;
+  return rowToRecord(data as LeadIntakeRow);
+}
+
 export async function createLeadIntake(
   input: CreateLeadIntakeInput,
 ): Promise<{ record: LeadIntakeRecord; storage: "supabase" | "local" }> {

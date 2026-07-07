@@ -62,7 +62,7 @@ const QUICK_ACTIONS = [
   { label: "Properties", href: ROUTES.properties },
   { label: "All Presentations", href: ROUTES.presentations },
   { label: "Production Check", href: ROUTES.hqProductionCheck },
-  { label: "View Requests", href: ROUTES.requests },
+  { label: "Pending Requests", href: ROUTES.hqPendingRequests },
 ] as const;
 
 export function AdminCommandCenter({
