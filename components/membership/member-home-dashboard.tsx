@@ -171,19 +171,23 @@ export function MemberHomeDashboard({
         </DashboardPanel>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div
+        className={`grid gap-3 ${dashboard.hasCompletedVisits ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
+      >
         <Link
           href={dashboard.bookAddOnHref}
           className="inline-flex min-h-[48px] items-center justify-center rounded-full bg-accent px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-background transition-opacity hover:opacity-90 touch-manipulation"
         >
           Book Add-On
         </Link>
-        <Link
-          href={dashboard.viewHistoryHref}
-          className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-border bg-surface px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-foreground transition-colors hover:border-accent/35 touch-manipulation"
-        >
-          View History
-        </Link>
+        {dashboard.hasCompletedVisits && (
+          <Link
+            href={dashboard.viewHistoryHref}
+            className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-border bg-surface px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-foreground transition-colors hover:border-accent/35 touch-manipulation"
+          >
+            View History
+          </Link>
+        )}
         <Link
           href={dashboard.agreementHref}
           className="inline-flex min-h-[48px] items-center justify-center rounded-full border border-border bg-surface px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-foreground transition-colors hover:border-accent/35 touch-manipulation"

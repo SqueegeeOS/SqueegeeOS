@@ -77,9 +77,30 @@ function isoForMonth(year: number, month: number, day = 14): string {
   });
 }
 
+/** Honest empty schedule — portal default until real appointments exist. */
+export function buildEmptyMemberSchedule(options: {
+  tier: MembershipTierId;
+  monthlyPrice: number;
+  referenceDate?: Date;
+}): MemberScheduleView {
+  const now = options.referenceDate ?? new Date();
+  const monthsElapsed = Math.max(1, now.getMonth() + 1);
+  const yearToDateInvested = Math.round(
+    options.monthlyPrice * Math.min(monthsElapsed, 12),
+  );
+
+  return {
+    tier: options.tier,
+    items: [],
+    nextVisit: null,
+    completedCount: 0,
+    yearToDateInvested,
+  };
+}
+
 /**
- * Builds a demo annual schedule with realistic completed / upcoming states.
- * Production: replace with member_appointments rows from Supabase.
+ * @deprecated Demo-only — invents completed visits. Do not use in the customer portal.
+ * Use `buildScheduleFromAppointments` or `buildEmptyMemberSchedule` instead.
  */
 export function buildMemberAnnualSchedule(options: {
   tier: MembershipTierId;

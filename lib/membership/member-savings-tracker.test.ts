@@ -5,7 +5,7 @@ import { buildMemberSavingsSummary } from "./member-savings-tracker";
 import { resolveMemberMembershipView } from "./resolve-member-membership";
 
 describe("member savings tracker", () => {
-  it("estimates plan savings when no live portal data exists", () => {
+  it("returns empty savings when no live portal data exists", () => {
     const membership = resolveMemberMembershipView(canyonOaksHomeCarePlan, {
       referenceDate: new Date("2026-07-04T12:00:00Z"),
     });
@@ -16,9 +16,33 @@ describe("member savings tracker", () => {
     );
 
     expect(summary.source).toBe("plan");
-    expect(summary.totalSaved).toBeGreaterThan(0);
-    expect(summary.savedThisYear).toBeGreaterThan(0);
-    expect(summary.lines.length).toBeGreaterThan(0);
+    expect(summary.totalSaved).toBe(0);
+    expect(summary.savedThisYear).toBe(0);
+    expect(summary.lines).toHaveLength(0);
+  });
+
+  it("returns empty savings when portal profile has no transactions", () => {
+    const membership = resolveMemberMembershipView(canyonOaksHomeCarePlan);
+    const portalData = {
+      profile: {
+        totalSaved: 0,
+        firstName: "Larry",
+      },
+      lifetimeSavings: {
+        savings: 0,
+        retail: 0,
+        paid: 0,
+        entries: [],
+      },
+      ytdSavings: { savings: 0, retail: 0, paid: 0 },
+    } as unknown as MemberPortalData;
+
+    const summary = buildMemberSavingsSummary(membership, portalData);
+
+    expect(summary.source).toBe("live");
+    expect(summary.totalSaved).toBe(0);
+    expect(summary.savedThisYear).toBe(0);
+    expect(summary.lines).toHaveLength(0);
   });
 
   it("prefers tracked lifetime savings from portal transactions", () => {

@@ -76,7 +76,7 @@ export function MemberCareSummary({
       <div className="grid gap-4 px-5 py-6 sm:grid-cols-2 sm:px-7">
         <CareStat
           label="Last Visit"
-          value={status.lastVisit ?? "—"}
+          value={status.lastVisit ?? "No visits yet"}
           detail={status.lastVisitService}
         />
         {status.nextVisit ? (

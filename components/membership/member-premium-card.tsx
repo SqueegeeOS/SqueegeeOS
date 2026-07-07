@@ -63,6 +63,7 @@ export function MemberPremiumCard({
     "en-US",
     { month: "long", year: "numeric" },
   );
+  const hasVisitHistory = schedule.items.length > 0;
 
   return (
     <motion.section
@@ -100,26 +101,38 @@ export function MemberPremiumCard({
       <div className="grid gap-0 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="border-b border-border/60 px-5 py-6 sm:px-7 lg:border-b-0 lg:border-r">
           <p className="text-[10px] uppercase tracking-[0.28em] text-muted">
-            Your Annual Schedule
+            Your Care Schedule
           </p>
-          <ul className="mt-4 space-y-2.5">
-            {schedule.items.map((item) => (
-              <li
-                key={item.id}
-                className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/30 px-4 py-3 text-sm"
-              >
-                <span className="flex items-center gap-3 min-w-0">
-                  <StatusIcon status={item.status} />
-                  <span className="truncate text-foreground/90">{item.label}</span>
-                </span>
-                <span className="shrink-0 text-[10px] uppercase tracking-[0.16em] text-muted">
-                  {item.status === "scheduled" && item.scheduledDate
-                    ? item.scheduledDate.replace(/, \d{4}$/, "")
-                    : statusLabel(item.status)}
-                </span>
-              </li>
-            ))}
-          </ul>
+          {hasVisitHistory ? (
+            <ul className="mt-4 space-y-2.5">
+              {schedule.items.map((item) => (
+                <li
+                  key={item.id}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-border/50 bg-background/30 px-4 py-3 text-sm"
+                >
+                  <span className="flex items-center gap-3 min-w-0">
+                    <StatusIcon status={item.status} />
+                    <span className="truncate text-foreground/90">{item.label}</span>
+                  </span>
+                  <span className="shrink-0 text-[10px] uppercase tracking-[0.16em] text-muted">
+                    {item.status === "scheduled" && item.scheduledDate
+                      ? item.scheduledDate.replace(/, \d{4}$/, "")
+                      : statusLabel(item.status)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-border/80 bg-background/20 px-5 py-6">
+              <h3 className="font-serif text-xl font-light text-foreground">
+                Your care begins here
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted">
+                We&apos;re scheduling your first visit — you&apos;ll hear from us,
+                nothing to do.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-0">
@@ -154,10 +167,12 @@ export function MemberPremiumCard({
                   {formatTierPrice(membership.monthlyPrice)}
                 </dd>
               </div>
-              <div className="flex justify-between gap-4">
-                <dt className="text-muted">Services completed</dt>
-                <dd className="text-foreground">{schedule.completedCount}</dd>
-              </div>
+              {schedule.completedCount > 0 && (
+                <div className="flex justify-between gap-4">
+                  <dt className="text-muted">Services completed</dt>
+                  <dd className="text-foreground">{schedule.completedCount}</dd>
+                </div>
+              )}
               {schedule.totalSaved != null && schedule.totalSaved > 0 && (
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted">Total saved</dt>

@@ -1,8 +1,5 @@
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
-import {
-  buildMemberAnnualSchedule,
-  type MemberScheduleView,
-} from "./member-schedule";
+import { buildEmptyMemberSchedule } from "./member-schedule";
 import { buildMemberSavingsSummary } from "./member-savings-tracker";
 import {
   calculateMembershipPrice,
@@ -40,19 +37,6 @@ function resolveSquareFootage(data: HomeCarePlanData): number {
   return 2500;
 }
 
-function resolveMemberSince(data: HomeCarePlanData): Date {
-  const signedAt = data.property.lastVisit;
-  if (signedAt) {
-    const parsed = new Date(signedAt);
-    if (!Number.isNaN(parsed.getTime())) return parsed;
-  }
-  return new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
-}
-
-function formatMemberSince(date: Date): string {
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-}
-
 function memberSinceDuration(date: Date, reference = new Date()): string {
   const months =
     (reference.getFullYear() - date.getFullYear()) * 12 +
@@ -80,13 +64,12 @@ export function resolveMemberMembershipView(
   const squareFootage = resolveSquareFootage(data);
   const monthlyPrice = calculateMembershipPrice(tier, squareFootage);
   const value = summarizeMembershipValue(tier, squareFootage);
-  const memberSince = resolveMemberSince(data);
+  const memberSince = options?.referenceDate ?? new Date();
 
-  const scheduleBase: MemberScheduleView = buildMemberAnnualSchedule({
+  const scheduleBase = buildEmptyMemberSchedule({
     tier,
     monthlyPrice,
     referenceDate: options?.referenceDate,
-    dedicatedTech: tierDef.dedicatedTech ? "Marcus" : null,
   });
 
   const membershipDraft: MemberMembershipView = {
@@ -95,7 +78,7 @@ export function resolveMemberMembershipView(
     tierTagline: tierDef.tagline,
     memberName: data.homeowner.fullName,
     memberSince: memberSince.toISOString(),
-    memberSinceLabel: memberSinceDuration(memberSince, options?.referenceDate),
+    memberSinceLabel: memberSinceDuration(memberSince, options?.referenceDate ?? memberSince),
     squareFootage,
     monthlyPrice,
     value,

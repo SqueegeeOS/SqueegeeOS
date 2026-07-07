@@ -50,8 +50,10 @@ describe("member home dashboard", () => {
     expect(view.addOnDiscountPercent).toBe(25);
     expect(view.bookAddOnHref).toBe("#member-addons");
     expect(view.viewHistoryHref).toContain("#journey");
-    expect(view.totalSaved).toBeGreaterThan(0);
-    expect(view.savedThisYear).toBeGreaterThan(0);
+    expect(view.hasCompletedVisits).toBe(false);
+    expect(view.lastVisitLabel).toBe("No visits yet");
+    expect(view.totalSaved).toBe(0);
+    expect(view.savedThisYear).toBe(0);
     expect(view.propertyHealth).toHaveLength(0);
   });
 });

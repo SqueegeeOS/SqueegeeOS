@@ -135,7 +135,7 @@ export function resolveMemberPortalStatus(
   const cadence = inferMembershipCadence(planName);
   const discountPercent = MEMBER_ADD_ON_DISCOUNT[cadence] ?? null;
 
-  const lastVisit = data.property.lastVisit || null;
+  const lastVisit = null;
   const nextVisit = options?.forceNoNextVisit ? null : null;
 
   const addOns = MEMBER_ADD_ON_CATALOG.map((addon) => ({

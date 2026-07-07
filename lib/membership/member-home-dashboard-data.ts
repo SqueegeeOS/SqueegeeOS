@@ -26,6 +26,7 @@ export interface MemberHomeDashboardView {
   discountFinePrint: string;
   bookAddOnHref: string;
   viewHistoryHref: string;
+  hasCompletedVisits: boolean;
   agreementHref: string;
   totalSaved: number;
   savedThisYear: number;
@@ -132,29 +133,25 @@ export function resolvePropertyHealthScores(
 }
 
 function resolveLastVisitDate(
-  data: HomeCarePlanData,
   portalData: MemberPortalData | null | undefined,
-  careStatus: MemberPortalStatus,
 ): Date | null {
-  if (portalData?.appointments?.length) {
-    const completed = portalData.appointments
-      .filter((a) => a.status === "completed")
-      .map((a) => parseFlexibleDate(a.date))
-      .filter((d): d is Date => d !== null)
-      .sort((a, b) => b.getTime() - a.getTime());
-
-    if (completed[0]) return completed[0];
+  if (!portalData?.appointments?.length) {
+    return null;
   }
 
-  if (careStatus.lastVisit) {
-    return parseFlexibleDate(careStatus.lastVisit);
-  }
+  const completed = portalData.appointments
+    .filter((a) => a.status === "completed")
+    .map((a) => parseFlexibleDate(a.date))
+    .filter((d): d is Date => d !== null)
+    .sort((a, b) => b.getTime() - a.getTime());
 
-  if (data.property.lastVisit) {
-    return parseFlexibleDate(data.property.lastVisit);
-  }
+  return completed[0] ?? null;
+}
 
-  return null;
+function hasCompletedVisits(
+  portalData: MemberPortalData | null | undefined,
+): boolean {
+  return (portalData?.appointments ?? []).some((a) => a.status === "completed");
 }
 
 function resolveNextVisitLabel(
@@ -183,11 +180,8 @@ export function buildMemberHomeDashboardView(
   },
 ): MemberHomeDashboardView {
   const reference = options.referenceDate ?? new Date();
-  const lastVisitDate = resolveLastVisitDate(
-    data,
-    options.portalData,
-    careStatus,
-  );
+  const lastVisitDate = resolveLastVisitDate(options.portalData);
+  const completedVisits = hasCompletedVisits(options.portalData);
   const savings = buildMemberSavingsSummary(
     membership,
     options.portalData,
@@ -207,6 +201,7 @@ export function buildMemberHomeDashboardView(
     discountFinePrint: "Active while payments current",
     bookAddOnHref: "#member-addons",
     viewHistoryHref: `${options.planPath}#journey`,
+    hasCompletedVisits: completedVisits,
     agreementHref: `${options.planPath}#join`,
     totalSaved: savings.totalSaved,
     savedThisYear: savings.savedThisYear,
