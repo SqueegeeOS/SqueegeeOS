@@ -25,7 +25,7 @@ import {
   SQUEEGEEKING_TIERS,
 } from "@/lib/membership/tier-config";
 import type { PresentationTier } from "@/lib/presentations/types";
-import { quarterlyNetAdvantageLine } from "@/lib/presentations/upgrade-copy";
+import { quarterlyComplimentaryLine, quarterlySavingsLine } from "@/lib/presentations/upgrade-copy";
 
 interface SlideComponentProps {
   presentation: PresentationData;
@@ -213,75 +213,78 @@ export function SavingsSlide({ presentation }: SlideComponentProps) {
   const rates = computePresentationRates(presentation);
   const { upgrade } = rates;
   const [showBreakdown, setShowBreakdown] = useState(false);
+  const savingsLine = quarterlySavingsLine(upgrade);
 
   return (
     <FullSlide>
       <Eyebrow>The math</Eyebrow>
-      <HeroText>Value beyond the upgrade.</HeroText>
-      <p className="mt-4 text-base leading-relaxed text-white/50 sm:text-lg">
-        Compare the yearly investment — and what Quarterly includes beyond Bi-Annual.
-      </p>
+      <HeroText>Quarterly Benefits</HeroText>
 
-      <div className="mt-8 space-y-3 rounded-lg border border-white/10 bg-white/[0.03] p-6 text-sm">
-        <div className="flex justify-between gap-4">
-          <span className="text-white/50">Bi-Annual yearly investment</span>
-          <span>{formatTierPrice(upgrade.biannualAnnual)}/yr</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-white/50">Quarterly yearly investment</span>
-          <span>{formatTierPrice(upgrade.quarterlyAnnual)}/yr</span>
-        </div>
-        <div className="flex justify-between gap-4">
-          <span className="text-white/50">Additional yearly investment to upgrade</span>
-          <span>{formatTierPrice(upgrade.upgradeCost)}/yr</span>
-        </div>
-        <div className="flex justify-between gap-4 border-t border-white/10 pt-3">
-          <span className="text-white/50">Added yearly value included with Quarterly</span>
-          <span className="text-accent">
-            {formatTierPrice(upgrade.includedTreatmentValue)}/yr
-          </span>
-        </div>
-        <div className="flex justify-between gap-4 font-medium text-[#f5f2eb]">
-          <span>Net value beyond the upgrade</span>
-          <span className="text-accent">
-            {quarterlyNetAdvantageLine(upgrade)}
-          </span>
-        </div>
+      <div className="mt-8 max-w-2xl space-y-5 text-base leading-relaxed text-white/60 sm:text-lg">
+        {savingsLine ? <p>{savingsLine}</p> : null}
+        <p>{quarterlyComplimentaryLine(upgrade)}</p>
       </div>
 
       <button
         type="button"
         onClick={() => setShowBreakdown((open) => !open)}
-        className="mt-6 text-sm text-accent underline-offset-4 hover:underline"
+        className="mt-8 text-xs text-accent/80 underline-offset-4 hover:text-accent hover:underline"
       >
         {showBreakdown ? "Hide breakdown" : "View breakdown"}
       </button>
 
       {showBreakdown ? (
-        <div className="mt-4 space-y-3 rounded-lg border border-white/10 bg-white/[0.03] p-6 text-sm">
-          <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">
-            Where the added value comes from
-          </p>
-          <div className="flex justify-between gap-4">
-            <span className="text-white/50">RainBlock Technology</span>
-            <span>
-              {formatTierPrice(RAINBLOCK_RETAIL_VALUE)}/visit × 4 ={" "}
-              {formatTierPrice(upgrade.rainblockAnnual)}/yr
-            </span>
+        <div className="mt-4 space-y-4 rounded-lg border border-white/10 bg-white/[0.03] p-6 text-sm">
+          <div className="space-y-3">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+              Yearly plan investment
+            </p>
+            <div className="flex justify-between gap-4">
+              <span className="text-white/50">Bi-Annual</span>
+              <span>{formatTierPrice(upgrade.biannualAnnual)}/yr</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-white/50">Quarterly</span>
+              <span>{formatTierPrice(upgrade.quarterlyAnnual)}/yr</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-white/50">Additional cost to upgrade</span>
+              <span>{formatTierPrice(upgrade.upgradeCost)}/yr</span>
+            </div>
           </div>
-          <div className="flex justify-between gap-4">
-            <span className="text-white/50">Hard Water Removal</span>
-            <span>
-              {formatTierPrice(HARDWATER_RETAIL_VALUE)}/visit × 4 ={" "}
-              {formatTierPrice(upgrade.hardWaterAnnual)}/yr
-            </span>
+
+          <div className="space-y-3 border-t border-white/10 pt-4">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+              Complimentary services at retail
+            </p>
+            <div className="flex justify-between gap-4">
+              <span className="text-white/50">RainBlock Technology</span>
+              <span>
+                {formatTierPrice(RAINBLOCK_RETAIL_VALUE)}/visit × 4 ={" "}
+                {formatTierPrice(upgrade.rainblockAnnual)}/yr
+              </span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-white/50">Hard Water Removal</span>
+              <span>
+                {formatTierPrice(HARDWATER_RETAIL_VALUE)}/visit × 4 ={" "}
+                {formatTierPrice(upgrade.hardWaterAnnual)}/yr
+              </span>
+            </div>
+            <div className="flex justify-between gap-4 font-medium">
+              <span className="text-[#f5f2eb]">Total retail value</span>
+              <span className="text-accent">
+                {formatTierPrice(upgrade.includedTreatmentValue)}/yr
+              </span>
+            </div>
           </div>
-          <div className="flex justify-between gap-4 border-t border-white/10 pt-3 font-medium">
-            <span className="text-[#f5f2eb]">Total retail value</span>
-            <span className="text-accent">
-              {formatTierPrice(upgrade.includedTreatmentValue)}/yr
-            </span>
-          </div>
+
+          {upgrade.netAdvantage > 0 ? (
+            <p className="border-t border-white/10 pt-4 text-xs text-white/40">
+              Net savings vs. Bi-Annual plus separate treatments:{" "}
+              {formatTierPrice(upgrade.netAdvantage)}/yr
+            </p>
+          ) : null}
         </div>
       ) : null}
     </FullSlide>

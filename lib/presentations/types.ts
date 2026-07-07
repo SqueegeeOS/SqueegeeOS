@@ -48,7 +48,7 @@ export const SLIDE_MANIFEST: SlideConfig[] = [
   { id: "pricing", label: "Standard Pricing", description: "Every 3 vs 6 months per visit", editable: ["headline"] },
   { id: "custom_quote", label: "Your Custom Quote", description: "Window care + exterior add-ons from builder", editable: ["headline"] },
   { id: "comparison", label: "Tier Comparison", description: "Side-by-side benefit table", editable: ["body"] },
-  { id: "savings", label: "The Math", description: "RainBlock + Hard Water upgrade value", editable: [] },
+  { id: "savings", label: "The Math", description: "Quarterly benefits in plain English", editable: [] },
   { id: "testimonials", label: "Member Stories", description: "Social proof", editable: ["highlight"] },
   { id: "guarantee", label: "Our Guarantee", description: "7-day workmanship guarantee", editable: ["body"] },
   { id: "close", label: "Ready to Start", description: "Dual sign buttons", editable: ["headline", "body"] },

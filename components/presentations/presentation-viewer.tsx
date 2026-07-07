@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { SlideRenderer } from "./slide-renderer";
-import { SigningOverlay } from "./signing-overlay";
+import { PresentationOnboarding } from "./presentation-onboarding";
 import { getPresentationSlides, type PresentationData } from "@/lib/presentations/types";
 
 export function PresentationViewer({
@@ -121,11 +121,11 @@ export function PresentationViewer({
       </footer>
 
       {signing && (
-        <SigningOverlay
+        <PresentationOnboarding
           presentation={presentation}
           selectedTier={signingTier}
           onClose={() => setSigning(false)}
-          onComplete={() => {
+          onDone={() => {
             setSigning(false);
             router.push(`/presentations/${presentation.id}/edit`);
           }}

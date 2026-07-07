@@ -25,6 +25,17 @@ export function quarterlyUpgradeSummary(
   );
 }
 
+export function quarterlySavingsLine(upgrade: UpgradeMath): string | null {
+  if (upgrade.netAdvantage <= 0) return null;
+  return `You save approximately ${formatDollars(upgrade.netAdvantage)}/year by choosing Quarterly over paying for these treatments separately.`;
+}
+
+export function quarterlyComplimentaryLine(upgrade: UpgradeMath): string {
+  const value = formatDollars(upgrade.includedTreatmentValue);
+  const lead = upgrade.netAdvantage > 0 ? "Plus, you receive" : "You receive";
+  return `${lead} ${value}/year in complimentary services, including RainBlock Technology, Hard Water Removal, and other included treatment benefits.`;
+}
+
 export function quarterlyNetAdvantageLine(upgrade: UpgradeMath): string {
   if (upgrade.netAdvantage <= 0) {
     return "Treatments are included with Quarterly membership.";
