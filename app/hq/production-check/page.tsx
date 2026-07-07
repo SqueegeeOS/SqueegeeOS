@@ -134,6 +134,16 @@ export default function ProductionCheckPage() {
               hint={result.details.stripe.message}
             />
             <StatusRow
+              label="Stripe Live Mode"
+              ok={result.stripeLive}
+              hint={
+                result.stripeLive
+                  ? "Live keys configured for Customer #1"
+                  : (result.details.stripe.message ??
+                    "Live keys required before a real signing")
+              }
+            />
+            <StatusRow
               label={`Persistence (${result.details.persistence.backend})`}
               ok={result.persistence}
               hint={

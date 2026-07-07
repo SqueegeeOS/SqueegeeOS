@@ -5,6 +5,7 @@ import {
 } from "@/lib/persistence/supabase/client";
 import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { getStripePublishableKey } from "@/lib/stripe/client";
+import { isStripeLiveMode, resolveStripeKeyMode } from "@/lib/stripe/mode";
 
 export type ProductionMode = "production" | "degraded" | "development";
 
@@ -13,6 +14,7 @@ export interface ProductionCheckResult {
   storage: boolean;
   resend: boolean;
   stripe: boolean;
+  stripeLive: boolean;
   persistence: boolean;
   mode: ProductionMode;
   checkedAt: string;
@@ -32,6 +34,8 @@ export interface ProductionCheckResult {
     stripe: {
       publishableKey: boolean;
       secretKey: boolean;
+      liveMode: boolean;
+      keyMode: ReturnType<typeof resolveStripeKeyMode>;
       message?: string;
     };
     persistence: {
@@ -46,6 +50,7 @@ function resolveMode(flags: {
   storage: boolean;
   resend: boolean;
   stripe: boolean;
+  stripeLive: boolean;
   persistence: boolean;
 }): ProductionMode {
   if (
@@ -53,6 +58,7 @@ function resolveMode(flags: {
     flags.storage &&
     flags.resend &&
     flags.stripe &&
+    flags.stripeLive &&
     flags.persistence
   ) {
     return "production";
@@ -130,12 +136,21 @@ export async function runProductionCheck(): Promise<ProductionCheckResult> {
   const stripePublishable = Boolean(getStripePublishableKey());
   const stripeSecret = Boolean(process.env.STRIPE_SECRET_KEY?.trim());
   const stripe = isStripeServerEnabled();
+  const stripeKeyMode = resolveStripeKeyMode();
+  const stripeLive = isStripeLiveMode();
 
   let stripeMessage: string | undefined;
   if (!stripePublishable) {
     stripeMessage = "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY not set";
   } else if (!stripeSecret) {
     stripeMessage = "STRIPE_SECRET_KEY not set";
+  } else if (stripeKeyMode === "test") {
+    stripeMessage =
+      "Stripe test keys — switch to sk_live_ / pk_live_ before Customer #1";
+  } else if (stripeKeyMode === "mismatch") {
+    stripeMessage = "Stripe publishable and secret keys are not the same mode";
+  } else if (stripeKeyMode === "missing") {
+    stripeMessage = "Stripe keys missing or unrecognized";
   }
 
   const mode = resolveMode({
@@ -143,6 +158,7 @@ export async function runProductionCheck(): Promise<ProductionCheckResult> {
     storage: storageReady,
     resend,
     stripe,
+    stripeLive,
     persistence,
   });
 
@@ -151,6 +167,7 @@ export async function runProductionCheck(): Promise<ProductionCheckResult> {
     storage: storageReady,
     resend,
     stripe,
+    stripeLive,
     persistence,
     mode,
     checkedAt: new Date().toISOString(),
@@ -174,6 +191,8 @@ export async function runProductionCheck(): Promise<ProductionCheckResult> {
       stripe: {
         publishableKey: stripePublishable,
         secretKey: stripeSecret,
+        liveMode: stripeLive,
+        keyMode: stripeKeyMode,
         message: stripeMessage,
       },
       persistence: {

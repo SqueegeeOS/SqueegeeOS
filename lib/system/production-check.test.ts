@@ -32,4 +32,21 @@ describe("runProductionCheck", () => {
     expect(result.resend).toBe(false);
     expect(result.details.resend.apiKey).toBe(false);
   });
+
+  it("does not report production mode when Stripe test keys are configured", async () => {
+    process.env.NEXT_PUBLIC_SUPABASE_ENABLED = "true";
+    process.env.NEXT_PUBLIC_PERSISTENCE_BACKEND = "supabase";
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon";
+    process.env.RESEND_API_KEY = "re_test";
+    process.env.RESEND_AGREEMENT_FROM = "care@example.com";
+    process.env.STRIPE_SECRET_KEY = "sk_test_abc";
+    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = "pk_test_xyz";
+
+    const result = await runProductionCheck();
+    expect(result.stripe).toBe(true);
+    expect(result.stripeLive).toBe(false);
+    expect(result.details.stripe.keyMode).toBe("test");
+    expect(result.mode).not.toBe("production");
+  });
 });
