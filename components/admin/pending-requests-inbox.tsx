@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { AmbientStage } from "@/components/craft/ambient-stage";
+import { GlassCard } from "@/components/craft/glass-card";
+import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { markRequestsInboxOpened } from "@/lib/admin/requests-inbox-read-state";
 import {
@@ -18,6 +21,7 @@ import {
   type LeadIntakeFilter,
 } from "@/lib/acquisition/leads/inbox";
 import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
+import { craftEyebrow, craftHeading, craftInput } from "@/lib/craft/tokens";
 import { ROUTES } from "@/lib/navigation/config";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 
@@ -47,7 +51,7 @@ function ActionButton({
         onClick();
       }}
       disabled={disabled}
-      className="rounded-full border border-border/50 px-3 py-1 text-[11px] uppercase tracking-[0.14em] text-muted transition hover:border-border hover:text-foreground disabled:opacity-40"
+      className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.14em] text-muted shadow-[var(--shadow-ambient)] backdrop-blur-sm transition-[border-color,color] duration-300 hover:border-accent/25 hover:text-foreground disabled:opacity-40"
     >
       {children}
     </button>
@@ -117,24 +121,20 @@ export function PendingRequestsInbox() {
   );
 
   return (
-    <div className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
-      <div className="mx-auto max-w-6xl">
+    <AmbientStage className="px-4 py-10 text-foreground sm:px-6 sm:py-12">
+      <div className="relative mx-auto max-w-6xl">
         <HqFounderNav newCount={newCount} />
 
-        <header className="mt-8 mb-8">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-accent">
-            Founder inbox
-          </p>
-          <h1 className="mt-2 font-serif text-3xl font-light sm:text-4xl">
-            Requests
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+        <MotionReveal className="mt-10 mb-10">
+          <p className={craftEyebrow}>Founder inbox</p>
+          <h1 className={`${craftHeading} mt-3 text-3xl sm:text-4xl`}>Requests</h1>
+          <p className="mt-4 max-w-2xl text-sm leading-[1.65] text-muted">
             Every home care request from the public form — follow up, schedule a
             presentation, or archive when handled.
           </p>
-        </header>
+        </MotionReveal>
 
-        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
             {FILTERS.map((filter) => (
               <button
@@ -158,7 +158,7 @@ export function PendingRequestsInbox() {
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="Search name, phone, email, address…"
-              className="w-full rounded-full border border-border/50 bg-surface/30 px-4 py-2.5 text-sm text-foreground placeholder:text-muted/70 focus:border-accent/40 focus:outline-none"
+              className={craftInput + " !rounded-full"}
             />
           </label>
         </div>
@@ -168,7 +168,7 @@ export function PendingRequestsInbox() {
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : filteredLeads.length === 0 ? (
-          <div className="rounded-2xl border border-border/30 bg-surface/40 px-6 py-12 text-center">
+          <GlassCard tone="subtle" motion="rise" className="px-6 py-14 text-center">
             <p className="font-serif text-2xl font-light text-foreground/90">
               {leads.length === 0
                 ? "No requests yet."
@@ -190,9 +190,10 @@ export function PendingRequestsInbox() {
                 "Try another filter or clear your search."
               )}
             </p>
-          </div>
+          </GlassCard>
         ) : (
-          <div className="overflow-x-auto rounded-2xl border border-border/30">
+          <GlassCard tone="subtle" motion="rise" padding="none" className="overflow-hidden">
+            <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-border/50 bg-surface/30 text-[10px] uppercase tracking-[0.22em] text-muted">
@@ -304,9 +305,10 @@ export function PendingRequestsInbox() {
                 })}
               </tbody>
             </table>
-          </div>
+            </div>
+          </GlassCard>
         )}
       </div>
-    </div>
+    </AmbientStage>
   );
 }

@@ -56,6 +56,8 @@ import { RecentClosedJobsTable } from "./recent-closed-jobs-table";
 import { RevenuePeriodFilterBar } from "./revenue-period-filter";
 import { MorningBriefSection } from "./morning-brief";
 import { HqFounderNav } from "./hq-founder-nav";
+import { AmbientStage } from "@/components/craft/ambient-stage";
+import { craftPrimaryButton } from "@/lib/craft/tokens";
 
 const QUICK_ACTIONS = [
   { label: "New Presentation", href: ROUTES.newPresentation, primary: true },
@@ -243,11 +245,12 @@ export function AdminCommandCenter({
 
   return (
     <BootProvider profile={motionProfile}>
+      <AmbientStage>
       <AmbientFieldScoped variant="minimal">
         <div className="relative min-h-[100svh] overflow-x-hidden pb-24">
-          <div className="relative mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16 lg:px-10">
+          <div className="relative mx-auto max-w-6xl px-5 py-14 sm:px-8 sm:py-16 lg:px-10">
             <BootLayer layer="navigation" subtle>
-              <header className="flex flex-col gap-8 border-b border-border/25 pb-12 lg:flex-row lg:items-end lg:justify-between">
+              <header className="flex flex-col gap-8 border-b border-border/15 pb-12 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                   <p className="text-[10px] uppercase tracking-[0.28em] text-muted/80">
                     Headquarters
@@ -276,14 +279,14 @@ export function AdminCommandCenter({
             </BootLayer>
 
             <div className="mt-14 xl:grid xl:grid-cols-[minmax(0,1fr)_17rem] xl:items-start xl:gap-16">
-              <div className="space-y-14">
+              <div className="space-y-16">
                 <MorningBriefSection brief={morningBrief} />
 
                 <AdminCeoScoreboard scoreboard={scoreboard} />
 
                 <div
                   id="work"
-                  className="grid gap-14 border-t border-border/25 pt-14 lg:grid-cols-2 lg:gap-12"
+                  className="grid gap-16 border-t border-border/15 pt-16 lg:grid-cols-2 lg:gap-12"
                 >
                   <AdminSection
                     eyebrow="Field"
@@ -334,7 +337,7 @@ export function AdminCommandCenter({
                         <Link
                           key={action.label}
                           href={action.href}
-                          className="inline-flex min-h-[48px] items-center rounded-full border border-foreground/15 bg-foreground/[0.04] px-6 py-3 text-sm tracking-[0.02em] text-foreground transition-colors hover:border-foreground/25 hover:bg-foreground/[0.06]"
+                          className={`inline-flex ${craftPrimaryButton} !min-h-[48px] !px-6 !text-sm !tracking-[0.04em]`}
                         >
                           {action.label}
                         </Link>
@@ -342,7 +345,7 @@ export function AdminCommandCenter({
                         <Link
                           key={action.label}
                           href={action.href}
-                          className="block text-sm text-muted transition-colors hover:text-foreground"
+                          className="block text-sm text-muted transition-colors duration-300 hover:text-foreground"
                         >
                           {action.label}
                         </Link>
@@ -358,7 +361,7 @@ export function AdminCommandCenter({
             </div>
 
             <BootLayer layer="footer" subtle>
-              <footer className="mt-16 border-t border-border/25 pt-10">
+              <footer className="mt-16 border-t border-border/15 pt-10">
                 <p className="max-w-xl text-sm leading-relaxed text-muted/70 italic">
                   {HEADQUARTERS_PURPOSE}
                 </p>
@@ -370,6 +373,7 @@ export function AdminCommandCenter({
           </div>
         </div>
       </AmbientFieldScoped>
+      </AmbientStage>
     </BootProvider>
   );
 }

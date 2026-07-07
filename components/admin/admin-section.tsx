@@ -2,6 +2,8 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
+import { GlassCard } from "@/components/craft/glass-card";
+import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 import { riseSubtle } from "@/lib/motion/system";
 import { useBootLayerDelay } from "@/components/motion/boot-provider";
 
@@ -32,20 +34,22 @@ export function AdminSection({
       animate="visible"
       variants={riseSubtle}
       transition={{ delay }}
-      className="border-t border-border/25 pt-12 first:border-t-0 first:pt-0"
+      className="border-t border-border/15 pt-14 first:border-t-0 first:pt-0"
     >
-      <p className="text-[10px] uppercase tracking-[0.28em] text-muted/80">
-        {eyebrow}
-      </p>
-      <h2 className="mt-2 font-serif text-2xl font-light tracking-[-0.015em] text-foreground sm:text-[1.75rem]">
+      <p className={craftEyebrow}>{eyebrow}</p>
+      <h2 className={`${craftHeading} mt-3 text-2xl sm:text-[1.75rem]`}>
         {title}
       </h2>
       {description ? (
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
+        <p className="mt-4 max-w-2xl text-sm leading-[1.65] text-muted">
           {description}
         </p>
       ) : null}
-      <div className="mt-8">{children}</div>
+      <div className="mt-8">
+        <GlassCard tone="subtle" padding="md" motion="none">
+          {children}
+        </GlassCard>
+      </div>
     </motion.section>
   );
 }

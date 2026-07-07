@@ -7,7 +7,10 @@ import { FounderOnboarding } from "@/components/admin/founder-onboarding";
 import { HeadquartersImportDraftBanner } from "@/components/admin/headquarters-import-draft-banner";
 import { HeadquartersSchemaSetup } from "@/components/admin/headquarters-schema-setup";
 import { HeadquartersArrivalSequence } from "@/components/experience/headquarters-arrival-sequence";
+import { AmbientStage } from "@/components/craft/ambient-stage";
+import { GlassCard } from "@/components/craft/glass-card";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
+import { craftPrimaryButton } from "@/lib/craft/tokens";
 import {
   importLocalHeadquartersDraft,
   syncHeadquartersProfile,
@@ -116,15 +119,14 @@ export function AdminExperience() {
 
   if (!ready) {
     return (
-      <div className="relative min-h-[100svh] bg-background">
-        <div className="motion-grain pointer-events-none absolute inset-0 opacity-[0.035]" />
-        <div className="relative mx-auto flex min-h-[100svh] max-w-md flex-col items-center justify-center px-6">
+      <AmbientStage className="flex min-h-[100svh] items-center justify-center px-6">
+        <div className="relative mx-auto flex w-full max-w-md flex-col items-center justify-center">
           <ShimmerBlock className="h-3 w-32 rounded-full" />
           <ShimmerBlock className="mt-6 h-10 w-full rounded-2xl" />
           <ShimmerBlock className="mt-3 h-10 w-4/5 rounded-2xl" />
           <p className="sr-only">Loading Cloud Headquarters…</p>
         </div>
-      </div>
+      </AmbientStage>
     );
   }
 
@@ -147,31 +149,31 @@ export function AdminExperience() {
   if (!onboardingComplete) {
     if (syncResult?.pendingLocalImport && syncResult.localDraft) {
       return (
-        <div className="flex min-h-[100svh] items-center justify-center bg-background px-5 py-16">
-          <div className="max-w-xl space-y-6 rounded-[1.75rem] border border-border/80 bg-surface/45 p-8 text-center">
+        <div className="flex min-h-[100svh] items-center justify-center px-5 py-16">
+          <GlassCard tone="elevated" motion="materialize" padding="lg" className="max-w-xl text-center">
             <p className="text-[10px] uppercase tracking-[0.28em] text-accent">
               Cloud Headquarters
             </p>
-            <h1 className="font-serif text-3xl font-light text-foreground">
+            <h1 className="mt-4 font-serif text-3xl font-light text-foreground">
               Import your local founder archive
             </h1>
-            <p className="text-sm leading-relaxed text-muted">
+            <p className="mt-4 text-sm leading-[1.65] text-muted">
               This device has a founder archive that has not been saved to
               Supabase yet. Import it once so Noah and Dasan share the same
               Headquarters.
             </p>
             {syncResult.warning && (
-              <p className="text-sm text-amber-700">{syncResult.warning}</p>
+              <p className="mt-4 text-sm text-amber-700">{syncResult.warning}</p>
             )}
             <button
               type="button"
               onClick={() => void handleImportDraft()}
               disabled={importingDraft}
-              className="rounded-full border border-accent/30 bg-accent/[0.12] px-8 py-4 text-[10px] uppercase tracking-[0.22em] text-accent disabled:opacity-50"
+              className={`mt-8 ${craftPrimaryButton} !text-[10px] !uppercase !tracking-[0.22em]`}
             >
               {importingDraft ? "Importing…" : "Import local draft to cloud"}
             </button>
-          </div>
+          </GlassCard>
         </div>
       );
     }

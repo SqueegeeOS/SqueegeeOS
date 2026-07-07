@@ -1,11 +1,12 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { GlassCard } from "@/components/craft/glass-card";
 import type { CeoScoreboard } from "@/lib/admin/ceo-scoreboard";
 import type { OperatingSnapshot } from "@/lib/admin/growth-journey";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
-
-const easeLuxury = [0.22, 1, 0.36, 1] as const;
+import { craftEyebrow } from "@/lib/craft/tokens";
+import { pageEnter } from "@/lib/motion/system";
 
 interface AdminCeoScoreboardProps {
   scoreboard: CeoScoreboard;
@@ -113,34 +114,30 @@ export function AdminCeoScoreboard({
 
   return (
     <motion.article
-      initial={reduceMotion ? false : { opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.7, ease: easeLuxury }}
-      className="border-t border-border/25 pt-10"
+      initial={reduceMotion ? false : "hidden"}
+      animate="visible"
+      variants={pageEnter}
+      className="border-t border-border/15 pt-14"
     >
-      <p className="text-[10px] uppercase tracking-[0.28em] text-muted/80">
-        Company pulse
-      </p>
-      <p className="mt-2 max-w-md text-sm leading-relaxed text-muted">
+      <p className={craftEyebrow}>Company pulse</p>
+      <p className="mt-4 max-w-md text-sm leading-[1.65] text-muted">
         This month in the Operating System — legacy totals preserved separately.
       </p>
 
-      <div className="mt-6 space-y-5">
+      <GlassCard tone="default" motion="none" padding="md" className="mt-8">
+      <div className="space-y-6">
         {monthlyMetrics.map((metric, index) => (
           <motion.div
             key={metric.label}
-            initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.5,
-              delay: reduceMotion ? 0 : index * 0.05,
-              ease: easeLuxury,
-            }}
+            initial={reduceMotion ? false : "hidden"}
+            animate="visible"
+            variants={pageEnter}
+            transition={{ delay: reduceMotion ? 0 : index * 0.05 }}
           >
             <p className="text-[10px] uppercase tracking-[0.18em] text-muted/70">
               {metric.label}
             </p>
-            <p className="mt-1 font-serif text-2xl font-light text-foreground sm:text-3xl">
+            <p className="mt-1.5 font-serif text-2xl font-light text-foreground sm:text-3xl">
               {metric.value}
             </p>
             {awaitingData && index === 0 && (
@@ -150,7 +147,7 @@ export function AdminCeoScoreboard({
         ))}
       </div>
 
-      <div className="mt-8 overflow-x-auto">
+      <div className="mt-8 overflow-x-auto border-t border-white/[0.06] pt-6">
         <table className="min-w-full text-left text-sm">
           <thead>
             <tr className="border-b border-border/20 text-[10px] uppercase tracking-[0.16em] text-muted/70">
@@ -174,6 +171,7 @@ export function AdminCeoScoreboard({
           </tbody>
         </table>
       </div>
+      </GlassCard>
     </motion.article>
   );
 }

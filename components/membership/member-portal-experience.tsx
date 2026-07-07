@@ -22,6 +22,7 @@ import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
 import { PortalStage } from "@/components/portal/portal-stage";
 import { InstallHomeAtlas } from "@/components/pwa/InstallHomeAtlas";
+import { craftPrimaryButton, craftSecondaryButton } from "@/lib/craft/tokens";
 import { materialize } from "@/lib/motion/system";
 
 interface MemberPortalExperienceProps {
@@ -88,7 +89,7 @@ export function MemberPortalExperience({
 
   return (
     <PortalStage founding={Boolean(view.foundingDisplay)}>
-      <div className="mx-auto max-w-2xl px-5 pb-[max(2.5rem,env(safe-area-inset-bottom))] pt-[max(3rem,env(safe-area-inset-top))] sm:px-10 sm:pb-16 sm:pt-14">
+      <div className="mx-auto max-w-2xl px-5 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(3.5rem,env(safe-area-inset-top))] sm:px-10 sm:pb-20 sm:pt-16">
         {/* §1 — Landing */}
         <motion.header
           initial={reduceMotion ? false : "hidden"}
@@ -123,7 +124,7 @@ export function MemberPortalExperience({
           <p className="mt-6 text-sm text-white/50">{view.whatsNextHeadline}</p>
         </motion.header>
 
-        <div className="mt-14 space-y-16 sm:mt-20 sm:space-y-20">
+        <div className="mt-16 space-y-20 sm:mt-20 sm:space-y-24">
           {/* §2 — Membership */}
           <PortalSection
             id="membership"
@@ -241,7 +242,7 @@ export function MemberPortalExperience({
                     href={agreementPdfHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-5 inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-accent/40 bg-accent/10 text-sm font-medium tracking-[0.1em] text-accent transition-colors hover:bg-accent/15"
+                    className={`mt-5 w-full ${craftPrimaryButton} !tracking-[0.1em]`}
                   >
                     View PDF
                   </a>
@@ -253,7 +254,7 @@ export function MemberPortalExperience({
                     </p>
                     <a
                       href={`mailto:agreements@squeegeeking.net?subject=${encodeURIComponent(`Agreement copy — ${view.propertyName}`)}`}
-                      className="mt-5 inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-sm font-medium tracking-[0.08em] text-white/80 transition-colors hover:bg-white/[0.07]"
+                      className={`mt-5 w-full ${craftSecondaryButton} !normal-case !tracking-[0.06em]`}
                     >
                       Request a copy
                     </a>
@@ -281,7 +282,7 @@ export function MemberPortalExperience({
                     <button
                       type="button"
                       onClick={() => setUpdatePaymentOpen((open) => !open)}
-                      className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-white/15 bg-white/[0.04] text-sm font-medium tracking-[0.08em] text-white/80 transition-colors hover:bg-white/[0.07]"
+                      className={`w-full ${craftSecondaryButton} !normal-case !tracking-[0.06em]`}
                     >
                       {updatePaymentOpen
                         ? "Cancel"
@@ -348,7 +349,7 @@ export function MemberPortalExperience({
             headline={view.propertyName}
             support={view.propertyAddress}
           >
-            <div className="relative mb-6 overflow-hidden rounded-2xl border border-white/[0.08]">
+            <div className="craft-glass-subtle relative mb-8 overflow-hidden rounded-[var(--radius-card-lg)] shadow-[var(--shadow-float)]">
               {data.property.heroImage ? (
                 <div className="relative aspect-[16/10] w-full">
                   <Image
@@ -370,7 +371,7 @@ export function MemberPortalExperience({
               {view.propertyFacts.map((fact) => (
                 <span
                   key={fact}
-                  className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] tracking-wide text-white/55"
+                  className="craft-glass-subtle rounded-full px-3.5 py-1.5 text-[11px] tracking-wide text-foreground/60 shadow-[var(--shadow-ambient)]"
                 >
                   {fact}
                 </span>
@@ -431,7 +432,7 @@ export function MemberPortalExperience({
                 </p>
               </PortalCard>
             ) : (
-              <div className="rounded-3xl border border-accent/15 bg-gradient-to-b from-accent/[0.06] to-transparent py-10 text-center">
+              <div className="craft-glass-subtle rounded-[var(--radius-card-lg)] border-accent/10 bg-gradient-to-b from-accent/[0.05] to-transparent py-12 text-center shadow-[var(--shadow-ambient)]">
                 <HouseIllustration />
                 <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-white/55">
                   {view.photosEmptyCopy}
@@ -447,7 +448,7 @@ export function MemberPortalExperience({
           </div>
         )}
 
-        <footer className="mt-16 border-t border-white/[0.06] pt-8 text-center">
+        <footer className="mt-20 border-t border-white/[0.05] pt-10 text-center">
           <p className="text-[10px] uppercase tracking-[0.3em] text-white/25">
             Powered by HomeAtlas
           </p>

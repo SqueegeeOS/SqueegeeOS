@@ -1,8 +1,10 @@
 "use client";
 
 import { motion, useReducedMotion } from "framer-motion";
+import { GlassCard } from "@/components/craft/glass-card";
 import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import type { MorningBrief } from "@/lib/concierge/types";
+import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 import { riseSubtle } from "@/lib/motion/system";
 import { useBootLayerDelay } from "@/components/motion/boot-provider";
 
@@ -37,7 +39,7 @@ function InsightCard({
       animate="visible"
       variants={riseSubtle}
       transition={{ delay }}
-      className="border-b border-border/20 pb-8 last:border-b-0 last:pb-0"
+      className="craft-glass-subtle rounded-[var(--radius-card)] p-5 shadow-[var(--shadow-ambient)] sm:p-6"
     >
       <p className="text-[10px] uppercase tracking-[0.2em] text-muted/70">
         {CATEGORY_LABELS[category] ?? category}
@@ -61,23 +63,21 @@ export function MorningBriefSection({ brief }: { brief: MorningBrief }) {
       animate="visible"
       variants={riseSubtle}
       transition={{ delay: baseDelay }}
-      className="border-t border-border/25 pt-12"
+      className="border-t border-border/15 pt-14"
       aria-labelledby="morning-brief-heading"
     >
       <div>
-        <p className="text-[10px] uppercase tracking-[0.28em] text-muted/80">
-          {PLATFORM_BRAND.morningBriefEyebrow}
-        </p>
+        <p className={craftEyebrow}>{PLATFORM_BRAND.morningBriefEyebrow}</p>
         <h2
           id="morning-brief-heading"
-          className="mt-2 font-serif text-2xl font-light tracking-[-0.015em] text-foreground sm:text-[1.75rem]"
+          className={`${craftHeading} mt-3 text-2xl sm:text-[1.75rem]`}
         >
           {PLATFORM_BRAND.morningBriefTitle}
         </h2>
       </div>
 
       {cards.length > 0 ? (
-        <div className="mt-8 space-y-8">
+        <div className="mt-8 grid gap-4">
           {cards.map((insight, index) => (
             <InsightCard
               key={insight.id}
@@ -90,11 +90,11 @@ export function MorningBriefSection({ brief }: { brief: MorningBrief }) {
           ))}
         </div>
       ) : brief.fallbackMessage ? (
-        <div className="mt-8 rounded-2xl border border-border/30 bg-background/20 px-6 py-8 text-center">
+        <GlassCard tone="subtle" motion="rise" className="mt-8 px-6 py-8 text-center">
           <p className="font-serif text-xl font-light text-foreground/90">
             {brief.fallbackMessage}
           </p>
-        </div>
+        </GlassCard>
       ) : null}
 
       {brief.fallbackMessage && cards.length > 0 && cards.length < 3 && (
