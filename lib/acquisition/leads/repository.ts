@@ -116,6 +116,30 @@ export async function getLeadIntakeById(
   return rowToRecord(data as LeadIntakeRow);
 }
 
+export async function updateLeadIntakeStatus(
+  id: string,
+  status: LeadIntakeRecord["status"],
+): Promise<LeadIntakeRecord | null> {
+  if (!isCloudPersistenceConnected()) {
+    return null;
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("lead_intakes")
+    .update({ status })
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to update lead intake: ${error.message}`);
+  }
+
+  if (!data) return null;
+  return rowToRecord(data as LeadIntakeRow);
+}
+
 export async function createLeadIntake(
   input: CreateLeadIntakeInput,
 ): Promise<{ record: LeadIntakeRecord; storage: "supabase" | "local" }> {

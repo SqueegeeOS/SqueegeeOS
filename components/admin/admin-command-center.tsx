@@ -55,6 +55,7 @@ import { MonthlySalesLedger } from "./monthly-sales-ledger";
 import { RecentClosedJobsTable } from "./recent-closed-jobs-table";
 import { RevenuePeriodFilterBar } from "./revenue-period-filter";
 import { MorningBriefSection } from "./morning-brief";
+import { HqFounderNav } from "./hq-founder-nav";
 
 const QUICK_ACTIONS = [
   { label: "New Presentation", href: ROUTES.newPresentation, primary: true },
@@ -62,7 +63,6 @@ const QUICK_ACTIONS = [
   { label: "Properties", href: ROUTES.properties },
   { label: "All Presentations", href: ROUTES.presentations },
   { label: "Production Check", href: ROUTES.hqProductionCheck },
-  { label: "Pending Requests", href: ROUTES.hqPendingRequests },
 ] as const;
 
 export function AdminCommandCenter({
@@ -268,6 +268,11 @@ export function AdminCommandCenter({
                 </div>
                 {topBar}
               </header>
+              <div className="mt-8">
+                <HqFounderNav
+                  newCount={dashboard.executive.pendingRequests}
+                />
+              </div>
             </BootLayer>
 
             <div className="mt-14 xl:grid xl:grid-cols-[minmax(0,1fr)_17rem] xl:items-start xl:gap-16">

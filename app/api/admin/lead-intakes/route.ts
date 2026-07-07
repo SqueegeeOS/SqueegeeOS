@@ -10,7 +10,8 @@ export async function GET(request: Request) {
 
   try {
     const leads = await listLeadIntakes();
-    return NextResponse.json({ leads });
+    const newCount = leads.filter((lead) => lead.status === "new").length;
+    return NextResponse.json({ leads, newCount });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load lead intakes";

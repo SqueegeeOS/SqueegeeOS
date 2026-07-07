@@ -1,7 +1,7 @@
 import type { ContactMethod, ServiceOption } from "./types";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 
-export type LeadIntakeStatus = "new" | "contacted" | "scheduled";
+export type LeadIntakeStatus = "new" | "contacted" | "scheduled" | "archived";
 
 export interface LeadIntakeRecord {
   id: string;
