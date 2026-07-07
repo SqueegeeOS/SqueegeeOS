@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { PresentationViewer } from "@/components/presentations/presentation-viewer";
+import { PresentationPresentLoader } from "@/components/presentations/presentation-present-loader";
 import { getPresentation } from "@/lib/presentations/repository";
 import { platformPageTitle } from "@/lib/brand/platform";
 
@@ -18,7 +17,6 @@ export default async function PresentPresentationPage({
 }) {
   const { id } = await params;
   const presentation = await getPresentation(id);
-  if (!presentation) notFound();
 
-  return <PresentationViewer presentation={presentation} />;
+  return <PresentationPresentLoader id={id} initial={presentation} />;
 }

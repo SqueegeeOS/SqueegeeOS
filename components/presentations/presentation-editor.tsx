@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
   computePresentationRates,
   visitRateFromPresentation,
@@ -44,6 +45,10 @@ export function PresentationEditor({
   );
   const rates = useMemo(() => computePresentationRates(data), [data]);
   const visitRate = visitRateFromPresentation(data);
+
+  useEffect(() => {
+    cachePresentation(data);
+  }, [data]);
 
   const twoStory = data.twoStory;
   const includeScreens = data.includeScreens;
@@ -128,6 +133,7 @@ export function PresentationEditor({
       }
       const json = (await res.json()) as { presentation: PresentationData };
       setData(json.presentation);
+      cachePresentation(json.presentation);
       return true;
     } catch {
       setError("Could not save. Check your connection and try again.");
@@ -141,6 +147,7 @@ export function PresentationEditor({
     setPresenting(true);
     setError(null);
     try {
+      cachePresentation(data);
       const saved = await save();
       if (!saved) return;
       router.push(`/presentations/${data.id}/present`);

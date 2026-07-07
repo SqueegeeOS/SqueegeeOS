@@ -148,9 +148,21 @@ function newPresentationId(): string {
 }
 
 function logCloudFallback(operation: string, error: unknown): void {
+  const detail = error instanceof Error ? error.message : String(error);
   console.warn(
-    `[presentations] Supabase ${operation} failed — using local store:`,
+    `[presentations] Supabase ${operation} failed — using local store: ${detail}`,
     error,
+  );
+}
+
+function isFullPresentationPayload(
+  patch: Partial<PresentationData>,
+): patch is PresentationData {
+  return (
+    typeof patch.clientName === "string" &&
+    typeof patch.tier === "string" &&
+    typeof patch.homeSqft === "number" &&
+    typeof patch.createdAt === "string"
   );
 }
 
@@ -298,14 +310,27 @@ export async function patchPresentation(
   patch: Partial<PresentationData>,
 ): Promise<PresentationData | null> {
   const existing = await getPresentation(id);
-  if (!existing) return null;
 
-  const merged: PresentationData = {
-    ...existing,
+  if (!existing && !isFullPresentationPayload(patch)) {
+    return null;
+  }
+
+  const base =
+    existing ??
+    createDefaultPresentation({
+      createdBy: patch.createdBy ?? "Team",
+      clientName: patch.clientName,
+      tier: patch.tier,
+      homeSqft: patch.homeSqft,
+      quoteSnapshot: patch.quoteSnapshot ?? null,
+    });
+
+  const merged: PresentationData = normalizePresentation({
+    ...base,
     ...patch,
-    id: existing.id,
-    updatedAt: new Date().toISOString(),
-  };
+    id,
+    createdAt: existing?.createdAt ?? patch.createdAt ?? base.createdAt,
+  });
 
   return savePresentation(merged);
 }
