@@ -2,28 +2,27 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
+import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { markRequestsInboxOpened } from "@/lib/admin/requests-inbox-read-state";
-import {
-  schedulePresentationFromLead,
-  updateLeadIntakeStatusClient,
-} from "@/lib/acquisition/leads/inbox-client";
+import { schedulePresentationFromLead } from "@/lib/acquisition/leads/inbox-client";
 import {
   filterLeads,
   formatLeadIntakeStatus,
-  formatLeadSubmittedAt,
+  formatLeadSubmittedRelative,
   type LeadIntakeFilter,
 } from "@/lib/acquisition/leads/inbox";
 import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
 import { craftEyebrow, craftHeading, craftInput } from "@/lib/craft/tokens";
-import { ROUTES } from "@/lib/navigation/config";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
+import { riseSubtle } from "@/lib/motion/system";
+import { ROUTES } from "@/lib/navigation/config";
 
 const FILTERS: Array<{ id: LeadIntakeFilter; label: string }> = [
   { id: "new", label: "New" },
@@ -33,28 +32,109 @@ const FILTERS: Array<{ id: LeadIntakeFilter; label: string }> = [
   { id: "all", label: "All" },
 ];
 
-function ActionButton({
-  children,
-  onClick,
-  disabled,
-}: {
-  children: ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
+const LOADING_ROW_COUNT = 5;
+
+function RequestsInboxLoadingShell() {
   return (
-    <button
-      type="button"
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onClick();
+    <GlassCard tone="subtle" padding="none" motion="none" className="overflow-hidden">
+      {Array.from({ length: LOADING_ROW_COUNT }, (_, index) => (
+        <div
+          key={index}
+          className="border-b border-border/20 px-5 py-4 last:border-0 sm:px-6"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <ShimmerBlock className="h-5 w-40 max-w-[55%] rounded-full" />
+            <ShimmerBlock className="h-4 w-16 shrink-0 rounded-full" />
+          </div>
+          <ShimmerBlock className="mt-2 h-4 w-full max-w-md rounded-full" />
+        </div>
+      ))}
+      <p className="sr-only">Loading requests…</p>
+    </GlassCard>
+  );
+}
+
+function RequestInboxRow({
+  lead,
+  index,
+  busy,
+  onOpen,
+  onSchedule,
+}: {
+  lead: LeadIntakeRecord;
+  index: number;
+  busy: boolean;
+  onOpen: () => void;
+  onSchedule: () => void;
+}) {
+  const reduceMotion = useReducedMotion();
+  const delay = reduceMotion ? 0 : Math.min(index, 8) * 0.06;
+  const services =
+    lead.servicesInterested.length > 0
+      ? lead.servicesInterested.join(", ")
+      : null;
+  const detailLine = services
+    ? `${lead.serviceAddress} · ${services}`
+    : lead.serviceAddress;
+
+  return (
+    <motion.div
+      initial={reduceMotion ? false : "hidden"}
+      animate="visible"
+      variants={riseSubtle}
+      transition={{ delay }}
+      role="button"
+      tabIndex={0}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
       }}
-      disabled={disabled}
-      className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1 text-[11px] uppercase tracking-[0.14em] text-muted shadow-[var(--shadow-ambient)] backdrop-blur-sm transition-[border-color,color] duration-300 hover:border-accent/25 hover:text-foreground disabled:opacity-40"
+      className="group flex cursor-pointer items-start gap-4 border-b border-border/20 px-5 py-4 transition-colors last:border-0 hover:bg-surface/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/30 sm:px-6"
     >
-      {children}
-    </button>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="truncate font-medium text-foreground">{lead.name}</p>
+          <time
+            dateTime={lead.submittedAt}
+            className="shrink-0 text-xs tabular-nums text-muted"
+          >
+            {formatLeadSubmittedRelative(lead.submittedAt)}
+          </time>
+        </div>
+        <p className="mt-1 truncate text-sm leading-relaxed text-muted">
+          {detailLine}
+        </p>
+      </div>
+
+      <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5">
+        <span
+          className={
+            lead.status === "new"
+              ? "text-xs uppercase tracking-[0.14em] text-accent"
+              : "text-xs uppercase tracking-[0.14em] text-muted"
+          }
+        >
+          {formatLeadIntakeStatus(lead.status)}
+        </span>
+        {lead.status === "new" ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              onSchedule();
+            }}
+            className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-muted shadow-[var(--shadow-ambient)] backdrop-blur-sm transition-[border-color,color,opacity] duration-300 hover:border-accent/25 hover:text-foreground disabled:opacity-40 max-sm:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+          >
+            Schedule presentation
+          </button>
+        ) : null}
+      </div>
+    </motion.div>
   );
 }
 
@@ -105,11 +185,12 @@ export function PendingRequestsInbox() {
     [leads, searchQuery, statusFilter],
   );
 
-  const runAction = useCallback(
-    async (leadId: string, action: () => Promise<void>) => {
-      setActingId(leadId);
+  const runSchedule = useCallback(
+    async (lead: LeadIntakeRecord) => {
+      setActingId(lead.id);
       try {
-        await action();
+        const href = await schedulePresentationFromLead(lead);
+        router.push(href);
         await loadLeads();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Action failed");
@@ -117,7 +198,7 @@ export function PendingRequestsInbox() {
         setActingId(null);
       }
     },
-    [loadLeads],
+    [loadLeads, router],
   );
 
   return (
@@ -164,7 +245,7 @@ export function PendingRequestsInbox() {
         </div>
 
         {loading ? (
-          <p className="text-sm text-muted">Loading…</p>
+          <RequestsInboxLoadingShell />
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
         ) : filteredLeads.length === 0 ? (
@@ -192,120 +273,17 @@ export function PendingRequestsInbox() {
             </p>
           </GlassCard>
         ) : (
-          <GlassCard tone="subtle" motion="rise" padding="none" className="overflow-hidden">
-            <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-border/50 bg-surface/30 text-[10px] uppercase tracking-[0.22em] text-muted">
-                  <th className="px-4 py-3 font-medium">Name</th>
-                  <th className="px-4 py-3 font-medium">Address</th>
-                  <th className="px-4 py-3 font-medium">Phone</th>
-                  <th className="px-4 py-3 font-medium">Email</th>
-                  <th className="px-4 py-3 font-medium">Services Requested</th>
-                  <th className="px-4 py-3 font-medium">Submitted At</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredLeads.map((lead) => {
-                  const busy = actingId === lead.id;
-                  return (
-                    <tr
-                      key={lead.id}
-                      onClick={() =>
-                        router.push(customerWorkspaceHref("lead", lead.id))
-                      }
-                      className="cursor-pointer border-b border-border/30 last:border-0 hover:bg-surface/20"
-                    >
-                      <td className="px-4 py-4 align-top font-medium text-foreground">
-                        <CustomerWorkspaceLink
-                          type="lead"
-                          id={lead.id}
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {lead.name}
-                        </CustomerWorkspaceLink>
-                      </td>
-                      <td className="max-w-[12rem] px-4 py-4 align-top text-muted">
-                        {lead.serviceAddress}
-                      </td>
-                      <td className="px-4 py-4 align-top text-muted">
-                        {lead.phone}
-                      </td>
-                      <td className="px-4 py-4 align-top text-muted">
-                        {lead.email}
-                      </td>
-                      <td className="max-w-[10rem] px-4 py-4 align-top text-muted">
-                        {lead.servicesInterested.join(", ") || "—"}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4 align-top text-muted">
-                        {formatLeadSubmittedAt(lead.submittedAt)}
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <span
-                          className={
-                            lead.status === "new" ? "text-accent" : "text-muted"
-                          }
-                        >
-                          {formatLeadIntakeStatus(lead.status)}
-                        </span>
-                      </td>
-                      <td className="px-4 py-4 align-top">
-                        <div className="flex flex-wrap gap-2">
-                          {lead.status === "new" ? (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() =>
-                                void runAction(lead.id, () =>
-                                  updateLeadIntakeStatusClient(
-                                    lead.id,
-                                    "contacted",
-                                  ).then(() => undefined),
-                                )
-                              }
-                            >
-                              Mark Contacted
-                            </ActionButton>
-                          ) : null}
-                          {lead.status !== "scheduled" &&
-                          lead.status !== "archived" ? (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() =>
-                                void runAction(lead.id, async () => {
-                                  const href =
-                                    await schedulePresentationFromLead(lead);
-                                  router.push(href);
-                                })
-                              }
-                            >
-                              Schedule Presentation
-                            </ActionButton>
-                          ) : null}
-                          {lead.status !== "archived" ? (
-                            <ActionButton
-                              disabled={busy}
-                              onClick={() =>
-                                void runAction(lead.id, () =>
-                                  updateLeadIntakeStatusClient(
-                                    lead.id,
-                                    "archived",
-                                  ).then(() => undefined),
-                                )
-                              }
-                            >
-                              Archive
-                            </ActionButton>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            </div>
+          <GlassCard tone="subtle" padding="none" motion="none" className="overflow-hidden">
+            {filteredLeads.map((lead, index) => (
+              <RequestInboxRow
+                key={lead.id}
+                lead={lead}
+                index={index}
+                busy={actingId === lead.id}
+                onOpen={() => router.push(customerWorkspaceHref("lead", lead.id))}
+                onSchedule={() => void runSchedule(lead)}
+              />
+            ))}
           </GlassCard>
         )}
       </div>
