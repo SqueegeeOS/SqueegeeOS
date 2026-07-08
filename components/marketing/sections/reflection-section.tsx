@@ -1,7 +1,6 @@
 "use client";
 
 import { AmbientLight } from "@/components/craft/ambient-light";
-import { HomepageMediaFrame } from "@/components/marketing/homepage-media-frame";
 import { ScrollReveal } from "@/components/scroll-cinema/scroll-reveal";
 
 export function ReflectionSection() {
@@ -17,14 +16,8 @@ export function ReflectionSection() {
           </p>
         </ScrollReveal>
 
-        <ScrollReveal direction="up" delay={80}>
-          <div className="mt-12">
-            <HomepageMediaFrame />
-          </div>
-        </ScrollReveal>
-
-        <ScrollReveal direction="up" delay={200}>
-          <p className="mt-16 text-center font-serif text-3xl font-light leading-snug text-[#f5f2eb] sm:text-4xl">
+        <ScrollReveal direction="up" delay={120}>
+          <p className="mt-16 text-center font-serif text-3xl font-light leading-snug text-[#f5f2eb] sm:mt-20 sm:text-4xl">
             Every surface. Every season.
             <br />
             <em className="text-accent/90">Without a single call from you.</em>
