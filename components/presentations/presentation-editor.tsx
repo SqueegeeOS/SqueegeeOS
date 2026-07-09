@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
   computePresentationRates,
+  applyTierVisitOverride,
+  tierVisitOverride,
   visitRateFromPresentation,
   withComputedRates,
 } from "@/lib/presentations/calculations";
@@ -45,6 +47,7 @@ export function PresentationEditor({
   );
   const rates = useMemo(() => computePresentationRates(data), [data]);
   const visitRate = visitRateFromPresentation(data);
+  const tierOverride = tierVisitOverride(data, data.tier) ?? 0;
 
   useEffect(() => {
     cachePresentation(data);
@@ -99,11 +102,22 @@ export function PresentationEditor({
       if (field === "homeSqft") {
         return recalculateVisitRate(prev, { [field]: value } as Partial<PresentationData>);
       }
-      const next = { ...prev, [field]: value };
-      if (field === "monthlyRate" || field === "retailValue") {
-        return { ...next, ...withComputedRates(next) };
+      if (field === "monthlyRate") {
+        const patched = {
+          ...prev,
+          ...applyTierVisitOverride(
+            prev,
+            prev.tier,
+            Number.parseFloat(String(value)) || 0,
+          ),
+        };
+        return { ...patched, ...withComputedRates(patched) };
       }
-      return next;
+      if (field === "retailValue") {
+        const patched = { ...prev, retailValue: value as number };
+        return { ...patched, ...withComputedRates(patched) };
+      }
+      return { ...prev, [field]: value };
     });
   };
 
@@ -330,8 +344,14 @@ export function PresentationEditor({
               <EditorTextInput
                 type="number"
                 inputMode="decimal"
-                value={data.monthlyRate > 0 ? String(data.monthlyRate) : ""}
-                placeholder={String(Math.round(rates.visitRate))}
+                value={tierOverride > 0 ? String(tierOverride) : ""}
+                placeholder={String(
+                  Math.round(
+                    data.tier === "biannual"
+                      ? rates.biannualVisit
+                      : rates.quarterlyVisit,
+                  ),
+                )}
                 onChange={(v) =>
                   update("monthlyRate", Number.parseFloat(v) || 0)
                 }

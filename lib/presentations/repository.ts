@@ -1,6 +1,6 @@
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
-import { withComputedRates } from "./calculations";
+import { withComputedRates, normalizeVisitRateOverrides } from "./calculations";
 import type { PresentationQuoteSnapshot } from "./quote-snapshot";
 import { isCarePlanQuoteSnapshot } from "./quote-snapshot";
 import {
@@ -16,7 +16,7 @@ import type {
   SlideOverride,
   SlideType,
 } from "./types";
-import { normalizePresentationTier } from "./types";
+import { normalizePresentationTier, type VisitRateOverrides } from "./types";
 
 interface PresentationRow {
   id: string;
@@ -27,6 +27,8 @@ interface PresentationRow {
   home_sqft: number;
   tier: PresentationTier;
   monthly_rate: number;
+  override_tier: string | null;
+  visit_rate_overrides: VisitRateOverrides | null;
   annual_rate: number;
   retail_value: number;
   custom_notes: string | null;
@@ -51,6 +53,8 @@ function normalizePresentation(data: PresentationData): PresentationData {
     tier: data.tier,
     homeSqft: data.homeSqft,
     monthlyRate: data.monthlyRate,
+    overrideTier: data.overrideTier,
+    visitRateOverrides: data.visitRateOverrides,
     retailValue: data.retailValue,
     twoStory,
     includeScreens,
@@ -121,6 +125,10 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     ...pricingFlags,
     tier: normalizePresentationTier(row.tier),
     monthlyRate: Number(row.monthly_rate),
+    overrideTier: row.override_tier
+      ? normalizePresentationTier(row.override_tier)
+      : null,
+    visitRateOverrides: (row.visit_rate_overrides ?? {}) as VisitRateOverrides,
     annualRate: Number(row.annual_rate),
     retailValue: Number(row.retail_value),
     customNotes: row.custom_notes ?? "",
@@ -147,6 +155,8 @@ function presentationToRow(data: PresentationData): Record<string, unknown> {
     home_sqft: data.homeSqft,
     tier: data.tier,
     monthly_rate: data.monthlyRate,
+    override_tier: data.overrideTier ?? null,
+    visit_rate_overrides: normalizeVisitRateOverrides(data),
     annual_rate: data.annualRate,
     retail_value: data.retailValue,
     custom_notes: data.customNotes || null,
@@ -252,6 +262,7 @@ export function createDefaultPresentation(input?: {
     includeScreens: input?.quoteSnapshot?.includeScreens ?? false,
     tier,
     ...rates,
+    visitRateOverrides: {},
     customNotes: "",
     quoteSnapshot: input?.quoteSnapshot ?? null,
     slideOverrides: {},

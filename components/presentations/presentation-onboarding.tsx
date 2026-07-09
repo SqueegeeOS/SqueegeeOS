@@ -18,6 +18,8 @@ import { portalWelcomePathFromUrl } from "@/lib/pwa/install-welcome";
 import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
   computePresentationRates,
+  legacyOverrideFieldsForTier,
+  normalizeVisitRateOverrides,
   slugifyPresentation,
 } from "@/lib/presentations/calculations";
 import {
@@ -281,6 +283,7 @@ export function PresentationOnboarding({
         throw new Error("Agreement was not saved — please try again.");
       }
 
+      const signedOverrides = normalizeVisitRateOverrides(presentation);
       const signedPresentation: PresentationData = {
         ...presentation,
         status: "signed",
@@ -291,7 +294,8 @@ export function PresentationOnboarding({
         propertyId: signBody.propertyId ?? null,
         onboardingStatus: signBody.onboardingStatus ?? "pending_payment",
         tier,
-        monthlyRate: visitPrice,
+        visitRateOverrides: signedOverrides,
+        ...legacyOverrideFieldsForTier(signedOverrides, tier),
         annualRate: annualTotal,
       };
       syncPresentation(signedPresentation);

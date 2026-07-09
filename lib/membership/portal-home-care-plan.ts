@@ -20,6 +20,9 @@ import {
 } from "@/lib/persistence/supabase/client";
 import { getPresentation } from "@/lib/presentations/repository";
 import {
+  tierVisitPriceForPresentation,
+} from "@/lib/presentations/calculations";
+import {
   firstNameFromFullName,
   parseClientAddress,
 } from "@/lib/presentations/parse-client-address";
@@ -282,9 +285,10 @@ async function backfillPortalHomeCarePlan(
       const visitPrice =
         context.visit_price && context.visit_price > 0
           ? context.visit_price
-          : presentation.monthlyRate > 0
-            ? presentation.monthlyRate
-            : SQUEEGEEKING_TIERS[tier].defaultVisitPrice;
+          : tierVisitPriceForPresentation(
+              { ...presentation, tier },
+              tier,
+            );
 
       plan = buildPortalHomeCarePlanFromPresentation({
         presentation: {

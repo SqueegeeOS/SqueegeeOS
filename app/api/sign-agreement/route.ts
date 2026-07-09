@@ -5,7 +5,7 @@ import {
   SignOnboardingError,
 } from "@/lib/membership/complete-sign-onboarding";
 import { getPresentation } from "@/lib/presentations/repository";
-import { slugifyPresentation } from "@/lib/presentations/calculations";
+import { slugifyPresentation, tierVisitPriceForPresentation } from "@/lib/presentations/calculations";
 import {
   normalizeToSqueegeeKingTier,
   planNameForAgreement,
@@ -18,7 +18,6 @@ import {
 import type { MembershipPlanId } from "@/lib/membership/types";
 import { isCarePlanQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
-import { visitRateFromPresentation } from "@/lib/presentations/calculations";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 
 function tierToPlanId(_tier: string): MembershipPlanId {
@@ -79,7 +78,10 @@ export async function POST(req: NextRequest) {
       planId = planId || tierToPlanId(agreementTier);
       planName =
         planName || planNameForAgreement(normalizeToSqueegeeKingTier(agreementTier));
-      monthlyPrice = monthlyPrice ?? visitRateFromPresentation(presentation);
+      const resolvedAgreementTier = normalizeToSqueegeeKingTier(agreementTier);
+      monthlyPrice =
+        monthlyPrice ??
+        tierVisitPriceForPresentation(presentation, resolvedAgreementTier);
       homeSqft = homeSqft ?? presentation.homeSqft;
       twoStory = twoStory ?? presentation.twoStory;
       includeScreens = includeScreens ?? presentation.includeScreens;
@@ -133,7 +135,9 @@ export async function POST(req: NextRequest) {
       const result = await completeSignOnboarding({
         presentation,
         agreementTier: resolvedTier,
-        visitPrice: visitPrice ?? visitRateFromPresentation(presentation),
+        visitPrice:
+          visitPrice ??
+          tierVisitPriceForPresentation(presentation, resolvedTier),
         signedAt,
         signatureDataUrl,
         planId: planId as MembershipPlanId,

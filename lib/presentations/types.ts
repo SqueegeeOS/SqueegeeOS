@@ -12,6 +12,9 @@ import {
 export type PresentationTier = SqueegeeKingTierId;
 export type PresentationStatus = "draft" | "presented" | "signed";
 
+/** Manual per-visit overrides keyed by membership tier. Omitted or 0 = pricing engine. */
+export type VisitRateOverrides = Partial<Record<PresentationTier, number>>;
+
 export type PresentationOnboardingStatus = "pending_payment" | "complete";
 
 export interface SlideOverride {
@@ -114,8 +117,12 @@ export interface PresentationData {
   twoStory: boolean;
   includeScreens: boolean;
   tier: PresentationTier;
-  /** Per-visit rate (legacy field name) */
+  /** Legacy per-visit override for the tier in `overrideTier` */
   monthlyRate: number;
+  /** Tier `monthlyRate` applies to (legacy rows). */
+  overrideTier?: PresentationTier | null;
+  /** Per-tier manual visit overrides — source of truth for scoped pricing */
+  visitRateOverrides?: VisitRateOverrides;
   annualRate: number;
   retailValue: number;
   customNotes: string;

@@ -33,6 +33,10 @@ import {
 } from "@/lib/presentations/parse-client-address";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import type { PresentationData } from "@/lib/presentations/types";
+import {
+  legacyOverrideFieldsForTier,
+  normalizeVisitRateOverrides,
+} from "@/lib/presentations/calculations";
 
 export interface CompleteSignOnboardingInput {
   presentation: PresentationData;
@@ -324,8 +328,19 @@ export async function completeSignOnboarding(
       membership_id: membershipId,
       onboarding_status: "pending_payment",
       tier: input.agreementTier,
-      monthly_rate: input.visitPrice,
       annual_rate: pricing.annualRate,
+      visit_rate_overrides: normalizeVisitRateOverrides(presentation),
+      ...(() => {
+        const overrides = normalizeVisitRateOverrides(presentation);
+        const legacy = legacyOverrideFieldsForTier(
+          overrides,
+          input.agreementTier,
+        );
+        return {
+          monthly_rate: legacy.monthlyRate,
+          override_tier: legacy.overrideTier,
+        };
+      })(),
     })
     .eq("id", presentation.id);
 

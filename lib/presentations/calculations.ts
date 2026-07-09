@@ -8,56 +8,128 @@ import {
   QUARTERLY_INCLUDED_TREATMENT_ANNUAL,
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
-import type { PresentationData, PresentationInput } from "./types";
+import type {
+  PresentationData,
+  PresentationInput,
+  PresentationTier,
+  VisitRateOverrides,
+} from "./types";
 import { tierCertaintyCopy } from "./tier-benefits";
 
-/** `monthlyRate` > 0 means Noah entered a manual per-visit override. */
+export type PresentationPricingInput = Pick<
+  PresentationData,
+  | "tier"
+  | "homeSqft"
+  | "monthlyRate"
+  | "overrideTier"
+  | "visitRateOverrides"
+> & {
+  retailValue?: number;
+  twoStory?: boolean;
+  includeScreens?: boolean;
+};
+
+/** `monthlyRate` > 0 means a legacy manual override on `overrideTier`. */
 export function hasManualVisitRateOverride(
   monthlyRate: number | undefined | null,
 ): boolean {
   return typeof monthlyRate === "number" && monthlyRate > 0;
 }
 
-/** Customer-facing per-visit price — manual override wins over pricing engine. */
-export function visitRateFromPresentation(
+/** Merge JSON overrides with legacy monthly_rate + override_tier / presentation tier. */
+export function normalizeVisitRateOverrides(
   data: Pick<
     PresentationData,
-    "monthlyRate" | "tier" | "homeSqft" | "twoStory" | "includeScreens"
+    "visitRateOverrides" | "monthlyRate" | "overrideTier" | "tier"
   >,
+): VisitRateOverrides {
+  const overrides: VisitRateOverrides = { ...(data.visitRateOverrides ?? {}) };
+
+  if (hasManualVisitRateOverride(data.monthlyRate)) {
+    const legacyTier = normalizeToSqueegeeKingTier(
+      data.overrideTier ?? data.tier ?? "quarterly",
+    );
+    if (!overrides[legacyTier] || overrides[legacyTier]! <= 0) {
+      overrides[legacyTier] = data.monthlyRate;
+    }
+  }
+
+  return overrides;
+}
+
+export function tierVisitOverride(
+  data: Pick<
+    PresentationData,
+    "visitRateOverrides" | "monthlyRate" | "overrideTier" | "tier"
+  >,
+  targetTier: SqueegeeKingTierId,
+): number | null {
+  const overrides = normalizeVisitRateOverrides(data);
+  const value = overrides[targetTier];
+  return typeof value === "number" && value > 0 ? value : null;
+}
+
+export function applyTierVisitOverride(
+  data: Pick<
+    PresentationData,
+    "visitRateOverrides" | "monthlyRate" | "overrideTier" | "tier"
+  >,
+  tier: PresentationTier,
+  value: number,
+): Pick<PresentationData, "visitRateOverrides" | "monthlyRate" | "overrideTier"> {
+  const scopedTier = normalizeToSqueegeeKingTier(tier);
+  const overrides = normalizeVisitRateOverrides(data);
+
+  if (value > 0) {
+    overrides[scopedTier] = value;
+  } else {
+    delete overrides[scopedTier];
+  }
+
+  const editorTier = normalizeToSqueegeeKingTier(data.tier);
+  const editorOverride = overrides[editorTier] ?? 0;
+
+  return {
+    visitRateOverrides: overrides,
+    monthlyRate: editorOverride,
+    overrideTier: editorOverride > 0 ? editorTier : null,
+  };
+}
+
+export function legacyOverrideFieldsForTier(
+  overrides: VisitRateOverrides,
+  tier: PresentationTier,
+): Pick<PresentationData, "monthlyRate" | "overrideTier"> {
+  const scopedTier = normalizeToSqueegeeKingTier(tier);
+  const value = overrides[scopedTier] ?? 0;
+  return {
+    monthlyRate: value,
+    overrideTier: value > 0 ? scopedTier : null,
+  };
+}
+
+/** Customer-facing per-visit price for the presentation's selected tier. */
+export function visitRateFromPresentation(
+  data: PresentationPricingInput,
 ): number {
   return computePresentationRates(data).visitRate;
 }
 
 export function tierVisitPriceForPresentation(
-  data: Pick<
-    PresentationData,
-    "monthlyRate" | "tier" | "homeSqft" | "twoStory" | "includeScreens"
-  >,
+  data: PresentationPricingInput,
   targetTier: SqueegeeKingTierId,
 ): number {
-  const rates = computePresentationRates({ ...data, tier: targetTier });
+  const rates = computePresentationRates(data);
   return targetTier === "biannual" ? rates.biannualVisit : rates.quarterlyVisit;
 }
 
-export function computePresentationRates(input: {
-  tier: string;
-  homeSqft: number;
-  monthlyRate?: number;
-  retailValue?: number;
-  twoStory?: boolean;
-  includeScreens?: boolean;
-}) {
+export function computePresentationRates(input: PresentationPricingInput) {
   const tier = normalizeToSqueegeeKingTier(input.tier);
   const pricingOpts = {
     twoStory: input.twoStory,
     includeScreens: input.includeScreens,
   };
-  const override = hasManualVisitRateOverride(input.monthlyRate)
-    ? input.monthlyRate!
-    : null;
-
-  const computedForTier = calculateVisitPrice(tier, input.homeSqft, pricingOpts);
-  const visitRate = override ?? computedForTier;
+  const overrides = normalizeVisitRateOverrides(input);
 
   let biannualVisit = calculateVisitPrice("biannual", input.homeSqft, pricingOpts);
   let quarterlyVisit = calculateVisitPrice(
@@ -66,10 +138,17 @@ export function computePresentationRates(input: {
     pricingOpts,
   );
 
-  if (override != null) {
-    if (tier === "biannual") biannualVisit = override;
-    if (tier === "quarterly") quarterlyVisit = override;
+  const biannualOverride = overrides.biannual;
+  const quarterlyOverride = overrides.quarterly;
+  if (biannualOverride && biannualOverride > 0) {
+    biannualVisit = biannualOverride;
   }
+  if (quarterlyOverride && quarterlyOverride > 0) {
+    quarterlyVisit = quarterlyOverride;
+  }
+
+  const visitRate = tier === "biannual" ? biannualVisit : quarterlyVisit;
+  const activeOverride = tier === "biannual" ? biannualOverride : quarterlyOverride;
 
   const annualRate = calculateAnnualFromVisits(tier, visitRate);
   const upgrade = quarterlyUpgradeMath(biannualVisit, quarterlyVisit);
@@ -95,8 +174,7 @@ export function computePresentationRates(input: {
   return {
     tier,
     visitRate,
-    /** Stored override only — 0 means "use pricing engine at display time". */
-    monthlyRate: override ?? 0,
+    monthlyRate: activeOverride && activeOverride > 0 ? activeOverride : 0,
     annualRate,
     retailValue,
     biannualVisit,
@@ -121,18 +199,32 @@ export function withComputedRates(
       twoStory?: boolean;
       includeScreens?: boolean;
     },
-): Pick<PresentationData, "monthlyRate" | "annualRate" | "retailValue"> {
+): Pick<
+  PresentationData,
+  "monthlyRate" | "overrideTier" | "visitRateOverrides" | "annualRate" | "retailValue"
+> {
+  const visitRateOverrides = normalizeVisitRateOverrides({
+    tier: data.tier,
+    monthlyRate: data.monthlyRate ?? 0,
+    overrideTier: data.overrideTier,
+    visitRateOverrides: data.visitRateOverrides,
+  });
   const rates = computePresentationRates({
     tier: data.tier,
     homeSqft: data.homeSqft,
-    monthlyRate: data.monthlyRate,
+    monthlyRate: data.monthlyRate ?? 0,
+    overrideTier: data.overrideTier,
+    visitRateOverrides,
     retailValue: data.retailValue,
     twoStory: data.twoStory,
     includeScreens: data.includeScreens,
   });
+  const legacy = legacyOverrideFieldsForTier(visitRateOverrides, data.tier);
 
   return {
-    monthlyRate: rates.monthlyRate,
+    visitRateOverrides,
+    monthlyRate: legacy.monthlyRate,
+    overrideTier: legacy.overrideTier,
     annualRate: rates.annualRate,
     retailValue: rates.retailValue,
   };
