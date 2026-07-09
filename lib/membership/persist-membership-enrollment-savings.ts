@@ -11,17 +11,57 @@ export async function persistMembershipEnrollmentSavings(
   membershipId: string,
   presentationId: string | null,
 ): Promise<void> {
-  const { data: membership, error: membershipError } = await supabase
+  const full = await supabase
     .from("memberships")
     .select("membership_enrollment_savings, sales_tier, presentation_id")
     .eq("id", membershipId)
     .maybeSingle();
 
-  if (membershipError) {
-    throw new Error(membershipError.message);
+  let membership = full.data;
+  if (full.error) {
+    if (
+      !(
+        full.error.message.includes("does not exist") &&
+        full.error.message.includes("membership_enrollment_savings")
+      )
+    ) {
+      throw new Error(full.error.message);
+    }
+
+    const base = await supabase
+      .from("memberships")
+      .select("sales_tier, presentation_id")
+      .eq("id", membershipId)
+      .maybeSingle();
+    if (base.error) throw new Error(base.error.message);
+    membership = base.data
+      ? { ...base.data, membership_enrollment_savings: null }
+      : null;
   }
 
-  if (!membership || membership.membership_enrollment_savings != null) {
+  if (!membership) {
+    return;
+  }
+
+  return persistMembershipEnrollmentSavingsWithRow(
+    supabase,
+    membershipId,
+    presentationId,
+    membership,
+  );
+}
+
+async function persistMembershipEnrollmentSavingsWithRow(
+  supabase: SupabaseClient,
+  membershipId: string,
+  presentationId: string | null,
+  membership: {
+    membership_enrollment_savings?: number | null;
+    sales_tier: string | null;
+    presentation_id: string | null;
+  },
+): Promise<void> {
+  if (membership.membership_enrollment_savings != null) {
     return;
   }
 
@@ -31,17 +71,41 @@ export async function persistMembershipEnrollmentSavings(
   let enrollmentSavings: number | null = null;
 
   if (resolvedPresentationId) {
-    const { data: presentation } = await supabase
+    const { data: presentation, error: presentationError } = await supabase
       .from("presentations")
       .select("enrollment_savings, tier")
       .eq("id", resolvedPresentationId)
       .maybeSingle();
 
+    if (
+      presentationError &&
+      !(
+        presentationError.message.includes("does not exist") &&
+        presentationError.message.includes("enrollment_savings")
+      )
+    ) {
+      throw new Error(presentationError.message);
+    }
+
     if (presentation) {
       enrollmentSavings = resolveEnrollmentSavings(
-        presentation.enrollment_savings as number | null,
+        presentation.enrollment_savings != null
+          ? Number(presentation.enrollment_savings)
+          : null,
         (presentation.tier as string) ?? "quarterly",
       );
+    } else if (presentationError) {
+      const { data: presentationBase } = await supabase
+        .from("presentations")
+        .select("tier")
+        .eq("id", resolvedPresentationId)
+        .maybeSingle();
+      if (presentationBase) {
+        enrollmentSavings = resolveEnrollmentSavings(
+          null,
+          (presentationBase.tier as string) ?? "quarterly",
+        );
+      }
     }
   }
 

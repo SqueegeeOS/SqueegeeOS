@@ -15,7 +15,7 @@ import { craftEyebrow, craftEyebrowAccent, craftFieldLabel, craftInput, craftTex
 import type { CustomerWorkspace, CustomerWorkspaceRefType } from "@/lib/hq/customer-workspace/types";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { ROUTES } from "@/lib/navigation/config";
-import { formatTierPrice } from "@/lib/membership/tier-config";
+import { formatTierPrice, normalizeToSqueegeeKingTier, squeegeeKingTierLabel } from "@/lib/membership/tier-config";
 
 function Section({
   title,
@@ -448,6 +448,16 @@ export function CustomerWorkspacePage({
                         value={formatTierPrice(workspace.membership.visitPrice)}
                       />
                     ) : null}
+                    {workspace.membership.salesTier ? (
+                      <Field
+                        label="Tier"
+                        value={squeegeeKingTierLabel(
+                          normalizeToSqueegeeKingTier(
+                            workspace.membership.salesTier,
+                          ),
+                        )}
+                      />
+                    ) : null}
                     {workspace.paymentHeadline ? (
                       <Field label="Payment" value={workspace.paymentHeadline} />
                     ) : null}
@@ -475,7 +485,6 @@ export function CustomerWorkspacePage({
                 {workspace.presentation ? (
                   <>
                     <Field label="Presentation" value={workspace.presentation.status} />
-                    <Field label="Tier" value={workspace.presentation.tier} />
                     <div className="flex flex-wrap gap-2 pt-1">
                       <Link
                         href={workspace.presentation.editHref}

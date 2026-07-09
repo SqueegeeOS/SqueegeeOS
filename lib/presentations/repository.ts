@@ -230,20 +230,40 @@ async function getFromSupabase(id: string): Promise<PresentationData | null> {
 
 async function saveToSupabase(data: PresentationData): Promise<PresentationData> {
   const supabase = createServerSupabaseClient();
-  const { data: row, error } = await supabase
+  const row = {
+    id: data.id,
+    ...presentationToRow(data),
+  };
+
+  const attempt = await supabase
     .from("presentations")
-    .upsert(
-      {
-        id: data.id,
-        ...presentationToRow(data),
-      },
-      { onConflict: "id" },
-    )
+    .upsert(row, { onConflict: "id" })
     .select("*")
     .single();
 
-  if (error) throw new Error(error.message);
-  return rowToPresentation(row as PresentationRow);
+  if (!attempt.error) {
+    return rowToPresentation(attempt.data as PresentationRow);
+  }
+
+  if (
+    isMissingColumnError(attempt.error.message, "enrollment_savings") &&
+    "enrollment_savings" in row
+  ) {
+    const { enrollment_savings: _removed, ...rowWithoutEnrollment } = row;
+    const retry = await supabase
+      .from("presentations")
+      .upsert(rowWithoutEnrollment, { onConflict: "id" })
+      .select("*")
+      .single();
+    if (retry.error) throw new Error(retry.error.message);
+    return rowToPresentation(retry.data as PresentationRow);
+  }
+
+  throw new Error(attempt.error.message);
+}
+
+function isMissingColumnError(message: string, column: string): boolean {
+  return message.includes(column) && message.includes("does not exist");
 }
 
 export function createDefaultPresentation(input?: {

@@ -149,10 +149,20 @@ export function buildPortalCareRecordView(
     : `${data.property.address}, ${data.property.city}`;
 
   const salesTierSource =
-    portalData?.salesTier ?? portalData?.membershipPlanName ?? data.property.membershipRecommendation ?? "quarterly";
-  const tierId = normalizeToSqueegeeKingTier(salesTierSource);
+    portalData?.salesTier ??
+    portalData?.agreement?.planName ??
+    portalData?.membershipPlanName ??
+    data.memberships.find((tier) => tier.highlighted)?.id ??
+    data.memberships[0]?.id ??
+    data.property.membershipRecommendation ??
+    null;
+  const tierId = normalizeToSqueegeeKingTier(salesTierSource ?? "quarterly");
   const tierDef = SQUEEGEEKING_TIERS[tierId];
-  const cadence = inferMembershipCadence(portalData?.membershipPlanName ?? tierDef.label);
+  const cadence = inferMembershipCadence(
+    portalData?.agreement?.planName ??
+      portalData?.membershipPlanName ??
+      tierDef.label,
+  );
 
   const visitPrice =
     portalData?.visitPrice && portalData.visitPrice > 0

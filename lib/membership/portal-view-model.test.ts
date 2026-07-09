@@ -214,4 +214,54 @@ describe("buildPortalCareRecordView", () => {
     expect(view.completedVisitCount).toBe(1);
     expect(view.membershipSavingsTotal).toBe(100);
   });
+
+  it("uses agreement plan name when sales tier is unavailable", () => {
+    const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      profile: {
+        id: "p1",
+        firstName: "Sylvia",
+        lastName: "Siegel",
+        email: null,
+        phone: null,
+        memberSince: "2026-07-09T00:00:00Z",
+        membershipTier: "premium",
+        membershipStatus: "active",
+        totalSaved: 0,
+        savingsHistory: [],
+        nextAppointment: null,
+        appointmentHistory: [],
+        propertyId: "prop1",
+      },
+      property: canyonOaksHomeCarePlan.property as never,
+      propertyName: "366 Brookside Drive",
+      appointments: [],
+      nextAppointment: null,
+      ytdSavings: { savings: 0, retail: 0, paid: 0 },
+      lifetimeSavings: { savings: 0, retail: 0, paid: 0, entries: [] },
+      observations: [],
+      membershipPlanName: "Preferred Care",
+      monthlyRate: 300,
+      memberSince: "2026-07-09T00:00:00Z",
+      foundingMember: true,
+      foundingMemberSince: "2026-07-09T00:00:00Z",
+      salesTier: null,
+      visitPrice: 300,
+      visitsPerYear: 2,
+      membershipStatus: "active",
+      paymentSetupCompletedAt: "2026-07-09T18:00:36.884+00:00",
+      agreement: {
+        planName: "SqueegeeKing Bi-Annual Home Care Membership",
+        signedAt: "2026-07-09T17:58:43.35+00:00",
+        pdfUrl: null,
+      },
+      presentationId: "pres-1",
+      membershipId: "mem-1",
+      paymentMethodLabel: "Visa ···· 4242",
+      membershipEnrollmentSavings: null,
+    });
+
+    expect(view.tierMemberLabel).toBe("Bi-Annual Member");
+    expect(view.membershipTierCareLabel).toBe("Bi-Annual Care");
+    expect(view.paymentOnFile).toBe(true);
+  });
 });

@@ -195,9 +195,15 @@ export function normalizeToSqueegeeKingTier(tier: string): SqueegeeKingTierId {
     n === "bi-annual" ||
     n === "bi_annual" ||
     n === "essential" ||
-    n === "one-time"
+    n === "one-time" ||
+    n.includes("bi-annual") ||
+    n.includes("biannual") ||
+    n.includes("bi annual")
   ) {
     return "biannual";
+  }
+  if (n.includes("quarter")) {
+    return "quarterly";
   }
   return "quarterly";
 }

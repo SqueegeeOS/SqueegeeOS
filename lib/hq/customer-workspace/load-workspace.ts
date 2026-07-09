@@ -4,6 +4,7 @@ import { listClosedJobsFromSupabase } from "@/lib/admin/closed-jobs-server";
 import type { ClosedJob } from "@/lib/admin/closed-jobs-types";
 import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
 import { resolvePortalPaymentState } from "@/lib/membership/portal-payment-state";
+import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
@@ -163,7 +164,7 @@ async function loadPropertyWorkspace(
       supabase
         .from("memberships")
         .select(
-          "id, status, plan_name, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, started_at, founding_member, presentation_id, agreement_id",
+          "id, status, plan_name, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, started_at, founding_member, presentation_id, agreement_id, stripe_payment_method_id",
         )
         .eq("property_id", propertyId)
         .maybeSingle(),
@@ -239,14 +240,20 @@ async function loadPropertyWorkspace(
     ? await resolveAgreementPdfAccessUrl(agreement.agreement_pdf_url as string)
     : null;
 
+  const paymentMethodLabel =
+    membership?.payment_setup_completed_at &&
+    membership?.stripe_payment_method_id
+      ? await resolvePortalPaymentMethodLabel(
+          membership.stripe_payment_method_id as string,
+        )
+      : null;
+
   const paymentState = membership
     ? resolvePortalPaymentState({
         membershipStatus: membership.status as string,
         paymentSetupCompletedAt:
           (membership.payment_setup_completed_at as string | null) ?? null,
-        paymentMethodLabel: membership.payment_setup_completed_at
-          ? "Payment method on file"
-          : null,
+        paymentMethodLabel,
         hasMembership: true,
       })
     : null;

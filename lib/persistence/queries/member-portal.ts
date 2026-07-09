@@ -8,6 +8,7 @@ import type {
   PersistedMemberProfile,
   PersistedMemberSavingsTransaction,
 } from "@/lib/persistence/types/member-profile";
+import type { MembershipTier } from "@/lib/persistence/types/member-profile";
 import type { PropertyDetailsRecord } from "@/lib/persistence/types/property-intelligence";
 import type {
   MemberAppointmentSummary,
@@ -16,6 +17,8 @@ import type {
   PropertyRecord,
 } from "@/lib/member-intelligence/types";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
+import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
+import { loadMembershipPortalRow } from "@/lib/persistence/queries/load-membership-portal-row";
 
 export interface ServiceObservationView {
   id: string;
@@ -112,6 +115,14 @@ interface MembershipRow {
   presentation_id: string | null;
   stripe_payment_method_id: string | null;
   membership_enrollment_savings: number | null;
+}
+
+function membershipTierFromSalesTier(
+  salesTier: string | null | undefined,
+): MembershipTier {
+  return normalizeToSqueegeeKingTier(salesTier ?? "quarterly") === "biannual"
+    ? "standard"
+    : "premium";
 }
 
 interface SignedAgreementRow {
@@ -221,7 +232,7 @@ function buildMemberProfileFromHomeowner(
     email: homeowner.email,
     phone: homeowner.phone,
     memberSince: membership?.started_at ?? null,
-    membershipTier: "premium",
+    membershipTier: membershipTierFromSalesTier(membership?.sales_tier),
     membershipStatus:
       membership?.status === "active"
         ? "active"
@@ -326,15 +337,7 @@ export async function getMemberPortalDataBySlugs(
 
   const propertyRow = property as PropertyRow;
 
-  const { data: membership } = await supabase
-    .from("memberships")
-    .select(
-      "id, plan_name, price_display, started_at, status, founding_member, founding_member_since, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, presentation_id, stripe_payment_method_id, membership_enrollment_savings",
-    )
-    .eq("property_id", propertyRow.id)
-    .maybeSingle();
-
-  const membershipRow = (membership as MembershipRow | null) ?? null;
+  const membershipRow = await loadMembershipPortalRow(supabase, propertyRow.id);
 
   const { data: profileRow, error: profileError } = await supabase
     .from("member_profiles")
