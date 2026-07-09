@@ -12,6 +12,7 @@ import type {
   StripePaymentStatus,
 } from "@/lib/admin/billing-workspace-types";
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
+import { RecordManualChargeModal } from "@/components/admin/record-manual-charge-modal";
 import { craftEyebrow, craftTableHead } from "@/lib/craft/tokens";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 
@@ -123,9 +124,11 @@ function RowAction({
 function BillingRegisterRowActions({
   row,
   stripeDashboardLive,
+  onRecordCharge,
 }: {
   row: BillingRegisterRow;
   stripeDashboardLive: boolean;
+  onRecordCharge: (row: BillingRegisterRow) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -174,6 +177,11 @@ function BillingRegisterRowActions({
         label="View property"
         href={customerWorkspaceHref("property", row.propertyId)}
       />
+      <RowAction
+        label="Record manual charge"
+        onClick={() => onRecordCharge(row)}
+        disabled={!row.canRecordCharge}
+      />
       {row.chargeAction === "manual_charge" ? (
         <RowAction
           label="Manual charge"
@@ -189,10 +197,16 @@ function BillingRegisterRowActions({
 export function BillingRegisterTable({
   rows,
   stripeDashboardLive,
+  onRecorded,
 }: {
   rows: BillingRegisterRow[];
   stripeDashboardLive: boolean;
+  onRecorded: () => void;
 }) {
+  const [recordingRow, setRecordingRow] = useState<BillingRegisterRow | null>(
+    null,
+  );
+
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted">
@@ -204,6 +218,13 @@ export function BillingRegisterTable({
 
   return (
     <div className="space-y-4">
+      {recordingRow ? (
+        <RecordManualChargeModal
+          row={recordingRow}
+          onClose={() => setRecordingRow(null)}
+          onRecorded={onRecorded}
+        />
+      ) : null}
       <p className={craftEyebrow}>
         {rows.length} membership{rows.length === 1 ? "" : "s"}
       </p>
@@ -267,6 +288,7 @@ export function BillingRegisterTable({
                   <BillingRegisterRowActions
                     row={row}
                     stripeDashboardLive={stripeDashboardLive}
+                    onRecordCharge={setRecordingRow}
                   />
                 </td>
               </tr>

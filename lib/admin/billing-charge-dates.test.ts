@@ -34,6 +34,18 @@ describe("resolveNextChargeDate", () => {
     );
     expect(next).toBe("2026-10-01");
   });
+
+  it("skips paid service months", () => {
+    const next = resolveNextChargeDate(
+      [
+        { targetWindowStart: "2026-07-10", status: "promised" },
+        { targetWindowStart: "2026-10-05", status: "promised" },
+      ],
+      new Date("2026-07-09T12:00:00.000Z"),
+      ["2026-07-01"],
+    );
+    expect(next).toBe("2026-10-01");
+  });
 });
 
 describe("deriveBillingStatus", () => {

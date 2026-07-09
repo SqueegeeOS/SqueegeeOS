@@ -84,8 +84,8 @@ function BillingWorkspaceContent() {
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-[1.65] text-muted">
             Operational dashboard for collecting visit payments on the 1st of
-            each service month. Charges run manually in Stripe today — this
-            workspace prepares HomeAtlas for saved-card billing later.
+            each service month. Charge in Stripe, then record the payment here
+            so HomeAtlas stays the source of truth.
           </p>
         </MotionReveal>
 
@@ -118,6 +118,7 @@ function BillingWorkspaceContent() {
               <BillingRegisterTable
                 rows={data.rows}
                 stripeDashboardLive={data.stripeDashboardLive}
+                onRecorded={() => void loadWorkspace()}
               />
             </GlassCard>
           </div>

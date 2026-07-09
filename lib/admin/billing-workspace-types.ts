@@ -32,6 +32,9 @@ export interface BillingRegisterRow {
   stripeCustomerId: string | null;
   nextChargeDate: string | null;
   lastChargeDate: string | null;
+  billingPeriod: string | null;
+  periodAlreadyPaid: boolean;
+  canRecordCharge: boolean;
   billingStatus: BillingStatus;
   agreementId: string | null;
   agreementPdfUrl: string | null;

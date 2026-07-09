@@ -4,6 +4,7 @@ import {
   resolveLastChargeDate,
   resolveNextChargeDate,
 } from "@/lib/admin/billing-charge-dates";
+import { isPaidBillingStatus } from "@/lib/admin/billing-ledger";
 import type {
   BillingRegisterRow,
   BillingStatus,
@@ -58,9 +59,10 @@ interface ObligationBillingRow {
 interface ChargeBillingRow {
   membership_id: string;
   service_month: string;
-  status: "charged" | "failed" | "pending";
+  status: string;
   charged_at: string | null;
   amount: number;
+  amount_collected: number | null;
 }
 
 interface AgreementBillingRow {
@@ -95,12 +97,25 @@ function formatPropertyLabel(property: PropertyBillingRow): string {
     .join(" · ");
 }
 
-function buildOverview(rows: BillingRegisterRow[]): BillingWorkspaceOverview {
-  const referenceYm = new Date().toISOString().slice(0, 7);
+function buildOverview(
+  rows: BillingRegisterRow[],
+  allCharges: ChargeBillingRow[],
+  referenceDate: Date,
+): BillingWorkspaceOverview {
+  const referenceYm = referenceDate.toISOString().slice(0, 7);
   let expectedRevenueThisMonth = 0;
   let collectedThisMonth = 0;
   let readyToBillCount = 0;
   let upcomingChargesCount = 0;
+
+  for (const charge of allCharges) {
+    if (!isPaidBillingStatus(charge.status)) continue;
+    const chargedYm =
+      charge.charged_at?.slice(0, 7) ?? charge.service_month.slice(0, 7);
+    if (chargedYm === referenceYm) {
+      collectedThisMonth += Number(charge.amount_collected ?? charge.amount);
+    }
+  }
 
   for (const row of rows) {
     if (row.billingStatus === "ready_to_charge") {
@@ -111,15 +126,6 @@ function buildOverview(rows: BillingRegisterRow[]): BillingWorkspaceOverview {
     }
     if (row.billingStatus === "upcoming") {
       upcomingChargesCount += 1;
-    }
-    if (
-      row.lastChargeDate &&
-      row.lastChargeDate.startsWith(referenceYm) &&
-      row.billingStatus === "charged"
-    ) {
-      if (row.visitPrice != null) {
-        collectedThisMonth += row.visitPrice;
-      }
     }
   }
 
@@ -203,7 +209,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       .order("target_window_start", { ascending: true }),
     supabase
       .from("membership_billing_charges")
-      .select("membership_id, service_month, status, charged_at, amount")
+      .select(
+        "membership_id, service_month, status, charged_at, amount, amount_collected",
+      )
       .in("membership_id", membershipIds)
       .order("service_month", { ascending: false }),
     agreementIds.length > 0
@@ -257,6 +265,10 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     ]),
   );
 
+  const allCharges: ChargeBillingRow[] = chargesAvailable
+    ? ((chargesRes.data ?? []) as ChargeBillingRow[])
+    : [];
+
   const referenceDate = new Date();
   const referenceYm = referenceDate.toISOString().slice(0, 7);
 
@@ -273,40 +285,56 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       targetWindowStart: row.target_window_start,
       status: row.status,
     }));
+    const paidServiceMonths = charges
+      .filter((row) => isPaidBillingStatus(row.status))
+      .map((row) => row.service_month);
     const chargeInputs = charges.map((row) => ({
       serviceMonth: row.service_month,
-      status: row.status,
+      status: row.status as "paid" | "charged" | "failed" | "pending",
       chargedAt: row.charged_at,
     }));
-    const nextChargeDate = resolveNextChargeDate(
+    const billingPeriod = resolveNextChargeDate(
       obligationInputs,
       referenceDate,
+      paidServiceMonths,
     );
+    const nextChargeDate = billingPeriod;
     const lastChargeDate = resolveLastChargeDate(chargeInputs);
     const paymentOnFile = Boolean(membership.payment_setup_completed_at);
     const membershipActive = membership.status === "active";
 
-    const serviceMonthKey = nextChargeDate
-      ? `${nextChargeDate.slice(0, 7)}-01`
+    const serviceMonthKey = billingPeriod
+      ? `${billingPeriod.slice(0, 7)}-01`
       : null;
-    const latestChargeForMonth = serviceMonthKey
-      ? (charges.find((row) => row.service_month.startsWith(serviceMonthKey.slice(0, 7)))
-          ?.status ?? null)
+    const periodCharge = serviceMonthKey
+      ? charges.find((row) =>
+          row.service_month.startsWith(serviceMonthKey.slice(0, 7)),
+        )
       : null;
+    const periodAlreadyPaid = periodCharge
+      ? isPaidBillingStatus(periodCharge.status)
+      : false;
+    const latestChargeForMonth = periodCharge?.status ?? null;
 
     let billingStatus: BillingStatus = deriveBillingStatus({
       membershipActive,
       paymentOnFile,
       nextChargeDate,
-      latestChargeStatus: latestChargeForMonth,
+      latestChargeStatus: latestChargeForMonth as
+        | "paid"
+        | "charged"
+        | "failed"
+        | "pending"
+        | null,
       referenceDate,
     });
 
-    const chargedThisMonth = charges.find(
-      (row) =>
-        row.status === "charged" &&
-        row.service_month.startsWith(referenceYm),
-    );
+    const chargedThisMonth = charges.find((row) => {
+      if (!isPaidBillingStatus(row.status)) return false;
+      const chargedYm =
+        row.charged_at?.slice(0, 7) ?? row.service_month.slice(0, 7);
+      return chargedYm === referenceYm;
+    });
     if (chargedThisMonth) {
       billingStatus = "charged";
     }
@@ -340,6 +368,13 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       stripeCustomerId: membership.stripe_customer_id,
       nextChargeDate,
       lastChargeDate,
+      billingPeriod,
+      periodAlreadyPaid,
+      canRecordCharge:
+        membershipActive &&
+        paymentOnFile &&
+        !periodAlreadyPaid &&
+        (billingStatus === "ready_to_charge" || billingStatus === "failed"),
       billingStatus,
       agreementId: membership.agreement_id,
       agreementPdfUrl,
@@ -364,7 +399,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   });
 
   return {
-    overview: buildOverview(rows),
+    overview: buildOverview(rows, allCharges, referenceDate),
     rows,
     loadedAt,
     stripeDashboardLive,

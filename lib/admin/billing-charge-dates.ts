@@ -7,7 +7,7 @@ export interface BillingObligationInput {
 
 export interface BillingChargeRecordInput {
   serviceMonth: string;
-  status: "charged" | "failed" | "pending";
+  status: "paid" | "charged" | "failed" | "pending";
   chargedAt: string | null;
 }
 
@@ -28,10 +28,16 @@ function yearMonthFromIsoDate(isoDate: string): string {
   return isoDate.slice(0, 7);
 }
 
+function paidServiceMonthSet(paidServiceMonths: string[]): Set<string> {
+  return new Set(paidServiceMonths.map((month) => month.slice(0, 7)));
+}
+
 export function resolveNextChargeDate(
   obligations: BillingObligationInput[],
   referenceDate = new Date(),
+  paidServiceMonths: string[] = [],
 ): string | null {
+  const paidMonths = paidServiceMonthSet(paidServiceMonths);
   const open = obligations
     .filter(
       (row) =>
@@ -46,20 +52,40 @@ export function resolveNextChargeDate(
 
   for (const obligation of open) {
     const chargeDate = chargeDateForServiceWindow(obligation.targetWindowStart);
+    if (paidMonths.has(chargeDate.slice(0, 7))) continue;
     if (chargeDate >= today || yearMonthFromIsoDate(chargeDate) >= todayYm) {
       return chargeDate;
     }
   }
 
-  const last = open[open.length - 1];
-  return chargeDateForServiceWindow(last.targetWindowStart);
+  for (const obligation of open) {
+    const chargeDate = chargeDateForServiceWindow(obligation.targetWindowStart);
+    if (!paidMonths.has(chargeDate.slice(0, 7))) {
+      return chargeDate;
+    }
+  }
+
+  return null;
+}
+
+export function resolveCurrentBillingPeriod(
+  obligations: BillingObligationInput[],
+  paidServiceMonths: string[] = [],
+  referenceDate = new Date(),
+): string | null {
+  return resolveNextChargeDate(obligations, referenceDate, paidServiceMonths);
 }
 
 export function resolveLastChargeDate(
   charges: BillingChargeRecordInput[],
 ): string | null {
   const completed = charges
-    .filter((row) => row.status === "charged" || row.status === "failed")
+    .filter(
+      (row) =>
+        row.status === "paid" ||
+        row.status === "charged" ||
+        row.status === "failed",
+    )
     .sort((a, b) => {
       const aTime = a.chargedAt ?? a.serviceMonth;
       const bTime = b.chargedAt ?? b.serviceMonth;
@@ -75,7 +101,7 @@ export function deriveBillingStatus(input: {
   membershipActive: boolean;
   paymentOnFile: boolean;
   nextChargeDate: string | null;
-  latestChargeStatus: "charged" | "failed" | "pending" | null;
+  latestChargeStatus: "paid" | "charged" | "failed" | "pending" | null;
   referenceDate?: Date;
 }): BillingStatus {
   if (!input.membershipActive || !input.paymentOnFile) {
@@ -86,7 +112,11 @@ export function deriveBillingStatus(input: {
     return "failed";
   }
 
-  if (input.latestChargeStatus === "charged" && input.nextChargeDate) {
+  const periodPaid =
+    input.latestChargeStatus === "paid" ||
+    input.latestChargeStatus === "charged";
+
+  if (periodPaid && input.nextChargeDate) {
     const ref = input.referenceDate ?? new Date();
     const currentYm = currentYearMonth(ref);
     const nextYm = yearMonthFromIsoDate(input.nextChargeDate);

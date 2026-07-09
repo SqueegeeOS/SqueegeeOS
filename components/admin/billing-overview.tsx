@@ -23,7 +23,7 @@ export function BillingOverview({
     {
       label: "Collected this month",
       value: formatCurrency(overview.collectedThisMonth),
-      note: "Manual — log in Stripe for now",
+      note: "From recorded ledger entries",
     },
     {
       label: "Upcoming charges",

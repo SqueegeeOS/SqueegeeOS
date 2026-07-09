@@ -182,12 +182,22 @@ create index if not exists website_membership_sales_sold_at_idx
 create table if not exists membership_billing_charges (
   id uuid primary key default gen_random_uuid(),
   membership_id uuid not null references memberships(id) on delete cascade,
+  homeowner_id uuid references homeowners(id) on delete cascade,
+  property_id uuid references properties(id) on delete cascade,
   service_month date not null,
+  visit_price numeric(10, 2) check (visit_price is null or visit_price >= 0),
   amount numeric(10, 2) not null check (amount >= 0),
-  status text not null check (status in ('charged', 'failed', 'pending')),
+  amount_collected numeric(10, 2) check (amount_collected is null or amount_collected >= 0),
+  status text not null check (status in ('paid', 'charged', 'failed', 'pending')),
   charged_at timestamptz,
+  billing_method text check (
+    billing_method is null
+    or billing_method in ('manual_stripe', 'automatic_stripe')
+  ),
+  stripe_reference text,
   stripe_payment_intent_id text,
   notes text not null default '',
+  created_by text not null default '',
   created_at timestamptz not null default now(),
   unique (membership_id, service_month)
 );
