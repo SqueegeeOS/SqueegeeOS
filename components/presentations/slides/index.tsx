@@ -98,11 +98,16 @@ export function InvestmentSlide({ presentation, overrides }: SlideComponentProps
         <Eyebrow>{overrides?.headline ?? "Your plan"}</Eyebrow>
         <HeroText>Simple. Transparent.</HeroText>
         <div className="mt-10 grid gap-5 sm:grid-cols-2">
-          <PricingColumn tier="biannual" visitPrice={rates.biannualVisit} />
+          <PricingColumn
+            tier="biannual"
+            visitPrice={rates.biannualVisit}
+            yearlySavings={rates.biannualYearlyWindowSavings}
+          />
           <PricingColumn
             tier="quarterly"
             visitPrice={rates.quarterlyVisit}
             highlighted
+            yearlySavings={rates.quarterlyYearlyWindowSavings}
           />
         </div>
 

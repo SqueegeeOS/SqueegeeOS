@@ -221,6 +221,35 @@ export function calculateAnnualFromVisits(
   return visitPrice * SQUEEGEEKING_TIERS[tier].visitsPerYear;
 }
 
+/** Premium on member visit price when comparing to one-time cleaning (sales law). */
+export const BIANNUAL_VS_ONETIME_PREMIUM = 100;
+export const QUARTERLY_VS_ONETIME_PREMIUM = 150;
+
+export function memberVsOneTimePremium(tier: SqueegeeKingTierId): number {
+  return tier === "quarterly"
+    ? QUARTERLY_VS_ONETIME_PREMIUM
+    : BIANNUAL_VS_ONETIME_PREMIUM;
+}
+
+export function oneTimeRetailPerVisit(
+  memberVisitPrice: number,
+  tier: SqueegeeKingTierId,
+): number {
+  return memberVisitPrice + memberVsOneTimePremium(tier);
+}
+
+/** Annual window-care savings vs buying the same visits at one-time rates. */
+export function memberYearlyWindowSavings(
+  memberVisitPrice: number,
+  tier: SqueegeeKingTierId,
+): number {
+  const visits = SQUEEGEEKING_TIERS[tier].visitsPerYear;
+  const retailAnnual =
+    oneTimeRetailPerVisit(memberVisitPrice, tier) * visits;
+  const memberAnnual = calculateAnnualFromVisits(tier, memberVisitPrice);
+  return retailAnnual - memberAnnual;
+}
+
 export function quarterlyUpgradeMath(
   biannualVisitPrice: number,
   quarterlyVisitPrice: number,

@@ -1,10 +1,13 @@
 import {
   HARDWATER_RETAIL_VALUE,
+  memberVsOneTimePremium,
+  memberYearlyWindowSavings,
+  oneTimeRetailPerVisit,
   RAINBLOCK_RETAIL_VALUE,
   SQUEEGEEKING_TIERS,
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
-import { calculateWindowCarePricing } from "@/lib/pricing/window-care-pricing";
+import { calculateInteriorExteriorPrice, calculateWindowCarePricing } from "@/lib/pricing/window-care-pricing";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { careFrequencyToPresentationTier } from "@/lib/presentations/quote-snapshot";
 
@@ -150,21 +153,20 @@ export function buildAgreementPricingSnapshot(
   });
 
   const visitsPerYear = pricing.annualVisits;
-  const retailPerVisit = ctx.includeInterior
-    ? pricing.interiorExteriorOneTimePrice
-    : pricing.exteriorOneTimePrice;
-  const engineMembershipPerVisit = ctx.includeInterior
-    ? pricing.interiorExteriorMemberPrice
-    : pricing.exteriorMemberPrice;
 
-  const membershipPerVisit =
+  const exteriorMembershipPerVisit =
     input.visitPrice && input.visitPrice > 0
       ? input.visitPrice
       : ctx.snapshotVisitPrice && ctx.snapshotTier === input.tier
         ? ctx.snapshotVisitPrice
-        : engineMembershipPerVisit;
+        : pricing.exteriorMemberPrice;
+
+  const membershipPerVisit = ctx.includeInterior
+    ? calculateInteriorExteriorPrice(exteriorMembershipPerVisit)
+    : exteriorMembershipPerVisit;
 
   const membershipAnnual = membershipPerVisit * visitsPerYear;
+  const retailPerVisit = oneTimeRetailPerVisit(membershipPerVisit, input.tier);
   const windowRetailAnnual = retailPerVisit * visitsPerYear;
   const membershipRow = buildMathRow("Membership", membershipPerVisit, visitsPerYear);
 
@@ -195,7 +197,7 @@ export function buildAgreementPricingSnapshot(
     };
   }
 
-  const youSave = Math.max(0, windowRetailAnnual - membershipAnnual);
+  const youSave = memberYearlyWindowSavings(membershipPerVisit, "biannual");
   const visitLabel =
     visitsPerYear === 1 ? "1 One-Time Visit" : `${visitsPerYear} One-Time Visits`;
 

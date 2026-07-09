@@ -134,4 +134,24 @@ describe("manual per-visit override precedence", () => {
       }).quarterlyVisit,
     ).toBe(300);
   });
+
+  it("computes yearly savings from member visit + tier one-time premium", () => {
+    const biannual = computePresentationRates({
+      tier: "biannual",
+      homeSqft: SQFT,
+      monthlyRate: 300,
+    });
+    expect(biannual.yearlyWindowSavings).toBe(200);
+    expect(biannual.oneTimePerVisit).toBe(400);
+    expect(biannual.biannualYearlyWindowSavings).toBe(200);
+
+    const quarterly = computePresentationRates({
+      tier: "quarterly",
+      homeSqft: SQFT,
+      monthlyRate: 300,
+    });
+    expect(quarterly.yearlyWindowSavings).toBe(600);
+    expect(quarterly.oneTimePerVisit).toBe(450);
+    expect(quarterly.quarterlyYearlyWindowSavings).toBe(600);
+  });
 });

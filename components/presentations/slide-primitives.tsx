@@ -116,10 +116,12 @@ export function PricingColumn({
   tier,
   visitPrice,
   highlighted = false,
+  yearlySavings,
 }: {
   tier: SqueegeeKingTierId;
   visitPrice: number;
   highlighted?: boolean;
+  yearlySavings?: number;
 }) {
   const def = SQUEEGEEKING_TIERS[tier];
   const annualTotal = visitPrice * def.visitsPerYear;
@@ -147,6 +149,15 @@ export function PricingColumn({
       <p className="mt-6 text-xs tracking-wide text-white/45 tabular-nums">
         {def.visitsPerYear} visits · {formatTierPrice(annualTotal)}/year
       </p>
+      {yearlySavings != null && yearlySavings > 0 ? (
+        <p
+          className={`mt-3 text-xs ${
+            highlighted ? "text-accent/85" : "text-white/50"
+          }`}
+        >
+          Save {formatTierPrice(yearlySavings)}/yr vs one-time
+        </p>
+      ) : null}
       <p
         className={`mt-4 text-sm ${
           highlighted ? "font-medium text-accent" : "text-white/60"
@@ -212,6 +223,14 @@ export function BreakdownCard({ presentation }: { presentation: PresentationData
         <div className="flex justify-between gap-4">
           <dt className="text-white/40">Annual total</dt>
           <dd>{formatTierPrice(rates.annualRate)}</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt className="text-white/40">One-time equivalent</dt>
+          <dd>{formatTierPrice(rates.oneTimePerVisit)}/visit</dd>
+        </div>
+        <div className="flex justify-between gap-4">
+          <dt className="text-white/40">Yearly savings vs one-time</dt>
+          <dd>{formatTierPrice(rates.yearlyWindowSavings)}/yr</dd>
         </div>
         {selected === "quarterly" && (
           <div className="flex justify-between gap-4">

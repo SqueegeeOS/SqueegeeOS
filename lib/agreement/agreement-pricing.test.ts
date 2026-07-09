@@ -8,8 +8,6 @@ import {
   QUARTERLY_INCLUDED_TREATMENT_ANNUAL,
   RAINBLOCK_RETAIL_VALUE,
 } from "@/lib/membership/tier-config";
-import { DEFAULT_COMPANY_SETTINGS } from "@/lib/pricing/company-settings";
-import { calculateOneTimeExteriorPrice } from "@/lib/pricing/window-care-pricing";
 
 describe("agreement-pricing", () => {
   it("calculates quarterly included value from retail rates x visits", () => {
@@ -20,13 +18,9 @@ describe("agreement-pricing", () => {
     expect(QUARTERLY_INCLUDED_TREATMENT_ANNUAL).toBe(680);
   });
 
-  it("derives bi-annual savings from pricing engine one-time vs membership", () => {
+  it("derives bi-annual savings from member visit + $100 premium", () => {
     const sqft = 2500;
-    const visitPrice = 320;
-    const oneTimeVisit = calculateOneTimeExteriorPrice(
-      { squareFeet: sqft, twoStory: false, includeScreens: false },
-      DEFAULT_COMPANY_SETTINGS,
-    );
+    const visitPrice = 300;
 
     const pricing = buildAgreementPricingSnapshot({
       tier: "biannual",
@@ -36,12 +30,12 @@ describe("agreement-pricing", () => {
 
     expect(pricing.kind).toBe("savings");
     if (pricing.kind === "savings") {
-      expect(pricing.retailPerVisit).toBe(oneTimeVisit);
-      expect(pricing.membershipAnnual).toBe(640);
-      expect(pricing.retailAnnual).toBe(oneTimeVisit * 2);
-      expect(pricing.youSave).toBe(oneTimeVisit * 2 - 640);
-      expect(pricing.retailRows[0]?.detail).toBe(`$${oneTimeVisit} × 2 = $${oneTimeVisit * 2}`);
-      expect(pricing.membershipRow.detail).toBe("$320 × 2 = $640");
+      expect(pricing.retailPerVisit).toBe(400);
+      expect(pricing.membershipAnnual).toBe(600);
+      expect(pricing.retailAnnual).toBe(800);
+      expect(pricing.youSave).toBe(200);
+      expect(pricing.retailRows[0]?.detail).toBe("$400 × 2 = $800");
+      expect(pricing.membershipRow.detail).toBe("$300 × 2 = $600");
     }
   });
 

@@ -1,7 +1,9 @@
 import {
   calculateAnnualFromVisits,
   calculateVisitPrice,
+  memberYearlyWindowSavings,
   normalizeToSqueegeeKingTier,
+  oneTimeRetailPerVisit,
   quarterlyUpgradeMath,
   QUARTERLY_INCLUDED_TREATMENT_ANNUAL,
   type SqueegeeKingTierId,
@@ -79,6 +81,17 @@ export function computePresentationRates(input: {
         : QUARTERLY_INCLUDED_TREATMENT_ANNUAL
       : 0;
 
+  const yearlyWindowSavings = memberYearlyWindowSavings(visitRate, tier);
+  const oneTimePerVisit = oneTimeRetailPerVisit(visitRate, tier);
+  const biannualYearlyWindowSavings = memberYearlyWindowSavings(
+    biannualVisit,
+    "biannual",
+  );
+  const quarterlyYearlyWindowSavings = memberYearlyWindowSavings(
+    quarterlyVisit,
+    "quarterly",
+  );
+
   return {
     tier,
     visitRate,
@@ -88,6 +101,14 @@ export function computePresentationRates(input: {
     retailValue,
     biannualVisit,
     quarterlyVisit,
+    oneTimePerVisit,
+    yearlyWindowSavings,
+    biannualYearlyWindowSavings,
+    quarterlyYearlyWindowSavings,
+    quarterlyYearlyTotalValue:
+      tier === "quarterly"
+        ? quarterlyYearlyWindowSavings + retailValue
+        : 0,
     upgrade,
     narrative: tier === "quarterly" ? ("savings" as const) : ("certainty" as const),
     certaintyCopy: tierCertaintyCopy(tier),
