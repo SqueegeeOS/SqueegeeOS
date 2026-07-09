@@ -2,6 +2,7 @@ import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
 import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendAgreementEmail } from "@/lib/agreement/send-agreement-email";
+import { storeSignatureImage } from "@/lib/agreement/store-signature-image";
 import { storeSignedPdf } from "@/lib/agreement/store-signed-pdf";
 import {
   agreementKindForPlan,
@@ -74,6 +75,12 @@ export async function processSignAgreement(
   const storedPdf = await storeSignedPdf(pdfBytes, fileName);
   const pdfStorageRef = storedPdf.url;
 
+  const signatureFileName = `${input.homeownerSlug}-${input.propertySlug}-signature-${Date.now()}.png`;
+  const storedSignature = await storeSignatureImage(
+    input.signatureDataUrl,
+    signatureFileName,
+  );
+
   if (!isSupabaseConfigured()) {
     throw new Error(
       "Supabase is not configured — cannot persist signed agreement.",
@@ -91,13 +98,13 @@ export async function processSignAgreement(
       plan_name: input.planName,
       signature_method: "drawn",
       signer_name: input.memberName,
-      signature_image_url: input.signatureDataUrl,
+      signature_image_url: storedSignature?.storageRef ?? input.signatureDataUrl,
       typed_text: null,
       signed_at: input.signedAt,
       ip_address: input.ipAddress ?? null,
       user_agent: input.userAgent ?? null,
       agreement_pdf_url: pdfStorageRef,
-      signature_image_storage_path: null,
+      signature_image_storage_path: storedSignature?.storagePath ?? null,
       status: "complete",
       storage_backend: storedPdf.backend === "supabase" ? "supabase" : "session",
     })

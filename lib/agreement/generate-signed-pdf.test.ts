@@ -1,9 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { writeFileSync } from "fs";
+import { PDFDocument } from "pdf-lib";
 import { generateSignedPDF } from "./generate-signed-pdf";
 
+/** 2×2 dark PNG — visible when embedded on a white PDF page */
 const signature =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAEklEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+
+async function embeddedImageCount(bytes: Uint8Array): Promise<number> {
+  const doc = await PDFDocument.load(bytes);
+  const raw = Buffer.from(await doc.save()).toString("latin1");
+  const matches = raw.match(/\/Subtype\s*\/Image/g);
+  return matches?.length ?? 0;
+}
 
 describe("generateSignedPDF", () => {
   it("generates a quarterly membership agreement PDF", async () => {
@@ -19,6 +27,7 @@ describe("generateSignedPDF", () => {
     });
 
     expect(bytes.byteLength).toBeGreaterThan(500);
+    expect(await embeddedImageCount(bytes)).toBeGreaterThanOrEqual(1);
   });
 
   it("generates a bi-annual membership agreement PDF with savings block", async () => {
@@ -34,10 +43,13 @@ describe("generateSignedPDF", () => {
     });
 
     expect(bytes.byteLength).toBeGreaterThan(500);
+    expect(await embeddedImageCount(bytes)).toBeGreaterThanOrEqual(1);
   });
 
   it("writes review PDFs when SAMPLE_PDF=1", async () => {
     if (process.env.SAMPLE_PDF !== "1") return;
+
+    const { writeFileSync } = await import("fs");
 
     const quarterly = await generateSignedPDF({
       memberName: "Larry Buckley",

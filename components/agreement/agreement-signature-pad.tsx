@@ -20,12 +20,17 @@ export function AgreementSignaturePad({
   const hasInk = useRef(false);
   const [isEmpty, setIsEmpty] = useState(true);
 
-  const setupContext = useCallback((ctx: CanvasRenderingContext2D) => {
-    ctx.strokeStyle = "rgba(245, 245, 240, 0.95)";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
-  }, []);
+  const setupContext = useCallback(
+    (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "#141414";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+    },
+    [],
+  );
 
   const resizeCanvas = useCallback(() => {
     const canvas = canvasRef.current;
@@ -46,7 +51,7 @@ export function AgreementSignaturePad({
     if (ctx) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(ratio, ratio);
-      setupContext(ctx);
+      setupContext(ctx, width, CANVAS_HEIGHT);
     }
   }, [setupContext]);
 
@@ -112,8 +117,11 @@ export function AgreementSignaturePad({
     const ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
 
+    const parent = canvas.parentElement;
     const ratio = window.devicePixelRatio || 1;
+    const width = parent?.clientWidth ?? canvas.width / ratio;
     ctx.clearRect(0, 0, canvas.width / ratio, canvas.height / ratio);
+    setupContext(ctx, width, CANVAS_HEIGHT);
     hasInk.current = false;
     setIsEmpty(true);
     onCleared();
@@ -121,7 +129,7 @@ export function AgreementSignaturePad({
 
   return (
     <div>
-      <div className="overflow-hidden rounded-2xl border border-border bg-[#0a0a0a]">
+      <div className="overflow-hidden rounded-2xl border border-border bg-white">
         <canvas
           ref={canvasRef}
           className="block w-full touch-none select-none"

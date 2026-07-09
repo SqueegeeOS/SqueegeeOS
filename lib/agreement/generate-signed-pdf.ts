@@ -15,7 +15,10 @@ import {
   type AgreementPricingSnapshot,
 } from "@/lib/agreement/agreement-pricing";
 import { MEMBERSHIP_BILLING_FINE_PRINT_BODY } from "@/lib/agreement/agreement-content";
-import { AgreementPdfLayout } from "@/lib/agreement/pdf-layout";
+import {
+  AgreementPdfLayout,
+  type SignaturePlacement,
+} from "@/lib/agreement/pdf-layout";
 import type { AgreementKind } from "@/lib/agreement/one-time-agreement";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import {
@@ -41,12 +44,65 @@ export interface GenerateSignedPDFInput {
   pricingSnapshot?: AgreementPricingSnapshot;
 }
 
+/** Overlay coordinates for designer PDF templates (origin bottom-left). */
+const TEMPLATE_SIGNATURE_PLACEMENT: Record<
+  SqueegeeKingTierId,
+  SignaturePlacement
+> = {
+  biannual: {
+    pageIndex: -1,
+    nameX: 72,
+    nameY: 118,
+    dateX: 360,
+    dateY: 118,
+    sigX: 72,
+    sigY: 128,
+    sigW: 220,
+    sigH: 52,
+  },
+  quarterly: {
+    pageIndex: -1,
+    nameX: 72,
+    nameY: 118,
+    dateX: 360,
+    dateY: 118,
+    sigX: 72,
+    sigY: 128,
+    sigW: 220,
+    sigH: 52,
+  },
+};
+
 function formatSignedDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
+    timeZone: "America/Los_Angeles",
   });
+}
+
+function formatSignedDateTime(iso: string): string {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/Los_Angeles",
+  });
+}
+
+function decodeSignatureDataUrl(
+  dataUrl: string,
+): { bytes: Uint8Array; mime: "png" | "jpeg" } | null {
+  const match = dataUrl.match(/^data:image\/(png|jpeg);base64,(.+)$/i);
+  if (!match?.[1] || !match[2]) return null;
+  const mime = match[1].toLowerCase() === "jpeg" ? "jpeg" : "png";
+  return {
+    mime,
+    bytes: Uint8Array.from(Buffer.from(match[2], "base64")),
+  };
 }
 
 async function loadTemplateBytes(
@@ -81,7 +137,7 @@ async function loadTemplateBytes(
 async function buildProgrammaticAgreement(
   input: GenerateSignedPDFInput,
   skTier: SqueegeeKingTierId,
-): Promise<PDFDocument> {
+): Promise<{ pdfDoc: PDFDocument; signaturePlacement: SignaturePlacement }> {
   const def = SQUEEGEEKING_TIERS[skTier];
   const pricing =
     input.pricingSnapshot ??
@@ -107,7 +163,7 @@ async function buildProgrammaticAgreement(
   layout.gap(6);
   layout.drawParagraph(`Member: ${input.memberName}`);
   layout.drawParagraph(`Property: ${input.propertyName}`);
-  layout.drawParagraph(`Signed: ${formatSignedDate(input.signedAt)}`);
+  layout.drawParagraph(`Signed: ${formatSignedDateTime(input.signedAt)}`);
 
   layout.drawHeading("Membership Benefits");
   for (const benefit of def.benefits) {
@@ -151,14 +207,14 @@ async function buildProgrammaticAgreement(
     { size: 8, lineHeight: 12 },
   );
 
-  layout.reserveSignatureBlock("Member signature");
+  const signaturePlacement = layout.reserveSignatureBlock("Member signature");
 
-  return pdfDoc;
+  return { pdfDoc, signaturePlacement };
 }
 
 async function buildProgrammaticOneTimeAgreement(
   input: GenerateSignedPDFInput,
-): Promise<PDFDocument> {
+): Promise<{ pdfDoc: PDFDocument; signaturePlacement: SignaturePlacement }> {
   const visitPrice = input.monthlyPrice ?? 0;
 
   const pdfDoc = await PDFDocument.create();
@@ -173,7 +229,7 @@ async function buildProgrammaticOneTimeAgreement(
   layout.gap(6);
   layout.drawParagraph(`Client: ${input.memberName}`);
   layout.drawParagraph(`Property: ${input.propertyName}`);
-  layout.drawParagraph(`Signed: ${formatSignedDate(input.signedAt)}`);
+  layout.drawParagraph(`Signed: ${formatSignedDateTime(input.signedAt)}`);
 
   layout.drawHeading("One-Time Service — Not a Membership");
   layout.drawParagraph(
@@ -203,67 +259,57 @@ async function buildProgrammaticOneTimeAgreement(
   layout.drawParagraph("  —  No member pricing on future add-on services", { size: 9 });
   layout.drawParagraph("  —  No automatic rebooking or recurring billing", { size: 9 });
 
-  layout.reserveSignatureBlock("Client signature");
+  const signaturePlacement = layout.reserveSignatureBlock("Client signature");
 
-  return pdfDoc;
+  return { pdfDoc, signaturePlacement };
 }
 
 async function embedSignatureOnPage(
   pdfDoc: PDFDocument,
   pageIndex: number,
   input: GenerateSignedPDFInput,
-  coords?: {
-    nameX: number;
-    nameY: number;
-    dateX: number;
-    dateY: number;
-    sigX: number;
-    sigY: number;
-    sigW: number;
-    sigH: number;
-  },
+  coords: SignaturePlacement,
 ) {
   const pages = pdfDoc.getPages();
-  const page = pages[pageIndex] ?? pages[pages.length - 1];
+  const resolvedIndex =
+    pageIndex < 0 ? pages.length - 1 : Math.min(pageIndex, pages.length - 1);
+  const page = pages[resolvedIndex];
+  if (!page) return;
+
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const formattedDate = formatSignedDate(input.signedAt);
+  const formattedDate = formatSignedDateTime(input.signedAt);
 
-  const c = coords ?? {
-    nameX: 120,
-    nameY: 142,
-    dateX: 380,
-    dateY: 142,
-    sigX: 120,
-    sigY: 155,
-    sigW: 180,
-    sigH: 50,
-  };
-
-  page.drawText(input.memberName, {
-    x: c.nameX,
-    y: c.nameY,
-    size: 11,
+  page.drawText(`Printed name: ${input.memberName}`, {
+    x: coords.nameX,
+    y: coords.nameY,
+    size: 10,
     font,
     color: rgb(0.1, 0.1, 0.1),
   });
 
-  page.drawText(formattedDate, {
-    x: c.dateX,
-    y: c.dateY,
-    size: 11,
+  page.drawText(`Signed: ${formattedDate}`, {
+    x: coords.dateX,
+    y: coords.dateY,
+    size: 10,
     font,
     color: rgb(0.1, 0.1, 0.1),
   });
 
-  const base64 = input.signatureDataUrl.replace(/^data:image\/png;base64,/, "");
-  const signatureBytes = Buffer.from(base64, "base64");
-  const signatureImage = await pdfDoc.embedPng(signatureBytes);
+  const decoded = decodeSignatureDataUrl(input.signatureDataUrl);
+  if (!decoded || decoded.bytes.byteLength === 0) {
+    throw new Error("Invalid or empty signature image");
+  }
+
+  const signatureImage =
+    decoded.mime === "jpeg"
+      ? await pdfDoc.embedJpg(decoded.bytes)
+      : await pdfDoc.embedPng(decoded.bytes);
 
   page.drawImage(signatureImage, {
-    x: c.sigX,
-    y: c.sigY,
-    width: c.sigW,
-    height: c.sigH,
+    x: coords.sigX,
+    y: coords.sigY,
+    width: coords.sigW,
+    height: coords.sigH,
   });
 }
 
@@ -276,22 +322,22 @@ export async function generateSignedPDF(
     const templateBytes = await loadTemplateBytes("one_time", "biannual");
     if (templateBytes) {
       const pdfDoc = await PDFDocument.load(templateBytes);
-      await embedSignatureOnPage(pdfDoc, pdfDoc.getPageCount() - 1, input);
+      const placement = {
+        ...TEMPLATE_SIGNATURE_PLACEMENT.biannual,
+        pageIndex: pdfDoc.getPageCount() - 1,
+      };
+      await embedSignatureOnPage(pdfDoc, placement.pageIndex, input, placement);
       return pdfDoc.save();
     }
 
-    const pdfDoc = await buildProgrammaticOneTimeAgreement(input);
-    await embedSignatureOnPage(pdfDoc, 0, input, {
-      nameX: 72,
-      nameY: 72,
-      dateX: 360,
-      dateY: 72,
-      sigX: 72,
-      sigY: 82,
-      sigW: 200,
-      sigH: 56,
-    });
-    return pdfDoc.save();
+    const built = await buildProgrammaticOneTimeAgreement(input);
+    await embedSignatureOnPage(
+      built.pdfDoc,
+      built.signaturePlacement.pageIndex,
+      input,
+      built.signaturePlacement,
+    );
+    return built.pdfDoc.save();
   }
 
   const skTier = normalizeToSqueegeeKingTier(
@@ -301,22 +347,20 @@ export async function generateSignedPDF(
 
   if (templateBytes) {
     const pdfDoc = await PDFDocument.load(templateBytes);
-    await embedSignatureOnPage(pdfDoc, pdfDoc.getPageCount() - 1, input);
+    const placement = {
+      ...TEMPLATE_SIGNATURE_PLACEMENT[skTier],
+      pageIndex: pdfDoc.getPageCount() - 1,
+    };
+    await embedSignatureOnPage(pdfDoc, placement.pageIndex, input, placement);
     return pdfDoc.save();
   }
 
-  const pdfDoc = await buildProgrammaticAgreement(input, skTier);
-  const signaturePage = Math.max(0, pdfDoc.getPageCount() - 1);
-  const signatureY = 120;
-  await embedSignatureOnPage(pdfDoc, signaturePage, input, {
-    nameX: 72,
-    nameY: signatureY,
-    dateX: 360,
-    dateY: signatureY,
-    sigX: 72,
-    sigY: signatureY + 10,
-    sigW: 200,
-    sigH: 56,
-  });
-  return pdfDoc.save();
+  const built = await buildProgrammaticAgreement(input, skTier);
+  await embedSignatureOnPage(
+    built.pdfDoc,
+    built.signaturePlacement.pageIndex,
+    input,
+    built.signaturePlacement,
+  );
+  return built.pdfDoc.save();
 }

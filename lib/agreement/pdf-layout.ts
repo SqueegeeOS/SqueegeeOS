@@ -16,6 +16,18 @@ const MARGIN_RIGHT = 54;
 const MARGIN_TOP = 56;
 const MARGIN_BOTTOM = 80;
 
+export interface SignaturePlacement {
+  pageIndex: number;
+  nameX: number;
+  nameY: number;
+  dateX: number;
+  dateY: number;
+  sigX: number;
+  sigY: number;
+  sigW: number;
+  sigH: number;
+}
+
 const BODY_COLOR = rgb(0.1, 0.1, 0.1);
 const MUTED_COLOR = rgb(0.35, 0.35, 0.35);
 const ACCENT_FILL = rgb(0.96, 0.94, 0.9);
@@ -253,10 +265,25 @@ export class AgreementPdfLayout {
     this.y = topY - boxHeight - 12;
   }
 
-  reserveSignatureBlock(label: string): void {
+  reserveSignatureBlock(label: string): SignaturePlacement {
     this.gap(16);
     this.ensureSpace(120);
     this.drawHeading(label);
+
+    const pageIndex = this.pdfDoc.getPages().indexOf(this.page);
+    const placement: SignaturePlacement = {
+      pageIndex,
+      nameX: MARGIN_LEFT,
+      nameY: this.y - 52,
+      dateX: 360,
+      dateY: this.y - 52,
+      sigX: MARGIN_LEFT,
+      sigY: this.y - 108,
+      sigW: 220,
+      sigH: 52,
+    };
+
     this.gap(72);
+    return placement;
   }
 }
