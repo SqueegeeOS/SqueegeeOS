@@ -114,15 +114,19 @@ export interface MembershipRevenueOverview {
   source: "supabase" | "mock" | "mixed";
 }
 
+import type { WebsiteMembershipSalesOverview } from "./website-membership-sales-types";
+
 export interface AdminDashboardData {
   executive: ExecutiveStats;
   closedJobs: ClosedJob[];
   monthlyLedger: MonthlyLedgerEntry[];
   membership: MembershipRevenueOverview;
+  websiteMembershipSales: WebsiteMembershipSalesOverview;
   dataSources: {
     closedJobs: "supabase" | "local" | "mock" | "mixed";
     executive: "supabase" | "local" | "mock" | "mixed";
     membership: "supabase" | "mock" | "mixed";
+    websiteMembershipSales: "supabase" | "unavailable";
   };
   storage: "supabase" | "local";
   supabaseConnected: boolean;

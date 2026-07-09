@@ -15,6 +15,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { listClosedJobsFromSupabase } from "./closed-jobs-server";
+import { loadWebsiteMembershipSalesOverview } from "./website-membership-sales-server";
 
 const EMPTY_PLATFORM_COUNTS = {
   activeMembers: 0,
@@ -124,6 +125,7 @@ export async function buildAdminDashboard(
 ): Promise<AdminDashboardData> {
   const platformCounts = await loadPlatformCounts();
   const membership = await loadMembershipOverview();
+  const websiteMembershipSales = await loadWebsiteMembershipSalesOverview();
   const supabaseJobs = await listClosedJobsFromSupabase();
   const closedJobs = mergeClosedJobs(supabaseJobs.jobs, clientJobs);
   const closedJobsSource = resolveClosedJobsSource(
@@ -141,10 +143,12 @@ export async function buildAdminDashboard(
     closedJobs,
     monthlyLedger,
     membership,
+    websiteMembershipSales,
     dataSources: {
       closedJobs: closedJobsSource,
       executive: closedJobsSource,
       membership: membership.source,
+      websiteMembershipSales: websiteMembershipSales.source,
     },
     storage,
     supabaseConnected: isCloudPersistenceConnected(),

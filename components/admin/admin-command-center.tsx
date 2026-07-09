@@ -54,6 +54,7 @@ import { ClosedJobsForm } from "./closed-jobs-form";
 import { MonthlySalesLedger } from "./monthly-sales-ledger";
 import { RecentClosedJobsTable } from "./recent-closed-jobs-table";
 import { RevenuePeriodFilterBar } from "./revenue-period-filter";
+import { WebsiteMembershipSalesSection } from "./website-membership-sales-section";
 import { MorningBriefSection } from "./morning-brief";
 import { HqFounderNav } from "./hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
@@ -132,10 +133,20 @@ export function AdminCommandCenter({
           popularTier: "—",
           source: "supabase",
         },
+        websiteMembershipSales: {
+          todayCount: 0,
+          monthCount: 0,
+          todayAnnualizedValue: 0,
+          monthAnnualizedValue: 0,
+          totalAnnualizedValue: 0,
+          recentSales: [],
+          source: "unavailable",
+        },
         dataSources: {
           closedJobs: localJobs.length > 0 ? "local" : "supabase",
           executive: localJobs.length > 0 ? "local" : "supabase",
           membership: "supabase",
+          websiteMembershipSales: "unavailable",
         },
         storage: "local",
         supabaseConnected: false,
@@ -283,6 +294,17 @@ export function AdminCommandCenter({
                 <MorningBriefSection brief={morningBrief} />
 
                 <AdminCeoScoreboard scoreboard={scoreboard} />
+
+                <AdminSection
+                  eyebrow="Website"
+                  title="Membership sales"
+                  description="Automatic sales from completed presentation signups — card on file and membership active."
+                  index={0}
+                >
+                  <WebsiteMembershipSalesSection
+                    overview={dashboard.websiteMembershipSales}
+                  />
+                </AdminSection>
 
                 <div
                   id="work"

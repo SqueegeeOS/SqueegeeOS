@@ -12,6 +12,8 @@ import {
 import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { getStripe } from "@/lib/stripe/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { recordWebsiteMembershipSale } from "@/lib/admin/record-website-membership-sale";
+import type { WebsiteMembershipSaleActivationMode } from "@/lib/admin/website-membership-sales-types";
 
 async function recordMembershipObligations(
   supabase: SupabaseClient,
@@ -35,6 +37,31 @@ async function recordMembershipObligations(
     }
   } catch (error) {
     console.error("[setup-payment] obligation generation failed:", error);
+  }
+}
+
+async function recordWebsiteSale(
+  supabase: SupabaseClient,
+  membershipId: string,
+  paymentSetupCompletedAt: string,
+  activationMode: WebsiteMembershipSaleActivationMode,
+) {
+  try {
+    const result = await recordWebsiteMembershipSale(supabase, {
+      membershipId,
+      paymentSetupCompletedAt,
+      soldAt: paymentSetupCompletedAt,
+      activationMode,
+    });
+
+    if (result.recorded) {
+      console.info("[setup-payment] website membership sale recorded", {
+        membershipId,
+        saleId: result.saleId,
+      });
+    }
+  } catch (error) {
+    console.error("[setup-payment] website membership sale failed:", error);
   }
 }
 
@@ -91,6 +118,12 @@ export async function POST(req: NextRequest) {
         supabase,
         membership,
         membership.started_at ?? membership.payment_setup_completed_at,
+      );
+      await recordWebsiteSale(
+        supabase,
+        membership.id,
+        membership.payment_setup_completed_at,
+        isStripeServerEnabled() ? "stripe" : "mock",
       );
       return NextResponse.json({
         membershipId: membership.id,
@@ -211,6 +244,13 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+
+    await recordWebsiteSale(
+      supabase,
+      membership.id,
+      now,
+      stripeEnabled ? "stripe" : "mock",
+    );
 
     const portalUrl = await getPortalAccessUrlForMembership(
       membership.id,

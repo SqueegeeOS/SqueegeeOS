@@ -152,6 +152,32 @@ create table if not exists closed_jobs (
 
 create index if not exists closed_jobs_closed_date_idx on closed_jobs(closed_date desc);
 
+-- Website membership sales (presentation → sign → card on file → active)
+create table if not exists website_membership_sales (
+  id uuid primary key default gen_random_uuid(),
+  membership_id uuid not null references memberships(id) on delete cascade,
+  homeowner_id uuid not null references homeowners(id) on delete cascade,
+  property_id uuid not null references properties(id) on delete cascade,
+  presentation_id uuid references presentations(id) on delete set null,
+  agreement_id uuid references signed_agreements(id) on delete set null,
+  customer_name text not null,
+  customer_email text,
+  property_address text not null,
+  sales_tier text not null check (sales_tier in ('biannual', 'quarterly')),
+  visit_price numeric(10, 2) not null check (visit_price >= 0),
+  visits_per_year smallint not null check (visits_per_year > 0),
+  annualized_value numeric(12, 2) not null check (annualized_value >= 0),
+  payment_setup_completed_at timestamptz not null,
+  sold_at timestamptz not null,
+  source text not null default 'website_presentation'
+    check (source in ('website_presentation')),
+  created_at timestamptz not null default now(),
+  unique (membership_id)
+);
+
+create index if not exists website_membership_sales_sold_at_idx
+  on website_membership_sales(sold_at desc);
+
 -- updated_at trigger helper
 create or replace function set_updated_at()
 returns trigger as $$
@@ -191,6 +217,9 @@ create policy "property_assets_anon_all" on property_assets for all using (true)
 
 alter table closed_jobs enable row level security;
 create policy "closed_jobs_anon_all" on closed_jobs for all using (true) with check (true);
+
+alter table website_membership_sales enable row level security;
+create policy "website_membership_sales_anon_all" on website_membership_sales for all using (true) with check (true);
 
 -- ---------------------------------------------------------------------------
 -- Member Intelligence System (see migrations/005_member_intelligence.sql)
