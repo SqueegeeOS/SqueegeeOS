@@ -19,7 +19,7 @@ export interface FloatingBackConfig {
 }
 
 const EMPLOYEE_PREFIXES = ["/employee", "/properties", "/presentations", "/tech"];
-const HIDDEN_PREFIXES = ["/hq", "/admin", "/day"];
+const HIDDEN_PREFIXES = ["/hq", "/admin", "/night", "/day"];
 
 function isPresentationPresentMode(pathname: string): boolean {
   return /^\/presentations\/[^/]+\/present$/.test(pathname);
