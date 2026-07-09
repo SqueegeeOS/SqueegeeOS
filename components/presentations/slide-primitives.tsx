@@ -153,7 +153,9 @@ export function PricingColumn({
         }`}
       >
         {def.addonDiscount}% off add-ons
-        {highlighted ? " · RainBlock + Hard Water included" : ""}
+        {highlighted && tier === "quarterly"
+          ? " · RainBlock + Hard Water included"
+          : ""}
       </p>
     </div>
   );

@@ -64,13 +64,13 @@ export function IncludedSlide({ presentation, overrides }: SlideComponentProps) 
         <p className="mt-4 text-sm tracking-wide text-white/55">
           {def.label} · {def.visitsPerYear} visits per year
         </p>
-        <IncludedVisual />
+        <IncludedVisual tier={presentation.tier} />
       </div>
     </FullSlide>
   );
 }
 
-export function DifferenceSlide({ overrides }: SlideComponentProps) {
+export function DifferenceSlide({ presentation, overrides }: SlideComponentProps) {
   return (
     <FullSlide>
       <div className="mx-auto max-w-4xl">
@@ -80,7 +80,7 @@ export function DifferenceSlide({ overrides }: SlideComponentProps) {
           {overrides?.body ??
             "Rhythm, documentation, and premium treatments — not one-off window cleaning."}
         </p>
-        <DifferenceVisual />
+        <DifferenceVisual tier={presentation.tier} />
       </div>
     </FullSlide>
   );

@@ -1,6 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
+import {
+  presentationDifferenceRows,
+  presentationIncludedItems,
+} from "@/lib/presentations/tier-benefits";
+import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
+import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 
 export function VisualIcon({
   children,
@@ -34,15 +40,6 @@ export function TrustPills({ items }: { items: string[] }) {
   );
 }
 
-const INCLUDED_ITEMS = [
-  { label: "Exterior windows", detail: "Every visit" },
-  { label: "RainBlock & Hard Water", detail: "Quarterly members" },
-  { label: "Priority scheduling", detail: "Members first" },
-  { label: "Locked member pricing", detail: "No surprises" },
-  { label: "Property health", detail: "Documented care" },
-  { label: "Add-on savings", detail: "Up to 25% off" },
-] as const;
-
 export function HouseIllustration() {
   return (
     <svg
@@ -60,14 +57,16 @@ export function HouseIllustration() {
   );
 }
 
-export function IncludedVisual() {
+export function IncludedVisual({ tier }: { tier: SqueegeeKingTierId | string }) {
+  const items = presentationIncludedItems(tier);
+
   return (
     <div className="mt-10">
       <div className="mx-auto flex max-w-xs items-center justify-center rounded-3xl border border-accent/15 bg-gradient-to-b from-accent/[0.06] to-transparent py-10 sm:max-w-sm">
         <HouseIllustration />
       </div>
       <div className="mx-auto mt-8 grid max-w-2xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {INCLUDED_ITEMS.map((item) => (
+        {items.map((item) => (
           <div
             key={item.label}
             className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left"
@@ -84,22 +83,16 @@ export function IncludedVisual() {
   );
 }
 
-const DIFFERENCE_ROWS = [
-  { us: "Scheduled rhythm — not when you remember", them: "Call when it looks bad" },
-  { us: "Locked member pricing", them: "Price changes every visit" },
-  { us: "Property documented over time", them: "No record of your home" },
-  { us: "RainBlock + Hard Water included", them: "Treatments sold separately" },
-  { us: "Billed before we arrive", them: "Payment at the door" },
-  { us: "7-day workmanship guarantee", them: "Hope it looks fine" },
-] as const;
+export function DifferenceVisual({ tier }: { tier: SqueegeeKingTierId | string }) {
+  const rows = presentationDifferenceRows(tier);
+  const normalized = normalizeToSqueegeeKingTier(tier);
 
-export function DifferenceVisual() {
   return (
     <div className="mt-8 grid gap-4 sm:grid-cols-2">
       <div className="rounded-2xl border border-accent/30 bg-accent/[0.06] p-5 sm:p-6">
         <p className="text-[10px] uppercase tracking-[0.18em] text-accent">SqueegeeKing</p>
         <ul className="mt-4 space-y-3.5">
-          {DIFFERENCE_ROWS.map((row) => (
+          {rows.map((row) => (
             <li key={row.us} className="flex items-start gap-3 text-sm leading-snug text-[#f5f2eb]">
               <span className="mt-0.5 text-accent">✓</span>
               <span>{row.us}</span>
@@ -110,7 +103,7 @@ export function DifferenceVisual() {
       <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 sm:p-6">
         <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Typical service</p>
         <ul className="mt-4 space-y-3.5">
-          {DIFFERENCE_ROWS.map((row) => (
+          {rows.map((row) => (
             <li key={row.them} className="flex items-start gap-3 text-sm leading-snug text-white/50">
               <span className="mt-0.5 text-white/30" aria-hidden>✕</span>
               <span>{row.them}</span>
@@ -118,6 +111,11 @@ export function DifferenceVisual() {
           ))}
         </ul>
       </div>
+      {normalized === "biannual" ? (
+        <p className="sm:col-span-2 text-center text-[11px] text-white/40">
+          RainBlock and Hard Water are available as add-on services with Bi-Annual membership.
+        </p>
+      ) : null}
     </div>
   );
 }

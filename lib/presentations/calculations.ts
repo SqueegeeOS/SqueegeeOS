@@ -7,6 +7,7 @@ import {
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
 import type { PresentationData, PresentationInput } from "./types";
+import { tierCertaintyCopy } from "./tier-benefits";
 
 /** In presentations, `monthlyRate` stores per-visit price. */
 export function visitRateFromPresentation(
@@ -49,11 +50,11 @@ export function computePresentationRates(input: {
   const upgrade = quarterlyUpgradeMath(biannualVisit, quarterlyVisit);
 
   const retailValue =
-    input.retailValue && input.retailValue > 0
-      ? input.retailValue
-      : tier === "quarterly"
-        ? QUARTERLY_INCLUDED_TREATMENT_ANNUAL
-        : 0;
+    tier === "quarterly"
+      ? input.retailValue && input.retailValue > 0
+        ? input.retailValue
+        : QUARTERLY_INCLUDED_TREATMENT_ANNUAL
+      : 0;
 
   return {
     tier,
@@ -65,8 +66,7 @@ export function computePresentationRates(input: {
     quarterlyVisit,
     upgrade,
     narrative: tier === "quarterly" ? ("savings" as const) : ("certainty" as const),
-    certaintyCopy:
-      "Both memberships protect your home with priority scheduling and automatic add-on discounts. Quarterly adds RainBlock, Hard Water protection, and 25% OFF every add-on.",
+    certaintyCopy: tierCertaintyCopy(tier),
   };
 }
 

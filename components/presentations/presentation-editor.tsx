@@ -90,7 +90,14 @@ export function PresentationEditor({
     value: PresentationData[K],
   ) => {
     setData((prev) => {
-      if (field === "tier" || field === "homeSqft") {
+      if (field === "tier") {
+        const nextTier = value as PresentationData["tier"];
+        return recalculateVisitRate(prev, {
+          tier: nextTier,
+          retailValue: nextTier === "biannual" ? 0 : prev.retailValue,
+        });
+      }
+      if (field === "homeSqft") {
         return recalculateVisitRate(prev, { [field]: value } as Partial<PresentationData>);
       }
       const next = { ...prev, [field]: value };
@@ -234,7 +241,12 @@ export function PresentationEditor({
                 Quarterly includes RainBlock + Hard Water protection on every
                 visit.
               </p>
-            ) : null}
+            ) : (
+              <p className="mt-3 text-[11px] leading-relaxed text-[#555]">
+                Bi-Annual includes 20% off add-ons. RainBlock and Hard Water are
+                not included — available as add-on services.
+              </p>
+            )}
           </section>
 
           <CollapsibleSection
@@ -326,21 +338,30 @@ export function PresentationEditor({
                 }
               />
             </EditorField>
-            <EditorField
-              label="Added treatment value (Quarterly slide)"
-              hint="Retail value of RainBlock + Hard Water included with Quarterly — not the plan price. Shown on The Math slide only."
-            >
-              <EditorTextInput
-                type="number"
-                inputMode="decimal"
-                value={data.retailValue > 0 ? String(data.retailValue) : ""}
-                placeholder={String(data.retailValue)}
-                onChange={(v) =>
-                  update("retailValue", Number.parseFloat(v) || 0)
-                }
-              />
-            </EditorField>
           </CollapsibleSection>
+
+          {data.tier === "quarterly" ? (
+            <CollapsibleSection
+              title="Quarterly treatment value"
+              summary="RainBlock + Hard Water retail value"
+              defaultOpen={false}
+            >
+              <EditorField
+                label="Added treatment value (Quarterly slide)"
+                hint="Retail value of RainBlock + Hard Water included with Quarterly — not the plan price. Shown on The Math slide only."
+              >
+                <EditorTextInput
+                  type="number"
+                  inputMode="decimal"
+                  value={data.retailValue > 0 ? String(data.retailValue) : ""}
+                  placeholder={String(rates.retailValue)}
+                  onChange={(v) =>
+                    update("retailValue", Number.parseFloat(v) || 0)
+                  }
+                />
+              </EditorField>
+            </CollapsibleSection>
+          ) : null}
 
           <CollapsibleSection
             title="Closing slide note"

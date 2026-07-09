@@ -8,7 +8,6 @@ import {
   listLocalPresentations,
   saveLocalPresentation,
 } from "./local-store";
-import { normalizePresentationTier } from "./types";
 import type {
   PresentationData,
   PresentationOnboardingStatus,
@@ -17,6 +16,7 @@ import type {
   SlideOverride,
   SlideType,
 } from "./types";
+import { normalizePresentationTier } from "./types";
 
 interface PresentationRow {
   id: string;
@@ -47,11 +47,18 @@ function normalizePresentation(data: PresentationData): PresentationData {
   const twoStory = data.twoStory ?? data.quoteSnapshot?.twoStory ?? false;
   const includeScreens =
     data.includeScreens ?? data.quoteSnapshot?.includeScreens ?? false;
+  const computed = withComputedRates({
+    tier: data.tier,
+    homeSqft: data.homeSqft,
+    monthlyRate: data.monthlyRate,
+    retailValue: data.retailValue,
+  });
 
   return {
     ...data,
     twoStory,
     includeScreens,
+    ...computed,
     quoteSnapshot: isCarePlanQuoteSnapshot(data.quoteSnapshot)
       ? data.quoteSnapshot
       : null,
