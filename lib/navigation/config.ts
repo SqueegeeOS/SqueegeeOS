@@ -18,6 +18,7 @@ export const ROUTES = {
   hqPricingSettings: "/hq/settings/pricing",
   hqProductionCheck: "/hq/production-check",
   hqPendingRequests: "/hq/requests",
+  hqBilling: "/hq/billing",
   hqCustomerWorkspace: (type: string, id: string) =>
     `/hq/customers/${type}/${encodeURIComponent(id)}`,
   /** @deprecated Use hqCarePlanBuilder — redirect remains at /hq/pricing */
