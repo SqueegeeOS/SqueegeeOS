@@ -57,11 +57,10 @@ export function PresentationEditor({
     prev: PresentationData,
     patch: Partial<PresentationData>,
   ): PresentationData => {
-    const merged = { ...prev, ...patch, monthlyRate: 0 };
-    const visitRate = visitRateFromPresentation(merged);
+    const merged = { ...prev, ...patch };
     return {
       ...merged,
-      ...withComputedRates({ ...merged, monthlyRate: visitRate }),
+      ...withComputedRates(merged),
     };
   };
 

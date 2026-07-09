@@ -19,7 +19,6 @@ import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
   computePresentationRates,
   slugifyPresentation,
-  visitRateFromPresentation,
 } from "@/lib/presentations/calculations";
 import {
   clearOnboardingStep,
@@ -136,11 +135,7 @@ export function PresentationOnboarding({
 
   const rates = computePresentationRates({ ...presentation, tier });
   const visitPrice =
-    tier === presentation.tier
-      ? visitRateFromPresentation(presentation)
-      : tier === "biannual"
-        ? rates.biannualVisit
-        : rates.quarterlyVisit;
+    tier === "biannual" ? rates.biannualVisit : rates.quarterlyVisit;
   const annualTotal = calculateAnnualFromVisits(tier, visitPrice);
 
   const syncPresentation = (next: PresentationData) => {

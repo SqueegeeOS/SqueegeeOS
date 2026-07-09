@@ -9,18 +9,32 @@ import {
 import type { PresentationData, PresentationInput } from "./types";
 import { tierCertaintyCopy } from "./tier-benefits";
 
-/** In presentations, `monthlyRate` stores per-visit price. */
+/** `monthlyRate` > 0 means Noah entered a manual per-visit override. */
+export function hasManualVisitRateOverride(
+  monthlyRate: number | undefined | null,
+): boolean {
+  return typeof monthlyRate === "number" && monthlyRate > 0;
+}
+
+/** Customer-facing per-visit price — manual override wins over pricing engine. */
 export function visitRateFromPresentation(
   data: Pick<
     PresentationData,
     "monthlyRate" | "tier" | "homeSqft" | "twoStory" | "includeScreens"
   >,
 ): number {
-  if (data.monthlyRate > 0) return data.monthlyRate;
-  return calculateVisitPrice(data.tier, data.homeSqft, {
-    twoStory: data.twoStory,
-    includeScreens: data.includeScreens,
-  });
+  return computePresentationRates(data).visitRate;
+}
+
+export function tierVisitPriceForPresentation(
+  data: Pick<
+    PresentationData,
+    "monthlyRate" | "tier" | "homeSqft" | "twoStory" | "includeScreens"
+  >,
+  targetTier: SqueegeeKingTierId,
+): number {
+  const rates = computePresentationRates({ ...data, tier: targetTier });
+  return targetTier === "biannual" ? rates.biannualVisit : rates.quarterlyVisit;
 }
 
 export function computePresentationRates(input: {
@@ -36,17 +50,26 @@ export function computePresentationRates(input: {
     twoStory: input.twoStory,
     includeScreens: input.includeScreens,
   };
-  const visitRate =
-    input.monthlyRate && input.monthlyRate > 0
-      ? input.monthlyRate
-      : calculateVisitPrice(tier, input.homeSqft, pricingOpts);
-  const annualRate = calculateAnnualFromVisits(tier, visitRate);
-  const biannualVisit = calculateVisitPrice("biannual", input.homeSqft, pricingOpts);
-  const quarterlyVisit = calculateVisitPrice(
+  const override = hasManualVisitRateOverride(input.monthlyRate)
+    ? input.monthlyRate!
+    : null;
+
+  const computedForTier = calculateVisitPrice(tier, input.homeSqft, pricingOpts);
+  const visitRate = override ?? computedForTier;
+
+  let biannualVisit = calculateVisitPrice("biannual", input.homeSqft, pricingOpts);
+  let quarterlyVisit = calculateVisitPrice(
     "quarterly",
     input.homeSqft,
     pricingOpts,
   );
+
+  if (override != null) {
+    if (tier === "biannual") biannualVisit = override;
+    if (tier === "quarterly") quarterlyVisit = override;
+  }
+
+  const annualRate = calculateAnnualFromVisits(tier, visitRate);
   const upgrade = quarterlyUpgradeMath(biannualVisit, quarterlyVisit);
 
   const retailValue =
@@ -59,7 +82,8 @@ export function computePresentationRates(input: {
   return {
     tier,
     visitRate,
-    monthlyRate: visitRate,
+    /** Stored override only — 0 means "use pricing engine at display time". */
+    monthlyRate: override ?? 0,
     annualRate,
     retailValue,
     biannualVisit,
@@ -71,16 +95,23 @@ export function computePresentationRates(input: {
 }
 
 export function withComputedRates(
-  data: Partial<PresentationInput> & Pick<PresentationInput, "tier" | "homeSqft">,
+  data: Partial<PresentationInput> &
+    Pick<PresentationInput, "tier" | "homeSqft"> & {
+      twoStory?: boolean;
+      includeScreens?: boolean;
+    },
 ): Pick<PresentationData, "monthlyRate" | "annualRate" | "retailValue"> {
   const rates = computePresentationRates({
     tier: data.tier,
     homeSqft: data.homeSqft,
     monthlyRate: data.monthlyRate,
     retailValue: data.retailValue,
+    twoStory: data.twoStory,
+    includeScreens: data.includeScreens,
   });
+
   return {
-    monthlyRate: rates.visitRate,
+    monthlyRate: rates.monthlyRate,
     annualRate: rates.annualRate,
     retailValue: rates.retailValue,
   };

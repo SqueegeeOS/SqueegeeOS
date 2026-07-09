@@ -52,6 +52,8 @@ function normalizePresentation(data: PresentationData): PresentationData {
     homeSqft: data.homeSqft,
     monthlyRate: data.monthlyRate,
     retailValue: data.retailValue,
+    twoStory,
+    includeScreens,
   });
 
   return {
