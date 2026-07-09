@@ -21,6 +21,7 @@ import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-d
 import { HomeAtlasJourneySection } from "@/components/membership/homeatlas-journey-section";
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
+import { ReferralSection } from "@/components/portal/referral-section";
 import { GlassCard } from "@/components/craft/glass-card";
 import { PortalStage } from "@/components/portal/portal-stage";
 import { InstallHomeAtlas } from "@/components/pwa/InstallHomeAtlas";
@@ -225,6 +226,15 @@ export function MemberPortalExperience({
               </>
             )}
           </PortalSection>
+
+          {/* §2b — Referrals (members only, real data only) */}
+          {view.membershipActive && view.membershipId && (
+            <ReferralSection
+              membershipId={view.membershipId}
+              memberName={view.firstName}
+              index={2}
+            />
+          )}
 
           {view.showHomeAtlasJourney && (
             <HomeAtlasJourneySection

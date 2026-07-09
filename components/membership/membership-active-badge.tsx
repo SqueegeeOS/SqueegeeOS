@@ -69,7 +69,7 @@ export function MembershipActiveBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 ${styles.shell} ${className}`}
+      className={`inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full border px-2.5 py-1 ${styles.shell} ${className}`}
     >
       <ActivePulseDot
         dotClass={styles.dot}
@@ -77,7 +77,7 @@ export function MembershipActiveBadge({
         reduceMotion={reduceMotion}
       />
       <span
-        className={`text-[9px] font-medium uppercase tracking-[0.24em] ${styles.text}`}
+        className={`-mr-[0.24em] text-[9px] font-medium uppercase tracking-[0.24em] ${styles.text}`}
       >
         Active
       </span>

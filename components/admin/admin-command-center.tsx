@@ -64,6 +64,7 @@ const QUICK_ACTIONS = [
   { label: "New Presentation", href: ROUTES.newPresentation, primary: true },
   { label: "Care Plan Builder", href: ROUTES.hqCarePlanBuilder },
   { label: "Properties", href: ROUTES.properties },
+  { label: "Referrals", href: "/hq/referrals" },
   { label: "All Presentations", href: ROUTES.presentations },
   { label: "Production Health", href: ROUTES.hqProductionHealth },
   { label: "Production Check", href: ROUTES.hqProductionCheck },

@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { attachLeadToReferral } from "@/lib/referrals/repository";
+import { REFERRAL_COOKIE } from "@/lib/referrals/types";
 import { estimatedPriceForLead } from "@/lib/acquisition/request-params";
 import { createLeadIntake } from "@/lib/acquisition/leads/repository";
 import type { CreateLeadIntakeInput } from "@/lib/acquisition/lead-record";
@@ -89,6 +92,23 @@ export async function POST(request: Request) {
     };
 
     const { record, storage } = await createLeadIntake(input);
+
+    // Referral attribution: if this visitor arrived through /r/[code],
+    // associate the new lead with the referring member. Never fatal.
+    try {
+      const cookieStore = await cookies();
+      const referralCode = cookieStore.get(REFERRAL_COOKIE)?.value;
+      if (referralCode) {
+        await attachLeadToReferral({
+          code: referralCode,
+          leadId: record.id,
+          leadName: record.name,
+          leadEmail: record.email,
+        });
+      }
+    } catch {
+      // attribution must never block a lead
+    }
 
     const emailResult = await sendLeadConfirmationEmail({
       to: record.email,

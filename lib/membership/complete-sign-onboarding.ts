@@ -385,6 +385,22 @@ export async function completeSignOnboarding(
     });
   }
 
+  // Referral conversion: if this new member arrived as a referred lead,
+  // flip their pending referral to converted. Best-effort, never fatal.
+  if (presentation.clientEmail) {
+    try {
+      const { markReferralConverted } = await import(
+        "@/lib/referrals/repository"
+      );
+      await markReferralConverted({
+        email: presentation.clientEmail,
+        membershipId,
+      });
+    } catch {
+      // conversion tracking must never block signing
+    }
+  }
+
   return {
     pdfUrl: storedPdf.accessUrl ?? pdfStorageRef,
     pdfStorageBackend: storedPdf.backend,

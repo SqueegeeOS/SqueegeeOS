@@ -153,8 +153,8 @@ export function MemberWalletCard({
         )}
 
         <div className="relative flex h-full flex-col justify-between p-6 sm:p-7">
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-[11px] font-medium tracking-[0.2em] text-accent">
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+            <p className="min-w-0 text-[11px] font-medium tracking-[0.2em] text-accent">
               ✦ {data.brandName}
             </p>
             {data.isActive && <MembershipActiveBadge variant="inline" />}
