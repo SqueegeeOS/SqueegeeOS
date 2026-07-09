@@ -16,6 +16,7 @@ import type {
   SlideOverride,
   SlideType,
 } from "./types";
+import { resolveEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import { normalizePresentationTier, type VisitRateOverrides } from "./types";
 
 interface PresentationRow {
@@ -31,6 +32,7 @@ interface PresentationRow {
   visit_rate_overrides: VisitRateOverrides | null;
   annual_rate: number;
   retail_value: number;
+  enrollment_savings: number | null;
   custom_notes: string | null;
   slide_overrides: Partial<Record<SlideType, SlideOverride>> | null;
   status: PresentationStatus;
@@ -131,6 +133,10 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     visitRateOverrides: (row.visit_rate_overrides ?? {}) as VisitRateOverrides,
     annualRate: Number(row.annual_rate),
     retailValue: Number(row.retail_value),
+    enrollmentSavings: resolveEnrollmentSavings(
+      row.enrollment_savings != null ? Number(row.enrollment_savings) : null,
+      normalizePresentationTier(row.tier),
+    ),
     customNotes: row.custom_notes ?? "",
     quoteSnapshot: isCarePlanQuoteSnapshot(rawSnapshot) ? rawSnapshot : null,
     slideOverrides: row.slide_overrides ?? {},
@@ -159,6 +165,7 @@ function presentationToRow(data: PresentationData): Record<string, unknown> {
     visit_rate_overrides: normalizeVisitRateOverrides(data),
     annual_rate: data.annualRate,
     retail_value: data.retailValue,
+    enrollment_savings: data.enrollmentSavings,
     custom_notes: data.customNotes || null,
     quote_snapshot: writeQuoteSnapshot(data),
     slide_overrides: data.slideOverrides,

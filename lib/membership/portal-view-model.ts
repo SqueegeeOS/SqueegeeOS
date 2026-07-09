@@ -18,6 +18,7 @@ import {
   squeegeeKingTierLabel,
 } from "@/lib/membership/tier-config";
 import { resolvePortalPaymentState } from "@/lib/membership/portal-payment-state";
+import { cumulativeMembershipEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 
 export interface PortalTimelineEntry {
@@ -65,6 +66,10 @@ export interface PortalCareRecordView {
   showSavings: boolean;
   savingsLabel: string | null;
   completedVisitCount: number;
+  membershipEnrollmentSavings: number | null;
+  membershipSavingsTotal: number | null;
+  membershipTierCareLabel: string;
+  showHomeAtlasJourney: boolean;
   presentationId: string | null;
   membershipId: string | null;
 }
@@ -104,7 +109,7 @@ function resolveSquareFootage(
   data: HomeCarePlanData,
   portalData: MemberPortalData | null | undefined,
 ): number | null {
-  if (portalData?.property.details.squareFootage) {
+  if (portalData?.property?.details?.squareFootage) {
     return portalData.property.details.squareFootage;
   }
   const sqftRow = data.propertyProfile.find((row) =>
@@ -215,6 +220,25 @@ export function buildPortalCareRecordView(
   const lifetimeSavings = portalData?.lifetimeSavings.savings ?? 0;
   const showSavings = lifetimeSavings > 0;
 
+  const membershipEnrollmentSavings =
+    portalData?.membershipEnrollmentSavings != null &&
+    portalData.membershipEnrollmentSavings > 0
+      ? portalData.membershipEnrollmentSavings
+      : null;
+
+  const membershipSavingsTotal =
+    membershipEnrollmentSavings != null
+      ? cumulativeMembershipEnrollmentSavings(
+          membershipEnrollmentSavings,
+          completedVisits.length,
+        )
+      : null;
+
+  const showHomeAtlasJourney =
+    membershipActive && membershipEnrollmentSavings != null;
+
+  const membershipTierCareLabel = `${squeegeeKingTierLabel(tierId)} Care`;
+
   const annualTotal =
     visitPrice != null ? visitPrice * visitsPerYear : null;
 
@@ -272,6 +296,10 @@ export function buildPortalCareRecordView(
       ? `${formatTierPrice(lifetimeSavings)} saved with membership`
       : null,
     completedVisitCount: completedVisits.length,
+    membershipEnrollmentSavings,
+    membershipSavingsTotal,
+    membershipTierCareLabel,
+    showHomeAtlasJourney,
     presentationId: portalData?.presentationId ?? null,
     membershipId: portalData?.membershipId ?? null,
   };

@@ -14,6 +14,7 @@ import { getStripe } from "@/lib/stripe/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordWebsiteMembershipSale } from "@/lib/admin/record-website-membership-sale";
 import type { WebsiteMembershipSaleActivationMode } from "@/lib/admin/website-membership-sales-types";
+import { persistMembershipEnrollmentSavings } from "@/lib/membership/persist-membership-enrollment-savings";
 
 async function recordMembershipObligations(
   supabase: SupabaseClient,
@@ -62,6 +63,22 @@ async function recordWebsiteSale(
     }
   } catch (error) {
     console.error("[setup-payment] website membership sale failed:", error);
+  }
+}
+
+async function lockEnrollmentSavings(
+  supabase: SupabaseClient,
+  membershipId: string,
+  presentationId: string | null,
+) {
+  try {
+    await persistMembershipEnrollmentSavings(
+      supabase,
+      membershipId,
+      presentationId,
+    );
+  } catch (error) {
+    console.error("[setup-payment] enrollment savings lock failed:", error);
   }
 }
 
@@ -124,6 +141,11 @@ export async function POST(req: NextRequest) {
         membership.id,
         membership.payment_setup_completed_at,
         isStripeServerEnabled() ? "stripe" : "mock",
+      );
+      await lockEnrollmentSavings(
+        supabase,
+        membership.id,
+        membership.presentation_id,
       );
       return NextResponse.json({
         membershipId: membership.id,
@@ -250,6 +272,11 @@ export async function POST(req: NextRequest) {
       membership.id,
       now,
       stripeEnabled ? "stripe" : "mock",
+    );
+    await lockEnrollmentSavings(
+      supabase,
+      membership.id,
+      resolvedPresentationId,
     );
 
     const portalUrl = await getPortalAccessUrlForMembership(

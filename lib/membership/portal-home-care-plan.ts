@@ -34,6 +34,7 @@ import {
   SQUEEGEEKING_TIERS,
   squeegeeKingTierLabel,
 } from "@/lib/membership/tier-config";
+import { defaultEnrollmentSavingsForTier } from "@/lib/membership/enrollment-savings";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface BuildPortalHomeCarePlanInput {
@@ -327,6 +328,7 @@ async function backfillPortalHomeCarePlan(
       monthlyRate: visitPrice,
       annualRate: visitPrice * (tier === "quarterly" ? 4 : 2),
       retailValue: 0,
+      enrollmentSavings: defaultEnrollmentSavingsForTier(tier),
       customNotes: "",
       quoteSnapshot: null,
       slideOverrides: {},

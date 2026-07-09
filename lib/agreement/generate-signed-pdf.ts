@@ -4,6 +4,7 @@ import path from "path";
 import {
   ADDON_DISCOUNT_FINE_PRINT,
   agreementTemplateFilename,
+  memberVsOneTimePremium,
   normalizeToSqueegeeKingTier,
   planNameForAgreement,
   SQUEEGEEKING_TIERS,
@@ -14,7 +15,10 @@ import {
   formatAgreementDollars,
   type AgreementPricingSnapshot,
 } from "@/lib/agreement/agreement-pricing";
-import { MEMBERSHIP_BILLING_FINE_PRINT_BODY } from "@/lib/agreement/agreement-content";
+import {
+  MEMBERSHIP_BILLING_FINE_PRINT_BODY,
+  membershipCancellationReimbursementClause,
+} from "@/lib/agreement/agreement-content";
 import {
   AgreementPdfLayout,
   type SignaturePlacement,
@@ -42,6 +46,7 @@ export interface GenerateSignedPDFInput {
   includeInterior?: boolean;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
   pricingSnapshot?: AgreementPricingSnapshot;
+  enrollmentSavings?: number;
 }
 
 /** Overlay coordinates for designer PDF templates (origin bottom-left). */
@@ -200,6 +205,17 @@ async function buildProgrammaticAgreement(
     size: 8,
     lineHeight: 12,
   });
+
+  const enrollmentSavings =
+    input.enrollmentSavings && input.enrollmentSavings > 0
+      ? input.enrollmentSavings
+      : memberVsOneTimePremium(skTier);
+
+  layout.drawHeading("Terms — Cancellation");
+  layout.drawParagraph(
+    membershipCancellationReimbursementClause(enrollmentSavings),
+    { size: 8, lineHeight: 12 },
+  );
 
   layout.drawHeading("Terms — Add-On Service Discount");
   layout.drawParagraph(

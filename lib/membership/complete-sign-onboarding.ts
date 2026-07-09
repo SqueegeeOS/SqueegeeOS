@@ -1,5 +1,6 @@
-import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
+import { enrollmentSavingsForPresentation } from "@/lib/presentations/calculations";
 import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
+import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendAgreementEmail } from "@/lib/agreement/send-agreement-email";
 import { storeSignatureImage } from "@/lib/agreement/store-signature-image";
@@ -254,6 +255,10 @@ export async function completeSignOnboarding(
     includeScreens: presentation.includeScreens,
     includeInterior: input.quoteSnapshot?.includeInterior ?? false,
     quoteSnapshot: input.quoteSnapshot,
+    enrollmentSavings: enrollmentSavingsForPresentation(
+      presentation,
+      input.agreementTier,
+    ),
   });
 
   const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;

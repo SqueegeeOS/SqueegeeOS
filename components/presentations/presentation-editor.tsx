@@ -11,6 +11,7 @@ import {
   visitRateFromPresentation,
   withComputedRates,
 } from "@/lib/presentations/calculations";
+import { defaultEnrollmentSavingsForTier } from "@/lib/membership/enrollment-savings";
 import { buildExteriorWindowBreakdown } from "@/lib/pricing/window-care-pricing";
 import {
   getPresentationSlides,
@@ -48,6 +49,7 @@ export function PresentationEditor({
   const rates = useMemo(() => computePresentationRates(data), [data]);
   const visitRate = visitRateFromPresentation(data);
   const tierOverride = tierVisitOverride(data, data.tier) ?? 0;
+  const isSigned = data.status === "signed";
 
   useEffect(() => {
     cachePresentation(data);
@@ -97,6 +99,7 @@ export function PresentationEditor({
         return recalculateVisitRate(prev, {
           tier: nextTier,
           retailValue: nextTier === "biannual" ? 0 : prev.retailValue,
+          enrollmentSavings: defaultEnrollmentSavingsForTier(nextTier),
         });
       }
       if (field === "homeSqft") {
@@ -336,6 +339,35 @@ export function PresentationEditor({
                 </p>
               </div>
             ) : null}
+
+            <EditorField
+              label="Enrollment Savings"
+              hint="Per-visit savings vs one-time at enrollment. Locked into the agreement and membership at activation."
+            >
+              {isSigned ? (
+                <p className="text-sm text-[#888]">
+                  {formatTierPrice(
+                    data.enrollmentSavings || rates.enrollmentSavings,
+                  )}{" "}
+                  · locked at signing
+                </p>
+              ) : (
+                <EditorTextInput
+                  type="number"
+                  inputMode="decimal"
+                  value={String(
+                    data.enrollmentSavings || rates.enrollmentSavings,
+                  )}
+                  onChange={(v) =>
+                    update(
+                      "enrollmentSavings",
+                      Number.parseFloat(v) ||
+                        defaultEnrollmentSavingsForTier(data.tier),
+                    )
+                  }
+                />
+              )}
+            </EditorField>
 
             <EditorField
               label="Per-visit rate override"

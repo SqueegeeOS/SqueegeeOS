@@ -18,6 +18,7 @@ import { CardOnFileSetup } from "@/components/membership/card-on-file-setup";
 import { FoundingMemberHonor } from "@/components/membership/founding-member-honor";
 import { MemberWalletCard } from "@/components/membership/member-wallet-card";
 import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-data";
+import { HomeAtlasJourneySection } from "@/components/membership/homeatlas-journey-section";
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
 import { GlassCard } from "@/components/craft/glass-card";
@@ -224,6 +225,15 @@ export function MemberPortalExperience({
               </>
             )}
           </PortalSection>
+
+          {view.showHomeAtlasJourney && (
+            <HomeAtlasJourneySection
+              memberSince={view.memberSinceFormatted}
+              membershipTier={view.membershipTierCareLabel}
+              completedVisits={view.completedVisitCount}
+              membershipSavings={view.membershipSavingsTotal}
+            />
+          )}
 
           {/* §4 — Agreement */}
           {showAgreement && view.agreement && (

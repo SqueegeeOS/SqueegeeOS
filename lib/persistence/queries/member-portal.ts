@@ -64,6 +64,7 @@ export interface MemberPortalData {
   visitsPerYear: number | null;
   membershipStatus: string;
   paymentSetupCompletedAt: string | null;
+  membershipEnrollmentSavings: number | null;
   agreement: MemberPortalAgreement | null;
   presentationId: string | null;
   membershipId: string | null;
@@ -110,6 +111,7 @@ interface MembershipRow {
   payment_setup_completed_at: string | null;
   presentation_id: string | null;
   stripe_payment_method_id: string | null;
+  membership_enrollment_savings: number | null;
 }
 
 interface SignedAgreementRow {
@@ -327,7 +329,7 @@ export async function getMemberPortalDataBySlugs(
   const { data: membership } = await supabase
     .from("memberships")
     .select(
-      "id, plan_name, price_display, started_at, status, founding_member, founding_member_since, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, presentation_id, stripe_payment_method_id",
+      "id, plan_name, price_display, started_at, status, founding_member, founding_member_since, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, presentation_id, stripe_payment_method_id, membership_enrollment_savings",
     )
     .eq("property_id", propertyRow.id)
     .maybeSingle();
@@ -478,6 +480,10 @@ export async function getMemberPortalDataBySlugs(
     membershipStatus: membershipRow?.status ?? "inactive",
     paymentSetupCompletedAt:
       membershipRow?.payment_setup_completed_at ?? null,
+    membershipEnrollmentSavings:
+      membershipRow?.membership_enrollment_savings != null
+        ? Number(membershipRow.membership_enrollment_savings)
+        : null,
     agreement: agreementRow
       ? {
           planName: (agreementRow as SignedAgreementRow).plan_name,

@@ -14,6 +14,7 @@ import type {
   PresentationTier,
   VisitRateOverrides,
 } from "./types";
+import { resolveEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import { tierCertaintyCopy } from "./tier-benefits";
 
 export type PresentationPricingInput = Pick<
@@ -24,6 +25,7 @@ export type PresentationPricingInput = Pick<
   | "overrideTier"
   | "visitRateOverrides"
 > & {
+  enrollmentSavings?: number;
   retailValue?: number;
   twoStory?: boolean;
   includeScreens?: boolean;
@@ -123,6 +125,14 @@ export function tierVisitPriceForPresentation(
   return targetTier === "biannual" ? rates.biannualVisit : rates.quarterlyVisit;
 }
 
+export function enrollmentSavingsForPresentation(
+  data: PresentationPricingInput,
+  targetTier?: SqueegeeKingTierId,
+): number {
+  const tier = targetTier ?? normalizeToSqueegeeKingTier(data.tier);
+  return resolveEnrollmentSavings(data.enrollmentSavings, tier);
+}
+
 export function computePresentationRates(input: PresentationPricingInput) {
   const tier = normalizeToSqueegeeKingTier(input.tier);
   const pricingOpts = {
@@ -170,6 +180,10 @@ export function computePresentationRates(input: PresentationPricingInput) {
     quarterlyVisit,
     "quarterly",
   );
+  const enrollmentSavings = resolveEnrollmentSavings(
+    input.enrollmentSavings,
+    tier,
+  );
 
   return {
     tier,
@@ -177,6 +191,7 @@ export function computePresentationRates(input: PresentationPricingInput) {
     monthlyRate: activeOverride && activeOverride > 0 ? activeOverride : 0,
     annualRate,
     retailValue,
+    enrollmentSavings,
     biannualVisit,
     quarterlyVisit,
     oneTimePerVisit,
@@ -201,7 +216,12 @@ export function withComputedRates(
     },
 ): Pick<
   PresentationData,
-  "monthlyRate" | "overrideTier" | "visitRateOverrides" | "annualRate" | "retailValue"
+  | "monthlyRate"
+  | "overrideTier"
+  | "visitRateOverrides"
+  | "annualRate"
+  | "retailValue"
+  | "enrollmentSavings"
 > {
   const visitRateOverrides = normalizeVisitRateOverrides({
     tier: data.tier,
@@ -216,6 +236,7 @@ export function withComputedRates(
     overrideTier: data.overrideTier,
     visitRateOverrides,
     retailValue: data.retailValue,
+    enrollmentSavings: data.enrollmentSavings,
     twoStory: data.twoStory,
     includeScreens: data.includeScreens,
   });
@@ -227,6 +248,7 @@ export function withComputedRates(
     overrideTier: legacy.overrideTier,
     annualRate: rates.annualRate,
     retailValue: rates.retailValue,
+    enrollmentSavings: rates.enrollmentSavings,
   };
 }
 

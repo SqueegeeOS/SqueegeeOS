@@ -125,6 +125,8 @@ export interface PresentationData {
   visitRateOverrides?: VisitRateOverrides;
   annualRate: number;
   retailValue: number;
+  /** Per-visit savings vs one-time at enrollment */
+  enrollmentSavings: number;
   customNotes: string;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
   slideOverrides: Partial<

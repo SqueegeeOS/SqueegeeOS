@@ -236,5 +236,8 @@ alter table property_assets add column if not exists photo_source text
 alter table property_assets add column if not exists is_primary boolean not null default false;
 alter table property_assets add column if not exists external_url text;
 
+alter table presentations add column if not exists enrollment_savings numeric(10, 2);
+alter table memberships add column if not exists membership_enrollment_savings numeric(10, 2);
+
 -- member_profiles, member_savings_transactions, member_appointments,
 -- service_observations, ai_quotes — see 005_member_intelligence.sql

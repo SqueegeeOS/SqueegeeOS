@@ -74,6 +74,13 @@ If a charge fails, scheduling and member benefits (including add-on discounts) m
 export const MEMBERSHIP_BILLING_FINE_PRINT_BODY =
   MEMBERSHIP_BILLING_FINE_PRINT.replace(/^BILLING & PAYMENT\s*\n+/i, "").trim();
 
+export function membershipCancellationReimbursementClause(
+  enrollmentSavings: number,
+): string {
+  const amount = Math.round(enrollmentSavings).toLocaleString("en-US");
+  return `If membership is cancelled during the initial twelve (12) month commitment, Member agrees to reimburse SqueegeeKing the Membership Enrollment Savings of $${amount} received at enrollment.`;
+}
+
 export const MEMBERSHIP_SUMMARY_POINTS = [
   MEMBERSHIP_BILLING_SUMMARY,
   "Scheduled home care visits based on your membership tier",
