@@ -65,6 +65,7 @@ const QUICK_ACTIONS = [
   { label: "Care Plan Builder", href: ROUTES.hqCarePlanBuilder },
   { label: "Properties", href: ROUTES.properties },
   { label: "All Presentations", href: ROUTES.presentations },
+  { label: "Production Health", href: ROUTES.hqProductionHealth },
   { label: "Production Check", href: ROUTES.hqProductionCheck },
 ] as const;
 

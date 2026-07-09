@@ -17,6 +17,7 @@ export const ROUTES = {
   hqCarePlanBuilder: "/hq/care-plan-builder",
   hqPricingSettings: "/hq/settings/pricing",
   hqProductionCheck: "/hq/production-check",
+  hqProductionHealth: "/hq/production-health",
   hqPendingRequests: "/hq/requests",
   hqBilling: "/hq/billing",
   hqCustomerWorkspace: (type: string, id: string) =>
