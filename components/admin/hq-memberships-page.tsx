@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { ArchiveMembershipButton } from "@/components/admin/archive-membership-modal";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { ScheduleMembershipButton } from "@/components/admin/schedule-membership-modal";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
@@ -15,6 +16,7 @@ import type { HqMembershipRow } from "@/app/api/admin/memberships/route";
 
 const STATUS_TONE: Record<HqMembershipRow["status"], string> = {
   active: "text-emerald-300/90",
+  scheduled: "text-emerald-300/90",
   signed: "text-accent",
   "needs card": "text-amber-300/90",
   "needs scheduling": "text-amber-300/90",
@@ -28,13 +30,27 @@ function money(n: number | null): string {
     : "unknown";
 }
 
-function serviceMonth(iso: string | null): string {
-  if (!iso) return "needs setup";
-  try {
-    return new Date(iso).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  } catch {
-    return "unknown";
+function formatNextService(row: HqMembershipRow): string {
+  if (row.nextServiceDate) {
+    const dateLabel = new Date(`${row.nextServiceDate}T12:00:00Z`).toLocaleDateString(
+      "en-US",
+      { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" },
+    );
+    return row.nextServiceTimeWindow
+      ? `${dateLabel} · ${row.nextServiceTimeWindow}`
+      : dateLabel;
   }
+  if (row.nextServiceMonth) {
+    const [year, month] = row.nextServiceMonth.split("-");
+    if (year && month) {
+      return new Date(`${year}-${month}-01T12:00:00Z`).toLocaleDateString("en-US", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      });
+    }
+  }
+  return "needs setup";
 }
 
 function Stat({ label, value }: { label: string; value: string }) {
@@ -92,15 +108,22 @@ function HqMembershipsContent() {
 
   const visibleRows = rows.filter((row) => row.rawStatus !== "cancelled");
   const live = visibleRows;
-  const active = live.filter((r) => r.status === "active" || r.status === "needs scheduling");
+  const active = live.filter(
+    (r) => r.status === "active" || r.status === "scheduled" || r.status === "needs scheduling",
+  );
+  const needsScheduling = live.filter((r) => r.status === "needs scheduling");
   const pending = live.filter((r) => r.status === "signed" || r.status === "needs card");
   const yearly = live.reduce((sum, r) => sum + (r.yearlyValue ?? 0), 0);
   const now = new Date();
   const thisMonth = live
     .filter((r) => {
       if (!r.nextServiceMonth) return false;
-      const d = new Date(r.nextServiceMonth);
-      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+      const [year, month] = r.nextServiceMonth.split("-");
+      if (!year || !month) return false;
+      return (
+        Number(year) === now.getFullYear() &&
+        Number(month) === now.getMonth() + 1
+      );
     })
     .reduce((sum, r) => sum + (r.visitPrice ?? 0), 0);
 
@@ -140,7 +163,7 @@ function HqMembershipsContent() {
           <>
             <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
               <Stat label="Active" value={String(active.length)} />
-              <Stat label="Pending" value={String(pending.length)} />
+              <Stat label="Needs scheduling" value={String(needsScheduling.length)} />
               <Stat label="Yearly value" value={money(yearly)} />
               <Stat label="This month" value={thisMonth > 0 ? money(thisMonth) : "—"} />
               <Stat label="Bi-Annual" value={String(live.filter((r) => r.tier === "biannual").length)} />
@@ -176,7 +199,7 @@ function HqMembershipsContent() {
                         ["Visits / yr", row.visitsPerYear ? String(row.visitsPerYear) : "unknown"],
                         ["Yearly value", money(row.yearlyValue)],
                         ["Card on file", row.cardOnFile ? "Yes" : "needs setup"],
-                        ["Next service", serviceMonth(row.nextServiceMonth)],
+                        ["Next service", formatNextService(row)],
                       ] as Array<[string, string]>
                     ).map(([k, v]) => (
                       <div key={k}>
@@ -206,6 +229,13 @@ function HqMembershipsContent() {
                     ) : (
                       <span className="text-xs text-muted/60">Agreement: unknown</span>
                     )}
+                    <ScheduleMembershipButton
+                      row={row}
+                      onScheduled={(message) => {
+                        setNotice(message);
+                        void loadMemberships();
+                      }}
+                    />
                     <ArchiveMembershipButton
                       row={row}
                       onArchived={(message) => {

@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
+import {
+  parseTimeWindowFromNotes,
+} from "@/lib/admin/schedule-membership-service";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { isMissingColumnError } from "@/lib/persistence/queries/load-membership-portal-row";
@@ -10,7 +13,14 @@ export interface HqMembershipRow {
   address: string;
   planLabel: string;
   tier: "biannual" | "quarterly" | "unknown";
-  status: "active" | "needs card" | "needs scheduling" | "signed" | "attention" | "cancelled";
+  status:
+    | "active"
+    | "scheduled"
+    | "needs card"
+    | "needs scheduling"
+    | "signed"
+    | "attention"
+    | "cancelled";
   rawStatus: string;
   visitPrice: number | null;
   visitsPerYear: number | null;
@@ -18,9 +28,17 @@ export interface HqMembershipRow {
   cardOnFile: boolean;
   stripeCustomer: boolean;
   nextServiceMonth: string | null;
+  nextServiceDate: string | null;
+  nextServiceTimeWindow: string | null;
   portalPath: string | null;
   agreementId: string | null;
   founding: boolean;
+}
+
+interface UpcomingAppointmentRow {
+  property_id: string;
+  scheduled_at: string;
+  notes: string | null;
 }
 
 interface MembershipQueryRow {
@@ -47,16 +65,20 @@ const MEMBERSHIP_BASE_SELECT =
 
 const MEMBERSHIP_EXTENDED_SELECT = `${MEMBERSHIP_BASE_SELECT}, next_billing_date, portal_access_token, founding_member`;
 
-function deriveStatus(m: {
-  status: string;
-  stripe_payment_method_id: string | null;
-  payment_setup_completed_at: string | null;
-  next_billing_date: string | null;
-}): HqMembershipRow["status"] {
+function deriveStatus(
+  m: {
+    status: string;
+    stripe_payment_method_id: string | null;
+    payment_setup_completed_at: string | null;
+    next_billing_date: string | null;
+  },
+  nextScheduledAt: string | null,
+): HqMembershipRow["status"] {
   if (m.status === "cancelled" || m.status === "paused") return "cancelled";
   const paid = Boolean(m.payment_setup_completed_at || m.stripe_payment_method_id);
   if (m.status === "active" && paid) {
-    return m.next_billing_date ? "active" : "needs scheduling";
+    if (nextScheduledAt) return "scheduled";
+    return "needs scheduling";
   }
   if (!paid) return "needs card";
   if (m.status === "pending_payment") return "signed";
@@ -134,6 +156,29 @@ export async function GET(request: Request) {
       throw new Error(properties.error.message);
     }
 
+    const nowIso = new Date().toISOString();
+    const { data: appointmentRows, error: appointmentError } =
+      propertyIds.length > 0
+        ? await supabase
+            .from("member_appointments")
+            .select("property_id, scheduled_at, notes")
+            .in("property_id", propertyIds)
+            .eq("status", "scheduled")
+            .gte("scheduled_at", nowIso)
+            .order("scheduled_at", { ascending: true })
+        : { data: [], error: null };
+
+    if (appointmentError) {
+      throw new Error(appointmentError.message);
+    }
+
+    const nextAppointmentByProperty = new Map<string, UpcomingAppointmentRow>();
+    for (const row of (appointmentRows ?? []) as UpcomingAppointmentRow[]) {
+      if (!nextAppointmentByProperty.has(row.property_id)) {
+        nextAppointmentByProperty.set(row.property_id, row);
+      }
+    }
+
     const nameById = new Map(
       (homeowners.data ?? []).map((h) => [h.id as string, (h.full_name as string) || ""]),
     );
@@ -145,6 +190,15 @@ export async function GET(request: Request) {
     );
 
     const out: HqMembershipRow[] = rows.map((m) => {
+      const upcoming = nextAppointmentByProperty.get(m.property_id) ?? null;
+      const nextScheduledAt = upcoming?.scheduled_at ?? null;
+      const nextServiceTimeWindow = parseTimeWindowFromNotes(
+        upcoming?.notes ?? null,
+      );
+      const nextServiceDate = nextScheduledAt?.slice(0, 10) ?? null;
+      const nextServiceMonth =
+        nextServiceDate?.slice(0, 7) ?? m.next_billing_date?.slice(0, 7) ?? null;
+
       const yearly =
         typeof m.annual_rate === "number"
           ? m.annual_rate
@@ -162,14 +216,16 @@ export async function GET(request: Request) {
               ? "Quarterly"
               : "Unknown",
         tier: (m.sales_tier as HqMembershipRow["tier"]) ?? "unknown",
-        status: deriveStatus(m),
+        status: deriveStatus(m, nextScheduledAt),
         rawStatus: m.status,
         visitPrice: m.visit_price,
         visitsPerYear: m.visits_per_year,
         yearlyValue: yearly,
         cardOnFile: Boolean(m.stripe_payment_method_id),
         stripeCustomer: Boolean(m.stripe_customer_id),
-        nextServiceMonth: m.next_billing_date,
+        nextServiceMonth,
+        nextServiceDate,
+        nextServiceTimeWindow,
         portalPath: m.portal_access_token ? `/portal/${m.portal_access_token}` : null,
         agreementId: m.agreement_id,
         founding: Boolean(m.founding_member),
