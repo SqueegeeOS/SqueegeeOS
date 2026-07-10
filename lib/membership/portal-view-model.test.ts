@@ -106,7 +106,73 @@ describe("buildPortalCareRecordView", () => {
     expect(view.completedVisitCount).toBe(0);
     expect(view.showSavings).toBe(false);
     expect(view.savingsLabel).toBeNull();
-    expect(view.whatsNextHeadline).toBe("We're scheduling your first visit.");
+    expect(view.whatsNextHeadline).toBe(
+      "Your next care visit is being scheduled.",
+    );
+    expect(view.nextCareVisit.hasScheduledVisit).toBe(false);
+    expect(view.nextCareVisit.emptyCopy).toBe(
+      "Your next care visit is being scheduled.",
+    );
+  });
+
+  it("shows Next Care Visit when a real appointment is scheduled", () => {
+    const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      profile: {
+        id: "p1",
+        firstName: "Larry",
+        lastName: "Buckley",
+        email: null,
+        phone: null,
+        memberSince: "2026-01-15T00:00:00Z",
+        membershipTier: "premium",
+        membershipStatus: "active",
+        totalSaved: 0,
+        savingsHistory: [],
+        nextAppointment: {
+          id: "appt-1",
+          date: "2026-08-15T09:00:00.000Z",
+          serviceType: "home_care_visit",
+          status: "scheduled",
+          technician: null,
+          notes: "Time window: Morning · 8am–12pm",
+        },
+        appointmentHistory: [],
+        propertyId: "prop1",
+      },
+      property: canyonOaksHomeCarePlan.property as never,
+      propertyName: "Canyon Oaks Residence",
+      appointments: [],
+      nextAppointment: {
+        id: "appt-1",
+        date: "2026-08-15T09:00:00.000Z",
+        serviceType: "home_care_visit",
+        status: "scheduled",
+        technician: null,
+        notes: "Time window: Morning · 8am–12pm",
+      },
+      ytdSavings: { savings: 0, retail: 0, paid: 0 },
+      lifetimeSavings: { savings: 0, retail: 0, paid: 0, entries: [] },
+      observations: [],
+      membershipPlanName: "Quarterly Care",
+      monthlyRate: 250,
+      memberSince: "2026-01-15T00:00:00Z",
+      foundingMember: false,
+      foundingMemberSince: null,
+      salesTier: "quarterly",
+      visitPrice: 250,
+      visitsPerYear: 4,
+      membershipStatus: "active",
+      paymentSetupCompletedAt: "2026-01-16T00:00:00Z",
+      agreement: null,
+      presentationId: null,
+      membershipId: "mem-1",
+      paymentMethodLabel: null,
+    });
+
+    expect(view.whatsNextHeadline).toBe("Next Care Visit — August 15");
+    expect(view.nextCareVisit.hasScheduledVisit).toBe(true);
+    expect(view.nextCareVisit.serviceTypeLabel).toBe("Quarterly Home Care Visit");
+    expect(view.nextCareVisit.timeWindow).toBe("Morning · 8am–12pm");
   });
 
   it("formats visit price with unit inline (no-narration rule)", () => {

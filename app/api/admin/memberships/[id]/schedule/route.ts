@@ -21,11 +21,14 @@ export async function POST(
 
   const { id } = await context.params;
 
-  let body: Pick<ScheduleMembershipServiceInput, "serviceDate" | "timeWindow" | "note">;
+  let body: Pick<
+    ScheduleMembershipServiceInput,
+    "serviceDate" | "timeWindow" | "note" | "appointmentType"
+  >;
   try {
     body = (await request.json()) as Pick<
       ScheduleMembershipServiceInput,
-      "serviceDate" | "timeWindow" | "note"
+      "serviceDate" | "timeWindow" | "note" | "appointmentType"
     >;
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
@@ -36,6 +39,7 @@ export async function POST(
     serviceDate: body.serviceDate ?? "",
     timeWindow: body.timeWindow,
     note: body.note,
+    appointmentType: body.appointmentType,
   };
 
   const validationError = validateScheduleMembershipServiceInput(input);

@@ -1,3 +1,10 @@
+import {
+  defaultAppointmentTypeForCadence,
+  isMembershipAppointmentType,
+  MEMBERSHIP_APPOINTMENT_TYPE,
+  type MembershipAppointmentTypeId,
+} from "@/lib/membership/membership-appointment-types";
+import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 
@@ -6,6 +13,7 @@ export interface ScheduleMembershipServiceInput {
   serviceDate: string;
   timeWindow?: string;
   note?: string;
+  appointmentType?: MembershipAppointmentTypeId;
 }
 
 export interface ScheduleMembershipServiceResult {
@@ -15,8 +23,6 @@ export interface ScheduleMembershipServiceResult {
   serviceMonth: string;
   timeWindow: string | null;
 }
-
-const SERVICE_TYPE = "home_care_visit";
 
 function validateServiceDate(value: string): string | null {
   const trimmed = value.trim();
@@ -36,7 +42,15 @@ export function validateScheduleMembershipServiceInput(
   if (!input.membershipId.trim()) {
     return "Membership ID is required";
   }
-  return validateServiceDate(input.serviceDate);
+  const dateError = validateServiceDate(input.serviceDate);
+  if (dateError) return dateError;
+  if (
+    input.appointmentType &&
+    !isMembershipAppointmentType(input.appointmentType)
+  ) {
+    return "Appointment type is invalid";
+  }
+  return null;
 }
 
 function buildAppointmentNotes(
@@ -131,7 +145,7 @@ export async function scheduleMembershipService(
   const { data: membership, error: membershipError } = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, status, payment_setup_completed_at, stripe_payment_method_id",
+      "id, homeowner_id, property_id, status, sales_tier, payment_setup_completed_at, stripe_payment_method_id",
     )
     .eq("id", membershipId)
     .maybeSingle();
@@ -160,6 +174,14 @@ export async function scheduleMembershipService(
     membership.homeowner_id as string,
   );
 
+  const cadence = normalizeToSqueegeeKingTier(
+    (membership.sales_tier as string | null) ?? "quarterly",
+  );
+  const serviceType =
+    input.appointmentType ??
+    defaultAppointmentTypeForCadence(cadence) ??
+    MEMBERSHIP_APPOINTMENT_TYPE;
+
   const { data: existingAppointment, error: existingAppointmentError } =
     await supabase
       .from("member_appointments")
@@ -183,7 +205,7 @@ export async function scheduleMembershipService(
       .update({
         scheduled_at: scheduledAt,
         notes,
-        service_type: SERVICE_TYPE,
+        service_type: serviceType,
       })
       .eq("id", existingAppointment.id)
       .select("id, scheduled_at")
@@ -200,7 +222,7 @@ export async function scheduleMembershipService(
       .insert({
         member_profile_id: memberProfileId,
         property_id: membership.property_id,
-        service_type: SERVICE_TYPE,
+        service_type: serviceType,
         scheduled_at: scheduledAt,
         status: "scheduled",
         notes,

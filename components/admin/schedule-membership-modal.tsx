@@ -5,6 +5,13 @@ import { createPortal } from "react-dom";
 import type { HqMembershipRow } from "@/app/api/admin/memberships/route";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
+  defaultAppointmentTypeForCadence,
+  formatMembershipCareVisitLabel,
+  HQ_MEMBERSHIP_APPOINTMENT_TYPES,
+  MEMBERSHIP_APPOINTMENT_TYPE,
+  type MembershipAppointmentTypeId,
+} from "@/lib/membership/membership-appointment-types";
+import {
   craftInput,
   craftLabel,
   craftSecondaryButton,
@@ -40,7 +47,7 @@ export function ScheduleMembershipButton({
         onClick={() => setOpen(true)}
         className="inline-flex items-center rounded-full border border-accent/35 bg-accent/10 px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-accent transition hover:border-accent/50 hover:bg-accent/15"
       >
-        {row.status === "scheduled" ? "Update schedule" : "Schedule"}
+        {row.status === "scheduled" ? "Update schedule" : "Schedule next service"}
       </button>
       {open ? (
         <ScheduleMembershipModal
@@ -66,9 +73,16 @@ function ScheduleMembershipModal({
   onScheduled: (message: string) => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  const defaultAppointmentType =
+    row.tier === "unknown"
+      ? MEMBERSHIP_APPOINTMENT_TYPE
+      : defaultAppointmentTypeForCadence(row.tier);
+
   const [serviceDate, setServiceDate] = useState(defaultServiceDate(row));
   const [timeWindow, setTimeWindow] = useState(row.nextServiceTimeWindow ?? "");
   const [note, setNote] = useState("");
+  const [appointmentType, setAppointmentType] =
+    useState<MembershipAppointmentTypeId>(defaultAppointmentType);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -103,6 +117,7 @@ function ScheduleMembershipModal({
           serviceDate,
           timeWindow: timeWindow.trim() || undefined,
           note: note.trim() || undefined,
+          appointmentType,
         }),
       });
       const body = (await response.json().catch(() => null)) as {
@@ -126,6 +141,11 @@ function ScheduleMembershipModal({
       setSubmitting(false);
     }
   };
+
+  const portalVisitLabel =
+    row.tier === "unknown"
+      ? "Membership service visit"
+      : formatMembershipCareVisitLabel(row.tier, appointmentType);
 
   if (!mounted) {
     return null;
@@ -151,13 +171,15 @@ function ScheduleMembershipModal({
         <div className="pointer-events-auto relative z-[2] flex max-h-[min(92dvh,92svh)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background shadow-2xl sm:max-h-[min(88dvh,88svh)] sm:rounded-[2rem]">
           <div className="shrink-0 border-b border-border px-5 py-4 sm:px-6">
             <p className="text-[10px] uppercase tracking-[0.24em] text-accent">
-              Schedule service
+              Member scheduling
             </p>
             <h3
               id="schedule-membership-title"
               className="mt-2 font-serif text-2xl font-light text-foreground"
             >
-              Assign next visit
+              {row.status === "scheduled"
+                ? "Update next service"
+                : "Schedule next service"}
             </h3>
             <p className="mt-2 text-sm text-muted">
               {row.customerName} · {row.planLabel}
@@ -168,8 +190,30 @@ function ScheduleMembershipModal({
             <div className="space-y-5">
               <p className="text-sm leading-relaxed text-muted">
                 Saves a real upcoming visit to member appointments. The customer
-                portal will show this date when their profile is connected.
+                portal shows this as Next Care Visit.
               </p>
+
+              <label className="block">
+                <span className={craftLabel}>Appointment type</span>
+                <select
+                  value={appointmentType}
+                  onChange={(event) =>
+                    setAppointmentType(
+                      event.target.value as MembershipAppointmentTypeId,
+                    )
+                  }
+                  className={craftInput}
+                >
+                  {HQ_MEMBERSHIP_APPOINTMENT_TYPES.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-2 text-xs text-muted">
+                  Portal label: {portalVisitLabel}
+                </p>
+              </label>
 
               <label className="block">
                 <span className={craftLabel}>Service date</span>

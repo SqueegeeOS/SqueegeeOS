@@ -18,8 +18,14 @@ import {
   squeegeeKingTierLabel,
 } from "@/lib/membership/tier-config";
 import { resolvePortalPaymentState } from "@/lib/membership/portal-payment-state";
+import {
+  buildPortalNextCareVisit,
+  type PortalNextCareVisit,
+} from "@/lib/membership/portal-next-care-visit";
 import { cumulativeMembershipEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
+
+export type { PortalNextCareVisit };
 
 export interface PortalTimelineEntry {
   id: string;
@@ -73,6 +79,7 @@ export interface PortalCareRecordView {
   showHomeAtlasJourney: boolean;
   presentationId: string | null;
   membershipId: string | null;
+  nextCareVisit: PortalNextCareVisit;
 }
 
 function formatMemberSince(iso: string): string {
@@ -90,13 +97,14 @@ function formatSignedDate(iso: string): string {
   });
 }
 
-function formatNextVisitHeadline(dateIso: string): string {
+function formatNextCareVisitHeadline(dateIso: string): string {
   const date = new Date(dateIso);
   const monthDay = date.toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
+    timeZone: "UTC",
   });
-  return `Next visit — ${monthDay}.`;
+  return `Next Care Visit — ${monthDay}`;
 }
 
 function formatMonthYear(iso: string): string {
@@ -196,15 +204,25 @@ export function buildPortalCareRecordView(
   );
   const hasVisitHistory = completedVisits.length > 0;
 
-  const whatsNextHeadline = nextAppt
-    ? formatNextVisitHeadline(nextAppt.date)
-    : "We're scheduling your first visit.";
+  const nextCareVisit = buildPortalNextCareVisit({
+    membershipActive,
+    nextAppointment: nextAppt,
+    cadence: tierId,
+  });
 
-  const whatsNextSupport = nextAppt
-    ? nextAppt.technician
-      ? `Your dedicated technician: ${nextAppt.technician}`
-      : "It's on the calendar — nothing for you to do."
-    : PORTAL_EMPTY_COPY.nextVisit;
+  const whatsNextHeadline = nextCareVisit.hasScheduledVisit && nextAppt
+    ? formatNextCareVisitHeadline(nextAppt.date)
+    : membershipActive
+      ? nextCareVisit.emptyCopy
+      : hasVisitHistory
+        ? PORTAL_EMPTY_COPY.nextVisit
+        : "We're preparing your next care visit.";
+
+  const whatsNextSupport = nextCareVisit.hasScheduledVisit
+    ? nextCareVisit.reassuranceCopy
+    : membershipActive
+      ? nextCareVisit.emptyCopy
+      : PORTAL_EMPTY_COPY.nextVisit;
 
   const cadenceNote =
     cadence === "quarterly"
@@ -314,5 +332,6 @@ export function buildPortalCareRecordView(
     showHomeAtlasJourney,
     presentationId: portalData?.presentationId ?? null,
     membershipId: portalData?.membershipId ?? null,
+    nextCareVisit,
   };
 }

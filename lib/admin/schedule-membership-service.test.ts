@@ -26,4 +26,14 @@ describe("schedule-membership-service helpers", () => {
     expect(parseTimeWindowFromNotes(notes)).toBe("Morning · 8am–12pm");
     expect(parseInternalNoteFromNotes(notes)).toBe("Gate stays unlocked");
   });
+
+  it("rejects invalid appointment types", () => {
+    expect(
+      validateScheduleMembershipServiceInput({
+        membershipId: "mem-1",
+        serviceDate: "2026-08-15",
+        appointmentType: "invalid_type" as never,
+      }),
+    ).toBeTruthy();
+  });
 });
