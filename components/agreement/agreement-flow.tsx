@@ -19,6 +19,7 @@ import {
 import { AgreementModal } from "./agreement-modal";
 import { AgreementSignaturePad } from "./agreement-signature-pad";
 import { AgreementSummary } from "./agreement-summary";
+import { formatPortalPropertyAddress } from "@/lib/membership/portal-address";
 
 const MEMBERSHIP_AGREEMENT_TEMPLATE_URL = "/documents/homeatlas-agreement.pdf";
 
@@ -69,7 +70,11 @@ export function AgreementFlow({
   const [error, setError] = useState<string | null>(null);
 
   const memberName = planData.homeowner.fullName;
-  const homeAddress = `${planData.property.address}, ${planData.property.city}`;
+  const homeAddress = formatPortalPropertyAddress({
+    address: planData.property.address,
+    city: planData.property.city,
+    state: planData.property.state,
+  });
   const agreementKind = agreementKindForPlan(planId);
   const isOneTime = agreementKind === "one_time";
   const agreementTemplateUrl = isOneTime

@@ -22,6 +22,7 @@ import { buildPortalNextCareVisit,
   type PortalNextCareVisit,
 } from "@/lib/membership/portal-next-care-visit";
 import { buildPortalLandingHeadline } from "@/lib/membership/portal-landing-headline";
+import { formatPortalPropertyAddress } from "@/lib/membership/portal-address";
 import { cumulativeMembershipEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 
@@ -158,8 +159,17 @@ export function buildPortalCareRecordView(
   const propertyName =
     portalData?.propertyName ?? data.property.name ?? "Your home";
   const propertyAddress = portalData
-    ? `${portalData.property.address}, ${portalData.property.city}`
-    : `${data.property.address}, ${data.property.city}`;
+    ? formatPortalPropertyAddress({
+        address: portalData.property.address,
+        city: portalData.property.city,
+        state: portalData.property.state,
+        zip: portalData.property.zip,
+      })
+    : formatPortalPropertyAddress({
+        address: data.property.address,
+        city: data.property.city,
+        state: data.property.state,
+      });
 
   const salesTierSource =
     portalData?.salesTier ??
