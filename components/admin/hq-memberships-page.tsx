@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
+import { ArchiveMembershipButton } from "@/components/admin/archive-membership-modal";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
@@ -59,25 +60,38 @@ function HqMembershipsContent() {
   const [rows, setRows] = useState<HqMembershipRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetch("/api/admin/memberships", { headers: getAdminRequestHeaders(), cache: "no-store" })
-      .then(async (r) => {
-        const body = (await r.json().catch(() => null)) as {
-          rows?: HqMembershipRow[];
-          error?: string;
-        } | null;
-        if (!r.ok) {
-          const detail = body?.error ?? r.statusText;
-          throw new Error(`${r.status} ${detail}`);
-        }
-        setRows(body?.rows ?? []);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
-      .finally(() => setLoading(false));
+  const loadMemberships = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/admin/memberships", {
+        headers: getAdminRequestHeaders(),
+        cache: "no-store",
+      });
+      const body = (await response.json().catch(() => null)) as {
+        rows?: HqMembershipRow[];
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        const detail = body?.error ?? response.statusText;
+        throw new Error(`${response.status} ${detail}`);
+      }
+      setRows(body?.rows ?? []);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed to load");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const live = rows.filter((r) => r.status !== "cancelled");
+  useEffect(() => {
+    void loadMemberships();
+  }, [loadMemberships]);
+
+  const visibleRows = rows.filter((row) => row.rawStatus !== "cancelled");
+  const live = visibleRows;
   const active = live.filter((r) => r.status === "active" || r.status === "needs scheduling");
   const pending = live.filter((r) => r.status === "signed" || r.status === "needs card");
   const yearly = live.reduce((sum, r) => sum + (r.yearlyValue ?? 0), 0);
@@ -103,11 +117,17 @@ function HqMembershipsContent() {
           </p>
         </MotionReveal>
 
+        {notice ? (
+          <div className="mb-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+            {notice}
+          </div>
+        ) : null}
+
         {loading ? (
           <p className="text-sm text-muted">Loading…</p>
         ) : error ? (
           <p className="text-sm text-red-500">{error}</p>
-        ) : rows.length === 0 ? (
+        ) : visibleRows.length === 0 ? (
           <GlassCard tone="subtle" motion="rise" className="px-6 py-14 text-center">
             <p className="font-serif text-2xl font-light text-foreground/90">
               No memberships on file yet.
@@ -128,7 +148,7 @@ function HqMembershipsContent() {
             </div>
 
             <div className="space-y-5">
-              {rows.map((row, index) => (
+              {visibleRows.map((row, index) => (
                 <GlassCard key={row.id} tone="subtle" motion="rise" index={index}>
                   <div className="flex flex-wrap items-baseline justify-between gap-3">
                     <div>
@@ -165,7 +185,7 @@ function HqMembershipsContent() {
                       </div>
                     ))}
                   </dl>
-                  <div className="mt-5 flex flex-wrap gap-4 border-t border-border/30 pt-4">
+                  <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-border/30 pt-4">
                     {row.portalPath ? (
                       <Link
                         href={row.portalPath}
@@ -186,6 +206,13 @@ function HqMembershipsContent() {
                     ) : (
                       <span className="text-xs text-muted/60">Agreement: unknown</span>
                     )}
+                    <ArchiveMembershipButton
+                      row={row}
+                      onArchived={(message) => {
+                        setNotice(message);
+                        void loadMemberships();
+                      }}
+                    />
                   </div>
                 </GlassCard>
               ))}
