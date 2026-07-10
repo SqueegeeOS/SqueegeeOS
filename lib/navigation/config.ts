@@ -20,7 +20,7 @@ export const ROUTES = {
   hqProductionHealth: "/hq/production-health",
   hqPendingRequests: "/hq/requests",
   hqBilling: "/hq/billing",
-  hqMembership: "/hq/membership",
+  hqMembership: "/hq/memberships",
   hqCustomerWorkspace: (type: string, id: string) =>
     `/hq/customers/${type}/${encodeURIComponent(id)}`,
   /** @deprecated Use hqCarePlanBuilder — redirect remains at /hq/pricing */
