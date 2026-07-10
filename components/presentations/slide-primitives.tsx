@@ -48,7 +48,7 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 
 export function HeroText({ children }: { children: ReactNode }) {
   return (
-    <h1 className="font-serif text-[2.5rem] font-light leading-[1.08] tracking-[-0.015em] text-[#f5f2eb] [text-wrap:balance] sm:text-6xl lg:text-7xl">
+    <h1 className="font-serif text-[2.5rem] font-light leading-[1.08] tracking-[-0.015em] text-foreground [text-wrap:balance] sm:text-6xl lg:text-7xl">
       {children}
     </h1>
   );
@@ -56,7 +56,7 @@ export function HeroText({ children }: { children: ReactNode }) {
 
 export function SubText({ children }: { children: ReactNode }) {
   return (
-    <p className="mt-5 text-base leading-relaxed text-white/60 [text-wrap:balance] sm:text-lg">
+    <p className="mt-5 text-base leading-relaxed text-foreground/60 [text-wrap:balance] sm:text-lg">
       {children}
     </p>
   );
@@ -89,10 +89,10 @@ export function BigNumber({
   suffix?: string;
 }) {
   return (
-    <p className="font-serif text-5xl font-light text-[#f5f2eb] sm:text-6xl">
+    <p className="font-serif text-5xl font-light text-foreground sm:text-6xl">
       {prefix}
       {value.toLocaleString("en-US")}
-      <span className="text-2xl text-white/50">{suffix}</span>
+      <span className="text-2xl text-foreground/55">{suffix}</span>
     </p>
   );
 }
@@ -130,7 +130,7 @@ export function PricingColumn({
       className={`rounded-2xl border p-7 sm:p-9 ${
         highlighted
           ? "border-accent/40 bg-accent/[0.08] shadow-[0_24px_64px_-32px_rgba(201,184,150,0.35)] ring-1 ring-inset ring-accent/15"
-          : "border-white/10 bg-white/[0.03]"
+          : "border-border bg-foreground/[0.03]"
       }`}
     >
       {highlighted ? (
@@ -138,21 +138,21 @@ export function PricingColumn({
           {def.label} · Most Popular
         </p>
       ) : (
-        <p className="mb-5 text-[10px] uppercase tracking-[0.22em] text-white/40">
+        <p className="mb-5 text-[10px] uppercase tracking-[0.22em] text-foreground/45">
           {def.label}
         </p>
       )}
-      <p className="font-serif text-5xl font-light tracking-[-0.01em] text-[#f5f2eb] sm:text-6xl">
+      <p className="font-serif text-5xl font-light tracking-[-0.01em] text-foreground sm:text-6xl">
         {formatTierPrice(visitPrice)}
       </p>
-      <p className="mt-1.5 text-sm text-white/50">per visit</p>
-      <p className="mt-6 text-xs tracking-wide text-white/45 tabular-nums">
+      <p className="mt-1.5 text-sm text-foreground/55">per visit</p>
+      <p className="mt-6 text-xs tracking-wide text-foreground/50 tabular-nums">
         {def.visitsPerYear} visits · {formatTierPrice(annualTotal)}/year
       </p>
       {yearlySavings != null && yearlySavings > 0 ? (
         <p
           className={`mt-3 text-xs ${
-            highlighted ? "text-accent/85" : "text-white/50"
+            highlighted ? "text-accent/85" : "text-foreground/55"
           }`}
         >
           Save {formatTierPrice(yearlySavings)}/yr vs one-time
@@ -160,7 +160,7 @@ export function PricingColumn({
       ) : null}
       <p
         className={`mt-4 text-sm ${
-          highlighted ? "font-medium text-accent" : "text-white/60"
+          highlighted ? "font-medium text-accent" : "text-foreground/60"
         }`}
       >
         {def.addonDiscount}% off add-ons
@@ -174,12 +174,12 @@ export function PricingColumn({
 
 export function TierComparisonTable() {
   return (
-    <div className="mt-6 overflow-hidden rounded-lg border border-white/10">
+    <div className="mt-6 overflow-hidden rounded-lg border border-border">
       <table className="w-full text-left text-sm">
         <thead>
-          <tr className="border-b border-white/10 bg-white/[0.03]">
-            <th className="px-4 py-3 font-normal text-white/40">Benefit</th>
-            <th className="px-4 py-3 text-center font-normal text-white/60">
+          <tr className="border-b border-border bg-foreground/[0.03]">
+            <th className="px-4 py-3 font-normal text-foreground/45">Benefit</th>
+            <th className="px-4 py-3 text-center font-normal text-foreground/60">
               Bi-Annual
             </th>
             <th className="px-4 py-3 text-center font-normal text-accent">
@@ -190,8 +190,8 @@ export function TierComparisonTable() {
         <tbody>
           {TIER_COMPARISON_ROWS.map((row) => (
             <tr key={row.label} className="border-b border-white/5">
-              <td className="px-4 py-2.5 text-white/70">{row.label}</td>
-              <td className="px-4 py-2.5 text-center text-white/50">
+              <td className="px-4 py-2.5 text-foreground/70">{row.label}</td>
+              <td className="px-4 py-2.5 text-center text-foreground/55">
                 {row.biannual}
               </td>
               <td className="px-4 py-2.5 text-center text-accent/90">
@@ -211,35 +211,35 @@ export function BreakdownCard({ presentation }: { presentation: PresentationData
   const visit = visitRateFromPresentation(presentation);
 
   return (
-    <div className="rounded-lg border border-white/10 bg-white/[0.03] p-6">
-      <p className="text-[10px] uppercase tracking-[0.16em] text-white/40">
+    <div className="rounded-lg border border-border bg-foreground/[0.03] p-6">
+      <p className="text-[10px] uppercase tracking-[0.16em] text-foreground/45">
         Selected: {tierLabel(selected)}
       </p>
       <dl className="mt-4 space-y-3 text-sm">
         <div className="flex justify-between gap-4">
-          <dt className="text-white/40">Per visit</dt>
+          <dt className="text-foreground/45">Per visit</dt>
           <dd>{formatTierPrice(visit)}</dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt className="text-white/40">Annual total</dt>
+          <dt className="text-foreground/45">Annual total</dt>
           <dd>{formatTierPrice(rates.annualRate)}</dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt className="text-white/40">One-time equivalent</dt>
+          <dt className="text-foreground/45">One-time equivalent</dt>
           <dd>{formatTierPrice(rates.oneTimePerVisit)}/visit</dd>
         </div>
         <div className="flex justify-between gap-4">
-          <dt className="text-white/40">Yearly savings vs one-time</dt>
+          <dt className="text-foreground/45">Yearly savings vs one-time</dt>
           <dd>{formatTierPrice(rates.yearlyWindowSavings)}/yr</dd>
         </div>
         {selected === "quarterly" && (
           <div className="flex justify-between gap-4">
-            <dt className="text-white/40">Added treatment value</dt>
+            <dt className="text-foreground/45">Added treatment value</dt>
             <dd>{formatTierPrice(rates.retailValue)}/yr at retail</dd>
           </div>
         )}
         <div className="flex justify-between gap-4">
-          <dt className="text-white/40">Add-on discount</dt>
+          <dt className="text-foreground/45">Add-on discount</dt>
           <dd>{SQUEEGEEKING_TIERS[selected].addonDiscount}% OFF</dd>
         </div>
       </dl>
@@ -258,7 +258,7 @@ export function ScheduleList({ presentation }: { presentation: PresentationData 
       {months.map((month, index) => (
         <li
           key={month}
-          className="flex items-center justify-between rounded border border-white/10 bg-white/[0.03] px-4 py-3 text-sm"
+          className="flex items-center justify-between rounded border border-border bg-foreground/[0.03] px-4 py-3 text-sm"
         >
           <span>
             {new Date(2026, month, 15).toLocaleDateString("en-US", {
@@ -266,7 +266,7 @@ export function ScheduleList({ presentation }: { presentation: PresentationData 
             })}{" "}
             — Exterior windows
           </span>
-          <span className="text-[10px] uppercase tracking-[0.14em] text-white/40">
+          <span className="text-[10px] uppercase tracking-[0.14em] text-foreground/45">
             Visit {index + 1} of {def.visitsPerYear}
           </span>
         </li>
@@ -283,7 +283,7 @@ export function ServicesList({ presentation }: { presentation: PresentationData 
       {benefits.map((benefit) => (
         <li
           key={benefit}
-          className="rounded border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/80"
+          className="rounded border border-border bg-foreground/[0.03] px-4 py-3 text-sm text-foreground/80"
         >
           {benefit}
         </li>

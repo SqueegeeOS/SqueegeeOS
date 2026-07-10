@@ -20,7 +20,7 @@ export function FoundingMemberHonor({
           </span>
           {display.title}
         </p>
-        <p className="text-[10px] leading-snug text-white/55">{display.story}</p>
+        <p className="text-[10px] leading-snug text-foreground/60">{display.story}</p>
         <p className="text-[9px] uppercase tracking-[0.16em] text-amber-100/75">
           {display.memberSinceLine}
         </p>

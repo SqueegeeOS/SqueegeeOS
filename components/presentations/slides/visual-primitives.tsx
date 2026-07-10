@@ -17,7 +17,7 @@ export function VisualIcon({
 }) {
   return (
     <span
-      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-accent ${className}`}
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border bg-foreground/[0.04] text-accent ${className}`}
       aria-hidden
     >
       {children}
@@ -31,7 +31,7 @@ export function TrustPills({ items }: { items: string[] }) {
       {items.map((item) => (
         <span
           key={item}
-          className="rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-[11px] tracking-wide text-white/55"
+          className="rounded-full border border-border bg-foreground/[0.03] px-4 py-2 text-[11px] tracking-wide text-foreground/60"
         >
           {item}
         </span>
@@ -69,12 +69,12 @@ export function IncludedVisual({ tier }: { tier: SqueegeeKingTierId | string }) 
         {items.map((item) => (
           <div
             key={item.label}
-            className="flex items-start gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-3 text-left"
+            className="flex items-start gap-3 rounded-xl border border-border bg-white/[0.02] px-4 py-3 text-left"
           >
             <span className="mt-0.5 text-accent" aria-hidden>◇</span>
             <div>
-              <p className="text-sm text-[#f5f2eb]/90">{item.label}</p>
-              <p className="mt-0.5 text-[11px] text-white/45">{item.detail}</p>
+              <p className="text-sm text-foreground/90">{item.label}</p>
+              <p className="mt-0.5 text-[11px] text-foreground/50">{item.detail}</p>
             </div>
           </div>
         ))}
@@ -93,18 +93,18 @@ export function DifferenceVisual({ tier }: { tier: SqueegeeKingTierId | string }
         <p className="text-[10px] uppercase tracking-[0.18em] text-accent">SqueegeeKing</p>
         <ul className="mt-4 space-y-3.5">
           {rows.map((row) => (
-            <li key={row.us} className="flex items-start gap-3 text-sm leading-snug text-[#f5f2eb]">
+            <li key={row.us} className="flex items-start gap-3 text-sm leading-snug text-foreground">
               <span className="mt-0.5 text-accent">✓</span>
               <span>{row.us}</span>
             </li>
           ))}
         </ul>
       </div>
-      <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-5 sm:p-6">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">Typical service</p>
+      <div className="rounded-2xl border border-border bg-white/[0.02] p-5 sm:p-6">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-foreground/40">Typical service</p>
         <ul className="mt-4 space-y-3.5">
           {rows.map((row) => (
-            <li key={row.them} className="flex items-start gap-3 text-sm leading-snug text-white/50">
+            <li key={row.them} className="flex items-start gap-3 text-sm leading-snug text-foreground/55">
               <span className="mt-0.5 text-white/30" aria-hidden>✕</span>
               <span>{row.them}</span>
             </li>
@@ -112,7 +112,7 @@ export function DifferenceVisual({ tier }: { tier: SqueegeeKingTierId | string }
         </ul>
       </div>
       {normalized === "biannual" ? (
-        <p className="sm:col-span-2 text-center text-[11px] text-white/40">
+        <p className="sm:col-span-2 text-center text-[11px] text-foreground/45">
           RainBlock and Hard Water are available as add-on services with Bi-Annual membership.
         </p>
       ) : null}
@@ -174,8 +174,8 @@ export function ProcessTimeline() {
           <VisualIcon className="mx-auto h-10 w-10">
             <StepIcon type={step.icon} />
           </VisualIcon>
-          <p className="mt-3 text-sm font-medium text-[#f5f2eb]">{step.title}</p>
-          <p className="mt-1 text-xs text-white/50">{step.detail}</p>
+          <p className="mt-3 text-sm font-medium text-foreground">{step.title}</p>
+          <p className="mt-1 text-xs text-foreground/55">{step.detail}</p>
         </div>
       ))}
     </div>
@@ -190,7 +190,7 @@ export function IconBullet({
   children: ReactNode;
 }) {
   return (
-    <li className="flex items-start gap-3 text-left text-sm text-white/65">
+    <li className="flex items-start gap-3 text-left text-sm text-foreground/65">
       <VisualIcon className="h-8 w-8 text-xs font-medium">{icon}</VisualIcon>
       <span className="pt-1.5 leading-relaxed">{children}</span>
     </li>

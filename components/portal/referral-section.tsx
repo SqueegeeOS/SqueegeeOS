@@ -13,11 +13,11 @@ const STATUS_LABEL: Record<ReferralStatus, string> = {
 };
 
 const STATUS_TONE: Record<ReferralStatus, string> = {
-  pending: "text-white/60",
+  pending: "text-foreground/60",
   converted: "text-emerald-300/90",
   rewarded: "text-accent",
-  expired: "text-white/35",
-  cancelled: "text-white/35",
+  expired: "text-foreground/40",
+  cancelled: "text-foreground/40",
 };
 
 function formatDate(value: string): string {
@@ -93,7 +93,7 @@ export function ReferralSection({
     >
       <PortalCard className="space-y-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <p className="min-w-0 flex-1 truncate rounded-full border border-white/[0.08] bg-white/[0.03] px-4 py-3 font-mono text-sm text-[#f5f2eb]/85">
+          <p className="min-w-0 flex-1 truncate rounded-full border border-border bg-foreground/[0.03] px-4 py-3 font-mono text-sm text-foreground/85">
             {summary.link}
           </p>
           <button
@@ -105,17 +105,17 @@ export function ReferralSection({
           </button>
         </div>
 
-        <dl className="grid grid-cols-3 gap-3 border-t border-white/[0.06] pt-5 text-center">
+        <dl className="grid grid-cols-3 gap-3 border-t border-border pt-5 text-center">
           {[
             ["Visits", summary.visitCount],
             ["Requests", summary.referralCount],
             ["Members", summary.convertedCount],
           ].map(([label, value]) => (
             <div key={String(label)}>
-              <dt className="text-[10px] uppercase tracking-[0.2em] text-white/45">
+              <dt className="text-[10px] uppercase tracking-[0.2em] text-foreground/50">
                 {label}
               </dt>
-              <dd className="mt-1 font-serif text-2xl font-light tabular-nums text-[#f5f2eb]">
+              <dd className="mt-1 font-serif text-2xl font-light tabular-nums text-foreground">
                 {value}
               </dd>
             </div>
@@ -131,20 +131,20 @@ export function ReferralSection({
         )}
 
         {summary.activity.length > 0 && (
-          <ul className="divide-y divide-white/[0.06] border-t border-white/[0.06]">
+          <ul className="divide-y divide-border border-t border-border">
             {summary.activity.map((item) => (
               <li
                 key={item.id}
                 className="flex items-baseline justify-between gap-3 py-3"
               >
-                <span className="min-w-0 truncate text-sm text-white/80">
+                <span className="min-w-0 truncate text-sm text-foreground/80">
                   {item.leadName}
                 </span>
                 <span className="flex shrink-0 items-baseline gap-3">
                   <span className={`text-xs ${STATUS_TONE[item.status]}`}>
                     {STATUS_LABEL[item.status]}
                   </span>
-                  <span className="font-mono text-[11px] text-white/35">
+                  <span className="font-mono text-[11px] text-foreground/40">
                     {formatDate(item.convertedAt ?? item.createdAt)}
                   </span>
                 </span>
@@ -154,7 +154,7 @@ export function ReferralSection({
         )}
 
         {summary.activity.length === 0 && (
-          <p className="text-sm leading-relaxed text-white/45">
+          <p className="text-sm leading-relaxed text-foreground/50">
             No referrals yet. Your link is ready whenever the subject of
             clean windows comes up.
           </p>

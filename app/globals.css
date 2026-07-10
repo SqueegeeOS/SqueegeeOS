@@ -543,3 +543,37 @@ body {
     radial-gradient(ellipse 90% 55% at 50% -14%, rgba(212, 175, 55, 0.14), transparent 62%),
     radial-gradient(ellipse 50% 35% at 0% 100%, rgba(120, 96, 55, 0.1), transparent 50%);
 }
+
+/* ——— Atlas Ring mark ——— */
+
+@keyframes atlas-ring-spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes atlas-roof-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes atlas-hearth-in {
+  from { opacity: 0; transform: scale(0.4); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.atlas-mark-ring-a { animation: atlas-ring-spin 90s linear infinite; }
+.atlas-mark-ring-b { animation: atlas-ring-spin 65s linear infinite reverse; }
+.atlas-mark-roof {
+  stroke-dasharray: 1;
+  animation: atlas-roof-draw 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+}
+.atlas-mark-hearth {
+  transform-origin: 32px 40px;
+  animation: atlas-hearth-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 1.3s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .atlas-mark-ring-a, .atlas-mark-ring-b, .atlas-mark-roof, .atlas-mark-hearth {
+    animation: none;
+  }
+  .atlas-mark-roof { stroke-dashoffset: 0; }
+}

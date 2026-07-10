@@ -33,19 +33,19 @@ export function CardOnFileSetup({
 
   const isPresentation = theme === "presentation";
   const inputClass = isPresentation
-    ? "w-full rounded-lg border border-white/10 bg-white/5 px-4 py-3 text-sm text-[#f5f2eb] placeholder:text-white/25 outline-none focus:border-accent/40"
+    ? "w-full rounded-lg border border-border bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-white/25 outline-none focus:border-accent/40"
     : "w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-foreground outline-none focus:border-accent/40";
   const labelClass = isPresentation
-    ? "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-white/40"
+    ? "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-foreground/45"
     : "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-muted";
   const pointCardClass = isPresentation
-    ? "rounded-lg border border-white/10 bg-white/[0.03] p-4"
+    ? "rounded-lg border border-border bg-foreground/[0.03] p-4"
     : "rounded-2xl border border-border bg-surface/50 p-4";
   const pointTitleClass = isPresentation
-    ? "text-sm font-medium text-[#f5f2eb]"
+    ? "text-sm font-medium text-foreground"
     : "text-sm font-medium text-foreground";
   const pointBodyClass = isPresentation
-    ? "mt-1 text-sm text-white/45"
+    ? "mt-1 text-sm text-foreground/50"
     : "mt-1 text-sm text-muted";
 
   const handleMockSubmit = async () => {
@@ -106,11 +106,11 @@ export function CardOnFileSetup({
           onSuccess={onSuccess}
         />
       ) : (
-        <div className="space-y-4 rounded-lg border border-white/10 bg-white/[0.02] p-5">
+        <div className="space-y-4 rounded-lg border border-border bg-white/[0.02] p-5">
           <p
             className={
               isPresentation
-                ? "text-[10px] uppercase tracking-[0.16em] text-white/35"
+                ? "text-[10px] uppercase tracking-[0.16em] text-foreground/40"
                 : "text-[10px] uppercase tracking-[0.16em] text-muted"
             }
           >
@@ -167,7 +167,7 @@ export function CardOnFileSetup({
               disabled={loading}
               className={
                 isPresentation
-                  ? "rounded-lg border border-white/15 px-5 py-3.5 text-sm text-white/60 transition hover:border-white/30 hover:text-white/80 disabled:opacity-40"
+                  ? "rounded-lg border border-border px-5 py-3.5 text-sm text-foreground/60 transition hover:border-white/30 hover:text-foreground/80 disabled:opacity-40"
                   : "rounded-full border border-border px-5 py-3.5 text-sm text-muted"
               }
             >
