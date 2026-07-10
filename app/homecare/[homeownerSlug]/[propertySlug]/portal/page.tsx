@@ -12,6 +12,13 @@ interface MemberPortalPageProps {
   }>;
 }
 
+export async function generateMetadata({ params }: MemberPortalPageProps) {
+  const { homeownerSlug, propertySlug } = await params;
+  return {
+    manifest: `/api/portal-manifest/slug/${encodeURIComponent(homeownerSlug)}/${encodeURIComponent(propertySlug)}`,
+  };
+}
+
 export default async function MemberPortalPage({ params }: MemberPortalPageProps) {
   const { homeownerSlug, propertySlug } = await params;
   const model = await loadMemberPortalPageBySlugs(homeownerSlug, propertySlug);

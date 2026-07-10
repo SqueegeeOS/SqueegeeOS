@@ -7,8 +7,8 @@ export const pwaConfig = {
   description: "Your home's care record — visits, health, and membership in one place.",
   themeColor: "#060606",
   backgroundColor: "#060606",
-  /** PWA opens portal entry; stored token resolves to /portal/[token] */
+  /** Generic fallback only — portal pages serve per-member manifests. */
   startUrl: "/portal",
-  scope: "/portal",
+  scope: "/",
   display: "standalone" as const,
 } as const;
