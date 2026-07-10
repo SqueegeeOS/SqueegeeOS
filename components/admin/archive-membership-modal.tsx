@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import type { HqMembershipRow } from "@/app/api/admin/memberships/route";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
@@ -77,9 +78,22 @@ function ArchiveMembershipModal({
   onClose: () => void;
   onArchived: (message: string) => void;
 }) {
+  const [mounted, setMounted] = useState(false);
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -122,17 +136,30 @@ function ArchiveMembershipModal({
     }
   };
 
-  return (
+  if (!mounted) {
+    return null;
+  }
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/75 p-0 backdrop-blur-sm sm:items-center sm:p-5"
-      onClick={(event) => {
-        if (event.target === event.currentTarget && !submitting) onClose();
-      }}
+      className="fixed inset-0 z-[200] isolate"
       role="dialog"
       aria-modal="true"
       aria-labelledby="archive-membership-title"
     >
-      <div className="flex max-h-[min(92dvh,92svh)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background shadow-2xl sm:max-h-[min(88dvh,88svh)] sm:rounded-[2rem]">
+      <button
+        type="button"
+        aria-label="Close archive dialog"
+        className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+        onClick={() => {
+          if (!submitting) onClose();
+        }}
+      />
+
+      <div className="pointer-events-none relative z-[1] flex h-full max-h-[100dvh] items-end justify-center p-0 sm:items-center sm:p-5">
+        <div
+          className="pointer-events-auto relative z-[2] flex max-h-[min(92dvh,92svh)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background shadow-2xl sm:max-h-[min(88dvh,88svh)] sm:rounded-[2rem]"
+        >
         <div className="shrink-0 border-b border-border px-5 py-4 sm:px-6">
           <p className="text-[10px] uppercase tracking-[0.24em] text-red-300/90">
             Archive membership
@@ -198,7 +225,7 @@ function ArchiveMembershipModal({
           </div>
         </div>
 
-        <div className="shrink-0 border-t border-border bg-background px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+        <div className="relative z-10 shrink-0 border-t border-border bg-background px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-12px_32px_rgba(0,0,0,0.35)] sm:px-6">
           {error ? (
             <p className="mb-3 text-sm text-red-400" role="alert">
               {error}
@@ -224,7 +251,9 @@ function ArchiveMembershipModal({
             </button>
           </div>
         </div>
+        </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
