@@ -153,12 +153,12 @@ export function MemberWalletCard({
           />
         )}
 
-        <div className="relative flex h-full flex-col justify-between p-6 sm:p-7">
-          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <div className="relative flex h-full flex-col p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-x-3">
             <p className="min-w-0 text-[11px] font-medium tracking-[0.2em] text-accent">
               ✦ {data.brandName}
             </p>
-            <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+            <div className="flex shrink-0 items-start justify-end gap-2">
               {data.addonDiscountPercent != null && (
                 <MemberAddonDiscountStamp
                   discountPercent={data.addonDiscountPercent}
@@ -168,31 +168,32 @@ export function MemberWalletCard({
             </div>
           </div>
 
-          <div className="py-2">
-            <p className="font-serif text-[1.65rem] font-light leading-tight text-[#f5f2eb] sm:text-3xl">
+          <div className="-mt-0.5 min-h-0 flex-1">
+            <p className="font-serif text-[1.5rem] font-light leading-[1.05] text-[#f5f2eb] sm:text-[1.65rem]">
               {data.memberName}
             </p>
-            <p className="mt-2 text-sm tracking-[0.06em] text-accent">
+            <p className="mt-1 text-sm tracking-[0.06em] text-accent">
               {data.tierLabel}
             </p>
-          </div>
-
-          <div>
             {foundingDisplay && (
-              <div className="mb-3">
+              <div className="mt-2 max-w-[72%]">
                 <FoundingMemberHonor display={foundingDisplay} variant="card" />
               </div>
             )}
-            {data.addonDiscountLabel && (
-              <p className="text-sm font-medium leading-snug text-white/90">
+            {!foundingDisplay && data.addonDiscountLabel && (
+              <p className="mt-2 text-[11px] font-medium leading-snug text-white/80">
                 {data.addonDiscountLabel}
               </p>
             )}
-            <p className="mt-1 text-xs text-white/45">{data.memberSinceLabel}</p>
-            <div
-              className="mt-4 flex items-end gap-[3px] border-t border-accent/15 pt-3"
-              aria-hidden
-            >
+            {!foundingDisplay && (
+              <p className="mt-1 text-[11px] text-white/45">{data.memberSinceLabel}</p>
+            )}
+          </div>
+
+          <div
+            className="mt-2 flex items-end gap-[3px] border-t border-accent/15 pt-2"
+            aria-hidden
+          >
               {Array.from({ length: 24 }).map((_, index) => (
                 <span
                   key={index}
@@ -202,7 +203,6 @@ export function MemberWalletCard({
                   style={{ height: `${6 + (index % 3) * 3}px` }}
                 />
               ))}
-            </div>
           </div>
         </div>
       </article>
