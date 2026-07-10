@@ -26,6 +26,25 @@ describe("formatPortalPropertyAddress", () => {
     ).toBe("4125 Canyon Oaks Drive, Chico, CA 95928");
   });
 
+  it("strips TBD embedded in the street address field", () => {
+    expect(
+      formatPortalPropertyAddress({
+        address: "366 brookside Drive, TBD",
+        city: "TBD",
+        state: "CA",
+      }),
+    ).toBe("366 Brookside Drive");
+  });
+
+  it("strips literal null and undefined strings", () => {
+    expect(
+      formatPortalPropertyAddress({
+        address: "366 Brookside Drive, null",
+        city: "undefined",
+      }),
+    ).toBe("366 Brookside Drive");
+  });
+
   it("omits empty and placeholder parts", () => {
     expect(
       formatPortalPropertyAddress({

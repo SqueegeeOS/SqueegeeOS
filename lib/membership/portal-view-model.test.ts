@@ -230,6 +230,55 @@ describe("buildPortalCareRecordView", () => {
     expect(view.landingHeadline).toBe("Sylvia, your home is under care.");
   });
 
+  it("strips TBD when it is embedded in the street address field", () => {
+    const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      profile: {
+        id: "p1",
+        firstName: "Sylvia",
+        lastName: "Siegel",
+        email: null,
+        phone: null,
+        memberSince: "2026-07-09T00:00:00Z",
+        membershipTier: "premium",
+        membershipStatus: "active",
+        totalSaved: 0,
+        savingsHistory: [],
+        nextAppointment: null,
+        appointmentHistory: [],
+        propertyId: "prop1",
+      },
+      property: {
+        ...canyonOaksHomeCarePlan.property,
+        address: "366 brookside Drive, TBD",
+        city: "TBD",
+        state: "CA",
+        zip: "",
+      } as never,
+      propertyName: "366 Brookside Drive",
+      appointments: [],
+      nextAppointment: null,
+      ytdSavings: { savings: 0, retail: 0, paid: 0 },
+      lifetimeSavings: { savings: 0, retail: 0, paid: 0, entries: [] },
+      observations: [],
+      membershipPlanName: "Bi-Annual Care",
+      monthlyRate: 300,
+      memberSince: "2026-07-09T00:00:00Z",
+      foundingMember: false,
+      foundingMemberSince: null,
+      salesTier: "biannual",
+      visitPrice: 300,
+      visitsPerYear: 2,
+      membershipStatus: "active",
+      paymentSetupCompletedAt: "2026-07-09T18:00:36.884+00:00",
+      agreement: null,
+      presentationId: null,
+      membershipId: "mem-1",
+      paymentMethodLabel: null,
+    });
+
+    expect(view.propertyAddress).toBe("366 Brookside Drive");
+  });
+
   it("formats visit price with unit inline (no-narration rule)", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
       profile: {

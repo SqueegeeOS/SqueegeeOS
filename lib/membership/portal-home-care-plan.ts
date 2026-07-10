@@ -1,4 +1,5 @@
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
+import { formatPortalPropertyAddress } from "@/lib/membership/portal-address";
 import {
   buildCareJourney,
   defaultHomeCareBrand,
@@ -70,6 +71,12 @@ export function buildPortalHomeCarePlanFromPresentation(
   );
   const firstName = firstNameFromFullName(input.presentation.clientName);
   const propertyName = parsed.propertyName;
+  const displayAddress = formatPortalPropertyAddress({
+    address: parsed.address,
+    city: parsed.city,
+    state: parsed.state,
+    zip: parsed.zip,
+  });
   const propertyProfile: HomeCarePlanData["propertyProfile"] = [];
 
   if (input.presentation.homeSqft > 0) {
@@ -112,14 +119,14 @@ export function buildPortalHomeCarePlanFromPresentation(
     },
     hero: {
       title: "Your home is under care.",
-      subheadline: `${propertyName} — ${squeegeeKingTierLabel(input.agreementTier)} membership.`,
+      subheadline: `${displayAddress || propertyName} — ${squeegeeKingTierLabel(input.agreementTier)} membership.`,
       intro:
         "Your membership is active. Visits, photos, and your care record live here as service begins.",
       cta: "Open My Home",
     },
     propertyHealth: {
       rating: "Under care",
-      narrative: `${propertyName} is under membership care. Your visit history begins with your first service visit.`,
+      narrative: `${displayAddress || propertyName} is under membership care. Your visit history begins with your first service visit.`,
     },
     propertyProfile,
     findings: [],
@@ -156,7 +163,7 @@ export function buildPortalHomeCarePlanFromPresentation(
     team: getPlanFounders(),
     reviews: defaultPlanReviews,
     closing: {
-      headline: `${propertyName} is under care.`,
+      headline: `${displayAddress || propertyName} is under care.`,
       subline: "Your membership portal is ready.",
       phone: SQUEEGEEKING_PHONE,
       location: "Chico, California",
@@ -297,7 +304,11 @@ async function backfillPortalHomeCarePlan(
           clientName: presentation.clientName || context.homeowner_full_name,
           clientAddress:
             presentation.clientAddress ||
-            `${context.property_address}, ${context.property_city}, ${context.property_state}`,
+            formatPortalPropertyAddress({
+              address: context.property_address,
+              city: context.property_city,
+              state: context.property_state,
+            }),
           homeSqft: presentation.homeSqft || context.square_feet || 0,
         },
         homeownerSlug,
@@ -319,7 +330,11 @@ async function backfillPortalHomeCarePlan(
       id: context.presentation_id ?? `backfill-${context.property_id}`,
       createdBy: "System",
       clientName: context.homeowner_full_name,
-      clientAddress: `${context.property_address}, ${context.property_city}, ${context.property_state}`,
+      clientAddress: formatPortalPropertyAddress({
+        address: context.property_address,
+        city: context.property_city,
+        state: context.property_state,
+      }),
       clientEmail: "",
       homeSqft: context.square_feet ?? 0,
       twoStory: false,
