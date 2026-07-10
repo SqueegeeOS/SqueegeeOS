@@ -50,6 +50,7 @@ describe("member wallet card", () => {
     expect(card.memberName).toBe("Sarah Mitchell");
     expect(card.tierLabel).toBe("Quarterly Member");
     expect(card.addonDiscountLabel).toBe("25% off add-ons");
+    expect(card.addonDiscountPercent).toBe(25);
     expect(card.memberSinceLabel).toMatch(/Member since March 2026/);
     expect(card.brandName).toBe("HomeAtlas");
   });

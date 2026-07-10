@@ -44,6 +44,7 @@ export interface PortalCareRecordView {
   visitPriceLabel: string;
   annualMathLabel: string | null;
   addonDiscountLabel: string | null;
+  addonDiscountPercent: number | null;
   billingReminder: string;
   whatsNextHeadline: string;
   whatsNextSupport: string;
@@ -274,6 +275,7 @@ export function buildPortalCareRecordView(
         ? `${formatTierPrice(visitPrice)} × ${visitsPerYear} visits = ${formatTierPrice(annualTotal)}/year`
         : null,
     addonDiscountLabel: `${tierDef.addonDiscount}% OFF add-ons`,
+    addonDiscountPercent: tierDef.addonDiscount,
     billingReminder: MEMBERSHIP_BILLING_REMINDER,
     whatsNextHeadline,
     whatsNextSupport,

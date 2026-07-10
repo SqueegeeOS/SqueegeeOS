@@ -8,6 +8,7 @@ import {
   walletCardFileName,
 } from "@/lib/membership/render-wallet-card-image";
 import type { FoundingMemberDisplay } from "@/lib/membership/founding-member";
+import { MemberAddonDiscountStamp } from "./member-addon-discount-stamp";
 import { MembershipActiveBadge } from "./membership-active-badge";
 import { FoundingMemberHonor } from "./founding-member-honor";
 
@@ -157,11 +158,18 @@ export function MemberWalletCard({
             <p className="min-w-0 text-[11px] font-medium tracking-[0.2em] text-accent">
               ✦ {data.brandName}
             </p>
-            {data.isActive && <MembershipActiveBadge variant="inline" />}
+            <div className="flex shrink-0 flex-wrap items-start justify-end gap-2">
+              {data.addonDiscountPercent != null && (
+                <MemberAddonDiscountStamp
+                  discountPercent={data.addonDiscountPercent}
+                />
+              )}
+              {data.isActive && <MembershipActiveBadge variant="inline" />}
+            </div>
           </div>
 
           <div className="py-2">
-            <p className="font-serif text-[1.65rem] font-light leading-tight text-foreground sm:text-3xl">
+            <p className="font-serif text-[1.65rem] font-light leading-tight text-[#f5f2eb] sm:text-3xl">
               {data.memberName}
             </p>
             <p className="mt-2 text-sm tracking-[0.06em] text-accent">
@@ -176,11 +184,11 @@ export function MemberWalletCard({
               </div>
             )}
             {data.addonDiscountLabel && (
-              <p className="text-sm font-medium text-foreground/95">
+              <p className="text-sm font-medium leading-snug text-white/90">
                 {data.addonDiscountLabel}
               </p>
             )}
-            <p className="mt-1 text-xs text-muted">{data.memberSinceLabel}</p>
+            <p className="mt-1 text-xs text-white/45">{data.memberSinceLabel}</p>
             <div
               className="mt-4 flex items-end gap-[3px] border-t border-accent/15 pt-3"
               aria-hidden

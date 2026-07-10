@@ -69,6 +69,7 @@ export function MemberPortalExperience({
     memberName: view.firstName,
     tierLabel: view.tierMemberLabel,
     addonDiscountLabel: view.addonDiscountLabel,
+    addonDiscountPercent: view.addonDiscountPercent,
     memberSinceLabel: `Member since ${view.memberSinceFormatted}`,
     isActive: view.membershipActive,
   };
@@ -181,7 +182,7 @@ export function MemberPortalExperience({
                   </div>
                 )}
                 {view.foundingPrologue && (
-                  <p className="mt-6 text-sm leading-relaxed text-amber-100/75">
+                  <p className="founding-home-prologue mt-6 text-sm leading-relaxed text-amber-100/75">
                     {view.foundingPrologue}
                   </p>
                 )}

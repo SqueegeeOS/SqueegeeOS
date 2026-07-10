@@ -8,6 +8,7 @@ export interface MemberWalletCardData {
   memberName: string;
   tierLabel: string;
   addonDiscountLabel: string | null;
+  addonDiscountPercent: number | null;
   memberSinceLabel: string;
   isActive: boolean;
 }
@@ -42,6 +43,7 @@ export function buildMemberWalletCardData(
     memberName: membership.memberName,
     tierLabel: `${careStatus.cadenceLabel} Member`,
     addonDiscountLabel,
+    addonDiscountPercent: discount,
     memberSinceLabel: `Member since ${formatMemberSince(membership.memberSince)}`,
     isActive: options?.isActive ?? true,
   };
