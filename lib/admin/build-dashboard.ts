@@ -14,6 +14,10 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import {
+  isMembershipActive,
+  isMembershipCancelled,
+} from "@/lib/membership/membership-status";
 import { listClosedJobsFromSupabase } from "./closed-jobs-server";
 import { loadMembershipProductionRevenueOverview } from "./membership-production-revenue-server";
 import { loadWebsiteMembershipSalesOverview } from "./website-membership-sales-server";
@@ -51,7 +55,9 @@ async function loadPlatformCounts(): Promise<{
     const [plansRes, agreementsRes, membershipsRes, leadsRes] = await Promise.all([
       supabase.from("home_care_plans").select("*", { count: "exact", head: true }),
       supabase.from("signed_agreements").select("*", { count: "exact", head: true }),
-      supabase.from("memberships").select("status, plan_name"),
+      supabase
+        .from("memberships")
+        .select("status, plan_name, payment_setup_completed_at"),
       supabase
         .from("lead_intakes")
         .select("*", { count: "exact", head: true })
@@ -60,7 +66,7 @@ async function loadPlatformCounts(): Promise<{
 
     return {
       activeMembers:
-        membershipsRes.data?.filter((row) => row.status === "active").length ?? 0,
+        membershipsRes.data?.filter((row) => isMembershipActive(row)).length ?? 0,
       homeCarePlansCreated: countOrZero(plansRes.count),
       pendingRequests: countOrZero(leadsRes.count),
       signedAgreements: countOrZero(agreementsRes.count),
@@ -75,7 +81,9 @@ async function loadMembershipOverview(): Promise<MembershipRevenueOverview> {
 
   try {
     const supabase = createServerSupabaseClient();
-    const { data } = await supabase.from("memberships").select("status, plan_name");
+    const { data } = await supabase
+      .from("memberships")
+      .select("status, plan_name, payment_setup_completed_at");
 
     if (!data?.length) return EMPTY_MEMBERSHIP;
 
@@ -86,11 +94,11 @@ async function loadMembershipOverview(): Promise<MembershipRevenueOverview> {
     }, {});
 
     return {
-      active: data.filter((row) => row.status === "active").length,
+      active: data.filter((row) => isMembershipActive(row)).length,
       pending: data.filter(
-        (row) => row.status === "pending_checkout" || row.status === "inactive",
+        (row) => !isMembershipActive(row) && !isMembershipCancelled(row),
       ).length,
-      canceled: data.filter((row) => row.status === "cancelled").length,
+      canceled: data.filter((row) => isMembershipCancelled(row)).length,
       estimatedMrr: 0,
       popularTier:
         Object.entries(tierCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "—",

@@ -9,12 +9,12 @@ import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { isMissingColumnError } from "@/lib/persistence/queries/load-membership-portal-row";
 import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
 import {
-  resolveHqMembershipDisplayStatus,
-  type HqMembershipDisplayStatus,
-} from "@/lib/membership/membership-status";
-import {
   hasPaymentMethodOnFile,
   isMembershipCancelled,
+  resolveHqMembershipDisplayStatus,
+  resolveMembershipLifecycle,
+  type HqMembershipDisplayStatus,
+  type MembershipLifecycleState,
 } from "@/lib/membership/membership-status";
 
 export interface HqMembershipRow {
@@ -24,6 +24,7 @@ export interface HqMembershipRow {
   planLabel: string;
   tier: "biannual" | "quarterly" | "unknown";
   status: HqMembershipDisplayStatus;
+  lifecycleState: MembershipLifecycleState;
   rawStatus: string;
   visitPrice: number | null;
   visitsPerYear: number | null;
@@ -287,6 +288,19 @@ export async function GET(request: Request) {
           : addonTotals && addonTotals.savings > 0
             ? addonTotals.savings
             : 0;
+      const lifecycleInput = {
+        status: m.status,
+        payment_setup_completed_at: m.payment_setup_completed_at,
+        stripe_payment_method_id: m.stripe_payment_method_id,
+        stripe_customer_id: m.stripe_customer_id,
+        agreement_id: m.agreement_id,
+        sales_tier: m.sales_tier,
+        visit_price: m.visit_price,
+        visits_per_year: m.visits_per_year,
+        nextScheduledAt,
+      };
+      const lifecycle = resolveMembershipLifecycle(lifecycleInput);
+
       return {
         id: m.id,
         customerName: nameById.get(m.homeowner_id) || "Unknown",
@@ -298,13 +312,8 @@ export async function GET(request: Request) {
               ? "Quarterly"
               : "Unknown",
         tier: (m.sales_tier as HqMembershipRow["tier"]) ?? "unknown",
-        status: resolveHqMembershipDisplayStatus({
-          status: m.status,
-          payment_setup_completed_at: m.payment_setup_completed_at,
-          stripe_payment_method_id: m.stripe_payment_method_id,
-          stripe_customer_id: m.stripe_customer_id,
-          nextScheduledAt,
-        }),
+        status: resolveHqMembershipDisplayStatus(lifecycleInput),
+        lifecycleState: lifecycle.state,
         rawStatus: m.status,
         visitPrice: m.visit_price,
         visitsPerYear: m.visits_per_year,

@@ -22,6 +22,7 @@ import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { getStripePublishableKey } from "@/lib/stripe/client";
 import { isStripeLiveMode, resolveStripeKeyMode } from "@/lib/stripe/mode";
 import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
+import { isMembershipActive } from "@/lib/membership/membership-status";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface ColumnProbeResult {
@@ -474,7 +475,9 @@ async function runIntegrityChecks(
   }
 
   const rows = memberships ?? [];
-  const activeRows = rows.filter((row) => row.status === "active");
+  const activeRows = rows.filter((row) =>
+    isMembershipActive(row as { status: string; payment_setup_completed_at: string | null }),
+  );
   const membershipIds = rows.map((row) => row.id as string);
   const presentationIds = [
     ...new Set(

@@ -127,6 +127,7 @@ interface MembershipRow {
   payment_setup_completed_at: string | null;
   presentation_id: string | null;
   stripe_payment_method_id: string | null;
+  agreement_id: string | null;
   membership_enrollment_savings: number | null;
 }
 
@@ -250,6 +251,9 @@ function buildMemberProfileFromHomeowner(
       status: membership?.status ?? "inactive",
       payment_setup_completed_at: membership?.payment_setup_completed_at ?? null,
       stripe_payment_method_id: membership?.stripe_payment_method_id ?? null,
+      agreement_id: membership?.agreement_id ?? undefined,
+      sales_tier: membership?.sales_tier ?? undefined,
+      visit_price: membership?.visit_price ?? undefined,
     }),
     totalSaved: savingsHistory.reduce((sum, row) => sum + row.saved, 0),
     savingsHistory,
@@ -285,6 +289,9 @@ function buildMemberProfile(
       status: membership?.status ?? "inactive",
       payment_setup_completed_at: membership?.payment_setup_completed_at ?? null,
       stripe_payment_method_id: membership?.stripe_payment_method_id ?? null,
+      agreement_id: membership?.agreement_id ?? undefined,
+      sales_tier: membership?.sales_tier ?? undefined,
+      visit_price: membership?.visit_price ?? undefined,
     }),
     totalSaved: centsToDollars(profileRow.total_saved_cents),
     savingsHistory,

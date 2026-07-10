@@ -1,15 +1,15 @@
 import type { StripePaymentStatus } from "@/lib/admin/billing-workspace-types";
+import {
+  hasPaymentMethodOnFile as lifecyclePaymentOnFile,
+  hasPaymentSignal as lifecyclePaymentSignal,
+  isMembershipActive as lifecycleIsActive,
+  resolveMembershipLifecycle,
+  type MembershipLifecycleInput,
+} from "@/lib/membership/membership-lifecycle-resolver";
 
 /**
- * Canonical membership state — the ONE definition every surface
- * (HQ overview, /hq/memberships, membership command center, billing
- * workspace, customer workspace, member portal, scheduling) must use.
- *
- * Two payment signals:
- * - `hasPaymentMethodOnFile` — strict (`payment_setup_completed_at` set).
- *   Use for active-member counts, billing eligibility, and scheduling.
- * - `hasPaymentSignal` — card captured but membership may not be active yet
- *   (`payment_setup_completed_at` OR `stripe_payment_method_id`). HQ display only.
+ * Canonical membership state — thin adapters over membership-lifecycle-resolver.
+ * Import from this module in HQ, portal, scheduling, and billing surfaces.
  */
 export interface MembershipStatusFields {
   status: string;
@@ -29,6 +29,10 @@ export type HqMembershipDisplayStatus =
   | "cancelled";
 
 export interface HqMembershipStatusInput extends MembershipStatusFields {
+  agreement_id?: string | null;
+  sales_tier?: string | null;
+  visit_price?: number | null;
+  visits_per_year?: number | null;
   /** ISO datetime of the next scheduled appointment, when known. */
   nextScheduledAt?: string | null;
 }
@@ -36,15 +40,44 @@ export interface HqMembershipStatusInput extends MembershipStatusFields {
 /** Portal-facing coarse status on MemberProfile. */
 export type PortalMembershipStatus = "active" | "inactive" | "cancelled";
 
+export type { MembershipLifecycleState, MembershipLifecycleResult } from "./membership-lifecycle-resolver";
+export {
+  resolveMembershipLifecycle,
+  type MembershipLifecycleInput,
+} from "./membership-lifecycle-resolver";
+
+function toLifecycleInput(
+  m: MembershipStatusFields &
+    Partial<
+      Pick<
+        HqMembershipStatusInput,
+        | "agreement_id"
+        | "sales_tier"
+        | "visit_price"
+        | "visits_per_year"
+        | "nextScheduledAt"
+      >
+    >,
+): MembershipLifecycleInput {
+  return {
+    status: m.status,
+    payment_setup_completed_at: m.payment_setup_completed_at,
+    stripe_payment_method_id: m.stripe_payment_method_id,
+    stripe_customer_id: m.stripe_customer_id,
+    agreement_id: m.agreement_id,
+    sales_tier: m.sales_tier,
+    visit_price: m.visit_price,
+    visits_per_year: m.visits_per_year,
+    nextScheduledAt: m.nextScheduledAt,
+  };
+}
+
 export function hasPaymentSignal(m: MembershipStatusFields): boolean {
-  return Boolean(
-    m.payment_setup_completed_at?.trim() ||
-      m.stripe_payment_method_id?.trim(),
-  );
+  return lifecyclePaymentSignal(toLifecycleInput(m));
 }
 
 export function hasPaymentMethodOnFile(m: MembershipStatusFields): boolean {
-  return Boolean(m.payment_setup_completed_at?.trim());
+  return lifecyclePaymentOnFile(toLifecycleInput(m));
 }
 
 export function isMembershipCancelled(
@@ -53,46 +86,62 @@ export function isMembershipCancelled(
   return m.status === "cancelled" || m.status === "paused";
 }
 
-/** The one true "active member" test — use for counts, billing, and scheduling. */
-export function isMembershipActive(m: MembershipStatusFields): boolean {
-  return m.status === "active" && hasPaymentMethodOnFile(m);
+export function isMembershipActive(
+  m: MembershipStatusFields &
+    Partial<Pick<HqMembershipStatusInput, "agreement_id" | "sales_tier" | "visit_price">>,
+): boolean {
+  return lifecycleIsActive(toLifecycleInput(m));
 }
 
-export function canScheduleMembership(m: MembershipStatusFields): boolean {
+export function canScheduleMembership(
+  m: MembershipStatusFields &
+    Partial<Pick<HqMembershipStatusInput, "agreement_id" | "sales_tier" | "visit_price">>,
+): boolean {
   return isMembershipActive(m);
 }
 
-export function canBillMembership(m: MembershipStatusFields): boolean {
+export function canBillMembership(
+  m: MembershipStatusFields &
+    Partial<Pick<HqMembershipStatusInput, "agreement_id" | "sales_tier" | "visit_price">>,
+): boolean {
   return isMembershipActive(m);
 }
 
 export function resolvePortalMembershipStatus(
-  m: MembershipStatusFields,
+  m: MembershipStatusFields &
+    Partial<Pick<HqMembershipStatusInput, "agreement_id" | "sales_tier" | "visit_price">>,
 ): PortalMembershipStatus {
   if (isMembershipCancelled(m)) return "cancelled";
   return isMembershipActive(m) ? "active" : "inactive";
 }
 
-/** Unified HQ memberships table status (replaces per-route deriveStatus). */
+/** Unified HQ memberships table status. */
 export function resolveHqMembershipDisplayStatus(
   m: HqMembershipStatusInput,
 ): HqMembershipDisplayStatus {
-  if (isMembershipCancelled(m)) return "cancelled";
+  const lifecycle = resolveMembershipLifecycle(toLifecycleInput(m));
 
-  if (isMembershipActive(m)) {
+  if (lifecycle.state === "canceled" || lifecycle.state === "paused") {
+    return "cancelled";
+  }
+  if (lifecycle.state === "inconsistent") return "attention";
+
+  if (lifecycle.isActive) {
     return m.nextScheduledAt ? "scheduled" : "needs scheduling";
   }
 
-  if (!hasPaymentSignal(m)) return "needs card";
-  if (m.status === "pending_payment") return "signed";
+  if (lifecycle.state === "payment_pending" || lifecycle.state === "draft") {
+    return "needs card";
+  }
+  if (lifecycle.state === "activation_pending") {
+    return m.status === "pending_payment" ? "signed" : "attention";
+  }
+  if (lifecycle.state === "agreement_pending") return "signed";
+  if (lifecycle.state === "past_due") return "attention";
+
   return "attention";
 }
 
-/**
- * Stripe linkage label for billing/admin surfaces. Unifies the identical
- * function that previously lived in both billing-workspace-server.ts and
- * membership-command-center-server.ts.
- */
 export function resolveStripePaymentStatus(
   m: MembershipStatusFields,
 ): StripePaymentStatus {

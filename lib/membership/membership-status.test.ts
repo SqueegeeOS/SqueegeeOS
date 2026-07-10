@@ -12,13 +12,28 @@ import {
 } from "./membership-status";
 
 describe("isMembershipActive", () => {
-  it("is active only when status is active AND payment is completed", () => {
+  it("is active only when status is active AND payment is completed AND tier/price/agreement are set", () => {
+    expect(
+      isMembershipActive({
+        status: "active",
+        payment_setup_completed_at: "2026-01-01T00:00:00Z",
+        agreement_id: "agreement-1",
+        sales_tier: "quarterly",
+        visit_price: 200,
+      }),
+    ).toBe(true);
+  });
+
+  it("is not active when payment and status are correct but tier/price/agreement are missing", () => {
+    // The lifecycle resolver treats this as `inconsistent`, not active — an
+    // active membership with no agreement/tier/price is a data problem, not
+    // a real active member.
     expect(
       isMembershipActive({
         status: "active",
         payment_setup_completed_at: "2026-01-01T00:00:00Z",
       }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("is not active when status is active but payment never completed", () => {
@@ -45,18 +60,24 @@ describe("isMembershipActive", () => {
 
 describe("resolveHqMembershipDisplayStatus", () => {
   it("maps active members with and without a scheduled visit", () => {
+    const baseActive = {
+      status: "active",
+      payment_setup_completed_at: "2026-01-01T00:00:00Z",
+      agreement_id: "agreement-1",
+      sales_tier: "quarterly",
+      visit_price: 200,
+    };
+
     expect(
       resolveHqMembershipDisplayStatus({
-        status: "active",
-        payment_setup_completed_at: "2026-01-01T00:00:00Z",
+        ...baseActive,
         nextScheduledAt: "2026-08-01T12:00:00Z",
       }),
     ).toBe("scheduled");
 
     expect(
       resolveHqMembershipDisplayStatus({
-        status: "active",
-        payment_setup_completed_at: "2026-01-01T00:00:00Z",
+        ...baseActive,
         nextScheduledAt: null,
       }),
     ).toBe("needs scheduling");
@@ -89,6 +110,9 @@ describe("resolvePortalMembershipStatus", () => {
       resolvePortalMembershipStatus({
         status: "active",
         payment_setup_completed_at: "2026-01-01T00:00:00Z",
+        agreement_id: "agreement-1",
+        sales_tier: "quarterly",
+        visit_price: 200,
       }),
     ).toBe("active");
     expect(
@@ -106,6 +130,9 @@ describe("scheduling and billing gates", () => {
     const active = {
       status: "active",
       payment_setup_completed_at: "2026-01-01T00:00:00Z",
+      agreement_id: "agreement-1",
+      sales_tier: "quarterly",
+      visit_price: 200,
     };
     expect(canScheduleMembership(active)).toBe(true);
     expect(canBillMembership(active)).toBe(true);

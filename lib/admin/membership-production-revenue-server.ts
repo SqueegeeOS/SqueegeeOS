@@ -3,6 +3,10 @@ import {
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
+import {
+  hasPaymentMethodOnFile,
+  isMembershipCancelled,
+} from "@/lib/membership/membership-status";
 import { computeMembershipYearlyValue } from "./compute-membership-yearly-value";
 import { getBusinessCalendarDayUtcBounds } from "./company-business-timezone";
 import type { MembershipProductionRevenueOverview } from "./membership-production-revenue-types";
@@ -45,16 +49,8 @@ function startOfUtcMonth(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
-function isCancelled(status: string): boolean {
-  return status === "cancelled" || status === "paused";
-}
-
-function hasCardOnFile(row: MembershipRow): boolean {
-  return Boolean(row.payment_setup_completed_at || row.stripe_payment_method_id);
-}
-
 function isOnBook(row: MembershipRow): boolean {
-  return !isCancelled(row.status) && Boolean(row.agreement_id);
+  return !isMembershipCancelled(row) && Boolean(row.agreement_id);
 }
 
 function isMissingTableError(message: string, table: string): boolean {
@@ -146,7 +142,7 @@ export async function loadMembershipProductionRevenueOverview(): Promise<Members
           : undefined;
         const signedAt = agreement?.signed_at ?? null;
         const yearlyValue = computeMembershipYearlyValue(row);
-        const cardOnFile = hasCardOnFile(row);
+        const cardOnFile = hasPaymentMethodOnFile(row);
         const tier: MembershipProductionSigning["tier"] =
           row.sales_tier === "biannual" || row.sales_tier === "quarterly"
             ? row.sales_tier
