@@ -3,6 +3,7 @@ import { getLeadIntakeById } from "@/lib/acquisition/leads/repository";
 import { listClosedJobsFromSupabase } from "@/lib/admin/closed-jobs-server";
 import type { ClosedJob } from "@/lib/admin/closed-jobs-types";
 import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
+import { isMembershipActive } from "@/lib/membership/membership-status";
 import { resolvePortalPaymentState } from "@/lib/membership/portal-payment-state";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
@@ -259,7 +260,13 @@ async function loadPropertyWorkspace(
     : null;
 
   let stage: CustomerWorkspaceStage = "unknown";
-  if (membership?.status === "active" && paymentState?.membershipActive) {
+  if (membership && isMembershipActive({
+    status: membership.status as string,
+    payment_setup_completed_at:
+      (membership.payment_setup_completed_at as string | null) ?? null,
+    stripe_payment_method_id:
+      (membership.stripe_payment_method_id as string | null) ?? null,
+  })) {
     stage = "active";
   } else if (
     membership &&

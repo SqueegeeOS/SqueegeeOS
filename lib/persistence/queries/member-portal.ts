@@ -18,6 +18,7 @@ import type {
   PropertyRecord,
 } from "@/lib/member-intelligence/types";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
+import { resolvePortalMembershipStatus } from "@/lib/membership/membership-status";
 import { normalizeToSqueegeeKingTier, SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 import { loadMembershipPortalRow } from "@/lib/persistence/queries/load-membership-portal-row";
 import {
@@ -245,12 +246,11 @@ function buildMemberProfileFromHomeowner(
     phone: homeowner.phone,
     memberSince: membership?.started_at ?? null,
     membershipTier: membershipTierFromSalesTier(membership?.sales_tier),
-    membershipStatus:
-      membership?.status === "active"
-        ? "active"
-        : membership?.status === "cancelled"
-          ? "cancelled"
-          : "inactive",
+    membershipStatus: resolvePortalMembershipStatus({
+      status: membership?.status ?? "inactive",
+      payment_setup_completed_at: membership?.payment_setup_completed_at ?? null,
+      stripe_payment_method_id: membership?.stripe_payment_method_id ?? null,
+    }),
     totalSaved: savingsHistory.reduce((sum, row) => sum + row.saved, 0),
     savingsHistory,
     nextAppointment,
@@ -281,12 +281,11 @@ function buildMemberProfile(
     phone: homeowner.phone,
     memberSince: membership?.started_at ?? profileRow.created_at,
     membershipTier: profileRow.membership_tier,
-    membershipStatus:
-      membership?.status === "active"
-        ? "active"
-        : membership?.status === "cancelled"
-          ? "cancelled"
-          : "inactive",
+    membershipStatus: resolvePortalMembershipStatus({
+      status: membership?.status ?? "inactive",
+      payment_setup_completed_at: membership?.payment_setup_completed_at ?? null,
+      stripe_payment_method_id: membership?.stripe_payment_method_id ?? null,
+    }),
     totalSaved: centsToDollars(profileRow.total_saved_cents),
     savingsHistory,
     nextAppointment,
@@ -591,7 +590,13 @@ export async function getMemberPortalDataBySlugs(
     salesTier: membershipRow?.sales_tier ?? null,
     visitPrice: membershipRow?.visit_price ?? null,
     visitsPerYear: membershipRow?.visits_per_year ?? null,
-    membershipStatus: membershipRow?.status ?? "inactive",
+    membershipStatus: membershipRow
+      ? resolvePortalMembershipStatus({
+          status: membershipRow.status,
+          payment_setup_completed_at: membershipRow.payment_setup_completed_at,
+          stripe_payment_method_id: membershipRow.stripe_payment_method_id,
+        })
+      : "inactive",
     paymentSetupCompletedAt:
       membershipRow?.payment_setup_completed_at ?? null,
     membershipEnrollmentSavings:

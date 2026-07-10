@@ -14,6 +14,11 @@ import type {
 } from "@/lib/admin/billing-workspace-types";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import {
+  hasPaymentMethodOnFile,
+  isMembershipActive,
+  resolveStripePaymentStatus,
+} from "@/lib/membership/membership-status";
+import {
   normalizeToSqueegeeKingTier,
   squeegeeKingTierLabel,
 } from "@/lib/membership/tier-config";
@@ -77,19 +82,6 @@ const EMPTY_OVERVIEW: BillingWorkspaceOverview = {
   upcomingChargesCount: 0,
   activeMembershipCount: 0,
 };
-
-function resolveStripePaymentStatus(row: MembershipBillingRow): StripePaymentStatus {
-  if (row.stripe_payment_method_id && row.payment_setup_completed_at) {
-    return "card_on_file";
-  }
-  if (row.stripe_customer_id) {
-    return "customer_only";
-  }
-  if (row.status === "active" && !row.payment_setup_completed_at) {
-    return "payment_pending";
-  }
-  return "not_configured";
-}
 
 function formatPropertyLabel(property: PropertyBillingRow): string {
   return [property.name, property.address, property.city]
@@ -300,8 +292,8 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     );
     const nextChargeDate = billingPeriod;
     const lastChargeDate = resolveLastChargeDate(chargeInputs);
-    const paymentOnFile = Boolean(membership.payment_setup_completed_at);
-    const membershipActive = membership.status === "active";
+    const paymentOnFile = hasPaymentMethodOnFile(membership);
+    const membershipActive = isMembershipActive(membership);
 
     const serviceMonthKey = billingPeriod
       ? `${billingPeriod.slice(0, 7)}-01`

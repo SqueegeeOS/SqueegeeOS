@@ -8,6 +8,14 @@ import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { isMissingColumnError } from "@/lib/persistence/queries/load-membership-portal-row";
 import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
+import {
+  resolveHqMembershipDisplayStatus,
+  type HqMembershipDisplayStatus,
+} from "@/lib/membership/membership-status";
+import {
+  hasPaymentMethodOnFile,
+  isMembershipCancelled,
+} from "@/lib/membership/membership-status";
 
 export interface HqMembershipRow {
   id: string;
@@ -15,14 +23,7 @@ export interface HqMembershipRow {
   address: string;
   planLabel: string;
   tier: "biannual" | "quarterly" | "unknown";
-  status:
-    | "active"
-    | "scheduled"
-    | "needs card"
-    | "needs scheduling"
-    | "signed"
-    | "attention"
-    | "cancelled";
+  status: HqMembershipDisplayStatus;
   rawStatus: string;
   visitPrice: number | null;
   visitsPerYear: number | null;
@@ -154,26 +155,6 @@ async function loadLedgerSavingsByMembership(
   }
 
   return totals;
-}
-
-function deriveStatus(
-  m: {
-    status: string;
-    stripe_payment_method_id: string | null;
-    payment_setup_completed_at: string | null;
-    next_billing_date: string | null;
-  },
-  nextScheduledAt: string | null,
-): HqMembershipRow["status"] {
-  if (m.status === "cancelled" || m.status === "paused") return "cancelled";
-  const paid = Boolean(m.payment_setup_completed_at || m.stripe_payment_method_id);
-  if (m.status === "active" && paid) {
-    if (nextScheduledAt) return "scheduled";
-    return "needs scheduling";
-  }
-  if (!paid) return "needs card";
-  if (m.status === "pending_payment") return "signed";
-  return "attention";
 }
 
 async function loadMembershipRows(): Promise<MembershipQueryRow[]> {
@@ -317,7 +298,13 @@ export async function GET(request: Request) {
               ? "Quarterly"
               : "Unknown",
         tier: (m.sales_tier as HqMembershipRow["tier"]) ?? "unknown",
-        status: deriveStatus(m, nextScheduledAt),
+        status: resolveHqMembershipDisplayStatus({
+          status: m.status,
+          payment_setup_completed_at: m.payment_setup_completed_at,
+          stripe_payment_method_id: m.stripe_payment_method_id,
+          stripe_customer_id: m.stripe_customer_id,
+          nextScheduledAt,
+        }),
         rawStatus: m.status,
         visitPrice: m.visit_price,
         visitsPerYear: m.visits_per_year,

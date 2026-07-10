@@ -7,6 +7,7 @@ import {
 import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import { canScheduleMembership } from "@/lib/membership/membership-status";
 
 export interface ScheduleMembershipServiceInput {
   membershipId: string;
@@ -162,11 +163,15 @@ export async function scheduleMembershipService(
     throw new Error("Cancelled memberships cannot be scheduled");
   }
 
-  const paymentOnFile = Boolean(
-    membership.payment_setup_completed_at || membership.stripe_payment_method_id,
-  );
+  const paymentOnFile = canScheduleMembership({
+    status: membership.status as string,
+    payment_setup_completed_at:
+      (membership.payment_setup_completed_at as string | null) ?? null,
+    stripe_payment_method_id:
+      (membership.stripe_payment_method_id as string | null) ?? null,
+  });
 
-  if (membership.status !== "active" || !paymentOnFile) {
+  if (!paymentOnFile) {
     throw new Error("Only active members with a card on file can be scheduled");
   }
 

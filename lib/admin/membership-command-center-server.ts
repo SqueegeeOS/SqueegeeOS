@@ -11,6 +11,11 @@ import type {
   PendingMemberReason,
 } from "@/lib/admin/membership-command-center-types";
 import { buildPortalAccessUrl } from "@/lib/membership/portal-access";
+import {
+  hasPaymentMethodOnFile,
+  isMembershipActive,
+  resolveStripePaymentStatus,
+} from "@/lib/membership/membership-status";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import {
   normalizeToSqueegeeKingTier,
@@ -105,30 +110,6 @@ const EMPTY_MONTH_VIEW = (referenceDate: Date): MembershipMonthView => {
     missingDataFlags: [],
   };
 };
-
-function resolveStripePaymentStatus(
-  row: Pick<
-    MembershipRow,
-    | "stripe_payment_method_id"
-    | "payment_setup_completed_at"
-    | "stripe_customer_id"
-    | "status"
-  >,
-): StripePaymentStatus {
-  if (row.stripe_payment_method_id && row.payment_setup_completed_at) {
-    return "card_on_file";
-  }
-  if (row.stripe_customer_id) {
-    return "customer_only";
-  }
-  if (
-    (row.status === "active" || row.status === "pending_payment") &&
-    !row.payment_setup_completed_at
-  ) {
-    return "payment_pending";
-  }
-  return "not_configured";
-}
 
 function formatPropertyLabel(property: PropertyRow): string {
   return [property.name, property.address, property.city]
@@ -515,8 +496,8 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
       openObligation?.target_window_start ?? null,
     );
 
-    const paymentOnFile = Boolean(membership.payment_setup_completed_at);
-    const isActive = membership.status === "active" && paymentOnFile;
+    const paymentOnFile = hasPaymentMethodOnFile(membership);
+    const isActive = isMembershipActive(membership);
     const paymentStatus = resolveStripePaymentStatus(membership);
     const planType = planTypeFromTier(membership.sales_tier, membership.plan_name);
     const visitPrice =

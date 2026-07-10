@@ -1,3 +1,8 @@
+import {
+  hasPaymentMethodOnFile,
+  isMembershipActive,
+} from "@/lib/membership/membership-status";
+
 export const PAYMENT_METHOD_ON_FILE_LABEL = "Payment method on file ✓";
 
 export interface PortalPaymentStateInput {
@@ -20,9 +25,14 @@ export interface PortalPaymentState {
 export function resolvePortalPaymentState(
   input: PortalPaymentStateInput,
 ): PortalPaymentState {
-  const paymentOnFile = Boolean(input.paymentSetupCompletedAt);
-  const membershipActive =
-    input.membershipStatus === "active" && paymentOnFile;
+  const paymentOnFile = hasPaymentMethodOnFile({
+    status: input.membershipStatus,
+    payment_setup_completed_at: input.paymentSetupCompletedAt,
+  });
+  const membershipActive = isMembershipActive({
+    status: input.membershipStatus,
+    payment_setup_completed_at: input.paymentSetupCompletedAt,
+  });
   const pendingPayment =
     !paymentOnFile &&
     input.hasMembership &&

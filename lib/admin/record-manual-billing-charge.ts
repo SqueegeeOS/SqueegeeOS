@@ -11,6 +11,7 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import { canBillMembership } from "@/lib/membership/membership-status";
 
 export interface RecordManualBillingChargeInput {
   membershipId: string;
@@ -62,7 +63,7 @@ export async function recordManualBillingCharge(
 
   const { data: membership, error: membershipError } = await supabase
     .from("memberships")
-    .select("id, homeowner_id, property_id, visit_price, status")
+    .select("id, homeowner_id, property_id, visit_price, status, payment_setup_completed_at")
     .eq("id", input.membershipId)
     .maybeSingle();
 
@@ -72,8 +73,14 @@ export async function recordManualBillingCharge(
   if (!membership) {
     throw new Error("Membership not found.");
   }
-  if (membership.status !== "active") {
-    throw new Error("Only active memberships can be charged.");
+  if (
+    !canBillMembership({
+      status: membership.status as string,
+      payment_setup_completed_at:
+        (membership.payment_setup_completed_at as string | null) ?? null,
+    })
+  ) {
+    throw new Error("Only active memberships with a card on file can be charged.");
   }
 
   const { data: obligations, error: obligationsError } = await supabase

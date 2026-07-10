@@ -55,30 +55,23 @@ describe("member wallet card", () => {
     expect(card.brandName).toBe("HomeAtlas");
   });
 
-  it("treats demo portal as active without supabase profile", () => {
-    expect(isMemberMembershipActive(null)).toBe(true);
-    expect(isMemberMembershipActive(undefined)).toBe(true);
+  it("returns false without live portal membership data", () => {
+    expect(isMemberMembershipActive(null)).toBe(false);
+    expect(isMemberMembershipActive(undefined)).toBe(false);
   });
 
   it("hides card when membership is not active", () => {
     expect(
       isMemberMembershipActive({
-        profile: {
-          id: "1",
-          firstName: "Sarah",
-          lastName: "Mitchell",
-          email: null,
-          phone: null,
-          memberSince: null,
-          membershipTier: "premium",
-          membershipStatus: "inactive",
-          totalSaved: 0,
-          savingsHistory: [],
-          nextAppointment: null,
-          appointmentHistory: [],
-          propertyId: "p1",
-        },
+        membershipStatus: "inactive",
+        paymentSetupCompletedAt: null,
       } as never),
     ).toBe(false);
+    expect(
+      isMemberMembershipActive({
+        membershipStatus: "active",
+        paymentSetupCompletedAt: "2026-01-01T00:00:00Z",
+      } as never),
+    ).toBe(true);
   });
 });

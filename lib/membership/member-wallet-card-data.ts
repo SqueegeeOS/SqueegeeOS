@@ -1,5 +1,6 @@
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import { PLATFORM_BRAND } from "@/lib/brand/platform";
+import { isMembershipActive } from "@/lib/membership/membership-status";
 import type { MemberPortalStatus } from "./member-portal-status";
 import type { MemberMembershipView } from "./resolve-member-membership";
 
@@ -16,10 +17,11 @@ export interface MemberWalletCardData {
 export function isMemberMembershipActive(
   portalData?: MemberPortalData | null,
 ): boolean {
-  if (portalData?.profile) {
-    return portalData.profile.membershipStatus === "active";
-  }
-  return true;
+  if (!portalData) return false;
+  return isMembershipActive({
+    status: portalData.membershipStatus,
+    payment_setup_completed_at: portalData.paymentSetupCompletedAt,
+  });
 }
 
 function formatMemberSince(iso: string): string {
