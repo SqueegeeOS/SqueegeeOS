@@ -18,10 +18,10 @@ import {
   squeegeeKingTierLabel,
 } from "@/lib/membership/tier-config";
 import { resolvePortalPaymentState } from "@/lib/membership/portal-payment-state";
-import {
-  buildPortalNextCareVisit,
+import { buildPortalNextCareVisit,
   type PortalNextCareVisit,
 } from "@/lib/membership/portal-next-care-visit";
+import { buildPortalLandingHeadline } from "@/lib/membership/portal-landing-headline";
 import { cumulativeMembershipEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 
@@ -151,6 +151,10 @@ export function buildPortalCareRecordView(
 ): PortalCareRecordView {
   const firstName =
     portalData?.profile.firstName ?? data.homeowner.firstName ?? "Member";
+  const fullName =
+    portalData?.profile.firstName && portalData?.profile.lastName
+      ? `${portalData.profile.firstName} ${portalData.profile.lastName}`.trim()
+      : data.homeowner.fullName ?? null;
   const propertyName =
     portalData?.propertyName ?? data.property.name ?? "Your home";
   const propertyAddress = portalData
@@ -275,7 +279,10 @@ export function buildPortalCareRecordView(
     firstName,
     propertyName,
     propertyAddress,
-    landingHeadline: `${firstName}, ${propertyName} is under care.`,
+    landingHeadline: buildPortalLandingHeadline({
+      firstName: portalData?.profile.firstName ?? data.homeowner.firstName,
+      fullName,
+    }),
     storyHeadline: hasVisitHistory
       ? `The story of ${propertyName} so far.`
       : PORTAL_EMPTY_COPY.storyHeadline,

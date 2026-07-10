@@ -58,7 +58,7 @@ describe("buildPortalCareRecordView", () => {
     expect(view.membershipEnrollmentSavings).toBe(150);
     expect(view.membershipSavingsTotal).toBe(0);
     expect(view.landingHeadline).toBe(
-      "Larry, Canyon Oaks Residence is under care.",
+      "Larry, your home is under care.",
     );
   });
 

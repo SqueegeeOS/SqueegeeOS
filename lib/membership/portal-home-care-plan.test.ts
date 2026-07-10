@@ -43,7 +43,7 @@ describe("presentation sign onboarding creates portal-loadable data", () => {
 
     const view = buildPortalCareRecordView(loaded, null);
     expect(view.landingHeadline).toBe(
-      "Larry, Larry Buckley is under care.",
+      "Larry, your home is under care.",
     );
     expect(view.timelineEntries).toHaveLength(0);
     expect(view.showSavings).toBe(false);
