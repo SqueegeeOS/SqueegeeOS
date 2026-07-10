@@ -8,6 +8,8 @@ import type {
   ReferralStatus,
 } from "./types";
 import { referralPath } from "./types";
+import { nextReferralMilestone } from "./milestones";
+import { loadMemberReferralRewards } from "./rewards";
 
 /* Unambiguous alphabet: no 0/O/1/I/L. */
 const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -184,6 +186,9 @@ export async function getMemberReferralSummary(
     (r) => r.status === "converted" || r.status === "rewarded",
   ).length;
 
+  const rewardsView = await loadMemberReferralRewards(membershipId, convertedCount);
+  const nextMilestoneDef = nextReferralMilestone(convertedCount);
+
   return {
     code,
     link: origin ? `${origin}${referralPath(code)}` : referralPath(code),
@@ -192,6 +197,24 @@ export async function getMemberReferralSummary(
     convertedCount,
     rewardEligibleCount: rows.filter((r) => r.status === "converted").length,
     activity,
+    nextMilestone: nextMilestoneDef
+      ? {
+          convertedCount: nextMilestoneDef.convertedCount,
+          label: nextMilestoneDef.label,
+          description: nextMilestoneDef.description,
+          reached: convertedCount >= nextMilestoneDef.convertedCount,
+        }
+      : null,
+    rewards: rewardsView.rewards.map((reward) => ({
+      id: reward.id,
+      label: reward.rewardLabel,
+      status: reward.status,
+      earnedAt: reward.earnedAt,
+    })),
+    availableCareCreditLabel:
+      rewardsView.availableCreditCents > 0
+        ? `$${(rewardsView.availableCreditCents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })} in HomeAtlas Care Credits available`
+        : null,
   };
 }
 
@@ -228,20 +251,44 @@ export async function listReferralsForHq(): Promise<HqReferralRow[]> {
     visitCounts.set(k, (visitCounts.get(k) ?? 0) + 1);
   }
 
-  return codes.data.map((c) => ({
-    code: c.code as string,
-    memberName: (c.member_name as string) || "Member",
-    membershipId: c.membership_id as string,
-    visitCount: visitCounts.get(c.id as string) ?? 0,
-    referrals: ((referrals.data ?? []) as Array<ReferralRow & { referral_code_id: string }>)
-      .filter((r) => r.referral_code_id === c.id)
-      .map((r) => ({
-        id: r.id,
-        leadName: r.lead_name,
-        leadEmail: r.lead_email,
-        status: r.status,
-        createdAt: r.created_at,
-        convertedAt: r.converted_at,
-      })),
-  }));
+  return Promise.all(
+    codes.data.map(async (c) => {
+      const memberReferrals = ((referrals.data ?? []) as Array<
+        ReferralRow & { referral_code_id: string }
+      >).filter((r) => r.referral_code_id === c.id);
+      const convertedCount = memberReferrals.filter(
+        (r) => r.status === "converted" || r.status === "rewarded",
+      ).length;
+
+      const rewardsView = await loadMemberReferralRewards(
+        c.membership_id as string,
+        convertedCount,
+      );
+      const nextMilestone = nextReferralMilestone(convertedCount);
+
+      return {
+        code: c.code as string,
+        memberName: (c.member_name as string) || "Member",
+        membershipId: c.membership_id as string,
+        visitCount: visitCounts.get(c.id as string) ?? 0,
+        convertedCount,
+        nextMilestoneLabel: nextMilestone?.label ?? null,
+        availableCareCreditLabel:
+          rewardsView.availableCreditCents > 0
+            ? `$${(rewardsView.availableCreditCents / 100).toLocaleString("en-US", { maximumFractionDigits: 0 })} Care Credit available`
+            : null,
+        availableRewardCount: rewardsView.rewards.filter(
+          (r) => r.status === "available" || r.status === "earned",
+        ).length,
+        referrals: memberReferrals.map((r) => ({
+          id: r.id,
+          leadName: r.lead_name,
+          leadEmail: r.lead_email,
+          status: r.status,
+          createdAt: r.created_at,
+          convertedAt: r.converted_at,
+        })),
+      };
+    }),
+  );
 }

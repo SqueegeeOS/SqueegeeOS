@@ -20,6 +20,7 @@ import { MemberWalletCard } from "@/components/membership/member-wallet-card";
 import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-data";
 import { HomeAtlasJourneySection } from "@/components/membership/homeatlas-journey-section";
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
+import { HomeAtlasSavingsSection } from "@/components/portal/homeatlas-savings-section";
 import { CareAddonsSection } from "@/components/portal/care-addons-section";
 import { NextCareVisitHero } from "@/components/portal/next-care-visit-hero";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
@@ -206,11 +207,6 @@ export function MemberPortalExperience({
                     {view.foundingPrologue}
                   </p>
                 )}
-                {view.showSavings && view.savingsLabel && (
-                  <p className="mt-4 text-sm text-accent/90">
-                    {view.savingsLabel}
-                  </p>
-                )}
                 <div className="mt-5">
                   <ExpandLink
                     open={membershipOpen}
@@ -248,12 +244,24 @@ export function MemberPortalExperience({
             )}
           </PortalSection>
 
+          {view.membershipActive && (
+            <PortalSection
+              id="savings"
+              index={2}
+              eyebrow="Member savings"
+              headline="Your HomeAtlas savings."
+              support="Real savings from membership visits and add-on services — tracked separately from referral Care Credits."
+            >
+              <HomeAtlasSavingsSection ledger={view.savingsLedger} />
+            </PortalSection>
+          )}
+
           {/* §2b — Referrals (members only, real data only) */}
           {view.membershipActive && view.membershipId && (
             <ReferralSection
               membershipId={view.membershipId}
               memberName={view.firstName}
-              index={2}
+              index={3}
             />
           )}
 
@@ -269,7 +277,7 @@ export function MemberPortalExperience({
           {view.careAddons.length > 0 && (
             <PortalSection
               id="care-addons"
-              index={3}
+              index={4}
               eyebrow="Additional care"
               headline="Care add-ons."
               support="Extra services completed for your home as a member."

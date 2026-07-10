@@ -13,6 +13,20 @@ export interface ReferralActivityItem {
   convertedAt: string | null;
 }
 
+export interface PortalReferralRewardItem {
+  id: string;
+  label: string;
+  status: "earned" | "available" | "redeemed" | "expired";
+  earnedAt: string;
+}
+
+export interface PortalReferralMilestonePreview {
+  convertedCount: number;
+  label: string;
+  description: string;
+  reached: boolean;
+}
+
 /** What the member sees in their portal. */
 export interface MemberReferralSummary {
   code: string;
@@ -21,9 +35,12 @@ export interface MemberReferralSummary {
   visitCount: number;
   referralCount: number;
   convertedCount: number;
-  /** v1 policy: every converted referral earns one reward credit. */
+  /** Converted referrals not yet marked rewarded in HQ. */
   rewardEligibleCount: number;
   activity: ReferralActivityItem[];
+  nextMilestone: PortalReferralMilestonePreview | null;
+  rewards: PortalReferralRewardItem[];
+  availableCareCreditLabel: string | null;
 }
 
 /** HQ row: one referring member with their referral totals. */
@@ -32,6 +49,10 @@ export interface HqReferralRow {
   memberName: string;
   membershipId: string;
   visitCount: number;
+  convertedCount: number;
+  nextMilestoneLabel: string | null;
+  availableCareCreditLabel: string | null;
+  availableRewardCount: number;
   referrals: Array<{
     id: string;
     leadName: string;

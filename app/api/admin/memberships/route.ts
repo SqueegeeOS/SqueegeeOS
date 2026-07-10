@@ -37,6 +37,7 @@ export interface HqMembershipRow {
   lifetimeAddonRevenue: number | null;
   lifetimeAddonSavings: number | null;
   addonServiceCount: number;
+  lifetimeMemberSavings: number | null;
 }
 
 interface UpcomingAppointmentRow {
@@ -112,6 +113,43 @@ async function loadAddonAggregatesByMembership(
     current.savings += Number(row.saved_cents ?? 0) / 100;
     current.count += 1;
     totals.set(membershipId, current);
+  }
+
+  return totals;
+}
+
+interface LedgerAggregateRow {
+  membership_id: string;
+  amount_cents: number;
+}
+
+async function loadLedgerSavingsByMembership(
+  membershipIds: string[],
+): Promise<Map<string, number>> {
+  const totals = new Map<string, number>();
+  if (membershipIds.length === 0) {
+    return totals;
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("member_savings_ledger_entries")
+    .select("membership_id, amount_cents")
+    .in("membership_id", membershipIds);
+
+  if (error) {
+    if (isMissingTableError(error.message, "member_savings_ledger_entries")) {
+      return totals;
+    }
+    throw new Error(error.message);
+  }
+
+  for (const row of (data ?? []) as LedgerAggregateRow[]) {
+    const membershipId = row.membership_id;
+    totals.set(
+      membershipId,
+      (totals.get(membershipId) ?? 0) + Number(row.amount_cents ?? 0) / 100,
+    );
   }
 
   return totals;
@@ -244,6 +282,9 @@ export async function GET(request: Request) {
     const addonTotalsByMembership = await loadAddonAggregatesByMembership(
       rows.map((row) => row.id),
     );
+    const ledgerSavingsByMembership = await loadLedgerSavingsByMembership(
+      rows.map((row) => row.id),
+    );
 
     const out: HqMembershipRow[] = rows.map((m) => {
       const upcoming = nextAppointmentByProperty.get(m.property_id) ?? null;
@@ -262,6 +303,13 @@ export async function GET(request: Request) {
             ? m.visit_price * m.visits_per_year
             : null;
       const addonTotals = addonTotalsByMembership.get(m.id);
+      const ledgerSavings = ledgerSavingsByMembership.get(m.id);
+      const lifetimeMemberSavings =
+        ledgerSavings != null && ledgerSavings > 0
+          ? ledgerSavings
+          : addonTotals && addonTotals.savings > 0
+            ? addonTotals.savings
+            : 0;
       return {
         id: m.id,
         customerName: nameById.get(m.homeowner_id) || "Unknown",
@@ -289,6 +337,7 @@ export async function GET(request: Request) {
         lifetimeAddonRevenue: addonTotals ? addonTotals.revenue : 0,
         lifetimeAddonSavings: addonTotals ? addonTotals.savings : 0,
         addonServiceCount: addonTotals?.count ?? 0,
+        lifetimeMemberSavings,
       };
     });
 

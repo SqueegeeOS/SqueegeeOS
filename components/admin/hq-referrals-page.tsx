@@ -71,10 +71,36 @@ export function HqReferralsPage() {
                       /r/{row.code}
                     </p>
                   </div>
-                  <p className="font-mono text-xs tracking-[0.14em] text-muted">
-                    {row.visitCount} link {row.visitCount === 1 ? "visit" : "visits"}
-                  </p>
+                  <div className="text-right">
+                    <p className="font-mono text-xs tracking-[0.14em] text-muted">
+                      {row.visitCount} link {row.visitCount === 1 ? "visit" : "visits"}
+                    </p>
+                    <p className="mt-1 font-mono text-xs tracking-[0.14em] text-muted">
+                      {row.convertedCount} converted member
+                      {row.convertedCount === 1 ? "" : "s"}
+                    </p>
+                  </div>
                 </div>
+
+                {(row.nextMilestoneLabel || row.availableCareCreditLabel) && (
+                  <div className="mt-4 space-y-2 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3">
+                    {row.availableCareCreditLabel ? (
+                      <p className="text-sm text-accent">{row.availableCareCreditLabel}</p>
+                    ) : null}
+                    {row.nextMilestoneLabel ? (
+                      <p className="text-sm text-muted">
+                        Next milestone:{" "}
+                        <span className="text-foreground/85">{row.nextMilestoneLabel}</span>
+                      </p>
+                    ) : null}
+                    {row.availableRewardCount > 0 ? (
+                      <p className="text-xs text-muted">
+                        {row.availableRewardCount} reward
+                        {row.availableRewardCount === 1 ? "" : "s"} awaiting redemption
+                      </p>
+                    ) : null}
+                  </div>
+                )}
                 {row.referrals.length > 0 ? (
                   <ul className="mt-5 divide-y divide-border/30 border-t border-border/30">
                     {row.referrals.map((r) => (

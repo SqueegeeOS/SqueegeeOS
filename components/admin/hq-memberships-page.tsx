@@ -203,6 +203,7 @@ function HqMembershipsContent() {
                         ["Visits / yr", row.visitsPerYear ? String(row.visitsPerYear) : "unknown"],
                         ["Yearly value", money(row.yearlyValue)],
                         ["Add-on revenue", money(row.lifetimeAddonRevenue)],
+                        ["Member savings", money(row.lifetimeMemberSavings)],
                         ["Card on file", row.cardOnFile ? "Yes" : "needs setup"],
                         ["Next service", formatNextService(row)],
                       ] as Array<[string, string]>

@@ -27,6 +27,10 @@ import {
   buildPortalCareAddons,
   type PortalCareAddonEntry,
 } from "@/lib/membership/portal-care-addons";
+import {
+  buildMemberSavingsLedgerView,
+  type MemberSavingsLedgerView,
+} from "@/lib/membership/member-savings-ledger";
 import { cumulativeMembershipEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 
@@ -86,6 +90,7 @@ export interface PortalCareRecordView {
   membershipId: string | null;
   nextCareVisit: PortalNextCareVisit;
   careAddons: PortalCareAddonEntry[];
+  savingsLedger: MemberSavingsLedgerView;
 }
 
 function formatMemberSince(iso: string): string {
@@ -231,6 +236,22 @@ export function buildPortalCareRecordView(
 
   const careAddons = buildPortalCareAddons(portalData?.careAddons ?? []);
 
+  const membershipEnrollmentSavings =
+    portalData?.membershipEnrollmentSavings != null &&
+    portalData.membershipEnrollmentSavings > 0
+      ? portalData.membershipEnrollmentSavings
+      : null;
+
+  const savingsLedger =
+    portalData?.savingsLedger ??
+    buildMemberSavingsLedgerView({
+      tierId,
+      addonDiscountPercent: tierDef.addonDiscount,
+      enrollmentSavingsPerVisit: membershipEnrollmentSavings,
+      appointments: portalData?.appointments ?? [],
+      careAddons: portalData?.careAddons ?? [],
+    });
+
   const whatsNextHeadline = nextCareVisit.hasScheduledVisit && nextAppt
     ? formatNextCareVisitHeadline(nextAppt.date)
     : membershipActive
@@ -267,14 +288,8 @@ export function buildPortalCareRecordView(
       : null,
   );
 
-  const lifetimeSavings = portalData?.lifetimeSavings.savings ?? 0;
+  const lifetimeSavings = savingsLedger.totalServiceSavings;
   const showSavings = lifetimeSavings > 0;
-
-  const membershipEnrollmentSavings =
-    portalData?.membershipEnrollmentSavings != null &&
-    portalData.membershipEnrollmentSavings > 0
-      ? portalData.membershipEnrollmentSavings
-      : null;
 
   const membershipSavingsTotal =
     membershipEnrollmentSavings != null
@@ -358,5 +373,6 @@ export function buildPortalCareRecordView(
     membershipId: portalData?.membershipId ?? null,
     nextCareVisit,
     careAddons,
+    savingsLedger,
   };
 }

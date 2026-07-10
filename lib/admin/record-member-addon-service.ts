@@ -281,6 +281,19 @@ export async function recordMemberAddonService(
       serviceDate: input.serviceDate.trim(),
       notes: input.notes,
     });
+
+    const { upsertAddonLedgerEntry } = await import(
+      "@/lib/membership/member-savings-ledger-server"
+    );
+    await upsertAddonLedgerEntry({
+      membershipId,
+      memberProfileId,
+      addonId: inserted.id as string,
+      serviceName: input.serviceName.trim(),
+      savedCents,
+      amountChargedCents,
+      serviceDate: input.serviceDate.trim(),
+    });
   }
 
   console.info("[record-member-addon-service]", {

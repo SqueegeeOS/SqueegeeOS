@@ -434,4 +434,70 @@ describe("buildPortalCareRecordView", () => {
     expect(view.membershipTierCareLabel).toBe("Bi-Annual Care");
     expect(view.paymentOnFile).toBe(true);
   });
+
+  it("builds savingsLedger from care add-ons and completed visits", () => {
+    const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      profile: {
+        id: "p1",
+        firstName: "Sylvia",
+        lastName: "Siegel",
+        email: null,
+        phone: null,
+        memberSince: "2026-07-09T00:00:00Z",
+        membershipTier: "premium",
+        membershipStatus: "active",
+        totalSaved: 0,
+        savingsHistory: [],
+        nextAppointment: null,
+        appointmentHistory: [],
+        propertyId: "prop1",
+      },
+      property: canyonOaksHomeCarePlan.property as never,
+      propertyName: "366 Brookside Drive",
+      appointments: [
+        {
+          id: "visit-1",
+          date: "2026-06-15T00:00:00Z",
+          serviceType: "window_cleaning",
+          status: "completed",
+          technician: null,
+          notes: null,
+        },
+      ],
+      nextAppointment: null,
+      ytdSavings: { savings: 0, retail: 0, paid: 0 },
+      lifetimeSavings: { savings: 0, retail: 0, paid: 0, entries: [] },
+      observations: [],
+      membershipPlanName: "Bi-Annual Care",
+      monthlyRate: 300,
+      memberSince: "2026-07-09T00:00:00Z",
+      foundingMember: false,
+      foundingMemberSince: null,
+      salesTier: "biannual",
+      visitPrice: 300,
+      visitsPerYear: 2,
+      membershipStatus: "active",
+      paymentSetupCompletedAt: "2026-07-09T18:00:36.884+00:00",
+      agreement: null,
+      presentationId: null,
+      membershipId: "mem-1",
+      paymentMethodLabel: null,
+      membershipEnrollmentSavings: 100,
+      careAddons: [
+        {
+          id: "addon-moss-1",
+          serviceName: "Moss Removal + Treatment",
+          serviceDate: "2026-07-11",
+          amountCharged: 300,
+          saved: 75,
+          status: "paid",
+        },
+      ],
+    });
+
+    expect(view.savingsLedger.totalServiceSavings).toBe(175);
+    expect(view.savingsLedger.addonServices.lines[0]?.amount).toBe(75);
+    expect(view.savingsLedger.membershipVisits.total).toBe(100);
+    expect(view.showSavings).toBe(true);
+  });
 });
