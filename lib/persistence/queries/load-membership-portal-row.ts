@@ -76,7 +76,7 @@ export async function loadMembershipPortalRow(
 
   if (!base.data) return null;
 
-  const raw = base.data as Omit<
+  const raw = base.data as unknown as Omit<
     MembershipPortalRow,
     "membership_enrollment_savings" | "portal_theme"
   > & {

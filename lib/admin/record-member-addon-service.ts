@@ -1,25 +1,24 @@
+import "server-only";
+
+import {
+  computeMemberAddonSavingsCents,
+  type RecordMemberAddonInput,
+  validateRecordMemberAddonInput,
+} from "@/lib/admin/record-member-addon-shared";
+import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
+import { isCloudPersistenceConnected } from "@/lib/persistence/config";
+import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
   MEMBER_ADDON_REVENUE_STATUSES,
   type MemberAddonStatus,
 } from "@/lib/persistence/types/member-addon";
-import {
-  normalizeToSqueegeeKingTier,
-  SQUEEGEEKING_TIERS,
-  type SqueegeeKingTierId,
-} from "@/lib/membership/tier-config";
-import { isCloudPersistenceConnected } from "@/lib/persistence/config";
-import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 
-export interface RecordMemberAddonInput {
-  membershipId: string;
-  serviceName: string;
-  serviceDate: string;
-  retailPrice: number;
-  discountPercent: number;
-  amountCharged: number;
-  status: MemberAddonStatus;
-  notes?: string;
-}
+export type { RecordMemberAddonInput } from "@/lib/admin/record-member-addon-shared";
+export {
+  computeMemberAddonSavingsCents,
+  defaultAddonDiscountForTier,
+  validateRecordMemberAddonInput,
+} from "@/lib/admin/record-member-addon-shared";
 
 export interface RecordMemberAddonResult {
   addonId: string;
@@ -31,74 +30,8 @@ export interface RecordMemberAddonResult {
   status: MemberAddonStatus;
 }
 
-const ADDON_STATUSES: MemberAddonStatus[] = [
-  "quoted",
-  "scheduled",
-  "completed",
-  "paid",
-];
-
 function dollarsToCents(value: number): number {
   return Math.round(value * 100);
-}
-
-function validateServiceDate(value: string): string | null {
-  const trimmed = value.trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return "Service date must use YYYY-MM-DD format";
-  }
-  const parsed = new Date(`${trimmed}T12:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    return "Service date is invalid";
-  }
-  return null;
-}
-
-export function defaultAddonDiscountForTier(
-  tier: SqueegeeKingTierId | "unknown",
-): number {
-  if (tier === "unknown") return SQUEEGEEKING_TIERS.biannual.addonDiscount;
-  return SQUEEGEEKING_TIERS[tier].addonDiscount;
-}
-
-export function computeMemberAddonSavingsCents(input: {
-  retailPriceCents: number;
-  amountChargedCents: number;
-}): number {
-  return Math.max(0, input.retailPriceCents - input.amountChargedCents);
-}
-
-export function validateRecordMemberAddonInput(
-  input: RecordMemberAddonInput,
-): string | null {
-  if (!input.membershipId.trim()) {
-    return "Membership ID is required";
-  }
-  if (!input.serviceName.trim()) {
-    return "Service name is required";
-  }
-  const dateError = validateServiceDate(input.serviceDate);
-  if (dateError) return dateError;
-  if (!Number.isFinite(input.retailPrice) || input.retailPrice <= 0) {
-    return "Retail price must be greater than zero";
-  }
-  if (
-    !Number.isFinite(input.discountPercent) ||
-    input.discountPercent < 0 ||
-    input.discountPercent > 100
-  ) {
-    return "Discount percent must be between 0 and 100";
-  }
-  if (!Number.isFinite(input.amountCharged) || input.amountCharged < 0) {
-    return "Amount charged must be zero or greater";
-  }
-  if (input.amountCharged > input.retailPrice + 0.01) {
-    return "Amount charged cannot exceed retail price";
-  }
-  if (!ADDON_STATUSES.includes(input.status)) {
-    return "Status is invalid";
-  }
-  return null;
 }
 
 async function ensureMemberProfileId(homeownerId: string): Promise<string> {

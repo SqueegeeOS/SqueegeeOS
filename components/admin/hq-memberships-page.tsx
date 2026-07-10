@@ -77,6 +77,7 @@ function HqMembershipsContent() {
   const [rows, setRows] = useState<HqMembershipRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [totalAddonRevenue, setTotalAddonRevenue] = useState(0);
 
   const loadMemberships = useCallback(async () => {

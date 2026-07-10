@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HqMembershipRow } from "@/app/api/admin/memberships/route";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
-import { defaultAddonDiscountForTier } from "@/lib/admin/record-member-addon-service";
+import { defaultAddonDiscountForTier } from "@/lib/admin/record-member-addon-shared";
 import type { MemberAddonStatus } from "@/lib/persistence/types/member-addon";
 import {
   craftInput,
