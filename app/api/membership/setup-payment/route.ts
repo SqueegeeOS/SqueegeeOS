@@ -3,6 +3,7 @@ import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendWelcomeEmail } from "@/lib/agreement/send-welcome-email";
 import { loadMembershipForPayment } from "@/lib/membership/load-membership-for-payment";
 import type { MembershipRowForPayment } from "@/lib/membership/load-membership-for-payment";
+import { isMembershipActive } from "@/lib/membership/membership-status";
 import { ensureMembershipObligations } from "@/lib/obligations/ensure-membership-obligations";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import {
@@ -126,7 +127,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (membership.status === "active" && membership.payment_setup_completed_at) {
+    const paymentCompletedAt = membership.payment_setup_completed_at;
+    if (
+      paymentCompletedAt &&
+      isMembershipActive({
+        status: membership.status,
+        payment_setup_completed_at: paymentCompletedAt,
+      })
+    ) {
       const portalUrl = await getPortalAccessUrlForMembership(
         membership.id,
         req.nextUrl.origin,
@@ -134,12 +142,12 @@ export async function POST(req: NextRequest) {
       await recordMembershipObligations(
         supabase,
         membership,
-        membership.started_at ?? membership.payment_setup_completed_at,
+        membership.started_at ?? paymentCompletedAt,
       );
       await recordWebsiteSale(
         supabase,
         membership.id,
-        membership.payment_setup_completed_at,
+        paymentCompletedAt,
         isStripeServerEnabled() ? "stripe" : "mock",
       );
       await lockEnrollmentSavings(

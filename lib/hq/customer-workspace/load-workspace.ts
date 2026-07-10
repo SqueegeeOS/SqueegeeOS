@@ -3,7 +3,10 @@ import { getLeadIntakeById } from "@/lib/acquisition/leads/repository";
 import { listClosedJobsFromSupabase } from "@/lib/admin/closed-jobs-server";
 import type { ClosedJob } from "@/lib/admin/closed-jobs-types";
 import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
-import { isMembershipActive } from "@/lib/membership/membership-status";
+import {
+  isMembershipPendingEnrollment,
+  resolveMembershipLifecycle,
+} from "@/lib/membership/membership-status";
 import { resolvePortalPaymentState } from "@/lib/membership/portal-payment-state";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
@@ -260,20 +263,43 @@ async function loadPropertyWorkspace(
     : null;
 
   let stage: CustomerWorkspaceStage = "unknown";
-  if (membership && isMembershipActive({
-    status: membership.status as string,
-    payment_setup_completed_at:
-      (membership.payment_setup_completed_at as string | null) ?? null,
-    stripe_payment_method_id:
-      (membership.stripe_payment_method_id as string | null) ?? null,
-  })) {
-    stage = "active";
-  } else if (
-    membership &&
-    (membership.status === "pending_payment" ||
-      presentation?.onboarding_status === "pending_payment")
-  ) {
-    stage = "onboarding";
+  if (membership) {
+    const lifecycle = resolveMembershipLifecycle({
+      status: membership.status as string,
+      payment_setup_completed_at:
+        (membership.payment_setup_completed_at as string | null) ?? null,
+      stripe_payment_method_id:
+        (membership.stripe_payment_method_id as string | null) ?? null,
+      agreement_id: (membership.agreement_id as string | null) ?? undefined,
+      sales_tier: (membership.sales_tier as string | null) ?? undefined,
+      visit_price: (membership.visit_price as number | null) ?? undefined,
+      onboardingStatus:
+        (presentation?.onboarding_status as string | null) ?? undefined,
+      presentationStatus: presentation?.status as string | undefined,
+      signedAgreementStatus: agreement ? "complete" : undefined,
+    });
+
+    if (lifecycle.isActive) {
+      stage = "active";
+    } else if (
+      isMembershipPendingEnrollment(
+        {
+          status: membership.status as string,
+          payment_setup_completed_at:
+            (membership.payment_setup_completed_at as string | null) ?? null,
+          agreement_id: (membership.agreement_id as string | null) ?? undefined,
+        },
+        {
+          hasSignedAgreement: Boolean(agreement),
+          onboardingStatus:
+            (presentation?.onboarding_status as string | null) ?? null,
+        },
+      )
+    ) {
+      stage = "onboarding";
+    } else if (presentation) {
+      stage = presentation.status === "signed" ? "onboarding" : "presenting";
+    }
   } else if (presentation) {
     stage = presentation.status === "signed" ? "onboarding" : "presenting";
   }

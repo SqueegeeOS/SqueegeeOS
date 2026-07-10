@@ -70,12 +70,14 @@ HQ display adds operational nuance **on top of** lifecycle (`scheduled` vs `need
 |---------|-------------|
 | HQ overview | `build-dashboard.ts` → `isMembershipActive` |
 | HQ memberships | `app/api/admin/memberships/route.ts` → `resolveHqMembershipDisplayStatus` |
-| Command center | `membership-command-center-server.ts` |
+| Command center | `membership-command-center-server.ts` → `resolvePendingMemberReason`, `isMembershipPendingEnrollment` |
 | Billing workspace | `billing-workspace-server.ts` |
-| Customer workspace | `load-workspace.ts` |
+| Customer workspace | `load-workspace.ts` → `resolveMembershipLifecycle`, `isMembershipPendingEnrollment` |
 | Portal profile | `member-portal.ts` → `resolvePortalMembershipStatus` |
-| Portal payment UI | `portal-payment-state.ts` |
-| Scheduling | `schedule-membership-service.ts` → `canScheduleMembership` |
+| Portal payment UI | `portal-payment-state.ts` → lifecycle-based `pendingPayment` |
+| Setup payment (idempotent) | `app/api/membership/setup-payment/route.ts` → `isMembershipActive` |
+| Scheduling | `schedule-membership-service.ts` → `canScheduleMembership`, `isMembershipCancelled` |
+| Add-on recording | `record-member-addon-service.ts` → `isMembershipCancelled` |
 | Manual billing | `record-manual-billing-charge.ts` → `canBillMembership` |
 | Onboarding status API | `app/api/membership/onboarding-status/route.ts` |
 | Production revenue | `membership-production-revenue-server.ts` |
@@ -86,4 +88,7 @@ HQ display adds operational nuance **on top of** lifecycle (`scheduled` vs `need
 
 - **Migration 029** (`portal_theme`) — pending; see `MIGRATION_029_PENDING.md`
 - **Raw Stripe webhooks** — audited in Slice 4
-- **HQ metric labels** (contracted vs collected) — Slice 5
+- **HQ metric labels** (contracted vs collected) — Slice 4
+- **HQ revenue `activeMembershipValue`** — still uses `hasPaymentMethodOnFile` not strict `isMembershipActive`; Slice 4
+- **Presentation UI** (`presentation-editor`, `presentation-viewer`) — presentation status, not membership DB status
+- **`archive-membership.ts`** — operational archive guard on raw `cancelled` status

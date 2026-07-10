@@ -14,6 +14,8 @@ import { buildPortalAccessUrl } from "@/lib/membership/portal-access";
 import {
   hasPaymentMethodOnFile,
   isMembershipActive,
+  isMembershipPendingEnrollment,
+  resolvePendingMemberReason,
   resolveStripePaymentStatus,
 } from "@/lib/membership/membership-status";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
@@ -222,24 +224,7 @@ function resolvePendingReason(
   membership: MembershipRow,
   hasSignedAgreement: boolean,
 ): PendingMemberReason | null {
-  const paymentOnFile = Boolean(membership.payment_setup_completed_at);
-  const hasAgreement = Boolean(membership.agreement_id) || hasSignedAgreement;
-
-  if (hasAgreement && !paymentOnFile) {
-    return "signed_missing_card";
-  }
-  if (paymentOnFile && membership.status !== "active") {
-    return "card_not_active";
-  }
-  if (
-    membership.status === "pending_payment" ||
-    membership.status === "pending_checkout" ||
-    membership.status === "inactive"
-  ) {
-    if (!hasAgreement) return null;
-    return "signed_missing_card";
-  }
-  return null;
+  return resolvePendingMemberReason(membership, { hasSignedAgreement });
 }
 
 function buildHealthBadges(input: {
@@ -591,10 +576,9 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
     } else if (pendingReason) {
       pendingMembers.push(row);
     } else if (
-      membership.status === "pending_payment" ||
-      membership.status === "pending_checkout" ||
-      membership.status === "inactive" ||
-      membership.status === "paused"
+      isMembershipPendingEnrollment(membership, {
+        hasSignedAgreement: Boolean(agreement),
+      })
     ) {
       pendingMembers.push({
         ...row,

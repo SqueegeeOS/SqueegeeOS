@@ -142,6 +142,71 @@ export function resolveHqMembershipDisplayStatus(
   return "attention";
 }
 
+/** HQ command-center pending-member reason — derived from lifecycle, not raw status. */
+export type MembershipPendingReason =
+  | "signed_missing_card"
+  | "card_not_active"
+  | "agreement_not_signed";
+
+export function resolvePendingMemberReason(
+  m: MembershipStatusFields &
+    Partial<Pick<HqMembershipStatusInput, "agreement_id">>,
+  options?: { hasSignedAgreement?: boolean },
+): MembershipPendingReason | null {
+  const hasSignedAgreement = options?.hasSignedAgreement ?? false;
+  const lifecycle = resolveMembershipLifecycle({
+    ...toLifecycleInput(m),
+    signedAgreementStatus: hasSignedAgreement ? "complete" : undefined,
+  });
+
+  if (lifecycle.isActive) return null;
+  if (lifecycle.state === "canceled" || lifecycle.state === "paused") return null;
+
+  const hasAgreement =
+    Boolean(m.agreement_id?.trim()) || hasSignedAgreement;
+  const paymentOnFile = lifecycle.paymentOnFile;
+
+  if (hasAgreement && !paymentOnFile) {
+    return "signed_missing_card";
+  }
+  if (paymentOnFile && !lifecycle.isActive) {
+    return "card_not_active";
+  }
+  if (
+    lifecycle.state === "payment_pending" ||
+    lifecycle.state === "agreement_pending" ||
+    lifecycle.state === "draft"
+  ) {
+    if (!hasAgreement) return null;
+    return "signed_missing_card";
+  }
+  if (lifecycle.state === "activation_pending") {
+    return "card_not_active";
+  }
+  return null;
+}
+
+/** Pre-active enrollment states (signed path, not yet strict-active). */
+export function isMembershipPendingEnrollment(
+  m: MembershipStatusFields &
+    Partial<Pick<HqMembershipStatusInput, "agreement_id">>,
+  options?: { hasSignedAgreement?: boolean; onboardingStatus?: string | null },
+): boolean {
+  if (isMembershipCancelled(m)) return false;
+  const lifecycle = resolveMembershipLifecycle({
+    ...toLifecycleInput(m),
+    signedAgreementStatus: options?.hasSignedAgreement ? "complete" : undefined,
+    onboardingStatus: options?.onboardingStatus ?? undefined,
+  });
+  if (lifecycle.isActive) return false;
+  return (
+    lifecycle.state === "payment_pending" ||
+    lifecycle.state === "activation_pending" ||
+    lifecycle.state === "agreement_pending" ||
+    options?.onboardingStatus === "pending_payment"
+  );
+}
+
 export function resolveStripePaymentStatus(
   m: MembershipStatusFields,
 ): StripePaymentStatus {

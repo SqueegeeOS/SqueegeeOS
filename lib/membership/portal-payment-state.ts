@@ -1,6 +1,8 @@
 import {
   hasPaymentMethodOnFile,
   isMembershipActive,
+  isMembershipCancelled,
+  resolveMembershipLifecycle,
 } from "@/lib/membership/membership-status";
 
 export const PAYMENT_METHOD_ON_FILE_LABEL = "Payment method on file ✓";
@@ -33,13 +35,18 @@ export function resolvePortalPaymentState(
     status: input.membershipStatus,
     payment_setup_completed_at: input.paymentSetupCompletedAt,
   });
+  const lifecycle = resolveMembershipLifecycle({
+    status: input.membershipStatus,
+    payment_setup_completed_at: input.paymentSetupCompletedAt,
+  });
   const pendingPayment =
-    !paymentOnFile &&
     input.hasMembership &&
-    input.membershipStatus !== "cancelled" &&
-    (input.membershipStatus === "pending_payment" ||
-      input.membershipStatus === "active" ||
-      input.membershipStatus === "inactive");
+    !paymentOnFile &&
+    !isMembershipCancelled({ status: input.membershipStatus }) &&
+    (lifecycle.state === "payment_pending" ||
+      lifecycle.state === "activation_pending" ||
+      lifecycle.state === "agreement_pending" ||
+      (lifecycle.state === "inconsistent" && !lifecycle.isActive));
 
   const headline = paymentOnFile
     ? (input.paymentMethodLabel ?? PAYMENT_METHOD_ON_FILE_LABEL)

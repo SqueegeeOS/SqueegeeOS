@@ -5,6 +5,7 @@ import {
   type RecordMemberAddonInput,
   validateRecordMemberAddonInput,
 } from "@/lib/admin/record-member-addon-shared";
+import { isMembershipCancelled } from "@/lib/membership/membership-status";
 import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
@@ -167,7 +168,7 @@ export async function recordMemberAddonService(
     throw new Error("Membership not found");
   }
 
-  if (membership.status === "cancelled") {
+  if (isMembershipCancelled({ status: membership.status as string })) {
     throw new Error("Cancelled memberships cannot receive add-on revenue");
   }
 

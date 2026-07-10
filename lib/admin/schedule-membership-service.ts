@@ -7,7 +7,7 @@ import {
 import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
-import { canScheduleMembership } from "@/lib/membership/membership-status";
+import { canScheduleMembership, isMembershipCancelled } from "@/lib/membership/membership-status";
 
 export interface ScheduleMembershipServiceInput {
   membershipId: string;
@@ -159,7 +159,7 @@ export async function scheduleMembershipService(
     throw new Error("Membership not found");
   }
 
-  if (membership.status === "cancelled") {
+  if (isMembershipCancelled({ status: membership.status as string })) {
     throw new Error("Cancelled memberships cannot be scheduled");
   }
 

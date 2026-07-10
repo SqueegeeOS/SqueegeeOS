@@ -602,6 +602,9 @@ export async function getMemberPortalDataBySlugs(
           status: membershipRow.status,
           payment_setup_completed_at: membershipRow.payment_setup_completed_at,
           stripe_payment_method_id: membershipRow.stripe_payment_method_id,
+          agreement_id: membershipRow.agreement_id ?? undefined,
+          sales_tier: membershipRow.sales_tier ?? undefined,
+          visit_price: membershipRow.visit_price ?? undefined,
         })
       : "inactive",
     paymentSetupCompletedAt:

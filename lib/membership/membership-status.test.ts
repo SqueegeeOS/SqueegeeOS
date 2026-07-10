@@ -7,6 +7,7 @@ import {
   isMembershipActive,
   isMembershipCancelled,
   resolveHqMembershipDisplayStatus,
+  resolvePendingMemberReason,
   resolvePortalMembershipStatus,
   resolveStripePaymentStatus,
 } from "./membership-status";
@@ -108,6 +109,31 @@ describe("resolveHqMembershipDisplayStatus", () => {
         stripe_payment_method_id: null,
       }),
     ).toBe("needs card");
+  });
+});
+
+describe("resolvePendingMemberReason", () => {
+  it("flags signed members missing card via lifecycle", () => {
+    expect(
+      resolvePendingMemberReason(
+        {
+          status: "pending_payment",
+          payment_setup_completed_at: null,
+          agreement_id: "agreement-1",
+        },
+        { hasSignedAgreement: true },
+      ),
+    ).toBe("signed_missing_card");
+  });
+
+  it("flags card on file but not yet active", () => {
+    expect(
+      resolvePendingMemberReason({
+        status: "pending_payment",
+        payment_setup_completed_at: "2026-01-01T00:00:00Z",
+        agreement_id: "agreement-1",
+      }),
+    ).toBe("card_not_active");
   });
 });
 
