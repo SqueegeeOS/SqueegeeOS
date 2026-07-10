@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient, isSupabaseConfigured } from "@/lib/persistence/supabase/client";
+import {
+  createServerSupabaseClient,
+  isServiceRoleConfigured,
+  isSupabaseConfigured,
+} from "@/lib/persistence/supabase/client";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 
 export async function GET() {
@@ -12,6 +16,8 @@ export async function GET() {
       { status: 503 },
     );
   }
+
+  const serviceRoleConfigured = isServiceRoleConfigured();
 
   try {
     const supabase = createServerSupabaseClient();
@@ -54,12 +60,19 @@ export async function GET() {
       );
     }
 
+    const { count: appointmentCount, error: appointmentError } = await supabase
+      .from("member_appointments")
+      .select("*", { count: "exact", head: true });
+
     return NextResponse.json({
       ok: true,
       connected: true,
       persistenceActive: isCloudPersistenceConnected(),
+      serviceRoleConfigured,
+      memberAppointmentsReadable: !appointmentError,
       projectUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
       homeCarePlanCount: count ?? 0,
+      memberAppointmentCount: appointmentCount ?? 0,
     });
   } catch (error) {
     return NextResponse.json(

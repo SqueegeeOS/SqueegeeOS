@@ -1,5 +1,5 @@
 import {
-  DEFAULT_ATLAS_THEME,
+  PORTAL_DEFAULT_ATLAS_THEME,
   isAtlasThemeId,
   type AtlasThemeId,
 } from "@/lib/theme/atlas-themes";
@@ -36,7 +36,7 @@ export function writePortalThemeToStorage(
   }
 }
 
-/** Server preference wins, then membership-scoped localStorage, then default. */
+/** Server preference wins, then membership-scoped localStorage, then portal default. */
 export function resolvePortalThemePreference(
   serverTheme: unknown,
   membershipId?: string | null,
@@ -44,5 +44,5 @@ export function resolvePortalThemePreference(
   if (isAtlasThemeId(serverTheme)) return serverTheme;
   const stored = readPortalThemeFromStorage(membershipId);
   if (stored) return stored;
-  return DEFAULT_ATLAS_THEME;
+  return PORTAL_DEFAULT_ATLAS_THEME;
 }

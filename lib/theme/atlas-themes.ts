@@ -13,6 +13,8 @@ export const ATLAS_THEMES: Array<{
 ];
 
 export const DEFAULT_ATLAS_THEME: AtlasThemeId = "night";
+/** Readable default for member portal when no saved preference exists. */
+export const PORTAL_DEFAULT_ATLAS_THEME: AtlasThemeId = "lux";
 export const ATLAS_THEME_STORAGE_KEY = "atlas-theme";
 
 export function isAtlasThemeId(value: unknown): value is AtlasThemeId {

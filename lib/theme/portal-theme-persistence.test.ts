@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isAtlasThemeId } from "@/lib/theme/atlas-themes";
+import { isAtlasThemeId, PORTAL_DEFAULT_ATLAS_THEME } from "@/lib/theme/atlas-themes";
 import {
   portalThemeStorageKey,
   resolvePortalThemePreference,
@@ -31,8 +31,12 @@ describe("portal theme persistence", () => {
     expect(resolvePortalThemePreference("day", "member-1")).toBe("day");
   });
 
-  it("falls back to night when nothing is saved", () => {
-    expect(resolvePortalThemePreference(null, null)).toBe("night");
-    expect(resolvePortalThemePreference("invalid", null)).toBe("night");
+  it("falls back to lux portal default when nothing is saved", () => {
+    expect(resolvePortalThemePreference(null, null)).toBe(
+      PORTAL_DEFAULT_ATLAS_THEME,
+    );
+    expect(resolvePortalThemePreference("invalid", null)).toBe(
+      PORTAL_DEFAULT_ATLAS_THEME,
+    );
   });
 });

@@ -40,12 +40,27 @@ export function createBrowserSupabaseClient(): SupabaseClient {
 
 /** Server-side Supabase instance (API routes, server components).
  * Uses the service role when configured so RLS can deny the anon key on HQ tables.
- * Falls back to anon only for local dev without SUPABASE_SERVICE_ROLE_KEY. */
+ * In production, missing service role breaks portal/HQ reads after migration 030. */
 export function createServerSupabaseClient(): SupabaseClient {
   if (isServiceRoleConfigured()) {
     return createServiceRoleSupabaseClient();
   }
+
+  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
+    console.error(
+      "[supabase] SUPABASE_SERVICE_ROLE_KEY is not set — portal and HQ reads will fail after RLS migration 030",
+    );
+  }
+
   return createClient(getSupabaseUrl(), getSupabaseAnonKey());
+}
+
+/** Server routes that must bypass RLS (portal, HQ, billing). */
+export function createPrivilegedServerSupabaseClient(): SupabaseClient {
+  if (isServiceRoleConfigured()) {
+    return createServiceRoleSupabaseClient();
+  }
+  return createServerSupabaseClient();
 }
 
 export function isServiceRoleConfigured(): boolean {

@@ -1,6 +1,6 @@
 import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
 import {
-  createServerSupabaseClient,
+  createPrivilegedServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import type { AtlasThemeId } from "@/lib/theme/atlas-themes";
@@ -319,7 +319,7 @@ export async function getMemberPortalDataBySlugs(
     return null;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
 
   const { data: homeowner, error: homeownerError } = await supabase
     .from("homeowners")
@@ -377,16 +377,17 @@ export async function getMemberPortalDataBySlugs(
     .limit(1)
     .maybeSingle();
 
-  const { data: appointmentRows } = profile
-    ? await supabase
-        .from("member_appointments")
-        .select(
-          "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
-        )
-        .eq("member_profile_id", profile.id)
-        .eq("property_id", propertyRow.id)
-        .order("scheduled_at", { ascending: true })
-    : { data: [] };
+  const { data: appointmentRows, error: appointmentError } = await supabase
+    .from("member_appointments")
+    .select(
+      "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
+    )
+    .eq("property_id", propertyRow.id)
+    .order("scheduled_at", { ascending: true });
+
+  if (appointmentError) {
+    console.error("[member-portal] appointments load failed:", appointmentError.message);
+  }
 
   const appointments = ((appointmentRows ?? []) as AppointmentRow[]).map(
     mapAppointment,
