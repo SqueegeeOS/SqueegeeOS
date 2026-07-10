@@ -137,7 +137,7 @@ export function MemberWalletCard({
       <article
         className="relative mx-auto max-w-[358px] overflow-hidden rounded-[1.35rem] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
         style={{
-          aspectRatio: foundingDisplay ? "358 / 262" : "358 / 220",
+          aspectRatio: foundingDisplay ? "358 / 268" : "358 / 220",
         }}
       >
         <div
@@ -155,9 +155,9 @@ export function MemberWalletCard({
           />
         )}
 
-        <div className="relative flex h-full flex-col px-3.5 py-3.5 sm:px-4 sm:py-4">
+        <div className="relative flex h-full -translate-y-[15px] flex-col px-3.5 py-3.5 sm:px-4 sm:py-4">
           <div className="flex shrink-0 items-start justify-between gap-x-2.5">
-            <p className="min-w-0 text-xs font-medium tracking-[0.18em] text-accent">
+            <p className="min-w-0 text-[13px] font-medium tracking-[0.17em] text-accent">
               ✦ {data.brandName}
             </p>
             <div className="flex shrink-0 items-start justify-end gap-2">
@@ -170,11 +170,11 @@ export function MemberWalletCard({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 pt-0.5 pb-2">
-            <p className="font-serif text-[1.65rem] font-light leading-[1.04] text-[#f5f2eb] sm:text-[1.75rem]">
+          <div className="min-h-0 flex-1 pb-2 pt-0">
+            <p className="font-serif text-[1.75rem] font-light leading-[1.04] text-[#f5f2eb] sm:text-[1.85rem]">
               {data.memberName}
             </p>
-            <p className="mt-1 text-[15px] tracking-[0.05em] text-accent">
+            <p className="mt-1 text-base tracking-[0.05em] text-accent">
               {data.tierLabel}
             </p>
             {foundingDisplay && (

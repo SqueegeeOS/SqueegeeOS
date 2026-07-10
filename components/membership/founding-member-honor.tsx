@@ -14,16 +14,16 @@ export function FoundingMemberHonor({
   if (variant === "card") {
     return (
       <div className="founding-honor-card space-y-1">
-        <p className="founding-honor-card-title text-[10px] font-medium uppercase tracking-[0.16em] text-amber-200/90">
+        <p className="founding-honor-card-title text-[11px] font-medium uppercase tracking-[0.15em] text-amber-200/90">
           <span className="font-serif normal-case tracking-normal text-amber-300/95">
             ✦{" "}
           </span>
           {display.title}
         </p>
-        <p className="founding-honor-card-story text-[11px] leading-[1.32] text-white/55">
+        <p className="founding-honor-card-story text-xs leading-[1.3] text-white/55">
           {display.story}
         </p>
-        <p className="founding-honor-card-since text-[9px] uppercase tracking-[0.12em] text-amber-100/75">
+        <p className="founding-honor-card-since text-[10px] uppercase tracking-[0.11em] text-amber-100/75">
           {display.memberSinceLine}
         </p>
       </div>
