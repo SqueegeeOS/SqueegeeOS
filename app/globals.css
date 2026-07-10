@@ -546,8 +546,19 @@ body {
 
 /* ——— Atlas Ring mark ——— */
 
-@keyframes atlas-ring-spin {
-  to { transform: rotate(360deg); }
+/* Calibration cycle: 9.6s of quiet drift, then one eased full
+   revolution that lands on 720deg, so the loop restarts seamlessly.
+   The two rings counter-rotate and re-sync on every burst. */
+@keyframes atlas-ring-cal-a {
+  0% { transform: rotate(0deg); animation-timing-function: linear; }
+  80% { transform: rotate(55deg); animation-timing-function: cubic-bezier(0.55, 0.06, 0.28, 1); }
+  100% { transform: rotate(720deg); }
+}
+
+@keyframes atlas-ring-cal-b {
+  0% { transform: rotate(0deg); animation-timing-function: linear; }
+  80% { transform: rotate(-55deg); animation-timing-function: cubic-bezier(0.55, 0.06, 0.28, 1); }
+  100% { transform: rotate(-720deg); }
 }
 
 @keyframes atlas-roof-draw {
@@ -560,8 +571,8 @@ body {
   to { opacity: 1; transform: scale(1); }
 }
 
-.atlas-mark-ring-a { animation: atlas-ring-spin 90s linear infinite; }
-.atlas-mark-ring-b { animation: atlas-ring-spin 65s linear infinite reverse; }
+.atlas-mark-ring-a { animation: atlas-ring-cal-a 12s infinite; }
+.atlas-mark-ring-b { animation: atlas-ring-cal-b 12s infinite; }
 .atlas-mark-roof {
   stroke-dasharray: 1;
   animation: atlas-roof-draw 1.4s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
