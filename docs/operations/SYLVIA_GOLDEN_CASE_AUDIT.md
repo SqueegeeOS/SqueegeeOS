@@ -118,3 +118,40 @@ Per stabilization plan: fix only with documented discrepancy, expected value, ro
 1. Add `SUPABASE_SERVICE_ROLE_KEY` to local `.env.local` and re-run script.
 2. Open production `/portal/[token]` and confirm next visit + moss add-on render.
 3. Compare HQ memberships row for Sylvia against script output.
+
+---
+
+## Addendum — live token portal verified (read-only, HTTP fetch)
+
+Fetched `https://squeegee-os.vercel.app/portal/<Sylvia's real portal_access_token>`
+directly (production, server-rendered, service-role-backed data — no
+credentials or write access used). Resolves item 3/4 above:
+
+- **Next visit renders correctly.** "Next Care Visit — July 11", "Bi-Annual
+  Exterior Window Care", "10am-2pm" — matches `member_appointments` (RLS
+  hides this from the anon key, but the row exists and the portal shows it).
+  This confirms the C5 "zero-row vs. denied" ambiguity is real: the anon-key
+  audit script's empty array is a permissions artifact, not a data gap.
+- **Add-on renders correctly.** "Moss Removal + Treatment", "$300", "Member
+  savings: $75" appears under both Care Add-ons and the Savings ledger.
+- **Payment method, agreement PDF link, and membership card all render** and
+  agree with the DB values above (Visa ····6605, signed Jul 9, Bi-Annual /
+  $300).
+
+**New finding — confirmed live display bug (not yet fixed on Sylvia's row):**
+the membership price renders as **`$$300`** (double dollar sign) in the
+membership headline recommendation copy and the savings total
+(`totalServiceSavingsLabel`), sourced from the persisted
+`home_care_plans.presentation` JSON blob written at sign time. Root cause:
+`formatTierPrice()` did `` `$${amount.toLocaleString()}` ``, and when a
+caller passed an already-formatted string instead of a raw number,
+`"$300".toLocaleString()` is a no-op (strings fall back to
+`Object.prototype.toLocaleString`), producing `$$300`. Fixed defensively in
+`lib/membership/tier-config.ts` (see `fix(membership): stop formatTierPrice
+double-prefixing already-formatted prices`) so this can't recur for new
+writes. **Sylvia's stored `home_care_plans` row still has the stale
+`"$$300"` string baked in** — per this doc's own policy, that row is not
+touched without a documented discrepancy + explicit founder OK. Regenerating
+it (re-running `backfillPortalHomeCarePlan` for her slug pair) is safe and
+non-destructive once approved, since it only rewrites the derived portal
+plan JSON, not membership/agreement/Stripe rows.
