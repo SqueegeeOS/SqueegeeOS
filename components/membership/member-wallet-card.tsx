@@ -136,7 +136,9 @@ export function MemberWalletCard({
     <>
       <article
         className="relative mx-auto max-w-[358px] overflow-hidden rounded-[1.35rem] border border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.45)]"
-        style={{ aspectRatio: "358 / 220" }}
+        style={{
+          aspectRatio: foundingDisplay ? "358 / 252" : "358 / 220",
+        }}
       >
         <div
           className="absolute inset-0 bg-gradient-to-br from-[#1c1914] via-[#0a0a0a] to-[#12100c]"
@@ -153,8 +155,8 @@ export function MemberWalletCard({
           />
         )}
 
-        <div className="relative flex h-full flex-col p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-x-3">
+        <div className="relative flex h-full flex-col p-4 sm:p-5">
+          <div className="flex shrink-0 items-start justify-between gap-x-3">
             <p className="min-w-0 text-[11px] font-medium tracking-[0.2em] text-accent">
               ✦ {data.brandName}
             </p>
@@ -168,15 +170,15 @@ export function MemberWalletCard({
             </div>
           </div>
 
-          <div className="-mt-0.5 min-h-0 flex-1">
-            <p className="font-serif text-[1.5rem] font-light leading-[1.05] text-[#f5f2eb] sm:text-[1.65rem]">
+          <div className="min-h-0 flex-1 pt-1">
+            <p className="font-serif text-[1.45rem] font-light leading-[1.02] text-[#f5f2eb] sm:text-[1.55rem]">
               {data.memberName}
             </p>
-            <p className="mt-1 text-sm tracking-[0.06em] text-accent">
+            <p className="mt-0.5 text-sm tracking-[0.06em] text-accent">
               {data.tierLabel}
             </p>
             {foundingDisplay && (
-              <div className="mt-2 max-w-[72%]">
+              <div className="mt-1.5 max-w-[70%]">
                 <FoundingMemberHonor display={foundingDisplay} variant="card" />
               </div>
             )}
@@ -191,7 +193,7 @@ export function MemberWalletCard({
           </div>
 
           <div
-            className="mt-2 flex items-end gap-[3px] border-t border-accent/15 pt-2"
+            className="mt-auto shrink-0 flex items-end gap-[3px] border-t border-accent/15 pt-1.5"
             aria-hidden
           >
               {Array.from({ length: 24 }).map((_, index) => (

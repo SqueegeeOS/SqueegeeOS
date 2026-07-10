@@ -520,23 +520,26 @@ body {
     radial-gradient(ellipse 60% 40% at 100% 0%, rgba(178, 196, 222, 0.22), transparent 55%);
 }
 
-/* Founding member honor — Day mode legibility on light stage */
+/* Founding member honor — Day mode matches wallet-card gold on dark panel */
 [data-atlas-theme="day"] .founding-honor-hero {
-  border-color: rgba(35, 32, 26, 0.12);
-  background: rgba(35, 32, 26, 0.03);
+  border-color: rgba(251, 191, 36, 0.22);
+  background: linear-gradient(145deg, #1c1914 0%, #0a0a0a 52%, #12100c 100%);
 }
 
-[data-atlas-theme="day"] .founding-honor-hero-title,
+[data-atlas-theme="day"] .founding-honor-hero-title {
+  color: rgba(253, 230, 138, 0.9);
+}
+
 [data-atlas-theme="day"] .founding-honor-hero-mark {
-  color: #23201a;
+  color: rgba(252, 211, 77, 0.95);
 }
 
 [data-atlas-theme="day"] .founding-honor-hero-story {
-  color: #23201a;
+  color: rgba(255, 255, 255, 0.55);
 }
 
 [data-atlas-theme="day"] .founding-honor-hero-since {
-  color: rgba(35, 32, 26, 0.55);
+  color: rgba(254, 243, 199, 0.75);
 }
 
 [data-atlas-theme="day"] .founding-honor-compact {
