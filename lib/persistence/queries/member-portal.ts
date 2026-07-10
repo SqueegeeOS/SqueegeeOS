@@ -19,6 +19,11 @@ import type {
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 import { loadMembershipPortalRow } from "@/lib/persistence/queries/load-membership-portal-row";
+import {
+  mapMemberCareAddonRecord,
+  type MemberCareAddonRecord,
+} from "@/lib/membership/portal-care-addons";
+import type { MemberAddonStatus } from "@/lib/persistence/types/member-addon";
 
 export interface ServiceObservationView {
   id: string;
@@ -72,6 +77,7 @@ export interface MemberPortalData {
   presentationId: string | null;
   membershipId: string | null;
   paymentMethodLabel: string | null;
+  careAddons: MemberCareAddonRecord[];
 }
 
 interface HomeownerRow {
@@ -461,6 +467,28 @@ export async function getMemberPortalDataBySlugs(
       )
     : null;
 
+  let careAddons: MemberCareAddonRecord[] = [];
+  if (membershipRow?.id) {
+    const { data: addonRows, error: addonError } = await supabase
+      .from("member_addon_transactions")
+      .select(
+        "id, service_name, service_date, amount_charged_cents, saved_cents, status",
+      )
+      .eq("membership_id", membershipRow.id)
+      .order("service_date", { ascending: false });
+
+    if (!addonError) {
+      careAddons = ((addonRows ?? []) as Array<{
+        id: string;
+        service_name: string;
+        service_date: string;
+        amount_charged_cents: number;
+        saved_cents: number;
+        status: MemberAddonStatus;
+      }>).map(mapMemberCareAddonRecord);
+    }
+  }
+
   return {
     profile: memberProfile,
     property: buildPropertyRecord(propertyRow, memberProfile.id),
@@ -497,6 +525,7 @@ export async function getMemberPortalDataBySlugs(
     presentationId: membershipRow?.presentation_id ?? null,
     membershipId: membershipRow?.id ?? null,
     paymentMethodLabel,
+    careAddons,
   };
 }
 

@@ -23,6 +23,10 @@ import { buildPortalNextCareVisit,
 } from "@/lib/membership/portal-next-care-visit";
 import { buildPortalLandingHeadline } from "@/lib/membership/portal-landing-headline";
 import { formatPortalPropertyAddress } from "@/lib/membership/portal-address";
+import {
+  buildPortalCareAddons,
+  type PortalCareAddonEntry,
+} from "@/lib/membership/portal-care-addons";
 import { cumulativeMembershipEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 
@@ -81,6 +85,7 @@ export interface PortalCareRecordView {
   presentationId: string | null;
   membershipId: string | null;
   nextCareVisit: PortalNextCareVisit;
+  careAddons: PortalCareAddonEntry[];
 }
 
 function formatMemberSince(iso: string): string {
@@ -224,6 +229,8 @@ export function buildPortalCareRecordView(
     cadence: tierId,
   });
 
+  const careAddons = buildPortalCareAddons(portalData?.careAddons ?? []);
+
   const whatsNextHeadline = nextCareVisit.hasScheduledVisit && nextAppt
     ? formatNextCareVisitHeadline(nextAppt.date)
     : membershipActive
@@ -350,5 +357,6 @@ export function buildPortalCareRecordView(
     presentationId: portalData?.presentationId ?? null,
     membershipId: portalData?.membershipId ?? null,
     nextCareVisit,
+    careAddons,
   };
 }

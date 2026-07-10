@@ -6,6 +6,7 @@ import {
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { isMissingColumnError } from "@/lib/persistence/queries/load-membership-portal-row";
+import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
 
 export interface HqMembershipRow {
   id: string;
@@ -33,6 +34,9 @@ export interface HqMembershipRow {
   portalPath: string | null;
   agreementId: string | null;
   founding: boolean;
+  lifetimeAddonRevenue: number | null;
+  lifetimeAddonSavings: number | null;
+  addonServiceCount: number;
 }
 
 interface UpcomingAppointmentRow {
@@ -64,6 +68,54 @@ const MEMBERSHIP_BASE_SELECT =
   "id, homeowner_id, property_id, sales_tier, visit_price, annual_rate, visits_per_year, status, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id, created_at";
 
 const MEMBERSHIP_EXTENDED_SELECT = `${MEMBERSHIP_BASE_SELECT}, next_billing_date, portal_access_token, founding_member`;
+
+interface AddonAggregateRow {
+  membership_id: string;
+  amount_charged_cents: number;
+  saved_cents: number;
+}
+
+function isMissingTableError(message: string, table: string): boolean {
+  return message.includes("does not exist") && message.includes(table);
+}
+
+async function loadAddonAggregatesByMembership(
+  membershipIds: string[],
+): Promise<Map<string, { revenue: number; savings: number; count: number }>> {
+  const totals = new Map<string, { revenue: number; savings: number; count: number }>();
+  if (membershipIds.length === 0) {
+    return totals;
+  }
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("member_addon_transactions")
+    .select("membership_id, amount_charged_cents, saved_cents")
+    .in("membership_id", membershipIds)
+    .in("status", MEMBER_ADDON_REVENUE_STATUSES);
+
+  if (error) {
+    if (isMissingTableError(error.message, "member_addon_transactions")) {
+      return totals;
+    }
+    throw new Error(error.message);
+  }
+
+  for (const row of (data ?? []) as AddonAggregateRow[]) {
+    const membershipId = row.membership_id;
+    const current = totals.get(membershipId) ?? {
+      revenue: 0,
+      savings: 0,
+      count: 0,
+    };
+    current.revenue += Number(row.amount_charged_cents ?? 0) / 100;
+    current.savings += Number(row.saved_cents ?? 0) / 100;
+    current.count += 1;
+    totals.set(membershipId, current);
+  }
+
+  return totals;
+}
 
 function deriveStatus(
   m: {
@@ -189,6 +241,10 @@ export async function GET(request: Request) {
       ]),
     );
 
+    const addonTotalsByMembership = await loadAddonAggregatesByMembership(
+      rows.map((row) => row.id),
+    );
+
     const out: HqMembershipRow[] = rows.map((m) => {
       const upcoming = nextAppointmentByProperty.get(m.property_id) ?? null;
       const nextScheduledAt = upcoming?.scheduled_at ?? null;
@@ -205,6 +261,7 @@ export async function GET(request: Request) {
           : typeof m.visit_price === "number" && typeof m.visits_per_year === "number"
             ? m.visit_price * m.visits_per_year
             : null;
+      const addonTotals = addonTotalsByMembership.get(m.id);
       return {
         id: m.id,
         customerName: nameById.get(m.homeowner_id) || "Unknown",
@@ -229,10 +286,18 @@ export async function GET(request: Request) {
         portalPath: m.portal_access_token ? `/portal/${m.portal_access_token}` : null,
         agreementId: m.agreement_id,
         founding: Boolean(m.founding_member),
+        lifetimeAddonRevenue: addonTotals ? addonTotals.revenue : 0,
+        lifetimeAddonSavings: addonTotals ? addonTotals.savings : 0,
+        addonServiceCount: addonTotals?.count ?? 0,
       };
     });
 
-    return NextResponse.json({ rows: out, connected: true });
+    const totalAddonRevenue = out.reduce(
+      (sum, row) => sum + (row.lifetimeAddonRevenue ?? 0),
+      0,
+    );
+
+    return NextResponse.json({ rows: out, connected: true, totalAddonRevenue });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load memberships";

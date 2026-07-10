@@ -20,6 +20,7 @@ import { MemberWalletCard } from "@/components/membership/member-wallet-card";
 import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-data";
 import { HomeAtlasJourneySection } from "@/components/membership/homeatlas-journey-section";
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
+import { CareAddonsSection } from "@/components/portal/care-addons-section";
 import { NextCareVisitHero } from "@/components/portal/next-care-visit-hero";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
 import { ReferralSection } from "@/components/portal/referral-section";
@@ -248,6 +249,18 @@ export function MemberPortalExperience({
               completedVisits={view.completedVisitCount}
               membershipSavings={view.membershipSavingsTotal}
             />
+          )}
+
+          {view.careAddons.length > 0 && (
+            <PortalSection
+              id="care-addons"
+              index={3}
+              eyebrow="Additional care"
+              headline="Care add-ons."
+              support="Extra services completed for your home as a member."
+            >
+              <CareAddonsSection addons={view.careAddons} />
+            </PortalSection>
           )}
 
           {/* §4 — Agreement */}

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
+import { AddMemberAddonButton } from "@/components/admin/add-member-addon-modal";
 import { ArchiveMembershipButton } from "@/components/admin/archive-membership-modal";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { ScheduleMembershipButton } from "@/components/admin/schedule-membership-modal";
@@ -76,7 +77,7 @@ function HqMembershipsContent() {
   const [rows, setRows] = useState<HqMembershipRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [totalAddonRevenue, setTotalAddonRevenue] = useState(0);
 
   const loadMemberships = useCallback(async () => {
     setLoading(true);
@@ -88,6 +89,7 @@ function HqMembershipsContent() {
       });
       const body = (await response.json().catch(() => null)) as {
         rows?: HqMembershipRow[];
+        totalAddonRevenue?: number;
         error?: string;
       } | null;
       if (!response.ok) {
@@ -95,6 +97,7 @@ function HqMembershipsContent() {
         throw new Error(`${response.status} ${detail}`);
       }
       setRows(body?.rows ?? []);
+      setTotalAddonRevenue(body?.totalAddonRevenue ?? 0);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load");
     } finally {
@@ -161,11 +164,12 @@ function HqMembershipsContent() {
           </GlassCard>
         ) : (
           <>
-            <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
               <Stat label="Active" value={String(active.length)} />
               <Stat label="Needs scheduling" value={String(needsScheduling.length)} />
               <Stat label="Yearly value" value={money(yearly)} />
               <Stat label="This month" value={thisMonth > 0 ? money(thisMonth) : "—"} />
+              <Stat label="Add-on revenue" value={totalAddonRevenue > 0 ? money(totalAddonRevenue) : "—"} />
               <Stat label="Bi-Annual" value={String(live.filter((r) => r.tier === "biannual").length)} />
               <Stat label="Quarterly" value={String(live.filter((r) => r.tier === "quarterly").length)} />
             </div>
@@ -198,6 +202,7 @@ function HqMembershipsContent() {
                         ["Visit price", money(row.visitPrice)],
                         ["Visits / yr", row.visitsPerYear ? String(row.visitsPerYear) : "unknown"],
                         ["Yearly value", money(row.yearlyValue)],
+                        ["Add-on revenue", money(row.lifetimeAddonRevenue)],
                         ["Card on file", row.cardOnFile ? "Yes" : "needs setup"],
                         ["Next service", formatNextService(row)],
                       ] as Array<[string, string]>
@@ -229,6 +234,13 @@ function HqMembershipsContent() {
                     ) : (
                       <span className="text-xs text-muted/60">Agreement: unknown</span>
                     )}
+                    <AddMemberAddonButton
+                      row={row}
+                      onRecorded={(message) => {
+                        setNotice(message);
+                        void loadMemberships();
+                      }}
+                    />
                     <ScheduleMembershipButton
                       row={row}
                       onScheduled={(message) => {
