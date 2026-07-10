@@ -564,6 +564,16 @@ export function inferSqueegeeKingTierId(planNameOrId: string): SqueegeeKingTierI
   return MEMBERSHIP_TIERS[inferMembershipTierId(planNameOrId)].salesTier;
 }
 
+/**
+ * Formats a price for customer-facing display. Defensively coerces its
+ * input — this has shipped a real "$$300" bug in production when a caller
+ * passed an already-formatted string (e.g. from a stale/legacy record)
+ * instead of a raw number, since `"$300".toLocaleString()` is a no-op string
+ * method and gets re-prefixed with another "$".
+ */
 export function formatTierPrice(amount: number): string {
-  return `$${amount.toLocaleString("en-US")}`;
+  const numeric =
+    typeof amount === "number" ? amount : Number(String(amount).replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(numeric)) return typeof amount === "string" ? amount : "$0";
+  return `$${numeric.toLocaleString("en-US")}`;
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSqueegeeKingTierQuotes,
+  formatTierPrice,
   membershipRequestHref,
 } from "./tier-config";
 
@@ -27,5 +28,17 @@ describe("SqueegeeKing tier quotes", () => {
     expect(membershipRequestHref("quarterly", 3200)).toBe(
       "/request?membership=quarterly&sqft=3200",
     );
+  });
+});
+
+describe("formatTierPrice", () => {
+  it("formats a plain number with a single dollar sign", () => {
+    expect(formatTierPrice(300)).toBe("$300");
+  });
+
+  it("does not double-prefix an already-formatted price string", () => {
+    // Real production bug: a stale record passed "$300" (string) through
+    // here, and `"$300".toLocaleString()` is a no-op, producing "$$300".
+    expect(formatTierPrice("$300" as unknown as number)).toBe("$300");
   });
 });
