@@ -153,6 +153,7 @@ export function buildPortalHomeCarePlanFromPresentation(
         id: input.agreementTier,
         name: input.planName,
         price: formatTierPrice(input.visitPrice),
+        visitPrice: input.visitPrice,
         period: "per visit",
         lifestyle: squeegeeKingTierLabel(input.agreementTier),
         highlighted: true,

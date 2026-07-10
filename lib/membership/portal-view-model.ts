@@ -197,12 +197,16 @@ export function buildPortalCareRecordView(
       tierDef.label,
   );
 
+  const planVisitPrice = data.memberships[0]?.visitPrice;
+
   const visitPrice =
     portalData?.visitPrice && portalData.visitPrice > 0
       ? portalData.visitPrice
       : portalData?.monthlyRate && portalData.monthlyRate > 0
         ? portalData.monthlyRate
-        : null;
+        : planVisitPrice && planVisitPrice > 0
+          ? planVisitPrice
+          : null;
 
   const visitsPerYear =
     portalData?.visitsPerYear && portalData.visitsPerYear > 0

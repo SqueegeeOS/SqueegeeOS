@@ -31,6 +31,9 @@ export interface HomeCarePlanMembershipTier {
   id: string;
   name: string;
   price: string;
+  /** Raw per-visit price backing `price` — lets the portal view model render
+   * an honest visit-price label before a full portal/membership record exists. */
+  visitPrice?: number;
   period: string;
   lifestyle: string;
   highlighted: boolean;
