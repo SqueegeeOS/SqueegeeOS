@@ -44,8 +44,7 @@ create index if not exists headquarters_profile_initialized_idx
 alter table headquarters_profile enable row level security;
 
 drop policy if exists "headquarters_profile_anon_all" on headquarters_profile;
-create policy "headquarters_profile_anon_all" on headquarters_profile
-  for all using (true) with check (true);
+-- HQ profile: server-only via service role (no anon policy after migration 030).
 
 insert into headquarters_profile (id)
 values ('squeegeeking')

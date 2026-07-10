@@ -38,8 +38,13 @@ export function createBrowserSupabaseClient(): SupabaseClient {
   return browserClient;
 }
 
-/** Server-side Supabase instance (API routes, scripts) */
+/** Server-side Supabase instance (API routes, server components).
+ * Uses the service role when configured so RLS can deny the anon key on HQ tables.
+ * Falls back to anon only for local dev without SUPABASE_SERVICE_ROLE_KEY. */
 export function createServerSupabaseClient(): SupabaseClient {
+  if (isServiceRoleConfigured()) {
+    return createServiceRoleSupabaseClient();
+  }
   return createClient(getSupabaseUrl(), getSupabaseAnonKey());
 }
 

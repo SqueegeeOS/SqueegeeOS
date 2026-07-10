@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "verify:supabase": "node scripts/verify-supabase.mjs",
+    "verify:supabase-security": "node scripts/verify-supabase-security.mjs",
     "migrate:headquarters": "node scripts/migrate-headquarters.mjs"
   },
   "dependencies": {

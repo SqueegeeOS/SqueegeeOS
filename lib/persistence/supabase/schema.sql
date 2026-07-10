@@ -209,14 +209,18 @@ create index if not exists membership_billing_charges_membership_id_idx
 create index if not exists membership_billing_charges_service_month_idx
   on membership_billing_charges (service_month desc);
 
--- updated_at trigger helper
-create or replace function set_updated_at()
-returns trigger as $$
+-- updated_at trigger helper (secure search_path — see migration 030)
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+security invoker
+set search_path = public
+as $$
 begin
   new.updated_at = now();
   return new;
 end;
-$$ language plpgsql;
+$$;
 
 create trigger homeowners_updated_at before update on homeowners
   for each row execute function set_updated_at();
@@ -231,7 +235,9 @@ create trigger signed_agreements_updated_at before update on signed_agreements
 create trigger property_assets_updated_at before update on property_assets
   for each row execute function set_updated_at();
 
--- Row Level Security (permissive for internal app — tighten when auth is added)
+-- Row Level Security
+-- Server routes use service role (bypasses RLS). Anon key: customer persistence only.
+-- HQ / billing / ledger tables have RLS enabled with no anon policies (migration 030).
 alter table homeowners enable row level security;
 alter table properties enable row level security;
 alter table home_care_plans enable row level security;
@@ -239,21 +245,30 @@ alter table memberships enable row level security;
 alter table signed_agreements enable row level security;
 alter table property_assets enable row level security;
 
-create policy "homeowners_anon_all" on homeowners for all using (true) with check (true);
-create policy "properties_anon_all" on properties for all using (true) with check (true);
-create policy "home_care_plans_anon_all" on home_care_plans for all using (true) with check (true);
-create policy "memberships_anon_all" on memberships for all using (true) with check (true);
-create policy "signed_agreements_anon_all" on signed_agreements for all using (true) with check (true);
-create policy "property_assets_anon_all" on property_assets for all using (true) with check (true);
+create policy "homeowners_anon_read" on homeowners for select to anon, authenticated using (true);
+create policy "homeowners_anon_insert" on homeowners for insert to anon, authenticated with check (true);
+create policy "homeowners_anon_update" on homeowners for update to anon, authenticated using (true) with check (true);
+create policy "properties_anon_read" on properties for select to anon, authenticated using (true);
+create policy "properties_anon_insert" on properties for insert to anon, authenticated with check (true);
+create policy "properties_anon_update" on properties for update to anon, authenticated using (true) with check (true);
+create policy "home_care_plans_anon_read" on home_care_plans for select to anon, authenticated using (true);
+create policy "home_care_plans_anon_insert" on home_care_plans for insert to anon, authenticated with check (true);
+create policy "home_care_plans_anon_update" on home_care_plans for update to anon, authenticated using (true) with check (true);
+create policy "memberships_anon_read" on memberships for select to anon, authenticated using (true);
+create policy "memberships_anon_insert" on memberships for insert to anon, authenticated with check (true);
+create policy "memberships_anon_update" on memberships for update to anon, authenticated using (true) with check (true);
+create policy "signed_agreements_anon_read" on signed_agreements for select to anon, authenticated using (true);
+create policy "signed_agreements_anon_insert" on signed_agreements for insert to anon, authenticated with check (true);
+create policy "signed_agreements_anon_update" on signed_agreements for update to anon, authenticated using (true) with check (true);
+create policy "property_assets_anon_read" on property_assets for select to anon, authenticated using (true);
+create policy "property_assets_anon_insert" on property_assets for insert to anon, authenticated with check (true);
+create policy "property_assets_anon_update" on property_assets for update to anon, authenticated using (true) with check (true);
 
 alter table closed_jobs enable row level security;
-create policy "closed_jobs_anon_all" on closed_jobs for all using (true) with check (true);
 
 alter table website_membership_sales enable row level security;
-create policy "website_membership_sales_anon_all" on website_membership_sales for all using (true) with check (true);
 
 alter table membership_billing_charges enable row level security;
-create policy "membership_billing_charges_anon_all" on membership_billing_charges for all using (true) with check (true);
 
 -- ---------------------------------------------------------------------------
 -- Member Intelligence System (see migrations/005_member_intelligence.sql)
