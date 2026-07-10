@@ -155,8 +155,8 @@ export function MemberWalletCard({
           />
         )}
 
-        <div className="relative flex h-full -translate-y-[15px] flex-col px-3.5 py-3.5 sm:px-4 sm:py-4">
-          <div className="flex shrink-0 items-start justify-between gap-x-2.5">
+        <div className="relative flex h-full flex-col px-3.5 py-3.5 sm:px-4 sm:py-4">
+          <div className="mt-4 flex shrink-0 items-start justify-between gap-x-2.5 sm:mt-[18px]">
             <p className="min-w-0 text-[13px] font-medium tracking-[0.17em] text-accent">
               ✦ {data.brandName}
             </p>
@@ -170,8 +170,8 @@ export function MemberWalletCard({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 pb-2 pt-0">
-            <p className="font-serif text-[1.75rem] font-light leading-[1.04] text-[#f5f2eb] sm:text-[1.85rem]">
+          <div className="-mt-2 min-h-0 flex-1 pb-2">
+            <p className="-translate-y-1 font-serif text-[1.9rem] font-light leading-[1.02] text-[#f5f2eb] sm:text-[2.05rem]">
               {data.memberName}
             </p>
             <p className="mt-1 text-base tracking-[0.05em] text-accent">
