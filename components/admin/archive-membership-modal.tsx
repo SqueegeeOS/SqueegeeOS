@@ -6,7 +6,6 @@ import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
   craftInput,
   craftLabel,
-  craftPrimaryButton,
   craftSecondaryButton,
 } from "@/lib/craft/tokens";
 
@@ -133,8 +132,8 @@ function ArchiveMembershipModal({
       aria-modal="true"
       aria-labelledby="archive-membership-title"
     >
-      <div className="flex max-h-[92svh] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background sm:rounded-[2rem]">
-        <div className="border-b border-border px-5 py-4 sm:px-6">
+      <div className="flex max-h-[min(92dvh,92svh)] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background shadow-2xl sm:max-h-[min(88dvh,88svh)] sm:rounded-[2rem]">
+        <div className="shrink-0 border-b border-border px-5 py-4 sm:px-6">
           <p className="text-[10px] uppercase tracking-[0.24em] text-red-300/90">
             Archive membership
           </p>
@@ -146,76 +145,84 @@ function ArchiveMembershipModal({
           </h3>
         </div>
 
-        <div className="space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-          <p className="text-sm leading-relaxed text-muted">
-            This updates the production membership record to{" "}
-            <span className="text-foreground">cancelled</span>. Signed
-            agreements, property history, billing charges, and Stripe customer
-            records are preserved. Stripe payment methods are not deleted.
-          </p>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
+          <div className="space-y-5">
+            <p className="text-sm leading-relaxed text-muted">
+              This updates the production membership record to{" "}
+              <span className="text-foreground">cancelled</span>. Signed
+              agreements, property history, billing charges, and Stripe customer
+              records are preserved. Stripe payment methods are not deleted.
+            </p>
 
-          <dl className="space-y-3 rounded-2xl border border-border/50 bg-foreground/[0.03] px-4 py-4 text-sm">
-            <div>
-              <dt className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
-                Customer
-              </dt>
-              <dd className="mt-1 text-foreground">{row.customerName}</dd>
-            </div>
-            <div>
-              <dt className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
-                Property
-              </dt>
-              <dd className="mt-1 text-foreground/90">{row.address}</dd>
-            </div>
-            <div>
-              <dt className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
-                Membership ID
-              </dt>
-              <dd className="mt-1 font-mono text-xs text-foreground/90">
-                {row.id}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
-                Agreement ID
-              </dt>
-              <dd className="mt-1 font-mono text-xs text-foreground/90">
-                {row.agreementId ?? "—"}
-              </dd>
-            </div>
-          </dl>
+            <dl className="space-y-3 rounded-2xl border border-border/50 bg-foreground/[0.03] px-4 py-4 text-sm">
+              <div>
+                <dt className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                  Customer
+                </dt>
+                <dd className="mt-1 text-foreground">{row.customerName}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                  Property
+                </dt>
+                <dd className="mt-1 text-foreground/90">{row.address}</dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                  Membership ID
+                </dt>
+                <dd className="mt-1 break-all font-mono text-xs text-foreground/90">
+                  {row.id}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-[0.16em] text-muted/80">
+                  Agreement ID
+                </dt>
+                <dd className="mt-1 break-all font-mono text-xs text-foreground/90">
+                  {row.agreementId ?? "—"}
+                </dd>
+              </div>
+            </dl>
 
-          <label className="block">
-            <span className={craftLabel}>Reason (optional)</span>
-            <textarea
-              value={reason}
-              onChange={(event) => setReason(event.target.value)}
-              rows={3}
-              placeholder="Test record, duplicate enrollment, wrong property…"
-              className={craftInput + " resize-none"}
-            />
-          </label>
-
-          {error ? <p className="text-sm text-red-400">{error}</p> : null}
+            <label className="block">
+              <span className={craftLabel}>Reason (optional)</span>
+              <textarea
+                value={reason}
+                onChange={(event) => setReason(event.target.value)}
+                rows={2}
+                placeholder="Test record, duplicate enrollment, wrong property…"
+                className={craftInput + " resize-none"}
+              />
+            </label>
+          </div>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-border px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={submitting}
-            className={craftSecondaryButton}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleArchive()}
-            disabled={submitting}
-            className={`${craftPrimaryButton} !border-red-500/40 !bg-red-500/15 !text-red-100 hover:!bg-red-500/25`}
-          >
-            {submitting ? "Archiving…" : "Archive membership"}
-          </button>
+        <div className="shrink-0 border-t border-border bg-background px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6">
+          {error ? (
+            <p className="mb-3 text-sm text-red-400" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={submitting}
+              className={`w-full sm:w-auto ${craftSecondaryButton}`}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleArchive()}
+              disabled={submitting}
+              aria-busy={submitting}
+              className="inline-flex min-h-[52px] w-full items-center justify-center rounded-full border border-red-400/50 bg-red-500/90 px-6 text-sm font-medium tracking-[0.08em] text-white shadow-[0_8px_24px_rgba(127,29,29,0.35)] transition hover:bg-red-500 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+            >
+              {submitting ? "Archiving…" : "Archive membership"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
