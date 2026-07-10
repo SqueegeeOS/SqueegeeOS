@@ -89,7 +89,7 @@ HQ display adds operational nuance **on top of** lifecycle (`scheduled` vs `need
 
 - **Migration 029** (`portal_theme`) — pending; see `MIGRATION_029_PENDING.md`
 - **Raw Stripe webhooks** — audited in Slice 4
-- **HQ metric labels** (contracted vs collected) — Slice 4
-- **HQ revenue `activeMembershipValue`** — still uses `hasPaymentMethodOnFile` not strict `isMembershipActive`; Slice 4
+- **HQ metric labels** (contracted vs collected) — Slice 4 partially: `activeMembershipValue` now uses strict `isMembershipActive`
+- **HQ revenue `activeMembershipValue`** — fixed in Slice 4 (was `hasPaymentMethodOnFile`)
 - **Presentation UI** (`presentation-editor`, `presentation-viewer`) — presentation status, not membership DB status
 - **`archive-membership.ts`** — operational archive guard on raw `cancelled` status

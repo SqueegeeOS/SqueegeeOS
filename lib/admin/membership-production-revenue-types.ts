@@ -19,7 +19,7 @@ export interface MembershipProductionRevenueOverview {
   cardOnFileCount: number;
   /** Non-cancelled members on book with a signed agreement. */
   membersOnBook: number;
-  /** Sum of yearly value for on-book members with card on file. */
+  /** Sum of yearly value for on-book members that pass strict isMembershipActive. */
   activeMembershipValue: number;
   /** Sum of yearly value for all on-book members (signed agreement, not cancelled). */
   expectedYearlyMembershipRevenue: number;

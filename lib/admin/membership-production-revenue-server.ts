@@ -5,6 +5,7 @@ import {
 import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
 import {
   hasPaymentMethodOnFile,
+  isMembershipActive,
   isMembershipCancelled,
 } from "@/lib/membership/membership-status";
 import { computeMembershipYearlyValue } from "./compute-membership-yearly-value";
@@ -143,6 +144,7 @@ export async function loadMembershipProductionRevenueOverview(): Promise<Members
         const signedAt = agreement?.signed_at ?? null;
         const yearlyValue = computeMembershipYearlyValue(row);
         const cardOnFile = hasPaymentMethodOnFile(row);
+        const membershipActive = isMembershipActive(row);
         const tier: MembershipProductionSigning["tier"] =
           row.sales_tier === "biannual" || row.sales_tier === "quarterly"
             ? row.sales_tier
@@ -162,6 +164,8 @@ export async function loadMembershipProductionRevenueOverview(): Promise<Members
         }
         if (cardOnFile) {
           cardOnFileCount += 1;
+        }
+        if (membershipActive) {
           activeMembershipValue += yearlyValue ?? 0;
         }
         expectedYearlyMembershipRevenue += yearlyValue ?? 0;

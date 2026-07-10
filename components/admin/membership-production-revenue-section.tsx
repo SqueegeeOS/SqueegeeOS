@@ -25,7 +25,7 @@ export function MembershipProductionRevenueSection({
     {
       label: "Active membership value",
       value: formatCurrency(overview.activeMembershipValue),
-      hint: "Yearly value · card on file",
+      hint: "Yearly value · strict active members",
       accent: true,
     },
     {
