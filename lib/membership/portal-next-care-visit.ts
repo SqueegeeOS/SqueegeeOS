@@ -8,15 +8,23 @@ import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 
 export interface PortalNextCareVisit {
   hasScheduledVisit: boolean;
+  /** Full date for detail views — e.g. "Friday, July 11, 2026" */
   dateLabel: string | null;
+  /** Hero display — e.g. "July 11" */
+  dateShortLabel: string | null;
   timeWindow: string | null;
   serviceTypeLabel: string;
   reassuranceCopy: string;
+  /** Short hero line when a visit is scheduled */
+  heroSupportCopy: string;
   emptyCopy: string;
 }
 
 const SCHEDULED_REASSURANCE =
   "Your next HomeAtlas care visit is scheduled. We'll arrive within the service window and update your property record after the visit.";
+
+const HERO_SUPPORT =
+  "Your home's next scheduled care visit is set.";
 
 export function buildPortalNextCareVisit(input: {
   membershipActive: boolean;
@@ -37,22 +45,30 @@ export function buildPortalNextCareVisit(input: {
     return {
       hasScheduledVisit: false,
       dateLabel: null,
+      dateShortLabel: null,
       timeWindow: null,
       serviceTypeLabel: defaultServiceLabel,
       reassuranceCopy: "",
+      heroSupportCopy: "",
       emptyCopy,
     };
   }
 
   const timeWindow = parseTimeWindowFromNotes(appointment.notes ?? null);
+  const visitDate = new Date(appointment.date);
 
   return {
     hasScheduledVisit: true,
-    dateLabel: new Date(appointment.date).toLocaleDateString("en-US", {
+    dateLabel: visitDate.toLocaleDateString("en-US", {
       weekday: "long",
       month: "long",
       day: "numeric",
       year: "numeric",
+      timeZone: "UTC",
+    }),
+    dateShortLabel: visitDate.toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
       timeZone: "UTC",
     }),
     timeWindow,
@@ -61,6 +77,7 @@ export function buildPortalNextCareVisit(input: {
       appointment.serviceType,
     ),
     reassuranceCopy: SCHEDULED_REASSURANCE,
+    heroSupportCopy: HERO_SUPPORT,
     emptyCopy,
   };
 }

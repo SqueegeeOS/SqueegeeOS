@@ -580,6 +580,21 @@ body {
     radial-gradient(ellipse 50% 35% at 0% 100%, rgba(120, 96, 55, 0.1), transparent 50%);
 }
 
+/* Next Care Visit hero — subtle atmosphere per theme */
+[data-atlas-theme="day"] .next-care-visit-hero .craft-glass-elevated {
+  box-shadow:
+    0 2px 4px rgba(35, 32, 26, 0.05),
+    0 20px 56px rgba(35, 32, 26, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+[data-atlas-theme="lux"] .next-care-visit-hero .craft-glass-elevated {
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.35),
+    0 24px 64px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(212, 175, 55, 0.12);
+}
+
 /* ——— Atlas Ring mark ——— */
 
 /* Calibration cycle: 9.6s of quiet drift, then one eased full

@@ -173,6 +173,10 @@ describe("buildPortalCareRecordView", () => {
     expect(view.nextCareVisit.hasScheduledVisit).toBe(true);
     expect(view.nextCareVisit.serviceTypeLabel).toBe("Quarterly Home Care Visit");
     expect(view.nextCareVisit.timeWindow).toBe("Morning · 8am–12pm");
+    expect(view.nextCareVisit.dateShortLabel).toBe("August 15");
+    expect(view.nextCareVisit.heroSupportCopy).toBe(
+      "Your home's next scheduled care visit is set.",
+    );
   });
 
   it("formats visit price with unit inline (no-narration rule)", () => {

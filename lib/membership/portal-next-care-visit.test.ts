@@ -40,10 +40,14 @@ describe("buildPortalNextCareVisit", () => {
     });
 
     expect(visit.hasScheduledVisit).toBe(true);
+    expect(visit.dateShortLabel).toBe("August 15");
     expect(visit.dateLabel).toContain("August");
     expect(visit.dateLabel).toContain("15");
     expect(visit.timeWindow).toBe("Morning · 8am–12pm");
     expect(visit.serviceTypeLabel).toBe("Bi-Annual Exterior Window Care");
     expect(visit.reassuranceCopy).toContain("HomeAtlas care visit is scheduled");
+    expect(visit.heroSupportCopy).toBe(
+      "Your home's next scheduled care visit is set.",
+    );
   });
 });

@@ -20,7 +20,7 @@ import { MemberWalletCard } from "@/components/membership/member-wallet-card";
 import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-data";
 import { HomeAtlasJourneySection } from "@/components/membership/homeatlas-journey-section";
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
-import { NextCareVisitCard } from "@/components/portal/next-care-visit-card";
+import { NextCareVisitHero } from "@/components/portal/next-care-visit-hero";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
 import { ReferralSection } from "@/components/portal/referral-section";
 import { GlassCard } from "@/components/craft/glass-card";
@@ -126,12 +126,11 @@ export function MemberPortalExperience({
               Almost there
             </p>
           )}
-          <p className="mt-6 text-sm text-foreground/55">
-            {view.nextCareVisit.hasScheduledVisit && view.nextCareVisit.dateLabel
-              ? view.whatsNextHeadline
-              : view.nextCareVisit.emptyCopy}
-          </p>
         </motion.header>
+
+        {(view.membershipActive || view.pendingPayment) && (
+          <NextCareVisitHero visit={view.nextCareVisit} />
+        )}
 
         <div className="mt-16 space-y-20 sm:mt-20 sm:space-y-24">
           {/* §2 — Membership */}
@@ -232,22 +231,6 @@ export function MemberPortalExperience({
               </>
             )}
           </PortalSection>
-
-          {/* §2a — Next Care Visit */}
-          {(view.membershipActive || view.pendingPayment) && (
-            <PortalSection
-              id="next-care-visit"
-              index={2}
-              eyebrow="Next care visit"
-              headline={
-                view.nextCareVisit.hasScheduledVisit
-                  ? "Your next HomeAtlas visit is scheduled."
-                  : "Your next care visit."
-              }
-            >
-              <NextCareVisitCard visit={view.nextCareVisit} />
-            </PortalSection>
-          )}
 
           {/* §2b — Referrals (members only, real data only) */}
           {view.membershipActive && view.membershipId && (
