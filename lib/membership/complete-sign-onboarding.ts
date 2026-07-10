@@ -101,6 +101,23 @@ export class SignOnboardingError extends Error {
   }
 }
 
+/**
+ * True when a prior sign attempt already linked membership + agreement.
+ * Safe to short-circuit without creating a second PDF / agreement row.
+ */
+export function isSignOnboardingAlreadyComplete(
+  presentation: Pick<
+    PresentationData,
+    "status" | "membershipId" | "agreementId"
+  >,
+): boolean {
+  return (
+    presentation.status === "signed" &&
+    Boolean(presentation.membershipId?.trim()) &&
+    Boolean(presentation.agreementId?.trim())
+  );
+}
+
 export async function completeSignOnboarding(
   input: CompleteSignOnboardingInput,
 ): Promise<CompleteSignOnboardingResult> {
@@ -112,6 +129,43 @@ export async function completeSignOnboarding(
 
   const supabase = createServerSupabaseClient();
   const presentation = input.presentation;
+
+  if (isSignOnboardingAlreadyComplete(presentation)) {
+    const membershipId = presentation.membershipId as string;
+    const agreementId = presentation.agreementId as string;
+    const { data: membershipRow } = await supabase
+      .from("memberships")
+      .select("id, portal_access_token, homeowner_id, property_id")
+      .eq("id", membershipId)
+      .maybeSingle();
+
+    const { data: agreementRow } = await supabase
+      .from("signed_agreements")
+      .select("id, agreement_pdf_url, storage_backend")
+      .eq("id", agreementId)
+      .maybeSingle();
+
+    if (membershipRow?.id && agreementRow?.id) {
+      const portalToken = membershipRow.portal_access_token as string | null;
+      return {
+        pdfUrl: (agreementRow.agreement_pdf_url as string) || "",
+        pdfStorageBackend:
+          agreementRow.storage_backend === "supabase" ? "supabase" : "data_url",
+        agreementId,
+        membershipId,
+        homeownerId: membershipRow.homeowner_id as string,
+        propertyId: membershipRow.property_id as string,
+        email: {
+          status: "skipped",
+          reason: "already_signed",
+          recipient: null,
+        },
+        emailSent: false,
+        onboardingStatus: "pending_payment",
+        portalUrl: portalToken ? buildPortalAccessUrl(portalToken) : null,
+      };
+    }
+  }
   const parsedAddress = parseClientAddress(
     presentation.clientAddress,
     presentation.clientName,
@@ -242,70 +296,99 @@ export async function completeSignOnboarding(
     );
   }
 
-  const pdfBytes = await generateSignedPDF({
-    memberName: presentation.clientName,
-    signedAt: input.signedAt,
-    signatureDataUrl: input.signatureDataUrl,
-    tier: input.planName,
-    agreementTier: input.agreementTier,
-    propertyName: parsedAddress.propertyName,
-    monthlyPrice: input.visitPrice,
-    homeSqft: presentation.homeSqft,
-    twoStory: presentation.twoStory,
-    includeScreens: presentation.includeScreens,
-    includeInterior: input.quoteSnapshot?.includeInterior ?? false,
-    quoteSnapshot: input.quoteSnapshot,
-    enrollmentSavings: enrollmentSavingsForPresentation(
-      presentation,
-      input.agreementTier,
-    ),
-  });
-
-  const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;
-  const storedPdf = await storeSignedPdf(pdfBytes, fileName);
-  const pdfStorageRef = storedPdf.url;
-
-  const signatureFileName = `${input.homeownerSlug}-${input.propertySlug}-signature-${Date.now()}.png`;
-  const storedSignature = await storeSignatureImage(
-    input.signatureDataUrl,
-    signatureFileName,
-  );
-
-  const { data: agreement, error: agreementError } = await supabase
+  const { data: existingAgreement } = await supabase
     .from("signed_agreements")
-    .insert({
-      homeowner_id: homeowner.id,
-      property_id: property.id,
-      membership_id: membershipId,
-      presentation_id: presentation.id,
-      homeowner_slug: input.homeownerSlug,
-      property_slug: input.propertySlug,
-      homeowner_name: presentation.clientName,
-      plan_id: input.planId,
-      plan_name: input.planName,
-      signature_method: "drawn",
-      signer_name: presentation.clientName,
-      signature_image_url: storedSignature?.storageRef ?? input.signatureDataUrl,
-      typed_text: null,
-      signed_at: input.signedAt,
-      ip_address: input.ipAddress ?? null,
-      user_agent: input.userAgent ?? null,
-      agreement_pdf_url: pdfStorageRef,
-      signature_image_storage_path: storedSignature?.storagePath ?? null,
-      status: "complete",
-      storage_backend: "supabase",
-    })
-    .select("id")
-    .single();
+    .select("id, agreement_pdf_url, storage_backend")
+    .eq("presentation_id", presentation.id)
+    .eq("status", "complete")
+    .order("signed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (agreementError || !agreement?.id) {
-    throw new SignOnboardingError(
-      `Agreement signed locally but failed to save: ${agreementError?.message ?? "unknown error"}`,
-      { membershipId, onboardingStatus: "pending_payment" },
+  let agreementId: string;
+  let pdfStorageRef: string;
+  let pdfAccessUrl: string;
+  let pdfBackend: "supabase" | "data_url";
+  let pdfBytesForEmail: Uint8Array | null = null;
+  let pdfFileNameForEmail: string | null = null;
+
+  if (existingAgreement?.id) {
+    agreementId = existingAgreement.id as string;
+    pdfStorageRef = (existingAgreement.agreement_pdf_url as string) || "";
+    pdfAccessUrl = pdfStorageRef;
+    pdfBackend =
+      existingAgreement.storage_backend === "supabase" ? "supabase" : "data_url";
+  } else {
+    const pdfBytes = await generateSignedPDF({
+      memberName: presentation.clientName,
+      signedAt: input.signedAt,
+      signatureDataUrl: input.signatureDataUrl,
+      tier: input.planName,
+      agreementTier: input.agreementTier,
+      propertyName: parsedAddress.propertyName,
+      monthlyPrice: input.visitPrice,
+      homeSqft: presentation.homeSqft,
+      twoStory: presentation.twoStory,
+      includeScreens: presentation.includeScreens,
+      includeInterior: input.quoteSnapshot?.includeInterior ?? false,
+      quoteSnapshot: input.quoteSnapshot,
+      enrollmentSavings: enrollmentSavingsForPresentation(
+        presentation,
+        input.agreementTier,
+      ),
+    });
+
+    const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;
+    const storedPdf = await storeSignedPdf(pdfBytes, fileName);
+    pdfStorageRef = storedPdf.url;
+    pdfAccessUrl = storedPdf.accessUrl ?? pdfStorageRef;
+    pdfBackend = storedPdf.backend;
+    pdfBytesForEmail = pdfBytes;
+    pdfFileNameForEmail = storedPdf.fileName;
+
+    const signatureFileName = `${input.homeownerSlug}-${input.propertySlug}-signature-${Date.now()}.png`;
+    const storedSignature = await storeSignatureImage(
+      input.signatureDataUrl,
+      signatureFileName,
     );
-  }
 
-  const agreementId = agreement.id as string;
+    const { data: agreement, error: agreementError } = await supabase
+      .from("signed_agreements")
+      .insert({
+        homeowner_id: homeowner.id,
+        property_id: property.id,
+        membership_id: membershipId,
+        presentation_id: presentation.id,
+        homeowner_slug: input.homeownerSlug,
+        property_slug: input.propertySlug,
+        homeowner_name: presentation.clientName,
+        plan_id: input.planId,
+        plan_name: input.planName,
+        signature_method: "drawn",
+        signer_name: presentation.clientName,
+        signature_image_url:
+          storedSignature?.storageRef ?? input.signatureDataUrl,
+        typed_text: null,
+        signed_at: input.signedAt,
+        ip_address: input.ipAddress ?? null,
+        user_agent: input.userAgent ?? null,
+        agreement_pdf_url: pdfStorageRef,
+        signature_image_storage_path: storedSignature?.storagePath ?? null,
+        status: "complete",
+        storage_backend: "supabase",
+      })
+      .select("id")
+      .single();
+
+    if (agreementError || !agreement?.id) {
+      throw new SignOnboardingError(
+        `Agreement signed locally but failed to save: ${agreementError?.message ?? "unknown error"}`,
+        { membershipId, onboardingStatus: "pending_payment" },
+      );
+    }
+
+    agreementId = agreement.id as string;
+  }
 
   const { error: membershipLinkError } = await supabase
     .from("memberships")
@@ -368,16 +451,22 @@ export async function completeSignOnboarding(
     recipient: presentation.clientEmail?.trim() || null,
   };
 
-  if (memberEmail) {
+  if (memberEmail && pdfBytesForEmail && pdfFileNameForEmail) {
     email = await sendAgreementEmail({
       to: memberEmail,
       name: presentation.clientName,
       pdfUrl: pdfStorageRef,
       tier: input.planName,
-      pdfBytes,
-      fileName: storedPdf.fileName,
+      pdfBytes: pdfBytesForEmail,
+      fileName: pdfFileNameForEmail,
       portalUrl,
     });
+  } else if (memberEmail && !pdfBytesForEmail) {
+    email = {
+      status: "skipped",
+      reason: "already_signed",
+      recipient: memberEmail,
+    };
   } else {
     console.warn("[onboarding] agreement email skipped — no customer email on presentation", {
       presentationId: presentation.id,
@@ -402,8 +491,8 @@ export async function completeSignOnboarding(
   }
 
   return {
-    pdfUrl: storedPdf.accessUrl ?? pdfStorageRef,
-    pdfStorageBackend: storedPdf.backend,
+    pdfUrl: pdfAccessUrl,
+    pdfStorageBackend: pdfBackend,
     agreementId,
     membershipId,
     homeownerId: homeowner.id as string,

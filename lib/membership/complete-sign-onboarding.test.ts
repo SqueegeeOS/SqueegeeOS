@@ -1,37 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { buildMembershipPricingFields } from "./complete-sign-onboarding";
+import { isSignOnboardingAlreadyComplete } from "./complete-sign-onboarding";
 
-describe("buildMembershipPricingFields", () => {
-  it("computes quarterly pricing fields", () => {
-    const fields = buildMembershipPricingFields({
-      tier: "quarterly",
-      visitPrice: 285,
-      planName: "Quarterly Membership",
-    });
-
-    expect(fields).toMatchObject({
-      salesTier: "quarterly",
-      visitPrice: 285,
-      annualRate: 1140,
-      visitsPerYear: 4,
-      priceDisplay: "$285/visit",
-      billingPeriod: "per_visit",
-      planName: "Quarterly Membership",
-    });
+describe("isSignOnboardingAlreadyComplete", () => {
+  it("is true only when signed with both membership and agreement ids", () => {
+    expect(
+      isSignOnboardingAlreadyComplete({
+        status: "signed",
+        membershipId: "m-1",
+        agreementId: "a-1",
+      }),
+    ).toBe(true);
   });
 
-  it("computes biannual pricing fields", () => {
-    const fields = buildMembershipPricingFields({
-      tier: "biannual",
-      visitPrice: 320,
-      planName: "Bi-Annual Membership",
-    });
+  it("is false when agreement is missing", () => {
+    expect(
+      isSignOnboardingAlreadyComplete({
+        status: "signed",
+        membershipId: "m-1",
+        agreementId: null,
+      }),
+    ).toBe(false);
+  });
 
-    expect(fields).toMatchObject({
-      salesTier: "biannual",
-      visitPrice: 320,
-      annualRate: 640,
-      visitsPerYear: 2,
-    });
+  it("is false when still draft", () => {
+    expect(
+      isSignOnboardingAlreadyComplete({
+        status: "draft",
+        membershipId: "m-1",
+        agreementId: "a-1",
+      }),
+    ).toBe(false);
   });
 });

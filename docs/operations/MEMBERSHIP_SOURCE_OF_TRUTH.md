@@ -75,7 +75,8 @@ HQ display adds operational nuance **on top of** lifecycle (`scheduled` vs `need
 | Customer workspace | `load-workspace.ts` → `resolveMembershipLifecycle`, `isMembershipPendingEnrollment` |
 | Portal profile | `member-portal.ts` → `resolvePortalMembershipStatus` |
 | Portal payment UI | `portal-payment-state.ts` → lifecycle-based `pendingPayment` |
-| Setup payment (idempotent) | `app/api/membership/setup-payment/route.ts` → `isMembershipActive` |
+| Setup payment (idempotent) | `app/api/membership/setup-payment/route.ts` → `isMembershipActive` + conditional `payment_setup_completed_at` write |
+| Sign onboarding | `complete-sign-onboarding.ts` → `isSignOnboardingAlreadyComplete` + agreement reuse by `presentation_id` |
 | Scheduling | `schedule-membership-service.ts` → `canScheduleMembership`, `isMembershipCancelled` |
 | Add-on recording | `record-member-addon-service.ts` → `isMembershipCancelled` |
 | Manual billing | `record-manual-billing-charge.ts` → `canBillMembership` |

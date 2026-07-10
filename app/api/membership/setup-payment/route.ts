@@ -238,7 +238,9 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
     const startedAt = membership.started_at ?? now;
 
-    const { error: updateMembershipError } = await supabase
+    // Conditional write: only activate if payment_setup_completed_at is still null.
+    // Concurrent retries after Stripe success converge on one activation write.
+    const { data: activatedRows, error: updateMembershipError } = await supabase
       .from("memberships")
       .update({
         status: "active",
@@ -247,13 +249,70 @@ export async function POST(req: NextRequest) {
         stripe_customer_id: stripeCustomerId,
         stripe_payment_method_id: stripePaymentMethodId,
       })
-      .eq("id", membership.id);
+      .eq("id", membership.id)
+      .is("payment_setup_completed_at", null)
+      .select("id, payment_setup_completed_at");
 
     if (updateMembershipError) {
       return NextResponse.json(
-        { error: updateMembershipError.message },
+        {
+          error: updateMembershipError.message,
+          recovery:
+            "Stripe SetupIntent may already have succeeded. Retry this endpoint with the same setupIntentId — activation is idempotent once payment_setup_completed_at is set.",
+          membershipId: membership.id,
+          stripeCustomerId,
+        },
         { status: 500 },
       );
+    }
+
+    const wonActivationRace = (activatedRows?.length ?? 0) > 0;
+    const paymentSetupCompletedAt = wonActivationRace
+      ? now
+      : membership.payment_setup_completed_at ?? now;
+
+    // If another request won the race, reload and run side-effect recovery.
+    if (!wonActivationRace) {
+      const reloaded = await loadMembershipForPayment(supabase, {
+        membershipId: membership.id,
+      });
+      if (
+        reloaded &&
+        isMembershipActive({
+          status: reloaded.status,
+          payment_setup_completed_at: reloaded.payment_setup_completed_at,
+        })
+      ) {
+        const portalUrl = await getPortalAccessUrlForMembership(
+          reloaded.id,
+          req.nextUrl.origin,
+        );
+        await recordMembershipObligations(
+          supabase,
+          reloaded,
+          reloaded.started_at ?? reloaded.payment_setup_completed_at!,
+        );
+        await recordWebsiteSale(
+          supabase,
+          reloaded.id,
+          reloaded.payment_setup_completed_at!,
+          stripeEnabled ? "stripe" : "mock",
+        );
+        await lockEnrollmentSavings(
+          supabase,
+          reloaded.id,
+          reloaded.presentation_id,
+        );
+        return NextResponse.json({
+          membershipId: reloaded.id,
+          presentationId: reloaded.presentation_id,
+          status: "active",
+          onboardingStatus: "complete",
+          mode: stripeEnabled ? "stripe" : "mock",
+          alreadyActive: true,
+          portalUrl,
+        });
+      }
     }
 
     await recordMembershipObligations(supabase, membership, startedAt);
@@ -278,7 +337,7 @@ export async function POST(req: NextRequest) {
     await recordWebsiteSale(
       supabase,
       membership.id,
-      now,
+      paymentSetupCompletedAt,
       stripeEnabled ? "stripe" : "mock",
     );
     await lockEnrollmentSavings(
@@ -334,7 +393,7 @@ export async function POST(req: NextRequest) {
       presentationId: resolvedPresentationId,
       status: "active",
       onboardingStatus: "complete",
-      paymentSetupCompletedAt: now,
+      paymentSetupCompletedAt,
       mode: stripeEnabled ? "stripe" : "mock",
       portalUrl,
     });
