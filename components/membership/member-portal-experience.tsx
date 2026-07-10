@@ -37,7 +37,7 @@ interface MemberPortalExperienceProps {
 
 function CheckBullet({ children }: { children: React.ReactNode }) {
   return (
-    <li className="flex items-start gap-3 text-sm leading-relaxed text-white/70">
+    <li className="flex items-start gap-3 text-sm leading-relaxed text-foreground/70">
       <span className="mt-0.5 text-accent" aria-hidden>
         ✓
       </span>
@@ -108,11 +108,11 @@ export function MemberPortalExperience({
             aria-hidden
           />
           <HeroText>{view.landingHeadline}</HeroText>
-          <p className="mt-5 text-base text-white/55 sm:text-lg">
+          <p className="mt-5 text-base text-foreground/60 sm:text-lg">
             {view.propertyAddress}
           </p>
           {view.syncNote && (
-            <p className="mt-4 text-sm text-white/40">{view.syncNote}</p>
+            <p className="mt-4 text-sm text-foreground/45">{view.syncNote}</p>
           )}
           {view.membershipActive && (
             <p className="mt-6 inline-flex rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-accent">
@@ -124,7 +124,7 @@ export function MemberPortalExperience({
               Almost there
             </p>
           )}
-          <p className="mt-6 text-sm text-white/50">{view.whatsNextHeadline}</p>
+          <p className="mt-6 text-sm text-foreground/55">{view.whatsNextHeadline}</p>
         </motion.header>
 
         <div className="mt-16 space-y-20 sm:mt-20 sm:space-y-24">
@@ -139,7 +139,7 @@ export function MemberPortalExperience({
               ) : (
                 <>
                   {view.tierMemberLabel}
-                  <span className="mt-2 block text-lg font-normal text-white/50 sm:text-xl">
+                  <span className="mt-2 block text-lg font-normal text-foreground/55 sm:text-xl">
                     since {view.memberSinceFormatted}
                   </span>
                 </>
@@ -199,26 +199,26 @@ export function MemberPortalExperience({
                 {membershipOpen && (
                   <PortalCard className="mt-4 space-y-4">
                     {view.visitPriceLabel && (
-                      <p className="text-sm text-[#f5f2eb]/90">
+                      <p className="text-sm text-foreground/90">
                         {view.visitPriceLabel}
                       </p>
                     )}
                     {view.annualMathLabel && (
-                      <p className="text-sm text-white/60">
+                      <p className="text-sm text-foreground/60">
                         {view.annualMathLabel}
                       </p>
                     )}
                     {view.addonDiscountLabel && (
-                      <p className="text-sm text-white/60">
+                      <p className="text-sm text-foreground/60">
                         {view.addonDiscountLabel}
                       </p>
                     )}
-                    <ul className="space-y-3 border-t border-white/[0.06] pt-4">
+                    <ul className="space-y-3 border-t border-border pt-4">
                       {MEMBERSHIP_CLOSE_BILLING_BULLETS.map((bullet) => (
                         <CheckBullet key={bullet}>{bullet}</CheckBullet>
                       ))}
                     </ul>
-                    <p className="text-xs leading-relaxed text-white/45">
+                    <p className="text-xs leading-relaxed text-foreground/50">
                       {view.billingReminder}
                     </p>
                   </PortalCard>
@@ -254,10 +254,10 @@ export function MemberPortalExperience({
               headline="Your agreement."
             >
               <PortalCard>
-                <p className="font-serif text-lg text-[#f5f2eb]">
+                <p className="font-serif text-lg text-foreground">
                   {view.agreement.planName}
                 </p>
-                <p className="mt-2 text-sm text-white/55">
+                <p className="mt-2 text-sm text-foreground/60">
                   Signed {view.agreement.signedAtFormatted}
                 </p>
                 {agreementPdfHref ? (
@@ -271,7 +271,7 @@ export function MemberPortalExperience({
                   </a>
                 ) : (
                   <>
-                    <p className="mt-5 text-sm leading-relaxed text-white/55">
+                    <p className="mt-5 text-sm leading-relaxed text-foreground/60">
                       Your signed agreement is on file — we&apos;ll re-send your
                       copy.
                     </p>
@@ -297,7 +297,7 @@ export function MemberPortalExperience({
           >
             {view.paymentOnFile ? (
               <PortalCard className="space-y-4">
-                <p className="text-sm text-white/70">
+                <p className="text-sm text-foreground/70">
                   {view.paymentDetailLine} {view.billingReminder}
                 </p>
                 {view.showUpdatePaymentMethod && view.membershipId && (
@@ -326,7 +326,7 @@ export function MemberPortalExperience({
               </PortalCard>
             ) : view.pendingPayment ? (
               <PortalCard>
-                <p className="text-sm text-white/55">
+                <p className="text-sm text-foreground/60">
                   Complete your payment setup in Membership above.
                 </p>
               </PortalCard>
@@ -350,7 +350,7 @@ export function MemberPortalExperience({
             headline={view.whatsNextHeadline}
             support={view.whatsNextSupport}
           >
-            <p className="text-sm text-white/50">{view.cadenceNote}</p>
+            <p className="text-sm text-foreground/55">{view.cadenceNote}</p>
             <div className="mt-4">
               <ExpandLink
                 open={whatsNextOpen}
@@ -414,17 +414,17 @@ export function MemberPortalExperience({
                 {view.timelineEntries.map((entry) => (
                   <li key={entry.id}>
                     <PortalCard>
-                      <p className="font-serif text-lg text-[#f5f2eb]">
+                      <p className="font-serif text-lg text-foreground">
                         {entry.monthYear}
                       </p>
-                      <p className="mt-2 flex items-start gap-2 text-sm text-white/70">
+                      <p className="mt-2 flex items-start gap-2 text-sm text-foreground/70">
                         <span className="text-accent" aria-hidden>
                           ✓
                         </span>
                         {entry.label}
                       </p>
                       {entry.note && (
-                        <p className="mt-2 text-sm text-white/45">
+                        <p className="mt-2 text-sm text-foreground/50">
                           {entry.note}
                         </p>
                       )}
@@ -434,7 +434,7 @@ export function MemberPortalExperience({
               </ul>
             ) : (
               <PortalCard className="text-center">
-                <p className="text-sm text-white/55">
+                <p className="text-sm text-foreground/60">
                   {view.timelineEmptyCopy}
                 </p>
               </PortalCard>
@@ -450,14 +450,14 @@ export function MemberPortalExperience({
           >
             {view.completedVisitCount > 0 ? (
               <PortalCard>
-                <p className="text-sm text-white/55">
+                <p className="text-sm text-foreground/60">
                   Photos from your visits appear here.
                 </p>
               </PortalCard>
             ) : (
               <div className="craft-glass-subtle rounded-[var(--radius-card-lg)] border-accent/10 bg-gradient-to-b from-accent/[0.05] to-transparent py-12 text-center shadow-[var(--shadow-ambient)]">
                 <HouseIllustration />
-                <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-white/55">
+                <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-foreground/60">
                   {view.photosEmptyCopy}
                 </p>
               </div>

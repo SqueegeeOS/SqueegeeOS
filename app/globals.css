@@ -474,3 +474,72 @@ body {
 .night-link:focus-visible {
   background-size: 100% 1px;
 }
+
+/* ——— HomeAtlas experience themes (Day / Night / Lux) ———
+   Night is the base :root token set; Day and Lux override the same
+   custom properties inside a data-atlas-theme scope, so every surface
+   built on the tokens re-skins with no component changes. */
+
+[data-atlas-theme] {
+  background: var(--background);
+  color: var(--foreground);
+  transition: background-color 0.5s ease, color 0.5s ease;
+}
+
+[data-atlas-theme="day"] {
+  --background: #f6f4ef;
+  --foreground: #23201a;
+  --muted: #6e6a60;
+  --accent: #8a6f45;
+  --accent-soft: #8a6f4526;
+  --surface: #ffffff;
+  --surface-elevated: #fbfaf7;
+  --border: #23201a1f;
+  --glass-bg: rgba(35, 32, 26, 0.03);
+  --glass-bg-elevated: rgba(35, 32, 26, 0.05);
+  --glass-bg-subtle: rgba(35, 32, 26, 0.02);
+  --glass-border: rgba(35, 32, 26, 0.12);
+  --glass-highlight: rgba(255, 255, 255, 0.65);
+  --shadow-ambient: 0 1px 2px rgba(35, 32, 26, 0.06), 0 10px 36px rgba(35, 32, 26, 0.08);
+  --shadow-float: 0 2px 4px rgba(35, 32, 26, 0.05), 0 18px 52px rgba(35, 32, 26, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --shadow-lift: 0 4px 8px rgba(35, 32, 26, 0.06), 0 28px 88px rgba(35, 32, 26, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  --at-toggle-border: rgba(35, 32, 26, 0.14);
+  --at-toggle-bg: rgba(255, 255, 255, 0.6);
+  color-scheme: light;
+}
+
+[data-atlas-theme="day"] .craft-stage {
+  background: var(--background);
+}
+
+[data-atlas-theme="day"] .craft-stage-warmth {
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -14%, rgba(214, 197, 161, 0.35), transparent 62%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(178, 196, 222, 0.22), transparent 55%);
+}
+
+[data-atlas-theme="lux"] {
+  --background: #090705;
+  --foreground: #f3ecdc;
+  --muted: #9c8f76;
+  --accent: #d4af37;
+  --accent-soft: #d4af3733;
+  --surface: #121008;
+  --surface-elevated: #1a1710;
+  --border: #f3ecdc14;
+  --glass-bg: rgba(243, 236, 220, 0.045);
+  --glass-bg-elevated: rgba(243, 236, 220, 0.07);
+  --glass-bg-subtle: rgba(243, 236, 220, 0.025);
+  --glass-border: rgba(212, 175, 55, 0.22);
+  --glass-highlight: rgba(243, 236, 220, 0.1);
+  --at-toggle-border: rgba(212, 175, 55, 0.3);
+  --at-toggle-bg: rgba(243, 236, 220, 0.04);
+}
+
+[data-atlas-theme="lux"] .craft-stage-warmth {
+  background:
+    radial-gradient(ellipse 90% 55% at 50% -14%, rgba(212, 175, 55, 0.14), transparent 62%),
+    radial-gradient(ellipse 50% 35% at 0% 100%, rgba(120, 96, 55, 0.1), transparent 50%);
+}
