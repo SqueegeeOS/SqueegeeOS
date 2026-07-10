@@ -24,14 +24,21 @@ describe("isMembershipActive", () => {
     ).toBe(true);
   });
 
-  it("is not active when payment and status are correct but tier/price/agreement are missing", () => {
-    // The lifecycle resolver treats this as `inconsistent`, not active — an
-    // active membership with no agreement/tier/price is a data problem, not
-    // a real active member.
+  it("is active with status and payment when agreement fields are omitted (partial row)", () => {
     expect(
       isMembershipActive({
         status: "active",
         payment_setup_completed_at: "2026-01-01T00:00:00Z",
+      }),
+    ).toBe(true);
+  });
+
+  it("is not active when agreement_id is explicitly null on an active row", () => {
+    expect(
+      isMembershipActive({
+        status: "active",
+        payment_setup_completed_at: "2026-01-01T00:00:00Z",
+        agreement_id: null,
       }),
     ).toBe(false);
   });
