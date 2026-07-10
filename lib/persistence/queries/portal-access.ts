@@ -1,5 +1,5 @@
 import {
-  createServerSupabaseClient,
+  createPrivilegedServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { buildPortalAccessUrl } from "@/lib/membership/portal-access";
@@ -31,7 +31,7 @@ export async function resolvePortalAccessByToken(
     return null;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
   const { data, error } = await supabase
     .from("memberships")
     .select(
@@ -66,7 +66,7 @@ export async function getPortalAccessUrlForMembership(
 ): Promise<string | null> {
   if (!isSupabaseConfigured()) return null;
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
   const { data, error } = await supabase
     .from("memberships")
     .select("portal_access_token")

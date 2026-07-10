@@ -1,9 +1,5 @@
-import {
-  normalizeToSqueegeeKingTier,
-  SQUEEGEEKING_TIERS,
-  type SqueegeeKingTierId,
-} from "@/lib/membership/tier-config";
 import type { MemberAddonStatus } from "@/lib/persistence/types/member-addon";
+import { addonDiscountPercentForTier } from "@/lib/membership/tier-config";
 
 export interface RecordMemberAddonInput {
   membershipId: string;
@@ -36,10 +32,9 @@ function validateServiceDate(value: string): string | null {
 }
 
 export function defaultAddonDiscountForTier(
-  tier: SqueegeeKingTierId | "unknown",
+  tier: Parameters<typeof addonDiscountPercentForTier>[0],
 ): number {
-  if (tier === "unknown") return SQUEEGEEKING_TIERS.biannual.addonDiscount;
-  return SQUEEGEEKING_TIERS[tier].addonDiscount;
+  return addonDiscountPercentForTier(tier);
 }
 
 export function computeMemberAddonSavingsCents(input: {

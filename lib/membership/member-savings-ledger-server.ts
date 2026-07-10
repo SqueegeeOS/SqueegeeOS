@@ -2,7 +2,7 @@ import "server-only";
 
 import type { MemberAppointmentSummary } from "@/lib/member-intelligence/types";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
-import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import { createPrivilegedServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
 import {
   buildMemberSavingsLedgerView,
@@ -50,7 +50,7 @@ export async function upsertAddonLedgerEntry(input: {
 }): Promise<void> {
   if (!isCloudPersistenceConnected() || input.savedCents <= 0) return;
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
   const occurredAt = `${input.serviceDate}T12:00:00.000Z`;
   const { error } = await supabase.from("member_savings_ledger_entries").upsert(
     {
@@ -84,7 +84,7 @@ export async function syncMembershipVisitLedgerEntries(input: {
     return;
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
   const completed = input.appointments.filter(
     (appointment) => appointment.status === "completed",
   );
@@ -153,7 +153,7 @@ export async function loadMemberSavingsLedgerView(input: {
 
   let persistedLines: SavingsLedgerLine[] | undefined;
   if (input.membershipId && isCloudPersistenceConnected()) {
-    const supabase = createServerSupabaseClient();
+    const supabase = createPrivilegedServerSupabaseClient();
     const { data, error } = await supabase
       .from("member_savings_ledger_entries")
       .select(

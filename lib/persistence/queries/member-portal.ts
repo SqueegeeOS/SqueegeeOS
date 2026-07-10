@@ -27,6 +27,7 @@ import {
 import type { MemberAddonStatus } from "@/lib/persistence/types/member-addon";
 import type { MemberSavingsLedgerView } from "@/lib/membership/member-savings-ledger";
 import { loadMemberSavingsLedgerView } from "@/lib/membership/member-savings-ledger-server";
+import { logProtectedQueryResult } from "@/lib/persistence/supabase/rls-query-log";
 
 export interface ServiceObservationView {
   id: string;
@@ -357,10 +358,28 @@ export async function getMemberPortalDataBySlugs(
     .maybeSingle();
 
   if (profileError) {
+    logProtectedQueryResult(
+      {
+        surface: "member-portal.member_profiles",
+        table: "member_profiles",
+        propertyId: propertyRow.id,
+        membershipId: membershipRow?.id ?? null,
+      },
+      { count: 0, error: profileError },
+    );
     return null;
   }
 
   const profile = profileRow as MemberProfileRow | null;
+  logProtectedQueryResult(
+    {
+      surface: "member-portal.member_profiles",
+      table: "member_profiles",
+      propertyId: propertyRow.id,
+      membershipId: membershipRow?.id ?? null,
+    },
+    { count: profile ? 1 : 0 },
+  );
 
   const paymentMethodLabel = membershipRow?.payment_setup_completed_at
     ? await resolvePortalPaymentMethodLabel(
@@ -386,7 +405,25 @@ export async function getMemberPortalDataBySlugs(
     .order("scheduled_at", { ascending: true });
 
   if (appointmentError) {
-    console.error("[member-portal] appointments load failed:", appointmentError.message);
+    logProtectedQueryResult(
+      {
+        surface: "member-portal.appointments",
+        table: "member_appointments",
+        propertyId: propertyRow.id,
+        membershipId: membershipRow?.id ?? null,
+      },
+      { count: 0, error: appointmentError },
+    );
+  } else {
+    logProtectedQueryResult(
+      {
+        surface: "member-portal.appointments",
+        table: "member_appointments",
+        propertyId: propertyRow.id,
+        membershipId: membershipRow?.id ?? null,
+      },
+      { count: appointmentRows?.length ?? 0 },
+    );
   }
 
   const appointments = ((appointmentRows ?? []) as AppointmentRow[]).map(
@@ -482,6 +519,28 @@ export async function getMemberPortalDataBySlugs(
       )
       .eq("membership_id", membershipRow.id)
       .order("service_date", { ascending: false });
+
+    if (addonError) {
+      logProtectedQueryResult(
+        {
+          surface: "member-portal.addons",
+          table: "member_addon_transactions",
+          propertyId: propertyRow.id,
+          membershipId: membershipRow.id,
+        },
+        { count: 0, error: addonError },
+      );
+    } else {
+      logProtectedQueryResult(
+        {
+          surface: "member-portal.addons",
+          table: "member_addon_transactions",
+          propertyId: propertyRow.id,
+          membershipId: membershipRow.id,
+        },
+        { count: addonRows?.length ?? 0 },
+      );
+    }
 
     if (!addonError) {
       careAddons = ((addonRows ?? []) as Array<{

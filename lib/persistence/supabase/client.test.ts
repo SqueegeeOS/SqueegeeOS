@@ -23,8 +23,9 @@ describe("createServerSupabaseClient", () => {
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
     vi.resetModules();
 
-    const { createServerSupabaseClient } = await import("./client");
+    const { createServerSupabaseClient, isServiceRoleConfigured } = await import("./client");
     const client = createServerSupabaseClient();
+    expect(isServiceRoleConfigured()).toBe(false);
     expect(client.supabaseKey).toBe("anon-key-example");
   });
 });

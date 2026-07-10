@@ -1,6 +1,6 @@
 import "server-only";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
-import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import { createPrivilegedServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import type {
   HqReferralRow,
   MemberReferralSummary,
@@ -25,7 +25,7 @@ function generateCode(): string {
 function supabaseOrNull() {
   if (!isCloudPersistenceConnected()) return null;
   try {
-    return createServerSupabaseClient();
+    return createPrivilegedServerSupabaseClient();
   } catch {
     return null;
   }

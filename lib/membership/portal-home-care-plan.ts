@@ -16,7 +16,7 @@ import {
 } from "@/lib/persistence/mappers/home-care-plan";
 import { loadGeneratedHomeCarePlan } from "@/lib/persistence/repository";
 import {
-  createServerSupabaseClient,
+  createPrivilegedServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { getPresentation } from "@/lib/presentations/repository";
@@ -274,7 +274,7 @@ async function backfillPortalHomeCarePlan(
 ): Promise<HomeCarePlanData | null> {
   if (!isSupabaseConfigured()) return null;
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
   const context = await fetchBackfillContext(
     supabase,
     homeownerSlug,

@@ -283,6 +283,14 @@ export function formatAddonDiscount(tier: SqueegeeKingTierId): string {
   return `${SQUEEGEEKING_TIERS[tier].addonDiscount}% OFF`;
 }
 
+/** Canonical add-on discount percent for HQ recording and portal display. */
+export function addonDiscountPercentForTier(
+  tier: SqueegeeKingTierId | "unknown",
+): number {
+  if (tier === "unknown") return SQUEEGEEKING_TIERS.biannual.addonDiscount;
+  return SQUEEGEEKING_TIERS[tier].addonDiscount;
+}
+
 export function addonSavingsExample() {
   const perVisit =
     EXAMPLE_ADDON_SCREEN_CLEANING + EXAMPLE_ADDON_INTERIOR_WINDOWS;

@@ -1,5 +1,5 @@
 import {
-  createServerSupabaseClient,
+  createPrivilegedServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { isAtlasThemeId, type AtlasThemeId } from "@/lib/theme/atlas-themes";
@@ -16,7 +16,7 @@ async function loadThemeForMembershipId(
 ): Promise<AtlasThemeId | null> {
   if (!isSupabaseConfigured()) return null;
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
   const { data, error } = await supabase
     .from("memberships")
     .select("portal_theme")
@@ -50,7 +50,7 @@ export async function getPortalThemeBySlugs(
 ): Promise<PortalThemeContext | null> {
   if (!isSupabaseConfigured()) return null;
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
   const { data: homeowner, error: homeownerError } = await supabase
     .from("homeowners")
     .select("id")
@@ -109,7 +109,7 @@ export async function savePortalThemeForMembership(
 ): Promise<boolean> {
   if (!isSupabaseConfigured()) return false;
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createPrivilegedServerSupabaseClient();
   const { error } = await supabase
     .from("memberships")
     .update({ portal_theme: theme })
