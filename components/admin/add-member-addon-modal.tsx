@@ -19,11 +19,7 @@ const STATUS_OPTIONS: Array<{ id: MemberAddonStatus; label: string }> = [
   { id: "paid", label: "Paid" },
 ];
 
-function todayIsoDate(): string {
-  const now = new Date();
-  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-}
-
+import { businessTodayIsoDate } from "@/lib/admin/company-business-timezone";
 function money(value: number): string {
   return value.toLocaleString("en-US", {
     style: "currency",
@@ -80,7 +76,7 @@ function AddMemberAddonModal({
   const defaultDiscount = defaultAddonDiscountForTier(row.tier);
   const [mounted, setMounted] = useState(false);
   const [serviceName, setServiceName] = useState("");
-  const [serviceDate, setServiceDate] = useState(todayIsoDate());
+  const [serviceDate, setServiceDate] = useState(businessTodayIsoDate);
   const [retailPrice, setRetailPrice] = useState("");
   const [discountPercent, setDiscountPercent] = useState(String(defaultDiscount));
   const [amountCharged, setAmountCharged] = useState("");

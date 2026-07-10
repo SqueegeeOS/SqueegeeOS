@@ -4,6 +4,7 @@ import {
 } from "@/lib/persistence/supabase/client";
 import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
 import { computeMembershipYearlyValue } from "./compute-membership-yearly-value";
+import { getBusinessCalendarDayUtcBounds } from "./company-business-timezone";
 import type { MembershipProductionRevenueOverview } from "./membership-production-revenue-types";
 import type { MembershipProductionSigning } from "./membership-production-revenue-types";
 
@@ -38,12 +39,6 @@ interface AgreementRow {
   id: string;
   signed_at: string;
   homeowner_name: string;
-}
-
-function startOfUtcDay(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-  );
 }
 
 function startOfUtcMonth(date: Date): Date {
@@ -134,7 +129,8 @@ export async function loadMembershipProductionRevenueOverview(): Promise<Members
     );
 
     const now = new Date();
-    const todayStart = startOfUtcDay(now).toISOString();
+    const { startUtc: businessDayStart, endUtc: businessDayEnd } =
+      getBusinessCalendarDayUtcBounds(now);
     const monthStart = startOfUtcMonth(now).toISOString();
 
     let membersSignedToday = 0;
@@ -156,8 +152,14 @@ export async function loadMembershipProductionRevenueOverview(): Promise<Members
             ? row.sales_tier
             : "unknown";
 
-        if (signedAt && signedAt >= todayStart) {
-          membersSignedToday += 1;
+        if (signedAt) {
+          const signedInstant = new Date(signedAt);
+          if (
+            signedInstant >= businessDayStart &&
+            signedInstant < businessDayEnd
+          ) {
+            membersSignedToday += 1;
+          }
         }
         if (signedAt && signedAt >= monthStart) {
           membersSignedThisMonth += 1;

@@ -20,7 +20,7 @@ export function MembershipProductionRevenueSection({
     {
       label: "Members signed today",
       value: String(overview.membersSignedToday),
-      hint: "Agreement signed today (UTC)",
+      hint: "Agreement signed today (Pacific Time)",
     },
     {
       label: "Active membership value",

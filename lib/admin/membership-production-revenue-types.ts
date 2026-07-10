@@ -11,7 +11,7 @@ export interface MembershipProductionSigning {
 }
 
 export interface MembershipProductionRevenueOverview {
-  /** Memberships with a signed agreement whose signed_at falls on today (UTC). */
+  /** Memberships with a signed agreement whose signed_at falls on today (Pacific Time). */
   membersSignedToday: number;
   /** Same, current UTC calendar month. */
   membersSignedThisMonth: number;

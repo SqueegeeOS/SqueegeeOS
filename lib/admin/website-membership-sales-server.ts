@@ -2,6 +2,7 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import { getBusinessCalendarDayUtcBounds } from "./company-business-timezone";
 import type {
   WebsiteMembershipSale,
   WebsiteMembershipSaleRow,
@@ -39,14 +40,14 @@ function mapSaleRow(row: WebsiteMembershipSaleRow): WebsiteMembershipSale {
   };
 }
 
-function startOfUtcDay(date: Date): Date {
-  return new Date(
-    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
-  );
-}
-
 function startOfUtcMonth(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
+}
+
+function isSoldOnBusinessToday(soldAt: string, reference: Date): boolean {
+  const soldInstant = new Date(soldAt);
+  const { startUtc, endUtc } = getBusinessCalendarDayUtcBounds(reference);
+  return soldInstant >= startUtc && soldInstant < endUtc;
 }
 
 export async function loadWebsiteMembershipSalesOverview(): Promise<WebsiteMembershipSalesOverview> {
@@ -74,10 +75,9 @@ export async function loadWebsiteMembershipSalesOverview(): Promise<WebsiteMembe
 
     const rows = (data ?? []) as WebsiteMembershipSaleRow[];
     const now = new Date();
-    const todayStart = startOfUtcDay(now).toISOString();
     const monthStart = startOfUtcMonth(now).toISOString();
 
-    const todaySales = rows.filter((row) => row.sold_at >= todayStart);
+    const todaySales = rows.filter((row) => isSoldOnBusinessToday(row.sold_at, now));
     const monthSales = rows.filter((row) => row.sold_at >= monthStart);
 
     return {

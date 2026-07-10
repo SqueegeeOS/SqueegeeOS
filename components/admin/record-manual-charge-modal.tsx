@@ -11,10 +11,7 @@ import {
   craftSecondaryButton,
 } from "@/lib/craft/tokens";
 
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
+import { businessTodayIsoDate } from "@/lib/admin/company-business-timezone";
 function formatBillingPeriod(isoDate: string | null): string {
   if (!isoDate) return "—";
   return new Date(`${isoDate}T12:00:00`).toLocaleDateString("en-US", {
@@ -35,7 +32,7 @@ export function RecordManualChargeModal({
   const [amount, setAmount] = useState(
     row.visitPrice != null ? String(row.visitPrice) : "",
   );
-  const [chargeDate, setChargeDate] = useState(todayIsoDate);
+  const [chargeDate, setChargeDate] = useState(businessTodayIsoDate);
   const [stripeReference, setStripeReference] = useState("");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
