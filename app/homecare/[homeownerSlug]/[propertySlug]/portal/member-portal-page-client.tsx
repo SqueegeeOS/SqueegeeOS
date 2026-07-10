@@ -109,6 +109,11 @@ function MemberPortalWithCeremony({
           `/homecare/${homeownerSlug}/${propertySlug}/portal`
         }
         customerPortalMode={customerPortalMode}
+        portalToken={
+          customerPortalMode === "token" && portalBasePath
+            ? portalBasePath.match(/^\/portal\/([^/]+)/)?.[1] ?? null
+            : null
+        }
       />
     </>
   );

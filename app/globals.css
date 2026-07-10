@@ -13,6 +13,7 @@
   --charcoal: #141210;
   --off-white: #f5f2eb;
   --bronze: #a89878;
+  --on-accent: #070605;
   --glass-bg: rgba(255, 248, 235, 0.035);
   --glass-bg-elevated: rgba(255, 248, 235, 0.055);
   --glass-bg-subtle: rgba(255, 248, 235, 0.02);
@@ -487,26 +488,27 @@ body {
 }
 
 [data-atlas-theme="day"] {
-  --background: #f6f4ef;
-  --foreground: #23201a;
-  --muted: #6e6a60;
+  --background: #f7f5f0;
+  --foreground: #1f1c17;
+  --muted: #5a564c;
   --accent: #8a6f45;
   --accent-soft: #8a6f4526;
   --surface: #ffffff;
-  --surface-elevated: #fbfaf7;
-  --border: #23201a1f;
-  --glass-bg: rgba(35, 32, 26, 0.03);
-  --glass-bg-elevated: rgba(35, 32, 26, 0.05);
-  --glass-bg-subtle: rgba(35, 32, 26, 0.02);
-  --glass-border: rgba(35, 32, 26, 0.12);
-  --glass-highlight: rgba(255, 255, 255, 0.65);
-  --shadow-ambient: 0 1px 2px rgba(35, 32, 26, 0.06), 0 10px 36px rgba(35, 32, 26, 0.08);
-  --shadow-float: 0 2px 4px rgba(35, 32, 26, 0.05), 0 18px 52px rgba(35, 32, 26, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-  --shadow-lift: 0 4px 8px rgba(35, 32, 26, 0.06), 0 28px 88px rgba(35, 32, 26, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.8);
-  --at-toggle-border: rgba(35, 32, 26, 0.14);
-  --at-toggle-bg: rgba(255, 255, 255, 0.6);
+  --surface-elevated: #fcfaf6;
+  --border: #1f1c171a;
+  --on-accent: #fffdf8;
+  --glass-bg: rgba(255, 253, 248, 0.55);
+  --glass-bg-elevated: rgba(255, 253, 248, 0.72);
+  --glass-bg-subtle: rgba(255, 253, 248, 0.38);
+  --glass-border: rgba(31, 28, 23, 0.1);
+  --glass-highlight: rgba(255, 255, 255, 0.82);
+  --shadow-ambient: 0 1px 2px rgba(31, 28, 23, 0.05), 0 10px 36px rgba(31, 28, 23, 0.07);
+  --shadow-float: 0 2px 4px rgba(31, 28, 23, 0.04), 0 18px 52px rgba(31, 28, 23, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  --shadow-lift: 0 4px 8px rgba(31, 28, 23, 0.05), 0 28px 88px rgba(31, 28, 23, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --at-toggle-border: rgba(31, 28, 23, 0.12);
+  --at-toggle-bg: rgba(255, 255, 255, 0.72);
   color-scheme: light;
 }
 
@@ -516,8 +518,54 @@ body {
 
 [data-atlas-theme="day"] .craft-stage-warmth {
   background:
-    radial-gradient(ellipse 90% 55% at 50% -14%, rgba(214, 197, 161, 0.35), transparent 62%),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(178, 196, 222, 0.22), transparent 55%);
+    radial-gradient(ellipse 90% 55% at 50% -14%, rgba(214, 197, 161, 0.28), transparent 62%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(178, 196, 222, 0.14), transparent 55%),
+    radial-gradient(ellipse 50% 35% at 0% 100%, rgba(214, 197, 161, 0.08), transparent 50%);
+}
+
+/* Day — warm paper glass; lift muddy dark bottoms from shared craft-glass recipes */
+[data-atlas-theme="day"] .craft-glass {
+  background:
+    linear-gradient(165deg, var(--glass-highlight) 0%, transparent 40%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.78) 0%, rgba(247, 245, 240, 0.94) 100%);
+  border-color: rgba(31, 28, 23, 0.09);
+}
+
+[data-atlas-theme="day"] .craft-glass-elevated {
+  border-color: rgba(31, 28, 23, 0.11);
+  background:
+    linear-gradient(165deg, rgba(255, 255, 255, 0.9) 0%, transparent 36%),
+    linear-gradient(180deg, rgba(255, 253, 248, 0.88) 0%, rgba(252, 250, 246, 0.96) 100%);
+}
+
+[data-atlas-theme="day"] .craft-glass-subtle {
+  border-color: rgba(31, 28, 23, 0.07);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 248, 0.62) 0%,
+    rgba(247, 245, 240, 0.88) 100%
+  );
+}
+
+[data-atlas-theme="day"] .craft-glass-inset {
+  border-color: rgba(31, 28, 23, 0.08);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 253, 248, 0.5) 0%,
+    rgba(247, 245, 240, 0.72) 100%
+  );
+}
+
+[data-atlas-theme="day"] .craft-btn-secondary {
+  border-color: rgba(31, 28, 23, 0.14) !important;
+  background: rgba(255, 255, 255, 0.62) !important;
+  color: rgba(31, 28, 23, 0.88) !important;
+  box-shadow: 0 8px 24px rgba(31, 28, 23, 0.06) !important;
+}
+
+[data-atlas-theme="day"] .craft-btn-secondary:hover {
+  border-color: rgba(138, 111, 69, 0.35) !important;
+  background: rgba(255, 255, 255, 0.78) !important;
 }
 
 /* Founding member honor — Day mode matches wallet-card gold on dark panel */
@@ -562,6 +610,7 @@ body {
   --muted: #9c8f76;
   --accent: #d4af37;
   --accent-soft: #d4af3733;
+  --on-accent: #090705;
   --surface: #121008;
   --surface-elevated: #1a1710;
   --border: #f3ecdc14;
@@ -583,9 +632,9 @@ body {
 /* Next Care Visit hero — subtle atmosphere per theme */
 [data-atlas-theme="day"] .next-care-visit-hero .craft-glass-elevated {
   box-shadow:
-    0 2px 4px rgba(35, 32, 26, 0.05),
-    0 20px 56px rgba(35, 32, 26, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+    0 2px 4px rgba(31, 28, 23, 0.04),
+    0 20px 56px rgba(31, 28, 23, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.94);
 }
 
 [data-atlas-theme="lux"] .next-care-visit-hero .craft-glass-elevated {

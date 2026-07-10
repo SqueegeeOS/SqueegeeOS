@@ -3,6 +3,7 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import type { AtlasThemeId } from "@/lib/theme/atlas-themes";
 import type {
   PersistedMemberAppointment,
   PersistedMemberProfile,
@@ -17,13 +18,15 @@ import type {
   PropertyRecord,
 } from "@/lib/member-intelligence/types";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
-import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
+import { normalizeToSqueegeeKingTier, SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 import { loadMembershipPortalRow } from "@/lib/persistence/queries/load-membership-portal-row";
 import {
   mapMemberCareAddonRecord,
   type MemberCareAddonRecord,
 } from "@/lib/membership/portal-care-addons";
 import type { MemberAddonStatus } from "@/lib/persistence/types/member-addon";
+import type { MemberSavingsLedgerView } from "@/lib/membership/member-savings-ledger";
+import { loadMemberSavingsLedgerView } from "@/lib/membership/member-savings-ledger-server";
 
 export interface ServiceObservationView {
   id: string;
@@ -76,8 +79,10 @@ export interface MemberPortalData {
   agreement: MemberPortalAgreement | null;
   presentationId: string | null;
   membershipId: string | null;
+  portalTheme: AtlasThemeId | null;
   paymentMethodLabel: string | null;
   careAddons: MemberCareAddonRecord[];
+  savingsLedger: MemberSavingsLedgerView | null;
 }
 
 interface HomeownerRow {
@@ -489,6 +494,24 @@ export async function getMemberPortalDataBySlugs(
     }
   }
 
+  const tierId = normalizeToSqueegeeKingTier(
+    membershipRow?.sales_tier ?? "quarterly",
+  );
+  const savingsLedger: MemberSavingsLedgerView | null = membershipRow?.id
+    ? await loadMemberSavingsLedgerView({
+        membershipId: membershipRow.id,
+        memberProfileId: profile?.id ?? null,
+        tierId,
+        addonDiscountPercent: SQUEEGEEKING_TIERS[tierId].addonDiscount,
+        enrollmentSavingsPerVisit:
+          membershipRow.membership_enrollment_savings != null
+            ? Number(membershipRow.membership_enrollment_savings)
+            : null,
+        appointments,
+        careAddons,
+      })
+    : null;
+
   return {
     profile: memberProfile,
     property: buildPropertyRecord(propertyRow, memberProfile.id),
@@ -524,8 +547,10 @@ export async function getMemberPortalDataBySlugs(
       : null,
     presentationId: membershipRow?.presentation_id ?? null,
     membershipId: membershipRow?.id ?? null,
+    portalTheme: membershipRow?.portal_theme ?? null,
     paymentMethodLabel,
     careAddons,
+    savingsLedger,
   };
 }
 

@@ -35,6 +35,7 @@ interface MemberPortalExperienceProps {
   portalData?: MemberPortalData | null;
   portalBasePath?: string;
   customerPortalMode?: "token" | "slug";
+  portalToken?: string | null;
 }
 
 function CheckBullet({ children }: { children: React.ReactNode }) {
@@ -53,6 +54,7 @@ export function MemberPortalExperience({
   portalData,
   portalBasePath,
   customerPortalMode = "slug",
+  portalToken = null,
 }: MemberPortalExperienceProps) {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
@@ -93,8 +95,21 @@ export function MemberPortalExperience({
     router.refresh();
   };
 
+  const resolvedPortalToken =
+    portalToken ??
+    (customerPortalMode === "token" && portalBasePath
+      ? portalBasePath.match(/^\/portal\/([^/]+)/)?.[1] ?? null
+      : null);
+
   return (
-    <PortalStage founding={Boolean(view.foundingDisplay)}>
+    <PortalStage
+      founding={Boolean(view.foundingDisplay)}
+      savedTheme={portalData?.portalTheme ?? null}
+      membershipId={portalData?.membershipId ?? null}
+      portalToken={resolvedPortalToken}
+      homeownerSlug={data.homeowner.slug}
+      propertySlug={data.property.slug}
+    >
       <div className="mx-auto max-w-2xl px-5 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(3.5rem,env(safe-area-inset-top))] sm:px-10 sm:pb-20 sm:pt-16">
         {/* §1 — Landing */}
         <motion.header
@@ -489,8 +504,8 @@ export function MemberPortalExperience({
           </div>
         )}
 
-        <footer className="mt-20 border-t border-white/[0.05] pt-10 text-center">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-white/25">
+        <footer className="mt-20 border-t border-border pt-10 text-center">
+          <p className="text-[10px] uppercase tracking-[0.3em] text-muted/70">
             Powered by HomeAtlas
           </p>
         </footer>

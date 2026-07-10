@@ -75,6 +75,7 @@ create table if not exists memberships (
   founding_member boolean not null default false,
   founding_member_since timestamptz,
   portal_access_token text,
+  portal_theme text check (portal_theme is null or portal_theme in ('day', 'night', 'lux')),
   cancelled_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),

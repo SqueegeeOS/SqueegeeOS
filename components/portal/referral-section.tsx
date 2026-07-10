@@ -93,13 +93,13 @@ export function ReferralSection({
     >
       <PortalCard className="space-y-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <p className="min-w-0 flex-1 truncate rounded-full border border-border bg-foreground/[0.03] px-4 py-3 font-mono text-sm text-foreground/85">
+          <p className="min-w-0 flex-1 truncate rounded-full border border-border bg-[var(--glass-bg-subtle)] px-4 py-3 font-mono text-sm text-foreground/85">
             {summary.link}
           </p>
           <button
             type="button"
             onClick={copyLink}
-            className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-full bg-accent px-6 text-[11px] font-medium uppercase tracking-[0.18em] text-background transition-opacity hover:opacity-90 touch-manipulation"
+            className="inline-flex min-h-[44px] shrink-0 items-center justify-center rounded-full bg-accent px-6 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--on-accent)] transition-opacity hover:opacity-90 touch-manipulation"
           >
             {copied ? "Copied" : "Copy link"}
           </button>
