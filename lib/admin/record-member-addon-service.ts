@@ -246,14 +246,59 @@ export async function recordMemberAddonService(
     membership.homeowner_id as string,
   );
 
+  const serviceName = input.serviceName.trim();
+  const serviceDate = input.serviceDate.trim();
+
+  const { data: existingAddon, error: existingError } = await supabase
+    .from("member_addon_transactions")
+    .select(
+      "id, retail_price_cents, amount_charged_cents, saved_cents, status",
+    )
+    .eq("membership_id", membershipId)
+    .eq("service_name", serviceName)
+    .eq("service_date", serviceDate)
+    .maybeSingle();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (existingAddon?.id) {
+    const existingStatus = existingAddon.status as MemberAddonStatus;
+    if (MEMBER_ADDON_REVENUE_STATUSES.includes(existingStatus)) {
+      const { upsertAddonLedgerEntry } = await import(
+        "@/lib/membership/member-savings-ledger-server"
+      );
+      await upsertAddonLedgerEntry({
+        membershipId,
+        memberProfileId,
+        addonId: existingAddon.id as string,
+        serviceName,
+        savedCents: Number(existingAddon.saved_cents ?? 0),
+        amountChargedCents: Number(existingAddon.amount_charged_cents ?? 0),
+        serviceDate,
+      });
+    }
+
+    return {
+      addonId: existingAddon.id as string,
+      membershipId,
+      retailPriceCents: Number(existingAddon.retail_price_cents),
+      amountChargedCents: Number(existingAddon.amount_charged_cents),
+      savedCents: Number(existingAddon.saved_cents),
+      revenueCents: Number(existingAddon.amount_charged_cents),
+      status: existingStatus,
+    };
+  }
+
   const { data: inserted, error: insertError } = await supabase
     .from("member_addon_transactions")
     .insert({
       membership_id: membershipId,
       member_profile_id: memberProfileId,
       property_id: membership.property_id,
-      service_name: input.serviceName.trim(),
-      service_date: input.serviceDate.trim(),
+      service_name: serviceName,
+      service_date: serviceDate,
       retail_price_cents: retailPriceCents,
       discount_percent: Math.round(input.discountPercent),
       amount_charged_cents: amountChargedCents,
@@ -274,11 +319,11 @@ export async function recordMemberAddonService(
       memberProfileId,
       propertyId: membership.property_id as string,
       addonId: inserted.id as string,
-      serviceName: input.serviceName.trim(),
+      serviceName,
       retailPriceCents,
       amountChargedCents,
       savedCents,
-      serviceDate: input.serviceDate.trim(),
+      serviceDate: serviceDate,
       notes: input.notes,
     });
 
@@ -289,10 +334,10 @@ export async function recordMemberAddonService(
       membershipId,
       memberProfileId,
       addonId: inserted.id as string,
-      serviceName: input.serviceName.trim(),
+      serviceName,
       savedCents,
       amountChargedCents,
-      serviceDate: input.serviceDate.trim(),
+      serviceDate,
     });
   }
 
