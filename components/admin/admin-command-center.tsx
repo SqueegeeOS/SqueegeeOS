@@ -54,7 +54,7 @@ import { ClosedJobsForm } from "./closed-jobs-form";
 import { MonthlySalesLedger } from "./monthly-sales-ledger";
 import { RecentClosedJobsTable } from "./recent-closed-jobs-table";
 import { RevenuePeriodFilterBar } from "./revenue-period-filter";
-import { WebsiteMembershipSalesSection } from "./website-membership-sales-section";
+import { MembershipProductionRevenueSection } from "./membership-production-revenue-section";
 import { MorningBriefSection } from "./morning-brief";
 import { HqFounderNav } from "./hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
@@ -136,6 +136,18 @@ export function AdminCommandCenter({
           popularTier: "—",
           source: "supabase",
         },
+        membershipProductionRevenue: {
+          membersSignedToday: 0,
+          membersSignedThisMonth: 0,
+          cardOnFileCount: 0,
+          membersOnBook: 0,
+          activeMembershipValue: 0,
+          expectedYearlyMembershipRevenue: 0,
+          addonRevenueCollected: 0,
+          totalCustomerRevenue: 0,
+          recentSignings: [],
+          source: "unavailable",
+        },
         websiteMembershipSales: {
           todayCount: 0,
           monthCount: 0,
@@ -149,6 +161,7 @@ export function AdminCommandCenter({
           closedJobs: localJobs.length > 0 ? "local" : "supabase",
           executive: localJobs.length > 0 ? "local" : "supabase",
           membership: "supabase",
+          membershipProductionRevenue: "unavailable",
           websiteMembershipSales: "unavailable",
         },
         storage: "local",
@@ -299,13 +312,13 @@ export function AdminCommandCenter({
                 <AdminCeoScoreboard scoreboard={scoreboard} />
 
                 <AdminSection
-                  eyebrow="Website"
-                  title="Membership sales"
-                  description="Automatic sales from completed presentation signups — card on file and membership active."
+                  eyebrow="Membership"
+                  title="Production membership revenue"
+                  description="Real signed members on file — same source as Membership Command Center."
                   index={0}
                 >
-                  <WebsiteMembershipSalesSection
-                    overview={dashboard.websiteMembershipSales}
+                  <MembershipProductionRevenueSection
+                    overview={dashboard.membershipProductionRevenue}
                   />
                 </AdminSection>
 

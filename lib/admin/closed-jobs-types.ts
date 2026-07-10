@@ -114,6 +114,7 @@ export interface MembershipRevenueOverview {
   source: "supabase" | "mock" | "mixed";
 }
 
+import type { MembershipProductionRevenueOverview } from "./membership-production-revenue-types";
 import type { WebsiteMembershipSalesOverview } from "./website-membership-sales-types";
 
 export interface AdminDashboardData {
@@ -121,11 +122,13 @@ export interface AdminDashboardData {
   closedJobs: ClosedJob[];
   monthlyLedger: MonthlyLedgerEntry[];
   membership: MembershipRevenueOverview;
+  membershipProductionRevenue: MembershipProductionRevenueOverview;
   websiteMembershipSales: WebsiteMembershipSalesOverview;
   dataSources: {
     closedJobs: "supabase" | "local" | "mock" | "mixed";
     executive: "supabase" | "local" | "mock" | "mixed";
     membership: "supabase" | "mock" | "mixed";
+    membershipProductionRevenue: "supabase" | "unavailable";
     websiteMembershipSales: "supabase" | "unavailable";
   };
   storage: "supabase" | "local";

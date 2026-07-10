@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { computeMembershipYearlyValue } from "@/lib/admin/compute-membership-yearly-value";
 import {
   parseTimeWindowFromNotes,
 } from "@/lib/admin/schedule-membership-service";
@@ -296,12 +297,7 @@ export async function GET(request: Request) {
       const nextServiceMonth =
         nextServiceDate?.slice(0, 7) ?? m.next_billing_date?.slice(0, 7) ?? null;
 
-      const yearly =
-        typeof m.annual_rate === "number"
-          ? m.annual_rate
-          : typeof m.visit_price === "number" && typeof m.visits_per_year === "number"
-            ? m.visit_price * m.visits_per_year
-            : null;
+      const yearly = computeMembershipYearlyValue(m);
       const addonTotals = addonTotalsByMembership.get(m.id);
       const ledgerSavings = ledgerSavingsByMembership.get(m.id);
       const lifetimeMemberSavings =
