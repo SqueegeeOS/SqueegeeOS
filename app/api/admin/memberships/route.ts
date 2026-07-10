@@ -25,15 +25,16 @@ export interface HqMembershipRow {
 function deriveStatus(m: {
   status: string;
   stripe_payment_method_id: string | null;
+  payment_setup_completed_at: string | null;
   next_billing_date: string | null;
 }): HqMembershipRow["status"] {
   if (m.status === "cancelled" || m.status === "paused") return "cancelled";
-  if (m.status === "active") {
+  const paid = Boolean(m.payment_setup_completed_at || m.stripe_payment_method_id);
+  if (m.status === "active" && paid) {
     return m.next_billing_date ? "active" : "needs scheduling";
   }
-  if (m.status === "pending_payment") {
-    return m.stripe_payment_method_id ? "signed" : "needs card";
-  }
+  if (!paid) return "needs card";
+  if (m.status === "pending_payment") return "signed";
   return "attention";
 }
 
@@ -51,7 +52,7 @@ export async function GET(request: Request) {
     const { data: memberships, error } = await supabase
       .from("memberships")
       .select(
-        "id, homeowner_id, property_id, plan_name, sales_tier, visit_price, annual_rate, visits_per_year, status, stripe_customer_id, stripe_payment_method_id, next_billing_date, portal_access_token, agreement_id, founding_member, created_at",
+        "id, homeowner_id, property_id, sales_tier, visit_price, annual_rate, visits_per_year, status, billing_schedule, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, next_billing_date, portal_access_token, agreement_id, founding_member, created_at",
       )
       .order("created_at", { ascending: true });
     if (error) throw error;
@@ -95,7 +96,7 @@ export async function GET(request: Request) {
             ? "Bi-Annual"
             : m.sales_tier === "quarterly"
               ? "Quarterly"
-              : (m.plan_name as string) || "Unknown",
+              : "Unknown",
         tier: (m.sales_tier as HqMembershipRow["tier"]) ?? "unknown",
         status: deriveStatus(m),
         rawStatus: m.status as string,
