@@ -11,9 +11,9 @@ import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import { Eyebrow, HeroText } from "@/components/presentations/slide-primitives";
 import {
   ExpandLink,
-  HouseIllustration,
   ProcessTimeline,
 } from "@/components/presentations/slides/visual-primitives";
+import { AtlasMark } from "@/components/theme/atlas-mark";
 import { CardOnFileSetup } from "@/components/membership/card-on-file-setup";
 import { FoundingMemberHonor } from "@/components/membership/founding-member-honor";
 import { MemberWalletCard } from "@/components/membership/member-wallet-card";
@@ -386,7 +386,7 @@ export function MemberPortalExperience({
                 </div>
               ) : (
                 <div className="flex aspect-[16/10] items-center justify-center bg-gradient-to-b from-accent/[0.06] to-transparent py-10">
-                  <HouseIllustration />
+                  <AtlasMark size={104} className="mx-auto" />
                 </div>
               )}
             </div>
@@ -456,7 +456,7 @@ export function MemberPortalExperience({
               </PortalCard>
             ) : (
               <div className="craft-glass-subtle rounded-[var(--radius-card-lg)] border-accent/10 bg-gradient-to-b from-accent/[0.05] to-transparent py-12 text-center shadow-[var(--shadow-ambient)]">
-                <HouseIllustration />
+                <AtlasMark size={104} className="mx-auto" />
                 <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-foreground/60">
                   {view.photosEmptyCopy}
                 </p>
