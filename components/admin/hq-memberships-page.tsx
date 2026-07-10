@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { isAdminUnlocked } from "@/lib/admin/pin";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 import type { HqMembershipRow } from "@/app/api/admin/memberships/route";
 
@@ -44,6 +46,16 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export function HqMembershipsPage() {
+  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+
+  if (!unlocked) {
+    return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
+  }
+
+  return <HqMembershipsContent />;
+}
+
+function HqMembershipsContent() {
   const [rows, setRows] = useState<HqMembershipRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,9 +63,15 @@ export function HqMembershipsPage() {
   useEffect(() => {
     fetch("/api/admin/memberships", { headers: getAdminRequestHeaders(), cache: "no-store" })
       .then(async (r) => {
-        if (!r.ok) throw new Error("Failed to load memberships");
-        const data = (await r.json()) as { rows: HqMembershipRow[] };
-        setRows(data.rows);
+        const body = (await r.json().catch(() => null)) as {
+          rows?: HqMembershipRow[];
+          error?: string;
+        } | null;
+        if (!r.ok) {
+          const detail = body?.error ?? r.statusText;
+          throw new Error(`${r.status} ${detail}`);
+        }
+        setRows(body?.rows ?? []);
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Failed to load"))
       .finally(() => setLoading(false));

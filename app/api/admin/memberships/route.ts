@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import { isMissingColumnError } from "@/lib/persistence/queries/load-membership-portal-row";
 
 export interface HqMembershipRow {
   id: string;
@@ -22,6 +23,30 @@ export interface HqMembershipRow {
   founding: boolean;
 }
 
+interface MembershipQueryRow {
+  id: string;
+  homeowner_id: string;
+  property_id: string;
+  sales_tier: string | null;
+  visit_price: number | null;
+  annual_rate: number | null;
+  visits_per_year: number | null;
+  status: string;
+  payment_setup_completed_at: string | null;
+  stripe_customer_id: string | null;
+  stripe_payment_method_id: string | null;
+  next_billing_date: string | null;
+  portal_access_token: string | null;
+  agreement_id: string | null;
+  founding_member: boolean | null;
+  created_at: string;
+}
+
+const MEMBERSHIP_BASE_SELECT =
+  "id, homeowner_id, property_id, sales_tier, visit_price, annual_rate, visits_per_year, status, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id, created_at";
+
+const MEMBERSHIP_EXTENDED_SELECT = `${MEMBERSHIP_BASE_SELECT}, next_billing_date, portal_access_token, founding_member`;
+
 function deriveStatus(m: {
   status: string;
   stripe_payment_method_id: string | null;
@@ -38,6 +63,46 @@ function deriveStatus(m: {
   return "attention";
 }
 
+async function loadMembershipRows(): Promise<MembershipQueryRow[]> {
+  const supabase = createServerSupabaseClient();
+
+  const extended = await supabase
+    .from("memberships")
+    .select(MEMBERSHIP_EXTENDED_SELECT)
+    .order("created_at", { ascending: true });
+
+  if (!extended.error) {
+    return (extended.data ?? []) as MembershipQueryRow[];
+  }
+
+  if (
+    isMissingColumnError(extended.error.message, "next_billing_date") ||
+    isMissingColumnError(extended.error.message, "portal_access_token") ||
+    isMissingColumnError(extended.error.message, "founding_member")
+  ) {
+    const base = await supabase
+      .from("memberships")
+      .select(MEMBERSHIP_BASE_SELECT)
+      .order("created_at", { ascending: true });
+
+    if (base.error) {
+      throw new Error(base.error.message);
+    }
+
+    return ((base.data ?? []) as Omit<
+      MembershipQueryRow,
+      "next_billing_date" | "portal_access_token" | "founding_member"
+    >[]).map((row) => ({
+      ...row,
+      next_billing_date: null,
+      portal_access_token: null,
+      founding_member: false,
+    }));
+  }
+
+  throw new Error(extended.error.message);
+}
+
 export async function GET(request: Request) {
   const pinHeader = request.headers.get("x-admin-pin");
   if (!authorizeAdminRequest(pinHeader)) {
@@ -48,27 +113,26 @@ export async function GET(request: Request) {
   }
 
   try {
-    const supabase = createServerSupabaseClient();
-    const { data: memberships, error } = await supabase
-      .from("memberships")
-      .select(
-        "id, homeowner_id, property_id, sales_tier, visit_price, annual_rate, visits_per_year, status, billing_schedule, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, next_billing_date, portal_access_token, agreement_id, founding_member, created_at",
-      )
-      .order("created_at", { ascending: true });
-    if (error) throw error;
-
-    const rows = memberships ?? [];
+    const rows = await loadMembershipRows();
     const homeownerIds = [...new Set(rows.map((m) => m.homeowner_id).filter(Boolean))];
     const propertyIds = [...new Set(rows.map((m) => m.property_id).filter(Boolean))];
 
+    const supabase = createServerSupabaseClient();
     const [homeowners, properties] = await Promise.all([
       homeownerIds.length
         ? supabase.from("homeowners").select("id, full_name").in("id", homeownerIds)
-        : Promise.resolve({ data: [] as Array<{ id: string; full_name: string }> }),
+        : Promise.resolve({ data: [] as Array<{ id: string; full_name: string }>, error: null }),
       propertyIds.length
         ? supabase.from("properties").select("id, address, city").in("id", propertyIds)
-        : Promise.resolve({ data: [] as Array<{ id: string; address: string; city: string }> }),
+        : Promise.resolve({ data: [] as Array<{ id: string; address: string; city: string }>, error: null }),
     ]);
+
+    if (homeowners.error) {
+      throw new Error(homeowners.error.message);
+    }
+    if (properties.error) {
+      throw new Error(properties.error.message);
+    }
 
     const nameById = new Map(
       (homeowners.data ?? []).map((h) => [h.id as string, (h.full_name as string) || ""]),
@@ -88,9 +152,9 @@ export async function GET(request: Request) {
             ? m.visit_price * m.visits_per_year
             : null;
       return {
-        id: m.id as string,
-        customerName: nameById.get(m.homeowner_id as string) || "Unknown",
-        address: addrById.get(m.property_id as string) || "Unknown",
+        id: m.id,
+        customerName: nameById.get(m.homeowner_id) || "Unknown",
+        address: addrById.get(m.property_id) || "Unknown",
         planLabel:
           m.sales_tier === "biannual"
             ? "Bi-Annual"
@@ -99,21 +163,24 @@ export async function GET(request: Request) {
               : "Unknown",
         tier: (m.sales_tier as HqMembershipRow["tier"]) ?? "unknown",
         status: deriveStatus(m),
-        rawStatus: m.status as string,
-        visitPrice: m.visit_price as number | null,
-        visitsPerYear: m.visits_per_year as number | null,
+        rawStatus: m.status,
+        visitPrice: m.visit_price,
+        visitsPerYear: m.visits_per_year,
         yearlyValue: yearly,
         cardOnFile: Boolean(m.stripe_payment_method_id),
         stripeCustomer: Boolean(m.stripe_customer_id),
-        nextServiceMonth: m.next_billing_date as string | null,
+        nextServiceMonth: m.next_billing_date,
         portalPath: m.portal_access_token ? `/portal/${m.portal_access_token}` : null,
-        agreementId: m.agreement_id as string | null,
+        agreementId: m.agreement_id,
         founding: Boolean(m.founding_member),
       };
     });
 
     return NextResponse.json({ rows: out, connected: true });
-  } catch {
-    return NextResponse.json({ error: "Failed to load memberships" }, { status: 500 });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to load memberships";
+    console.error("[memberships] load failed:", error);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

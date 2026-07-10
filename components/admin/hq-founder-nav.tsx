@@ -123,6 +123,17 @@ export function HqFounderNav({ newCount: initialNewCount }: { newCount?: number 
         Production Health
       </Link>
       <Link
+        href={ROUTES.hqMembership}
+        className={cn(
+          "inline-flex min-h-[44px] items-center rounded-full px-4 py-2.5 text-sm transition-colors",
+          pathname.startsWith(ROUTES.hqMembership)
+            ? "border border-accent/40 bg-accent/10 text-foreground"
+            : "text-muted hover:text-foreground",
+        )}
+      >
+        Membership
+      </Link>
+      <Link
         href={ROUTES.hqBilling}
         className={cn(
           "inline-flex min-h-[44px] items-center rounded-full px-4 py-2.5 text-sm transition-colors",
