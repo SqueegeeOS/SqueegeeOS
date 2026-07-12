@@ -8,6 +8,7 @@ import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { canScheduleMembership, isMembershipCancelled } from "@/lib/membership/membership-status";
+import { HOMEATLAS_NATIVE_SCHEDULING_ENABLED } from "@/lib/care-operations/model";
 
 export interface ScheduleMembershipServiceInput {
   membershipId: string;
@@ -127,6 +128,12 @@ async function ensureMemberProfileId(
 export async function scheduleMembershipService(
   input: ScheduleMembershipServiceInput,
 ): Promise<ScheduleMembershipServiceResult> {
+  if (!HOMEATLAS_NATIVE_SCHEDULING_ENABLED) {
+    throw new Error(
+      "HomeAtlas native scheduling is paused. Schedule this visit in Jobber.",
+    );
+  }
+
   if (!isCloudPersistenceConnected()) {
     throw new Error("Cloud persistence is not connected");
   }

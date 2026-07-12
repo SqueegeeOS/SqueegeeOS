@@ -49,6 +49,10 @@ export async function POST(
       ? 404
       : message.includes("saved card") || message.includes("active membership")
         ? 409
+        : message.includes("paused") ||
+            message.includes("verified against Jobber") ||
+            message.includes("execution is disabled")
+          ? 409
         : message.includes("not configured") || message.includes("not connected")
           ? 503
           : 500;

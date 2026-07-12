@@ -27,6 +27,12 @@ import {
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { isStripeLiveMode } from "@/lib/stripe/mode";
+import {
+  AUTHORITATIVE_APPOINTMENT_MATCH_STATE,
+  AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
+  AUTHORITATIVE_APPOINTMENT_PROVIDER,
+  AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+} from "@/lib/care-operations/model";
 
 interface MembershipBillingRow {
   id: string;
@@ -224,6 +230,10 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       .from("member_appointments")
       .select("id, property_id, scheduled_at")
       .in("property_id", propertyIds)
+      .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
+      .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
+      .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
+      .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
       .eq("status", "scheduled")
       .order("scheduled_at", { ascending: true }),
   ]);
