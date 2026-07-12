@@ -83,9 +83,10 @@ function BillingWorkspaceContent() {
             Billing
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-[1.65] text-muted">
-            Operational dashboard for collecting visit payments on the 1st of
-            each service month. Charge in Stripe, then record the payment here
-            so HomeAtlas stays the source of truth.
+            Complete scheduled care, review every service and savings amount,
+            then charge the member&apos;s saved card through one recoverable
+            HomeAtlas operation. Manual Stripe recording remains available as
+            a fallback.
           </p>
         </MotionReveal>
 

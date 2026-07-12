@@ -45,12 +45,10 @@ function formatDate(value: string): string {
  * Renders nothing until the summary loads; hides when cloud persistence is off.
  */
 export function ReferralSection({
-  membershipId,
-  memberName,
+  portalToken,
   index,
 }: {
-  membershipId: string;
-  memberName: string;
+  portalToken: string;
   index: number;
 }) {
   const [summary, setSummary] = useState<MemberReferralSummary | null>(null);
@@ -62,7 +60,7 @@ export function ReferralSection({
     fetch("/api/referrals/portal", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ membershipId, memberName }),
+      body: JSON.stringify({ portalToken }),
     })
       .then((r) => (r.ok ? r.json() : null))
       .then((data: { summary: MemberReferralSummary | null } | null) => {
@@ -75,7 +73,7 @@ export function ReferralSection({
     return () => {
       cancelled = true;
     };
-  }, [membershipId, memberName]);
+  }, [portalToken]);
 
   const copyLink = useCallback(() => {
     if (!summary) return;

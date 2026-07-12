@@ -257,10 +257,9 @@ export function MemberPortalExperience({
           )}
 
           {/* §2b — Referrals (members only, real data only) */}
-          {view.membershipActive && view.membershipId && (
+          {view.membershipActive && resolvedPortalToken && (
             <ReferralSection
-              membershipId={view.membershipId}
-              memberName={view.firstName}
+              portalToken={resolvedPortalToken}
               index={3}
             />
           )}

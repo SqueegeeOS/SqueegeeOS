@@ -13,6 +13,7 @@ import type {
 } from "@/lib/admin/billing-workspace-types";
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 import { RecordManualChargeModal } from "@/components/admin/record-manual-charge-modal";
+import { CompleteChargeVisitModal } from "@/components/admin/complete-charge-visit-modal";
 import { craftEyebrow, craftTableHead } from "@/lib/craft/tokens";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 
@@ -125,10 +126,12 @@ function BillingRegisterRowActions({
   row,
   stripeDashboardLive,
   onRecordCharge,
+  onCompleteCharge,
 }: {
   row: BillingRegisterRow;
   stripeDashboardLive: boolean;
   onRecordCharge: (row: BillingRegisterRow) => void;
+  onCompleteCharge: (row: BillingRegisterRow) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -178,6 +181,15 @@ function BillingRegisterRowActions({
         href={customerWorkspaceHref("property", row.propertyId)}
       />
       <RowAction
+        label="Complete & charge"
+        onClick={() => onCompleteCharge(row)}
+        disabled={
+          !row.nextAppointmentId ||
+          row.billingStatus === "charged" ||
+          row.billingStatus === "inactive"
+        }
+      />
+      <RowAction
         label="Record manual charge"
         onClick={() => onRecordCharge(row)}
         disabled={!row.canRecordCharge}
@@ -206,6 +218,9 @@ export function BillingRegisterTable({
   const [recordingRow, setRecordingRow] = useState<BillingRegisterRow | null>(
     null,
   );
+  const [completingRow, setCompletingRow] = useState<BillingRegisterRow | null>(
+    null,
+  );
 
   if (rows.length === 0) {
     return (
@@ -222,6 +237,13 @@ export function BillingRegisterTable({
         <RecordManualChargeModal
           row={recordingRow}
           onClose={() => setRecordingRow(null)}
+          onRecorded={onRecorded}
+        />
+      ) : null}
+      {completingRow ? (
+        <CompleteChargeVisitModal
+          row={completingRow}
+          onClose={() => setCompletingRow(null)}
           onRecorded={onRecorded}
         />
       ) : null}
@@ -289,6 +311,7 @@ export function BillingRegisterTable({
                     row={row}
                     stripeDashboardLive={stripeDashboardLive}
                     onRecordCharge={setRecordingRow}
+                    onCompleteCharge={setCompletingRow}
                   />
                 </td>
               </tr>

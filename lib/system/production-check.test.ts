@@ -1,6 +1,28 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { runProductionCheck } from "./production-check";
 
+vi.mock("@/lib/persistence/supabase/client", () => ({
+  createServerSupabaseClient: () => ({
+    from: () => ({
+      select: () => ({
+        limit: async () => ({ data: [], error: null }),
+      }),
+    }),
+  }),
+  createServiceRoleSupabaseClient: vi.fn(),
+  isServiceRoleConfigured: () => false,
+  isSupabaseConfigured: () =>
+    Boolean(
+      process.env.NEXT_PUBLIC_SUPABASE_URL &&
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    ),
+}));
+
+vi.mock("@/lib/agreement/signed-agreement-storage", () => ({
+  probeSignedAgreementsBucketPublic: async () => "unknown",
+  SIGNED_AGREEMENT_BUCKET: "signed-agreements",
+}));
+
 describe("runProductionCheck", () => {
   const env = process.env;
 

@@ -35,6 +35,7 @@ interface MembershipBillingRow {
   status: string;
   sales_tier: string | null;
   visit_price: number | null;
+  membership_enrollment_savings: number | null;
   visits_per_year: number | null;
   started_at: string | null;
   payment_setup_completed_at: string | null;
@@ -73,6 +74,12 @@ interface ChargeBillingRow {
 interface AgreementBillingRow {
   id: string;
   agreement_pdf_url: string | null;
+}
+
+interface AppointmentBillingRow {
+  id: string;
+  property_id: string;
+  scheduled_at: string;
 }
 
 const EMPTY_OVERVIEW: BillingWorkspaceOverview = {
@@ -149,7 +156,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   const { data: memberships, error: membershipError } = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, status, sales_tier, visit_price, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id",
+      "id, homeowner_id, property_id, status, sales_tier, visit_price, membership_enrollment_savings, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id",
     )
     .in("status", ["active", "pending_payment", "paused"])
     .order("started_at", { ascending: true });
@@ -185,6 +192,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     obligationsRes,
     chargesRes,
     agreementsRes,
+    appointmentsRes,
   ] = await Promise.all([
     supabase
       .from("homeowners")
@@ -212,6 +220,12 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
           .select("id, agreement_pdf_url")
           .in("id", agreementIds)
       : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("member_appointments")
+      .select("id, property_id, scheduled_at")
+      .in("property_id", propertyIds)
+      .eq("status", "scheduled")
+      .order("scheduled_at", { ascending: true }),
   ]);
 
   if (homeownersRes.error) throw new Error(homeownersRes.error.message);
@@ -223,6 +237,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     throw new Error(chargesRes.error.message);
   }
   if (agreementsRes.error) throw new Error(agreementsRes.error.message);
+  if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
 
   const homeownerById = new Map(
     ((homeownersRes.data ?? []) as HomeownerBillingRow[]).map((row) => [
@@ -256,6 +271,12 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       row,
     ]),
   );
+  const appointmentByProperty = new Map<string, AppointmentBillingRow>();
+  for (const appointment of (appointmentsRes.data ?? []) as AppointmentBillingRow[]) {
+    if (!appointmentByProperty.has(appointment.property_id)) {
+      appointmentByProperty.set(appointment.property_id, appointment);
+    }
+  }
 
   const allCharges: ChargeBillingRow[] = chargesAvailable
     ? ((chargesRes.data ?? []) as ChargeBillingRow[])
@@ -355,6 +376,14 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       tierLabel: squeegeeKingTierLabel(tierId),
       visitPrice:
         membership.visit_price != null ? Number(membership.visit_price) : null,
+      enrollmentSavingsPerVisit:
+        membership.membership_enrollment_savings != null
+          ? Number(membership.membership_enrollment_savings)
+          : null,
+      nextAppointmentId:
+        appointmentByProperty.get(membership.property_id)?.id ?? null,
+      nextAppointmentDate:
+        appointmentByProperty.get(membership.property_id)?.scheduled_at ?? null,
       stripePaymentStatus: resolveStripePaymentStatus(membership),
       cardOnFileLabel,
       stripeCustomerId: membership.stripe_customer_id,
@@ -370,7 +399,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       billingStatus,
       agreementId: membership.agreement_id,
       agreementPdfUrl,
-      chargeAction: "manual_charge",
+      chargeAction: "complete_and_charge",
     });
   }
 

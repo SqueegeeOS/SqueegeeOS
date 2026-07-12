@@ -23,7 +23,24 @@ const cormorant = Cormorant_Garamond({
   weight: ["300", "400", "500", "600"],
 });
 
+function resolveMetadataBase(): URL {
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured) {
+    try {
+      return new URL(configured);
+    } catch {
+      console.warn(
+        "[metadata] NEXT_PUBLIC_APP_URL is invalid; using the deployment URL",
+      );
+    }
+  }
+
+  const vercelUrl = process.env.VERCEL_URL?.trim();
+  return new URL(vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000");
+}
+
 export const metadata: Metadata = {
+  metadataBase: resolveMetadataBase(),
   title: CUSTOMER_BRAND.name,
   description: pwaConfig.description,
   applicationName: pwaConfig.name,

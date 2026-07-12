@@ -36,7 +36,7 @@ export default async function TokenHomeHealthPage({
     model.propertySlug,
   );
 
-  let latest = model.homeHealth;
+  const latest = model.homeHealth;
   let notes: ReturnType<typeof extractVisibleCustomerNotes> = [];
 
   if (propertyId) {

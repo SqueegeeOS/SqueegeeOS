@@ -39,7 +39,9 @@ export function MobileMenu({
   const onCloseRef = useRef(onClose);
   const previousPathname = useRef(pathname);
 
-  onCloseRef.current = onClose;
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     setMounted(true);

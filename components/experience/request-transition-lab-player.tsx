@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { RequestPlanTransition } from "@/components/experience/request-plan-transition";
 import { ExperienceLabShell } from "./experience-lab-shell";
 import { LabControls } from "./lab-controls";
@@ -9,10 +9,10 @@ export function RequestTransitionLabPlayer() {
   const [active, setActive] = useState(false);
   const [playKey, setPlayKey] = useState(0);
   const [lastComplete, setLastComplete] = useState(false);
-  const skipRef = useRef(false);
+  const [wasSkipped, setWasSkipped] = useState(false);
 
   const start = useCallback(() => {
-    skipRef.current = false;
+    setWasSkipped(false);
     setPlayKey((k) => k + 1);
     setLastComplete(false);
     setActive(true);
@@ -24,7 +24,7 @@ export function RequestTransitionLabPlayer() {
   }, []);
 
   const handleSkip = useCallback(() => {
-    skipRef.current = true;
+    setWasSkipped(true);
     setActive(false);
     setLastComplete(true);
   }, []);
@@ -57,7 +57,7 @@ export function RequestTransitionLabPlayer() {
 
         {lastComplete && !active && (
           <p className="mt-6 text-sm text-muted">
-            {skipRef.current ? "Skipped." : "Transition complete."} Replay to
+            {wasSkipped ? "Skipped." : "Transition complete."} Replay to
             watch again.
           </p>
         )}

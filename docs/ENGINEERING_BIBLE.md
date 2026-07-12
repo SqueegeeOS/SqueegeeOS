@@ -138,6 +138,7 @@ This repository maintains a permanent knowledge base:
 | [CORPUS_ALIGNMENT_REPORT.md](./CORPUS_ALIGNMENT_REPORT.md) | Documentation consistency audit |
 | [AI_CONCIERGE.md](./AI_CONCIERGE.md) | Atlas intelligence layer |
 | [ARCHITECTURE.md](./ARCHITECTURE.md) | Module map and implementation status |
+| [CURRENT_STATE.md](./CURRENT_STATE.md) | Operational truth: verification gates, live boundaries, and execution order |
 
 **After every major feature:** update the relevant doc if vision, architecture, design, motion, or roadmap changed. AI coding sessions should read `/docs` before large tasks.
 

@@ -31,6 +31,7 @@ function isSignatureDataUrl(value: string): boolean {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const { signatureDataUrl, signedAt, presentationId, ...mutableFields } = body;
     let {
       memberName,
       memberEmail,
@@ -39,17 +40,14 @@ export async function POST(req: NextRequest) {
       propertyName,
       planId,
       planName,
-      signatureDataUrl,
-      signedAt,
       monthlyPrice,
-      presentationId,
       agreementTier,
       homeSqft,
       twoStory,
       includeScreens,
       includeInterior,
       quoteSnapshot,
-    } = body;
+    } = mutableFields;
 
     let presentation = null;
     if (presentationId) {

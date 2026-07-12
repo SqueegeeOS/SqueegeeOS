@@ -73,6 +73,39 @@ export async function upsertAddonLedgerEntry(input: {
   }
 }
 
+export async function upsertMembershipVisitLedgerEntry(input: {
+  membershipId: string;
+  memberProfileId: string;
+  appointmentId: string;
+  serviceName: string;
+  savedCents: number;
+  amountChargedCents: number;
+  serviceDate: string;
+}): Promise<void> {
+  if (!isCloudPersistenceConnected() || input.savedCents <= 0) return;
+
+  const supabase = createPrivilegedServerSupabaseClient();
+  const { error } = await supabase.from("member_savings_ledger_entries").upsert(
+    {
+      membership_id: input.membershipId,
+      member_profile_id: input.memberProfileId,
+      entry_type: "membership_visit",
+      source_id: input.appointmentId,
+      label: input.serviceName,
+      amount_cents: input.savedCents,
+      occurred_at: `${input.serviceDate}T12:00:00.000Z`,
+      metadata: {
+        detail: `Member price $${(input.amountChargedCents / 100).toFixed(0)}`,
+      },
+    },
+    { onConflict: "entry_type,source_id" },
+  );
+
+  if (error && !isMissingTableError(error.message, "member_savings_ledger_entries")) {
+    throw new Error(error.message);
+  }
+}
+
 export async function syncMembershipVisitLedgerEntries(input: {
   membershipId: string;
   memberProfileId: string | null;

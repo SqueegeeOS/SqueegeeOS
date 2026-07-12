@@ -109,19 +109,16 @@ export function PresentationViewer({
       return;
     }
 
-    let cancelled = false;
-
     async function checkRecovery() {
       try {
         const res = await fetch(
           `/api/membership/onboarding-status?presentationId=${presentation.id}`,
         );
-        if (!res.ok || cancelled) return;
+        if (!res.ok) return;
         const data = (await res.json()) as {
           onboardingIncomplete?: boolean;
           onboardingStatus?: string | null;
         };
-        if (cancelled) return;
         if (data.onboardingStatus === "complete") return;
         if (data.onboardingIncomplete) {
           setSigning(true);

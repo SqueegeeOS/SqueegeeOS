@@ -49,10 +49,16 @@ const checks = [];
 checks.push(await probe("anon", anon, "homeowners"));
 checks.push(await probe("anon", anon, "closed_jobs"));
 checks.push(await probe("anon", anon, "member_addon_transactions"));
+checks.push(await probe("anon", anon, "referral_codes"));
+checks.push(await probe("anon", anon, "referral_visits"));
+checks.push(await probe("anon", anon, "referrals"));
 
 if (service) {
   checks.push(await probe("service_role", service, "closed_jobs"));
   checks.push(await probe("service_role", service, "member_addon_transactions"));
+  checks.push(await probe("service_role", service, "referral_codes"));
+  checks.push(await probe("service_role", service, "referral_visits"));
+  checks.push(await probe("service_role", service, "referrals"));
 } else {
   console.warn("SUPABASE_SERVICE_ROLE_KEY not set — skipping service role probes");
 }

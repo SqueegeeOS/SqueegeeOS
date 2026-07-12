@@ -27,6 +27,9 @@ export interface BillingRegisterRow {
   propertyLabel: string;
   tierLabel: string;
   visitPrice: number | null;
+  enrollmentSavingsPerVisit: number | null;
+  nextAppointmentId: string | null;
+  nextAppointmentDate: string | null;
   stripePaymentStatus: StripePaymentStatus;
   cardOnFileLabel: string | null;
   stripeCustomerId: string | null;
@@ -38,8 +41,7 @@ export interface BillingRegisterRow {
   billingStatus: BillingStatus;
   agreementId: string | null;
   agreementPdfUrl: string | null;
-  /** V2 hook — manual charge today, saved-card charge later */
-  chargeAction: "manual_charge";
+  chargeAction: "complete_and_charge" | "manual_charge";
 }
 
 export interface BillingWorkspaceData {
