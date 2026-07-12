@@ -10,6 +10,11 @@ const EXISTING_APPOINTMENT = {
   technician_name: "Noah",
   notes: null,
   completed_at: null,
+  provider: "jobber",
+  external_id: "visit-1",
+  provenance_state: "provider_imported",
+  verification_state: "verified",
+  match_state: "matched",
 };
 
 const insertSpy = vi.fn();
@@ -18,7 +23,15 @@ const upsertSpy = vi.fn();
 function chain(result: { data?: unknown; error?: unknown; count?: number }) {
   const promise = Promise.resolve(result);
   const builder: Record<string, unknown> = {};
-  for (const method of ["select", "eq", "order", "limit", "update"]) {
+  for (const method of [
+    "select",
+    "eq",
+    "in",
+    "gte",
+    "order",
+    "limit",
+    "update",
+  ]) {
     builder[method] = vi.fn(() => builder);
   }
   builder.maybeSingle = vi.fn(() => promise);

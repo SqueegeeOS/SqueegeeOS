@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
-import { CompleteChargeVisitModal } from "@/components/admin/complete-charge-visit-modal";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { MotionReveal } from "@/components/craft/motion-reveal";
@@ -41,11 +40,9 @@ function formatJobDay(value: string | null): string {
 function JobCard({
   row,
   group,
-  onFinish,
 }: {
   row: BillingRegisterRow;
   group: JobGroup;
-  onFinish: (row: BillingRegisterRow) => void;
 }) {
   const estimatedValue =
     (row.visitPrice ?? 0) + (row.enrollmentSavingsPerVisit ?? 0);
@@ -108,15 +105,15 @@ function JobCard({
           </a>
           <button
             type="button"
-            onClick={() => onFinish(row)}
-            className="inline-flex min-h-[52px] flex-1 items-center justify-center rounded-full bg-accent px-6 text-sm font-semibold text-background transition hover:brightness-105"
+            disabled
+            className="inline-flex min-h-[52px] flex-1 cursor-not-allowed items-center justify-center rounded-full border border-border px-6 text-sm text-muted opacity-70"
           >
-            Finish job · review &amp; charge
+            Billing preview only
           </button>
         </div>
         <p className="text-center text-xs leading-relaxed text-muted">
-          Add extra services, adjust the charge, record savings, complete the
-          visit, and collect payment in one review.
+          Charging stays paused until this visit has a bound obligation and
+          immutable Atlas pricing snapshot.
         </p>
       </div>
     </article>
@@ -127,7 +124,6 @@ function TodayWorkspaceContent() {
   const [data, setData] = useState<BillingWorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [finishing, setFinishing] = useState<BillingRegisterRow | null>(null);
   const today = businessTodayIsoDate();
 
   const load = useCallback(async () => {
@@ -180,7 +176,7 @@ function TodayWorkspaceContent() {
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           {rows.map((row) => (
-            <JobCard key={row.membershipId} row={row} group={group} onFinish={setFinishing} />
+            <JobCard key={row.membershipId} row={row} group={group} />
           ))}
         </div>
       </section>
@@ -217,15 +213,6 @@ function TodayWorkspaceContent() {
         )}
       </div>
 
-      {finishing ? (
-        <CompleteChargeVisitModal
-          row={finishing}
-          onClose={() => setFinishing(null)}
-          onRecorded={() => {
-            void load();
-          }}
-        />
-      ) : null}
     </AmbientStage>
   );
 }

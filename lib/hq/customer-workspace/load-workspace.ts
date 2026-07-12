@@ -20,6 +20,12 @@ import type {
   CustomerWorkspaceRefType,
   CustomerWorkspaceStage,
 } from "./types";
+import {
+  AUTHORITATIVE_APPOINTMENT_MATCH_STATE,
+  AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
+  AUTHORITATIVE_APPOINTMENT_PROVIDER,
+  AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+} from "@/lib/care-operations/model";
 
 function stageLabel(stage: CustomerWorkspaceStage): string {
   switch (stage) {
@@ -223,6 +229,10 @@ async function loadPropertyWorkspace(
         .select("id, service_type, scheduled_at, status")
         .eq("member_profile_id", profile.id)
         .eq("property_id", propertyId)
+        .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
+        .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
+        .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
+        .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
         .order("scheduled_at", { ascending: false })
     : { data: [] };
 

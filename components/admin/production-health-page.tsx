@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { JobberConnectionPanel } from "@/components/admin/jobber-connection-panel";
 import { ProductionHealthDashboard } from "@/components/admin/production-health-dashboard";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { MotionReveal } from "@/components/craft/motion-reveal";
@@ -84,6 +85,8 @@ function ProductionHealthContent() {
             {loading ? "Checking…" : "Run checks again"}
           </button>
         </div>
+
+        <JobberConnectionPanel />
 
         {loading ? (
           <ProductionHealthLoadingShell />

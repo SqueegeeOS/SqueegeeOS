@@ -12,8 +12,6 @@ import type {
   StripePaymentStatus,
 } from "@/lib/admin/billing-workspace-types";
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
-import { RecordManualChargeModal } from "@/components/admin/record-manual-charge-modal";
-import { CompleteChargeVisitModal } from "@/components/admin/complete-charge-visit-modal";
 import { craftEyebrow, craftTableHead } from "@/lib/craft/tokens";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 
@@ -125,13 +123,9 @@ function RowAction({
 function BillingRegisterRowActions({
   row,
   stripeDashboardLive,
-  onRecordCharge,
-  onCompleteCharge,
 }: {
   row: BillingRegisterRow;
   stripeDashboardLive: boolean;
-  onRecordCharge: (row: BillingRegisterRow) => void;
-  onCompleteCharge: (row: BillingRegisterRow) => void;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -181,24 +175,17 @@ function BillingRegisterRowActions({
         href={customerWorkspaceHref("property", row.propertyId)}
       />
       <RowAction
-        label={row.nextAppointmentId ? "Complete & charge" : "Schedule visit first"}
-        onClick={() => onCompleteCharge(row)}
-        disabled={
-          !row.nextAppointmentId ||
-          row.billingStatus === "inactive"
-        }
+        label="Care billing preview only"
+        disabled
       />
       <RowAction
-        label="Record external payment"
-        onClick={() => onRecordCharge(row)}
-        disabled={!row.canRecordCharge}
+        label="Payment recording paused"
+        disabled
       />
       {row.chargeAction === "manual_charge" ? (
         <RowAction
-          label="Manual charge"
-          href={stripeUrl ?? undefined}
-          disabled={!stripeUrl || row.billingStatus === "inactive"}
-          external
+          label="Manual charge paused"
+          disabled
         />
       ) : null}
     </div>
@@ -208,19 +195,11 @@ function BillingRegisterRowActions({
 export function BillingRegisterTable({
   rows,
   stripeDashboardLive,
-  onRecorded,
 }: {
   rows: BillingRegisterRow[];
   stripeDashboardLive: boolean;
   onRecorded: () => void;
 }) {
-  const [recordingRow, setRecordingRow] = useState<BillingRegisterRow | null>(
-    null,
-  );
-  const [completingRow, setCompletingRow] = useState<BillingRegisterRow | null>(
-    null,
-  );
-
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted">
@@ -232,20 +211,6 @@ export function BillingRegisterTable({
 
   return (
     <div className="space-y-4">
-      {recordingRow ? (
-        <RecordManualChargeModal
-          row={recordingRow}
-          onClose={() => setRecordingRow(null)}
-          onRecorded={onRecorded}
-        />
-      ) : null}
-      {completingRow ? (
-        <CompleteChargeVisitModal
-          row={completingRow}
-          onClose={() => setCompletingRow(null)}
-          onRecorded={onRecorded}
-        />
-      ) : null}
       <p className={craftEyebrow}>
         {rows.length} membership{rows.length === 1 ? "" : "s"}
       </p>
@@ -309,8 +274,6 @@ export function BillingRegisterTable({
                   <BillingRegisterRowActions
                     row={row}
                     stripeDashboardLive={stripeDashboardLive}
-                    onRecordCharge={setRecordingRow}
-                    onCompleteCharge={setCompletingRow}
                   />
                 </td>
               </tr>

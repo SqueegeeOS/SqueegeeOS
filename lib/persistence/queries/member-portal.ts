@@ -29,6 +29,12 @@ import type { MemberAddonStatus } from "@/lib/persistence/types/member-addon";
 import type { MemberSavingsLedgerView } from "@/lib/membership/member-savings-ledger";
 import { loadMemberSavingsLedgerView } from "@/lib/membership/member-savings-ledger-server";
 import { logProtectedQueryResult } from "@/lib/persistence/supabase/rls-query-log";
+import {
+  AUTHORITATIVE_APPOINTMENT_MATCH_STATE,
+  AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
+  AUTHORITATIVE_APPOINTMENT_PROVIDER,
+  AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+} from "@/lib/care-operations/model";
 
 export interface ServiceObservationView {
   id: string;
@@ -408,6 +414,10 @@ export async function getMemberPortalDataBySlugs(
       "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
     )
     .eq("property_id", propertyRow.id)
+    .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
+    .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
+    .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
+    .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
     .order("scheduled_at", { ascending: true });
 
   if (appointmentError) {

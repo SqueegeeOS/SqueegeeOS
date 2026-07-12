@@ -16,6 +16,7 @@ import {
   craftLabel,
   craftSecondaryButton,
 } from "@/lib/craft/tokens";
+import { HOMEATLAS_NATIVE_SCHEDULING_ENABLED } from "@/lib/care-operations/model";
 
 function defaultServiceDate(row: HqMembershipRow): string {
   if (row.nextServiceDate) return row.nextServiceDate;
@@ -31,6 +32,10 @@ export function ScheduleMembershipButton({
   onScheduled: (message: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+
+  if (!HOMEATLAS_NATIVE_SCHEDULING_ENABLED) {
+    return null;
+  }
 
   if (row.rawStatus !== "active") {
     return null;

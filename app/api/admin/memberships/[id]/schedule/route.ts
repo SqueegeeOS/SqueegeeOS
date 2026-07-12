@@ -59,7 +59,8 @@ export async function POST(
     const status = message.includes("not found")
       ? 404
       : message.includes("cannot be scheduled") ||
-          message.includes("card on file")
+          message.includes("card on file") ||
+          message.includes("native scheduling is paused")
         ? 409
         : 500;
     console.error("[memberships/schedule] failed:", error);

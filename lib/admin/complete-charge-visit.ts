@@ -16,6 +16,11 @@ import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { getStripe } from "@/lib/stripe/server";
+import {
+  isAuthoritativeProviderAppointment,
+  type AppointmentProvenance,
+} from "@/lib/care-operations/model";
+import { assertBillingExecutionDisabled } from "@/lib/care-operations/billing-preview";
 
 export type CompleteChargeVisitOutcome =
   | "paid"
@@ -40,6 +45,14 @@ interface MembershipRow {
   payment_setup_completed_at: string | null;
   stripe_customer_id: string | null;
   stripe_payment_method_id: string | null;
+}
+
+interface AppointmentVerificationRow {
+  provider: string | null;
+  external_id: string | null;
+  provenance_state: AppointmentProvenance["provenanceState"];
+  verification_state: AppointmentProvenance["verificationState"];
+  match_state: AppointmentProvenance["matchState"];
 }
 
 function serviceMonth(serviceDate: string): string {
@@ -146,6 +159,9 @@ export async function completeAndChargeVisit(
 ): Promise<CompleteChargeVisitResult> {
   const validationError = validateCompleteChargeVisitInput(payload);
   if (validationError) throw new Error(validationError);
+  // This prototype accepts editable line amounts and is not bound to an
+  // immutable billing order. It must never become an alternate pricing truth.
+  assertBillingExecutionDisabled();
   if (!isCloudPersistenceConnected()) {
     throw new Error("Cloud persistence is not connected.");
   }
@@ -178,6 +194,35 @@ export async function completeAndChargeVisit(
     !membership.stripe_payment_method_id
   ) {
     throw new Error("An active membership with a saved card is required.");
+  }
+
+  if (payload.lines.some((line) => line.kind === "membership_visit")) {
+    const appointmentId = payload.appointmentId?.trim();
+    const { data: appointmentData, error: appointmentError } = await supabase
+      .from("member_appointments")
+      .select(
+        "provider, external_id, provenance_state, verification_state, match_state",
+      )
+      .eq("id", appointmentId!)
+      .eq("property_id", membership.property_id)
+      .maybeSingle();
+    if (appointmentError) throw new Error(appointmentError.message);
+
+    const appointment = appointmentData as AppointmentVerificationRow | null;
+    const authoritative = appointment
+      ? isAuthoritativeProviderAppointment({
+          provider: appointment.provider,
+          externalId: appointment.external_id,
+          provenanceState: appointment.provenance_state,
+          verificationState: appointment.verification_state,
+          matchState: appointment.match_state,
+        })
+      : false;
+    if (!authoritative) {
+      throw new Error(
+        "Complete & Charge is paused until this visit is verified against Jobber.",
+      );
+    }
   }
 
   const memberProfileId = await ensureMemberProfileId(membership.homeowner_id);

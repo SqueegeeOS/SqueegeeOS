@@ -27,6 +27,12 @@ import {
   createServerSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import {
+  AUTHORITATIVE_APPOINTMENT_MATCH_STATE,
+  AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
+  AUTHORITATIVE_APPOINTMENT_PROVIDER,
+  AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+} from "@/lib/care-operations/model";
 
 interface MembershipRow {
   id: string;
@@ -389,6 +395,10 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
           .from("member_appointments")
           .select("property_id, scheduled_at, status")
           .in("property_id", propertyIds)
+          .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
+          .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
+          .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
+          .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
           .eq("status", "scheduled")
           .gte("scheduled_at", referenceDate.toISOString())
           .order("scheduled_at", { ascending: true })
