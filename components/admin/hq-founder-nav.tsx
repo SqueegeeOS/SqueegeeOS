@@ -76,6 +76,17 @@ export function HqFounderNav({ newCount: initialNewCount }: { newCount?: number 
       className="flex flex-wrap items-center gap-3"
     >
       <Link
+        href={ROUTES.hqToday}
+        className={cn(
+          "inline-flex min-h-[44px] items-center rounded-full border px-5 py-2.5 text-sm font-medium transition-colors",
+          pathname.startsWith(ROUTES.hqToday)
+            ? "border-accent/40 bg-accent/10 text-foreground"
+            : "border-foreground/15 bg-foreground/[0.04] text-foreground hover:border-foreground/25",
+        )}
+      >
+        Today
+      </Link>
+      <Link
         href={ROUTES.hqPendingRequests}
         aria-label={
           unread

@@ -41,6 +41,13 @@ interface ChargeResult {
   message: string;
 }
 
+const EXTRA_SERVICE_PRESETS = [
+  "Roof treatment",
+  "Gutter cleaning",
+  "Solar panel cleaning",
+  "Pressure washing",
+] as const;
+
 export function CompleteChargeVisitModal({
   row,
   onClose,
@@ -181,6 +188,13 @@ export function CompleteChargeVisitModal({
               </label>
 
               <div className="space-y-3">
+                <div>
+                  <p className={craftLabel}>Services completed</p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted">
+                    Add anything extra you handled today. Retail value shows the
+                    customer&apos;s total value; Charge is what Stripe will collect.
+                  </p>
+                </div>
                 {lines.map((line, index) => {
                   const saved = Math.max(0, line.retailPrice - line.amountCharged);
                   return (
@@ -264,18 +278,40 @@ export function CompleteChargeVisitModal({
                     </div>
                   );
                 })}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setLines((current) => [
-                      ...current,
-                      createLine("addon_service", { serviceName: "" }),
-                    ])
-                  }
-                  className={craftSecondaryButton}
-                >
-                  Add service
-                </button>
+                <div className="rounded-2xl border border-dashed border-border p-4">
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
+                    Add extra service
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {EXTRA_SERVICE_PRESETS.map((serviceName) => (
+                      <button
+                        key={serviceName}
+                        type="button"
+                        onClick={() =>
+                          setLines((current) => [
+                            ...current,
+                            createLine("addon_service", { serviceName }),
+                          ])
+                        }
+                        className="rounded-full border border-border px-3 py-2 text-xs text-muted transition hover:border-accent/40 hover:text-foreground"
+                      >
+                        + {serviceName}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setLines((current) => [
+                          ...current,
+                          createLine("addon_service", { serviceName: "" }),
+                        ])
+                      }
+                      className="rounded-full border border-border px-3 py-2 text-xs text-muted transition hover:border-accent/40 hover:text-foreground"
+                    >
+                      + Custom service
+                    </button>
+                  </div>
+                </div>
               </div>
 
               <label className="block">

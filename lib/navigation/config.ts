@@ -19,6 +19,7 @@ export const ROUTES = {
   hqProductionCheck: "/hq/production-check",
   hqProductionHealth: "/hq/production-health",
   hqPendingRequests: "/hq/requests",
+  hqToday: "/hq/today",
   hqBilling: "/hq/billing",
   hqMembership: "/hq/memberships",
   hqCustomerWorkspace: (type: string, id: string) =>
