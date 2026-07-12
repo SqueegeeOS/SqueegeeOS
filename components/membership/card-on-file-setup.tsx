@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { saveCardOnFile } from "@/lib/membership/card-on-file";
 import { StripePaymentSetup } from "@/components/membership/stripe-payment-setup";
 import {
@@ -30,6 +30,11 @@ export function CardOnFileSetup({
   const [cardholderName, setCardholderName] = useState(memberName);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setCardholderName(memberName);
+    setError(null);
+  }, [memberName, memberEmail, membershipId, presentationId]);
 
   const isPresentation = theme === "presentation";
   const inputClass = isPresentation

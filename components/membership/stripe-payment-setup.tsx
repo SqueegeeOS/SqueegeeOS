@@ -22,12 +22,16 @@ interface StripePaymentSetupProps {
 
 function StripePaymentForm({
   theme,
+  memberName,
+  memberEmail,
   onSuccess,
   onBack,
   presentationId,
   membershipId,
 }: {
   theme: "presentation" | "portal";
+  memberName: string;
+  memberEmail?: string | null;
   onSuccess: () => void;
   onBack?: () => void;
   presentationId?: string;
@@ -106,6 +110,20 @@ function StripePaymentForm({
       <PaymentElement
         options={{
           layout: "tabs",
+          defaultValues: {
+            billingDetails: {
+              name: memberName,
+              email: memberEmail ?? undefined,
+            },
+          },
+          wallets:
+            theme === "presentation"
+              ? {
+                  applePay: "never",
+                  googlePay: "never",
+                  link: "never",
+                }
+              : undefined,
         }}
       />
       {error ? <p className="text-sm text-red-400">{error}</p> : null}
@@ -156,6 +174,11 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
 
   useEffect(() => {
     let cancelled = false;
+
+    // Do not display a previous customer's Stripe form while the next
+    // presentation requests a fresh SetupIntent.
+    setClientSecret(null);
+    setLoadError(null);
 
     async function loadIntent() {
       try {
@@ -233,9 +256,11 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
   };
 
   return (
-    <Elements stripe={stripePromise} options={options}>
+    <Elements key={clientSecret} stripe={stripePromise} options={options}>
       <StripePaymentForm
         theme={props.theme ?? "presentation"}
+        memberName={props.memberName}
+        memberEmail={props.memberEmail}
         onSuccess={props.onSuccess}
         onBack={props.onBack}
         presentationId={props.presentationId}
