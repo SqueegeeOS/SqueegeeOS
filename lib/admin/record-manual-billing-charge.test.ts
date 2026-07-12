@@ -40,7 +40,26 @@ describe("validateRecordManualBillingChargeInput", () => {
         membershipId: "abc",
         amount: 100,
         chargeDate: "bad",
+        stripeReference: "pi_valid",
       }),
     ).toContain("Charge date");
+  });
+
+  it("requires proof of an external Stripe payment", () => {
+    expect(
+      validateRecordManualBillingChargeInput({
+        membershipId: "abc",
+        amount: 10,
+        chargeDate: "2026-07-11",
+      }),
+    ).toContain("Stripe");
+    expect(
+      validateRecordManualBillingChargeInput({
+        membershipId: "abc",
+        amount: 10,
+        chargeDate: "2026-07-11",
+        stripeReference: "pi_123abc",
+      }),
+    ).toBeNull();
   });
 });

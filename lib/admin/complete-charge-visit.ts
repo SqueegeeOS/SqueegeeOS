@@ -189,13 +189,23 @@ export async function completeAndChargeVisit(
 
   const { data: existingCharge, error: existingChargeError } = await supabase
     .from("membership_billing_charges")
-    .select("id, status, stripe_reference, stripe_payment_intent_id")
+    .select("id, status, billing_method, stripe_reference, stripe_payment_intent_id")
     .eq("membership_id", membership.id)
     .eq("service_month", period)
     .maybeSingle();
   if (existingChargeError) throw new Error(existingChargeError.message);
 
-  if (existingCharge?.status === "paid" || existingCharge?.status === "charged") {
+  const hasVerifiedStripePayment = Boolean(
+    existingCharge?.stripe_payment_intent_id ||
+      (typeof existingCharge?.stripe_reference === "string" &&
+        /^(pi|ch|in)_[A-Za-z0-9]+$/.test(existingCharge.stripe_reference)),
+  );
+  const isVerifiedPaidCharge =
+    (existingCharge?.status === "paid" || existingCharge?.status === "charged") &&
+    (existingCharge.billing_method === "automatic_stripe" ||
+      hasVerifiedStripePayment);
+
+  if (isVerifiedPaidCharge) {
     return {
       outcome: "already_paid",
       operationKey,

@@ -94,7 +94,7 @@ export function RecordManualChargeModal({
       <div className="flex max-h-[92svh] w-full max-w-lg flex-col overflow-hidden rounded-t-[1.75rem] border border-border bg-background sm:rounded-[2rem]">
         <div className="border-b border-border px-5 py-4 sm:px-6">
           <p className="text-[10px] uppercase tracking-[0.24em] text-muted">
-            Record manual charge
+            Record external Stripe payment
           </p>
           <h3
             id="record-charge-title"
@@ -110,8 +110,9 @@ export function RecordManualChargeModal({
 
         <div className="space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
           <p className="text-sm leading-relaxed text-muted">
-            Confirm a charge you already completed in Stripe. HomeAtlas will log
-            it — no payment is processed here.
+            Use this only after Stripe already shows a successful payment.
+            HomeAtlas records the external payment; this screen never charges a
+            card.
           </p>
 
           <label className="block">
@@ -142,7 +143,7 @@ export function RecordManualChargeModal({
           </label>
 
           <label className="block">
-            <span className={craftLabel}>Stripe payment reference (optional)</span>
+            <span className={craftLabel}>Stripe payment ID (required)</span>
             <input
               type="text"
               value={stripeReference}
@@ -180,7 +181,7 @@ export function RecordManualChargeModal({
             disabled={submitting}
             className={craftPrimaryButton}
           >
-            {submitting ? "Saving…" : "Confirm manual charge"}
+            {submitting ? "Saving…" : "Record existing Stripe payment"}
           </button>
         </div>
       </div>

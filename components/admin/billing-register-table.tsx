@@ -181,16 +181,15 @@ function BillingRegisterRowActions({
         href={customerWorkspaceHref("property", row.propertyId)}
       />
       <RowAction
-        label="Complete & charge"
+        label={row.nextAppointmentId ? "Complete & charge" : "Schedule visit first"}
         onClick={() => onCompleteCharge(row)}
         disabled={
           !row.nextAppointmentId ||
-          row.billingStatus === "charged" ||
           row.billingStatus === "inactive"
         }
       />
       <RowAction
-        label="Record manual charge"
+        label="Record external payment"
         onClick={() => onRecordCharge(row)}
         disabled={!row.canRecordCharge}
       />

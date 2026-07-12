@@ -44,6 +44,10 @@ export function validateRecordManualBillingChargeInput(
   if (Number.isNaN(parsed.getTime())) {
     return "Charge date is invalid.";
   }
+  const stripeReference = input.stripeReference?.trim() ?? "";
+  if (!/^(pi|ch|in)_[A-Za-z0-9]+$/.test(stripeReference)) {
+    return "A valid Stripe payment, charge, or invoice ID is required. Manual recording never processes a card.";
+  }
   return null;
 }
 
@@ -130,7 +134,7 @@ export async function recordManualBillingCharge(
 
   const visitPrice =
     membership.visit_price != null ? Number(membership.visit_price) : null;
-  const stripeReference = input.stripeReference?.trim() || null;
+  const stripeReference = input.stripeReference!.trim();
   const notes = input.notes?.trim() ?? "";
 
   const { data: inserted, error: insertError } = await supabase
