@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { JobberVisitSamplePanel } from "@/components/admin/jobber-visit-sample-panel";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
 
 interface JobberConnectionResponse {
@@ -236,6 +237,8 @@ export function JobberConnectionPanel() {
           Check again
         </button>
       </div>
+
+      {status?.connection?.connected ? <JobberVisitSamplePanel /> : null}
     </section>
   );
 }
