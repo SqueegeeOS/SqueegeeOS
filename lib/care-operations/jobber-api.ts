@@ -28,7 +28,7 @@ export interface JobberVisitSampleNode {
   endAt: string | null;
   completedAt: string | null;
   client: { id: string; name: string };
-  property: { id: string };
+  property: { id: string; jobberWebUri: string };
   job: {
     id: string;
     jobNumber: number;
@@ -54,7 +54,7 @@ export const JOBBER_VISIT_SAMPLE_QUERY = `
         endAt
         completedAt
         client { id name }
-        property { id }
+        property { id jobberWebUri }
         job { id jobNumber title jobStatus }
       }
       pageInfo { endCursor hasNextPage }

@@ -11,14 +11,33 @@ interface ExistingProjection {
   source_payload_hash: string;
 }
 
+interface StoredProjectionPreviewRow {
+  id: string;
+  external_visit_id: string;
+  external_property_id: string;
+  jobber_property_web_uri: string | null;
+  title: string | null;
+  client_name: string;
+  visit_status: string;
+  scheduled_start: string | null;
+  is_complete: boolean;
+  match_state: "manual_review" | "matched" | "ignored";
+}
+
+const PROJECTION_PREVIEW_SELECT =
+  "id, external_visit_id, external_property_id, jobber_property_web_uri, title, client_name, visit_status, scheduled_start, is_complete, match_state";
+
 export interface JobberVisitProjectionPreview {
+  projectionId: string;
   externalVisitId: string;
+  externalPropertyId: string;
+  jobberPropertyWebUri: string | null;
   title: string | null;
   clientName: string;
   visitStatus: string;
   scheduledStart: string | null;
   isComplete: boolean;
-  matchState: "manual_review";
+  matchState: "manual_review" | "matched" | "ignored";
 }
 
 export interface JobberVisitSampleImportResult {
@@ -48,6 +67,7 @@ export function toJobberVisitProjectionRow(
     external_job_id: visit.job.id,
     external_client_id: visit.client.id,
     external_property_id: visit.property.id,
+    jobber_property_web_uri: visit.property.jobberWebUri,
     job_number: visit.job.jobNumber,
     title: visit.title ?? visit.job.title,
     client_name: visit.client.name,
@@ -64,15 +84,20 @@ export function toJobberVisitProjectionRow(
   };
 }
 
-function preview(visit: JobberVisitSampleNode): JobberVisitProjectionPreview {
+function toProjectionPreview(
+  row: StoredProjectionPreviewRow,
+): JobberVisitProjectionPreview {
   return {
-    externalVisitId: visit.id,
-    title: visit.title ?? visit.job.title,
-    clientName: visit.client.name,
-    visitStatus: visit.visitStatus,
-    scheduledStart: visit.startAt,
-    isComplete: visit.isComplete,
-    matchState: "manual_review",
+    projectionId: row.id,
+    externalVisitId: row.external_visit_id,
+    externalPropertyId: row.external_property_id,
+    jobberPropertyWebUri: row.jobber_property_web_uri,
+    title: row.title,
+    clientName: row.client_name,
+    visitStatus: row.visit_status,
+    scheduledStart: row.scheduled_start,
+    isComplete: row.is_complete,
+    matchState: row.match_state,
   };
 }
 
@@ -119,6 +144,15 @@ export async function importJobberVisitSample(
     else unchanged += 1;
   }
 
+  const storedResult = externalIds.length
+    ? await supabase
+        .from("jobber_visit_projections")
+        .select(PROJECTION_PREVIEW_SELECT)
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .in("external_visit_id", externalIds)
+    : { data: [], error: null };
+  if (storedResult.error) throw new Error(storedResult.error.message);
+
   return {
     requestedLimit: limit,
     observed: rows.length,
@@ -128,7 +162,9 @@ export async function importJobberVisitSample(
     hasNextPage: sample.pageInfo.hasNextPage,
     executionMode: "read_only",
     automaticMatching: false,
-    visits: sample.nodes.map(preview),
+    visits: ((storedResult.data ?? []) as StoredProjectionPreviewRow[]).map(
+      toProjectionPreview,
+    ),
   };
 }
 
@@ -136,20 +172,12 @@ export async function listJobberVisitSample(): Promise<JobberVisitProjectionPrev
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("jobber_visit_projections")
-    .select(
-      "external_visit_id, title, client_name, visit_status, scheduled_start, is_complete, match_state",
-    )
+    .select(PROJECTION_PREVIEW_SELECT)
     .eq("connection_id", JOBBER_CONNECTION_ID)
     .order("scheduled_start", { ascending: false })
     .limit(10);
   if (error) throw new Error(error.message);
-  return (data ?? []).map((row) => ({
-    externalVisitId: row.external_visit_id as string,
-    title: (row.title as string | null) ?? null,
-    clientName: row.client_name as string,
-    visitStatus: row.visit_status as string,
-    scheduledStart: (row.scheduled_start as string | null) ?? null,
-    isComplete: Boolean(row.is_complete),
-    matchState: "manual_review" as const,
-  }));
+  return ((data ?? []) as StoredProjectionPreviewRow[]).map(
+    toProjectionPreview,
+  );
 }
