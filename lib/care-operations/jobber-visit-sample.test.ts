@@ -18,7 +18,10 @@ const visit: JobberVisitSampleNode = {
   endAt: "2026-08-12T18:00:00Z",
   completedAt: null,
   client: { id: "client-1", name: "Home Owner" },
-  property: { id: "jobber-property-1" },
+  property: {
+    id: "jobber-property-1",
+    jobberWebUri: "https://secure.getjobber.com/properties/jobber-property-1",
+  },
   job: {
     id: "job-1",
     jobNumber: 42,
@@ -38,6 +41,7 @@ describe("read-only Jobber visit sample", () => {
     expect(JOBBER_VISIT_SAMPLE_QUERY).not.toMatch(
       /invoice|payment|price|total|instructions|notes/i,
     );
+    expect(JOBBER_VISIT_SAMPLE_QUERY).toContain("jobberWebUri");
   });
 
   it("requests a bounded visit page using JSON and the pinned API version", async () => {
@@ -95,6 +99,8 @@ describe("read-only Jobber visit sample", () => {
       external_job_id: "job-1",
       external_client_id: "client-1",
       external_property_id: "jobber-property-1",
+      jobber_property_web_uri:
+        "https://secure.getjobber.com/properties/jobber-property-1",
       visit_status: "UPCOMING",
       is_complete: false,
     });
