@@ -19,6 +19,49 @@ export interface JobberAccountIdentity {
   name: string;
 }
 
+export interface JobberVisitSampleNode {
+  id: string;
+  title: string | null;
+  visitStatus: string;
+  isComplete: boolean;
+  startAt: string | null;
+  endAt: string | null;
+  completedAt: string | null;
+  client: { id: string; name: string };
+  property: { id: string };
+  job: {
+    id: string;
+    jobNumber: number;
+    title: string | null;
+    jobStatus: string;
+  };
+}
+
+export interface JobberVisitSample {
+  nodes: JobberVisitSampleNode[];
+  pageInfo: { endCursor: string | null; hasNextPage: boolean };
+}
+
+export const JOBBER_VISIT_SAMPLE_QUERY = `
+  query HomeAtlasVisitSample($first: Int!) {
+    visits(first: $first) {
+      nodes {
+        id
+        title
+        visitStatus
+        isComplete
+        startAt
+        endAt
+        completedAt
+        client { id name }
+        property { id }
+        job { id jobNumber title jobStatus }
+      }
+      pageInfo { endCursor hasNextPage }
+    }
+  }
+`;
+
 export class JobberApiError extends Error {
   constructor(
     message: string,
@@ -133,4 +176,49 @@ export async function fetchJobberAccountIdentity(
     throw new Error("Jobber account verification returned incomplete data");
   }
   return { id: account.id, name: account.name };
+}
+
+export async function fetchJobberVisitSample(
+  accessToken: string,
+  limit: number,
+): Promise<JobberVisitSample> {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 10) {
+    throw new Error("Jobber sample limit must be between 1 and 10");
+  }
+  if (/\bmutation\b/i.test(JOBBER_VISIT_SAMPLE_QUERY)) {
+    throw new Error("Jobber sample query must remain read-only");
+  }
+
+  const response = await fetch(JOBBER_GRAPHQL_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      "X-JOBBER-GRAPHQL-VERSION": getJobberGraphqlVersion(),
+    },
+    body: JSON.stringify({
+      query: JOBBER_VISIT_SAMPLE_QUERY,
+      variables: { first: limit },
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  if (!response.ok) {
+    throw new JobberApiError(
+      `Jobber visit query failed (${response.status})`,
+      response.status,
+    );
+  }
+  const payload = (await response.json()) as {
+    data?: { visits?: JobberVisitSample };
+    errors?: Array<{ message?: string }>;
+  };
+  if (payload.errors?.length || !payload.data?.visits) {
+    throw new Error(
+      payload.errors?.[0]?.message
+        ? `Jobber visit query rejected: ${payload.errors[0].message}`
+        : "Jobber visit query returned no visit connection",
+    );
+  }
+  return payload.data.visits;
 }
