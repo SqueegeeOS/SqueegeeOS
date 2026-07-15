@@ -9,10 +9,14 @@ import {
 const EXPECTED_CACHE_CONTROL =
   "private, no-cache, no-store, must-revalidate, max-age=0";
 
-describe("PR1a proxy coverage", () => {
-  it("uses only the four explicit fail-closed matcher scopes", () => {
+describe("PR1a/PR1b proxy coverage", () => {
+  it("uses only the explicit fail-closed authentication scopes", () => {
     expect(config.matcher).toEqual([
       "/hq/:path*",
+      "/presentations/:path*",
+      "/employee/home-care-plan/create",
+      "/api/persistence/home-care-plans",
+      "/api/presentations/:path*",
       "/api/admin/care-operations/:path*",
       "/auth/hq/request",
       "/auth/hq/callback",

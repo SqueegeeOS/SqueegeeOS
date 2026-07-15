@@ -24,7 +24,6 @@ import {
   PRICING_SQFT_PRESETS,
   validateInput,
 } from "@/lib/pricing/window-care-pricing";
-import { buildPresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { ROUTES } from "@/lib/navigation/config";
 
 /** Future: gate ranges, lead capture, hide one-time comparison. */
@@ -162,24 +161,19 @@ export function CarePlanBuilderPage() {
 
     setCreatingPresentation(true);
     try {
-      const quoteSnapshot = buildPresentationQuoteSnapshot({
-        sqft: clampedSqft,
-        frequency,
-        includeInterior,
-        twoStory,
-        includeScreens,
-        pricing,
-        addOnQuote,
-      });
-
       const response = await fetch("/api/presentations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          createdBy: "Care Plan Builder",
-          homeSqft: clampedSqft,
-          tier: frequency === "quarterly" ? "quarterly" : "biannual",
-          quoteSnapshot,
+          authoringSource: "care_plan_builder",
+          pricing: {
+            squareFeet: clampedSqft,
+            frequency,
+            includeInterior,
+            twoStory,
+            includeScreens,
+            exteriorAddOns: addOnSelections,
+          },
         }),
       });
 

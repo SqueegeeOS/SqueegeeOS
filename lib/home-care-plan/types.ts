@@ -13,9 +13,9 @@ export interface HomeCarePlanProperty {
   city: string;
   state: string;
   heroImage: string;
-  yearBuilt: number;
-  homeCareScore: number;
-  lastVisit: string;
+  yearBuilt: number | null;
+  homeCareScore: number | null;
+  lastVisit: string | null;
   membershipRecommendation: string;
 }
 

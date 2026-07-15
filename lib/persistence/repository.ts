@@ -131,6 +131,23 @@ async function persistWithAdapter(
   return adapter.saveHomeCarePlan(input);
 }
 
+async function persistAuthorizedCloudPlan(
+  draft: HomeCarePlanDraft,
+): Promise<PersistedHomeCarePlan> {
+  const response = await fetch("/api/persistence/home-care-plans", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ draft }),
+  });
+  const body = (await response.json().catch(() => null)) as
+    | { record?: PersistedHomeCarePlan; error?: string }
+    | null;
+  if (!response.ok || !body?.record) {
+    throw new Error(body?.error ?? "Authorized cloud save failed.");
+  }
+  return body.record;
+}
+
 async function mirrorPlanToSessionStorage(
   presentation: HomeCarePlanData,
   draft: HomeCarePlanDraft | null | undefined,
@@ -154,47 +171,36 @@ export async function saveGeneratedHomeCarePlan(
   draft?: HomeCarePlanDraft | null,
 ): Promise<SaveHomeCarePlanResult> {
   if (isCloudPersistenceConnected()) {
-    try {
-      const record = await withTimeout(
-        persistWithAdapter(supabaseAdapter, presentation, draft),
-        CLOUD_SAVE_TIMEOUT_MS,
-        "Supabase save",
+    if (!draft) {
+      throw new Error(
+        "Cloud Home Care Plan saves require the validated authoring draft.",
       );
-
-      try {
-        await mirrorPlanToSessionStorage(presentation, draft, record);
-      } catch (mirrorError) {
-        console.warn(
-          "[persistence] Cloud save succeeded but browser mirror failed:",
-          mirrorError,
-        );
-      }
-
-      return {
-        record,
-        storageBackend: "supabase",
-        usedCloudFallback: false,
-      };
-    } catch (error) {
-      const cloudError = formatCloudPersistenceError(error);
-      console.error(
-        "[persistence] Supabase save failed — falling back to sessionStorage:",
-        error,
-      );
-
-      const record = await persistWithAdapter(
-        sessionStorageAdapter,
-        presentation,
-        draft,
-      );
-
-      return {
-        record,
-        storageBackend: "session",
-        usedCloudFallback: true,
-        cloudError,
-      };
     }
+    let record: PersistedHomeCarePlan;
+    try {
+      record = await withTimeout(
+        persistAuthorizedCloudPlan(draft),
+        CLOUD_SAVE_TIMEOUT_MS,
+        "Authorized cloud save",
+      );
+    } catch (error) {
+      throw new Error(formatCloudPersistenceError(error));
+    }
+
+    try {
+      await mirrorPlanToSessionStorage(record.presentation, draft, record);
+    } catch (mirrorError) {
+      console.warn(
+        "[persistence] Cloud save succeeded but browser mirror failed:",
+        mirrorError,
+      );
+    }
+
+    return {
+      record,
+      storageBackend: "supabase",
+      usedCloudFallback: false,
+    };
   }
 
   const record = await persistWithAdapter(
@@ -215,15 +221,10 @@ export async function loadGeneratedHomeCarePlan(
   propertySlug: string,
 ): Promise<HomeCarePlanData | null> {
   const adapter = getPersistenceAdapter();
-  let record = await adapter.getHomeCarePlanBySlugs(homeownerSlug, propertySlug);
-
-  // Fallback: plans generated before cloud was connected
-  if (!record && isCloudPersistenceConnected()) {
-    record = await sessionStorageAdapter.getHomeCarePlanBySlugs(
-      homeownerSlug,
-      propertySlug,
-    );
-  }
+  const record = await adapter.getHomeCarePlanBySlugs(
+    homeownerSlug,
+    propertySlug,
+  );
 
   return record ? presentationFromRecord(record) : null;
 }
@@ -232,12 +233,7 @@ export async function clearGeneratedHomeCarePlan(
   homeownerSlug: string,
   propertySlug: string,
 ): Promise<void> {
-  const adapter = getPersistenceAdapter();
-  await adapter.deleteHomeCarePlan(homeownerSlug, propertySlug);
-
-  if (isCloudPersistenceConnected()) {
-    await sessionStorageAdapter.deleteHomeCarePlan(homeownerSlug, propertySlug);
-  }
+  await sessionStorageAdapter.deleteHomeCarePlan(homeownerSlug, propertySlug);
 }
 
 export async function listGeneratedHomeCarePlans(): Promise<PersistedHomeCarePlan[]> {
@@ -247,8 +243,7 @@ export async function listGeneratedHomeCarePlans(): Promise<PersistedHomeCarePla
 export async function persistSignedAgreement(
   agreement: MembershipAgreementRecord,
 ): Promise<void> {
-  const adapter = getPersistenceAdapter();
-  await adapter.saveSignedAgreement(
+  await sessionStorageAdapter.saveSignedAgreement(
     membershipAgreementToSignedAgreement(agreement),
   );
 }
