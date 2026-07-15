@@ -1,4 +1,3 @@
-import type { ServiceOption } from "@/lib/acquisition/types";
 import type { Property } from "@/lib/property/types";
 import type { HomeCarePlanDraft } from "./create-types";
 import {
@@ -20,68 +19,11 @@ import {
   toSlug,
 } from "./utils";
 
-const serviceFindingTemplates: Record<
-  ServiceOption,
-  { title: string; severity: string; description: string }
-> = {
-  "Window Cleaning": {
-    title: "Window Clarity",
-    severity: "Attention",
-    description:
-      "Exterior glass shows seasonal buildup and hard water spotting. A preservation-focused clean restores clarity without compromising seals or finishes.",
-  },
-  "Gutter Cleaning": {
-    title: "Gutter Flow",
-    severity: "Routine",
-    description:
-      "Debris accumulation along rooflines. Clearing now protects fascia, soffits, and foundation drainage before seasonal rains.",
-  },
-  "Pressure Washing": {
-    title: "Surface Buildup",
-    severity: "Attention",
-    description:
-      "Walkways, patios, and siding show organic growth and canyon dust. Gentle pressure washing preserves surfaces while restoring curb presence.",
-  },
-  "Solar Panel Cleaning": {
-    title: "Solar Efficiency",
-    severity: "Monitor",
-    description:
-      "Panel surfaces show pollen and dust film. Cleaning restores efficiency and protects long-term panel performance.",
-  },
-  "Exterior Home Care": {
-    title: "Exterior Stewardship",
-    severity: "Seasonal",
-    description:
-      "A coordinated exterior refresh — glass, surfaces, and details — keeps the home presentation consistent through every season.",
-  },
-  "Full Home Care Membership": {
-    title: "Ongoing Stewardship",
-    severity: "Recommended",
-    description:
-      "Your property benefits from recurring care — priority scheduling, documented history, and proactive maintenance before issues compound.",
-  },
-};
-
-function findingFromService(service: ServiceOption, index: number): HomeCarePlanFinding {
-  const template = serviceFindingTemplates[service];
-  return {
-    id: `finding-${toSlug(service)}-${index}`,
-    title: template.title,
-    severity: template.severity,
-    description: template.description,
-    image: defaultFindingImage,
-  };
-}
-
 function buildFindings(draft: HomeCarePlanDraft): HomeCarePlanFinding[] {
-  if (draft.findings.length > 0) {
-    return draft.findings.map((finding) => ({
-      ...finding,
-      image: finding.image || defaultFindingImage,
-    }));
-  }
-
-  return draft.services.map((service, index) => findingFromService(service, index));
+  return draft.findings.map((finding) => ({
+    ...finding,
+    image: finding.image || defaultFindingImage,
+  }));
 }
 
 function tierName(id: HomeCarePlanDraft["recommendedTier"]): string {
@@ -95,11 +37,17 @@ export function buildHomeCarePlanFromDraft(draft: HomeCarePlanDraft): HomeCarePl
   const propertySlug = toSlug(draft.property.name) || "property";
   const firstName = firstNameFromFullName(draft.homeowner.fullName);
   const propertyName = draft.property.name.trim() || "Your Property";
-  const score = Number.parseInt(draft.property.homeCareScore, 10) || 85;
-  const yearBuilt = Number.parseInt(draft.property.yearBuilt, 10) || new Date().getFullYear();
-  const lastVisit =
-    draft.property.lastVisit.trim() ||
-    new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const parsedScore = Number.parseInt(draft.property.homeCareScore, 10);
+  const score = Number.isInteger(parsedScore) && parsedScore >= 0 && parsedScore <= 100
+    ? parsedScore
+    : null;
+  const parsedYearBuilt = Number.parseInt(draft.property.yearBuilt, 10);
+  const yearBuilt = Number.isInteger(parsedYearBuilt) && parsedYearBuilt >= 1000 &&
+      parsedYearBuilt <= new Date().getFullYear() + 1
+    ? parsedYearBuilt
+    : null;
+  // This authoring flow has no verified provider-visit provenance.
+  const lastVisit = null;
 
   const recommendationParagraphs = parseLines(draft.recommendationBody);
   const personalParagraphs = parseLines(draft.personalNoteBody);
@@ -110,7 +58,7 @@ export function buildHomeCarePlanFromDraft(draft: HomeCarePlanDraft): HomeCarePl
 
   const healthNarrative =
     draft.propertyHealthNarrative.trim() ||
-    `${propertyName} is in ${draft.propertyHealthRating.toLowerCase()} condition. Your score of ${score} reflects thoughtful stewardship. What remains is rhythm — the kind of seasonal attention that keeps a home ahead of deterioration rather than chasing it.`;
+    `${propertyName} has a care plan ready for review. Missing property history remains unknown until it is verified by a provider record.`;
 
   const recommendationHeadline =
     draft.recommendationHeadline.trim() ||
@@ -153,7 +101,7 @@ export function buildHomeCarePlanFromDraft(draft: HomeCarePlanDraft): HomeCarePl
       title: "Your Personalized Home Care Plan",
       subheadline: `Created exclusively for your ${propertyName}.`,
       intro:
-        "We inspected your property and created a personalized maintenance strategy designed specifically for your home.",
+        "We prepared a personalized maintenance strategy from the information currently available for your home.",
       cta: "Begin Your Home Care Plan",
     },
     propertyHealth: {
@@ -167,30 +115,24 @@ export function buildHomeCarePlanFromDraft(draft: HomeCarePlanDraft): HomeCarePl
         detail: `${draft.property.city || "Chico"} property`,
       },
       {
-        label: "Maintenance Profile",
-        value: score >= 90 ? "Proactive" : "Developing",
-        detail: "Ahead of deterioration, never behind it",
-      },
-      {
         label: "Services Included",
         value: draft.services.length > 0 ? `${draft.services.length} areas` : "Custom",
         detail: draft.services.join(", ") || "Tailored to your inspection",
       },
-      {
-        label: "Home Care Score",
-        value: String(score),
-        detail: "Based on your recent property assessment",
-      },
-      {
-        label: "Year Built",
-        value: String(yearBuilt),
-        detail: "Architectural context for care planning",
-      },
-      {
-        label: "Last Visit",
-        value: lastVisit,
-        detail: "Most recent documented care",
-      },
+      ...(score === null
+        ? []
+        : [{
+            label: "Home Care Score",
+            value: String(score),
+            detail: "Recorded in this authored plan",
+          }]),
+      ...(yearBuilt === null
+        ? []
+        : [{
+            label: "Year Built",
+            value: String(yearBuilt),
+            detail: "Architectural context for care planning",
+          }]),
     ],
     findings: buildFindings(draft),
     recommendation: {

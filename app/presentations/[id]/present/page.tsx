@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { PresentationPresentLoader } from "@/components/presentations/presentation-present-loader";
-import { getPresentation } from "@/lib/presentations/repository";
+import { getPresentationByCapability } from "@/lib/presentations/repository";
 import { platformPageTitle } from "@/lib/brand/platform";
 
 export const dynamic = "force-dynamic";
@@ -16,7 +16,7 @@ export default async function PresentPresentationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const presentation = await getPresentation(id);
+  const presentation = await getPresentationByCapability(id);
 
   return <PresentationPresentLoader id={id} initial={presentation} />;
 }

@@ -29,7 +29,7 @@ describe("presentation sign onboarding creates portal-loadable data", () => {
       visitPrice: 285,
     });
 
-    expect(plan.property.lastVisit).toBe("");
+    expect(plan.property.lastVisit).toBeNull();
     expect(plan.findings).toEqual([]);
     expect(plan.property.heroImage).toBe("");
     expect(plan.propertyProfile.some((row) => row.label === "Last Visit")).toBe(
