@@ -77,7 +77,7 @@ No UI component should create a second lifecycle, pricing, revenue, or persisten
 - Production migration state is unknown until a read-only ledger proves which migrations are applied.
 - Referral RLS and portal referral authorization remain release-blocking items until verified against production.
 - Migration 036 closes direct `anon` and `authenticated` mutations on customer authority tables and makes public presentation UUID capabilities non-enumerable. It has not been applied or rehearsed against a disposable Supabase project yet.
-- **RED release gate — PR1c Stripe activation identity authorization:** the pre-existing public Stripe activation/identity bypass is intentionally outside PR1b. A separate reviewed PR1c must close and rehearse it before migration 036, deployment, or any production presentation-to-payment activation.
+- **RED release gate — PR1c Stripe activation identity authorization:** PR1c is implemented on its isolated branch with capability-bound, server-authoritative setup and atomic activation migration 037. It is not disposable-database rehearsed, Stripe-test proven, migrated, merged, deployed, or production-proven. Those gates must pass before migrations 036/037, deployment, or any production presentation-to-payment activation.
 
 ## Execution queue
 
@@ -85,13 +85,14 @@ No UI component should create a second lifecycle, pricing, revenue, or persisten
 
 - Headquarters authenticated access (PR1a) adds migration 035, cookie-aware Supabase sessions, a durable database-backed and allowlist-gated magic-link flow, truthful accepted/rejected/unknown provider evidence, immutable authorization-change evidence, atomic Jobber connection and refresh transition events, `/hq` server-layout authorization, and authenticated Care Operations/Jobber routes. It has no automatic users or approvals and has not been migrated, deployed, or production-proven. Edge abuse control, disposable-database SQL rehearsals, and rollback rehearsal remain explicit release prerequisites. See `operations/HQ_AUTH_PR1A_RUNBOOK.md`.
 - Headquarters authority-input closure (PR1b) adds migration 036, removes browser writes to homeowners, properties, Home Care Plans, memberships, signed agreements, and property assets, protects presentation authoring with the PR1a HQ actor, and binds public signing to the existing non-enumerable presentation UUID. The signing route reloads customer identity, source links, tier pricing, quote snapshot, and plan terms server-side; the client can provide only the capability, allowed tier, and PNG signature evidence. The real anon-key/disposable-database rehearsal remains an external release gate. See `operations/HQ_AUTHORITY_INPUT_PR1B_RUNBOOK.md`.
+- Stripe setup authorization closure (PR1c) adds migration 037, removes mock activation, rejects bare membership/browser identity authority, exclusively binds one membership-bound Stripe customer and SetupIntent to the signed pending membership, verifies Stripe customer/payment-method/metadata truth, and atomically appends immutable activation evidence while locking every Supabase link plus the signed Atlas tier/price/visit/hash authority. Activation performs no post-SetupIntent Stripe mutation and does not charge. Disposable Supabase and Stripe test-mode rehearsals remain external release gates. See `operations/STRIPE_AUTHORIZATION_PR1C_RUNBOOK.md`.
 - Headquarters Billing now contains a reviewed **Complete & Charge Visit** flow connecting scheduled appointments, itemized Stripe invoices, payment outcomes, add-on records, and the savings ledger.
 - Stable operation and Stripe idempotency keys prevent duplicate invoices and payments during retries.
 - This code has unit/build verification but still requires a Stripe test-mode lifecycle pass before production activation. See `operations/COMPLETE_CHARGE_VISIT.md`.
 
 ### Now — reliability gate
 
-1. Complete the separate PR1c Stripe activation/identity authorization closure. This is a RED gate before any PR1b migration or deployment.
+1. Independently review and rehearse PR1c migration 037 plus the Stripe test-mode failure matrix. This remains a RED gate before any PR1b/PR1c migration or deployment.
 2. Run the read-only migration ledger and compare migrations 002–036 with production; do not apply 036 until its duplicate-agreement preflight and disposable rehearsal pass.
 3. Verify referral-table RLS and change portal referral reads from membership ID to portal-token authorization if still required.
 4. Audit Supabase client boundaries: public anon reads only where RLS is proven; service role for protected server work.
