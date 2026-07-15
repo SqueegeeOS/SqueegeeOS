@@ -56,6 +56,10 @@ function constraintIncludes(snapshot, table, ...parts) {
   );
 }
 
+function functionConfigIncludes(snapshot, name, value) {
+  return (snapshot.functionConfigs.get(name) ?? "").includes(value);
+}
+
 const checks = [
   ["002", "closed jobs", (s) => hasTable(s, "closed_jobs")],
   ["003", "Headquarters profile", (s) => hasTable(s, "headquarters_profile")],
@@ -86,19 +90,27 @@ const checks = [
   ["028", "savings and referral ledgers", (s) => hasTable(s, "member_savings_ledger_entries") && hasTable(s, "member_referral_rewards")],
   ["029", "portal theme preference", (s) => hasColumn(s, "memberships", "portal_theme"), "optional/parked"],
   ["030", "security hardening", (s) => ["referral_codes", "referral_visits", "referrals"].every((table) => s.rlsTables.has(table)) && s.referralAnonPolicies === 0 && s.secureUpdatedAt],
+  ["031", "Care Operations foundation", (s) => ["appointment_source_events", "atlas_pricing_snapshots", "billing_orders", "billing_order_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table))],
+  ["032", "Jobber OAuth connection", (s) => ["jobber_connections", "jobber_connection_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table))],
+  ["033", "Jobber visit sample", (s) => hasTable(s, "jobber_visit_projections") && s.rlsTables.has("jobber_visit_projections")],
+  ["034", "supervised Jobber property links", (s) => ["jobber_property_links", "jobber_property_link_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table))],
+  ["035", "authenticated Headquarters access", (s) => ["hq_admin_users", "hq_admin_user_events", "hq_magic_link_request_events", "hq_magic_link_delivery_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && hasColumn(s, "hq_admin_users", "active") && hasColumn(s, "hq_admin_users", "role") && s.hqAuthAnonPolicies === 0 && ["reserve_hq_magic_link_request", "validate_hq_admin_user_auth_email", "sync_hq_admin_user_auth_email", "record_hq_admin_user_change", "save_jobber_connection_with_event", "acquire_jobber_refresh_lease_for_generation", "complete_jobber_refresh_with_event", "fail_jobber_refresh_with_event"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog")) && ["public.hq_admin_users.hq_admin_users_validate_auth_email", "public.hq_admin_users.hq_admin_users_record_change", "public.hq_admin_user_events.hq_admin_user_events_immutable", "auth.users.hq_admin_users_sync_auth_email"].every((name) => s.triggers.has(name))],
 ];
 
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, enums, rls, referralPolicies, updatedAt, storageTable] = await Promise.all([
+  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, functions, triggers, updatedAt, storageTable] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
     client.query("select t.typname as type_name, e.enumlabel as value from pg_type t join pg_enum e on e.enumtypid = t.oid join pg_namespace n on n.oid = t.typnamespace where n.nspname = 'public'"),
     client.query("select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relrowsecurity"),
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('referral_codes', 'referral_visits', 'referrals') and ('anon' = any(roles) or 'public' = any(roles))"),
+    client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('hq_admin_users', 'hq_admin_user_events', 'hq_magic_link_request_events', 'hq_magic_link_delivery_events') and ('anon' = any(roles) or 'authenticated' = any(roles) or 'public' = any(roles))"),
+    client.query("select p.proname, coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'"),
+    client.query("select n.nspname as schema_name, c.relname as table_name, t.tgname as trigger_name from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace where not t.tgisinternal and n.nspname in ('public', 'auth')"),
     client.query("select coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'set_updated_at' limit 1"),
     client.query("select to_regclass('storage.buckets') is not null as exists"),
   ]);
@@ -119,6 +131,12 @@ try {
     enumValues: new Set(enums.rows.map((row) => `${row.type_name}.${row.value}`)),
     rlsTables: new Set(rls.rows.map((row) => row.relname)),
     referralAnonPolicies: referralPolicies.rows[0]?.count ?? 0,
+    hqAuthAnonPolicies: hqAuthPolicies.rows[0]?.count ?? 0,
+    functions: new Set(functions.rows.map((row) => row.proname)),
+    functionConfigs: new Map(
+      functions.rows.map((row) => [row.proname, String(row.config)]),
+    ),
+    triggers: new Set(triggers.rows.map((row) => `${row.schema_name}.${row.table_name}.${row.trigger_name}`)),
     secureUpdatedAt: updatedAt.rows.some((row) => String(row.config).includes("search_path=public")),
     agreementBucket,
   };
