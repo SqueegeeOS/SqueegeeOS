@@ -106,9 +106,9 @@ export function buildPortalHomeCarePlanFromPresentation(
       city: parsed.city,
       state: formatStateName(parsed.state),
       heroImage: "",
-      yearBuilt: 0,
-      homeCareScore: 0,
-      lastVisit: "",
+      yearBuilt: null,
+      homeCareScore: null,
+      lastVisit: null,
       membershipRecommendation: input.planName,
     },
     brand: {

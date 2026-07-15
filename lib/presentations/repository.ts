@@ -1,8 +1,13 @@
+import "server-only";
+
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
-import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { withComputedRates, normalizeVisitRateOverrides } from "./calculations";
 import type { PresentationQuoteSnapshot } from "./quote-snapshot";
-import { isCarePlanQuoteSnapshot } from "./quote-snapshot";
+import {
+  isAuthoritativePresentationQuoteSnapshot,
+  isCarePlanQuoteSnapshot,
+} from "./quote-snapshot";
 import {
   getLocalPresentation,
   listLocalPresentations,
@@ -18,6 +23,7 @@ import type {
 } from "./types";
 import { resolveEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import { normalizePresentationTier, type VisitRateOverrides } from "./types";
+import { calculateAnnualFromVisits } from "@/lib/membership/tier-config";
 
 interface PresentationRow {
   id: string;
@@ -43,6 +49,7 @@ interface PresentationRow {
   membership_id: string | null;
   onboarding_status: string | null;
   quote_snapshot: PresentationQuoteSnapshot | null;
+  authority_sha256: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -62,7 +69,7 @@ function normalizePresentation(data: PresentationData): PresentationData {
     includeScreens,
   });
 
-  return {
+  const normalized = {
     ...data,
     twoStory,
     includeScreens,
@@ -71,6 +78,23 @@ function normalizePresentation(data: PresentationData): PresentationData {
       ? data.quoteSnapshot
       : null,
   };
+  if (isAuthoritativePresentationQuoteSnapshot(normalized.quoteSnapshot)) {
+    const tier = normalizePresentationTier(normalized.tier);
+    return {
+      ...normalized,
+      tier,
+      monthlyRate: 0,
+      overrideTier: null,
+      visitRateOverrides: {},
+      annualRate: calculateAnnualFromVisits(
+        tier,
+        normalized.quoteSnapshot.tierVisitPrices[tier],
+      ),
+      enrollmentSavings:
+        normalized.quoteSnapshot.tierEnrollmentSavings[tier],
+    };
+  }
+  return normalized;
 }
 
 function readPricingFlags(
@@ -147,6 +171,7 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     propertyId: row.property_id,
     membershipId: row.membership_id,
     onboardingStatus: row.onboarding_status as PresentationOnboardingStatus | null,
+    authoritySha256: row.authority_sha256,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   });
@@ -176,6 +201,7 @@ function presentationToRow(data: PresentationData): Record<string, unknown> {
     property_id: data.propertyId,
     membership_id: data.membershipId,
     onboarding_status: data.onboardingStatus,
+    authority_sha256: data.authoritySha256 ?? null,
   };
 }
 
@@ -186,12 +212,11 @@ function newPresentationId(): string {
   return `pres_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function logCloudFallback(operation: string, error: unknown): void {
-  const detail = error instanceof Error ? error.message : String(error);
-  console.warn(
-    `[presentations] Supabase ${operation} failed — using local store: ${detail}`,
-    error,
-  );
+const PRESENTATION_CAPABILITY_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isPresentationCapability(id: string): boolean {
+  return PRESENTATION_CAPABILITY_PATTERN.test(id);
 }
 
 function isFullPresentationPayload(
@@ -206,7 +231,7 @@ function isFullPresentationPayload(
 }
 
 async function listFromSupabase(): Promise<PresentationData[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("presentations")
     .select("*")
@@ -217,7 +242,7 @@ async function listFromSupabase(): Promise<PresentationData[]> {
 }
 
 async function getFromSupabase(id: string): Promise<PresentationData | null> {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("presentations")
     .select("*")
@@ -229,7 +254,7 @@ async function getFromSupabase(id: string): Promise<PresentationData | null> {
 }
 
 async function saveToSupabase(data: PresentationData): Promise<PresentationData> {
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
   const row = {
     id: data.id,
     ...presentationToRow(data),
@@ -272,9 +297,10 @@ export function createDefaultPresentation(input?: {
   tier?: PresentationTier;
   homeSqft?: number;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
+  authoritySha256?: string | null;
 }): PresentationData {
   const tier = normalizePresentationTier(input?.tier ?? "quarterly");
-  const homeSqft = input?.homeSqft ?? input?.quoteSnapshot?.sqft ?? 2500;
+  const homeSqft = input?.homeSqft ?? input?.quoteSnapshot?.sqft ?? 0;
   const rates = withComputedRates({ tier, homeSqft });
   const now = new Date().toISOString();
 
@@ -300,6 +326,7 @@ export function createDefaultPresentation(input?: {
     propertyId: null,
     membershipId: null,
     onboardingStatus: null,
+    authoritySha256: input?.authoritySha256 ?? null,
     createdAt: now,
     updatedAt: now,
   };
@@ -307,11 +334,7 @@ export function createDefaultPresentation(input?: {
 
 export async function listPresentations(): Promise<PresentationData[]> {
   if (isCloudPersistenceConnected()) {
-    try {
-      return await listFromSupabase();
-    } catch (error) {
-      logCloudFallback("list", error);
-    }
+    return listFromSupabase();
   }
 
   return listLocalPresentations();
@@ -323,18 +346,50 @@ export async function getPresentation(
   let data: PresentationData | null = null;
 
   if (isCloudPersistenceConnected()) {
-    try {
-      data = await getFromSupabase(id);
-    } catch (error) {
-      logCloudFallback("get", error);
-    }
-  }
-
-  if (!data) {
+    data = await getFromSupabase(id);
+  } else {
     data = await getLocalPresentation(id);
   }
 
   return data ? normalizePresentation(data) : null;
+}
+
+/**
+ * Resolve the opaque public presentation capability without local or anon
+ * fallback. Public mutation routes must fail closed when privileged persistence
+ * is unavailable instead of accepting an unbound browser payload.
+ */
+export async function getPresentationByCapability(
+  id: string,
+): Promise<PresentationData | null> {
+  if (!isPresentationCapability(id) || !isCloudPersistenceConnected()) {
+    return null;
+  }
+  return getFromSupabase(id);
+}
+
+/**
+ * The only public presentation mutation: an existing UUID capability may move
+ * its own draft to presented. It cannot create a record, edit content, or
+ * rewrite a signed presentation, and it never falls back to browser storage.
+ */
+export async function markPresentationPresentedByCapability(
+  id: string,
+): Promise<PresentationData | null> {
+  const existing = await getPresentationByCapability(id);
+  if (!existing || existing.status !== "draft") return existing;
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("presentations")
+    .update({ status: "presented" })
+    .eq("id", id)
+    .eq("status", "draft")
+    .select("*")
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? rowToPresentation(data as PresentationRow) : getFromSupabase(id);
 }
 
 export async function savePresentation(
@@ -348,11 +403,7 @@ export async function savePresentation(
   });
 
   if (isCloudPersistenceConnected()) {
-    try {
-      return normalizePresentation(await saveToSupabase(merged));
-    } catch (error) {
-      logCloudFallback("save", error);
-    }
+    return normalizePresentation(await saveToSupabase(merged));
   }
 
   return normalizePresentation(await saveLocalPresentation(merged));
@@ -364,6 +415,7 @@ export async function createPresentation(input?: {
   tier?: PresentationTier;
   homeSqft?: number;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
+  authoritySha256?: string | null;
 }): Promise<PresentationData> {
   const record = createDefaultPresentation(input);
   return savePresentation(record);

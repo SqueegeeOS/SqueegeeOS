@@ -16,7 +16,7 @@ import {
   type HomeCarePlanDraft,
   type HomeCarePlanFindingDraft,
 } from "@/lib/home-care-plan/create-types";
-import { calculateWindowCarePricing } from "@/lib/pricing/window-care-pricing";
+import { applyAtlasPricingToHomeCarePlanDraft } from "@/lib/home-care-plan/atlas-pricing";
 import type { CareFrequency } from "@/lib/pricing/types";
 import { useCompanySettings } from "@/components/pricing/pricing-settings-provider";
 import { saveGeneratedHomeCarePlan } from "@/lib/persistence";
@@ -110,25 +110,14 @@ export function CreateHomeCarePlanWizard({
   };
 
   const applyStandardPricing = () => {
-    const squareFeet = Number.parseInt(draft.property.squareFeet, 10) || 0;
-    const output = calculateWindowCarePricing(
-      {
-        squareFeet,
-        frequency: draft.careFrequency,
-        includeInterior: draft.includeInteriorGlass,
-      },
-      undefined,
-      settings,
-    );
-
-    setDraft((prev) => ({
-      ...prev,
-      membershipOneTimePrice: String(output.exteriorOneTimePrice),
-      membershipPreferredPrice: String(output.exteriorMemberPrice),
-      membershipEstatePrice: String(output.interiorExteriorMemberPrice),
-      standardPricingApplied: true,
-      standardPricingNote: "Screens are not included in base pricing.",
-    }));
+    try {
+      setDraft(applyAtlasPricingToHomeCarePlanDraft(draft, settings));
+      setGenerateError(null);
+    } catch (error) {
+      setGenerateError(
+        error instanceof Error ? error.message : "Could not calculate pricing.",
+      );
+    }
   };
 
   const canContinue = () => {
@@ -151,8 +140,13 @@ export function CreateHomeCarePlanWizard({
     setSaveNotice(null);
 
     try {
-      const plan = buildHomeCarePlanFromDraft(draft);
-      const outcome = await saveGeneratedHomeCarePlan(plan, draft);
+      const authoritativeDraft = applyAtlasPricingToHomeCarePlanDraft(
+        draft,
+        settings,
+      );
+      setDraft(authoritativeDraft);
+      const plan = buildHomeCarePlanFromDraft(authoritativeDraft);
+      const outcome = await saveGeneratedHomeCarePlan(plan, authoritativeDraft);
 
       if (outcome.usedCloudFallback) {
         setSaveNotice(
@@ -363,12 +357,14 @@ export function CreateHomeCarePlanWizard({
                   <input
                     type="text"
                     value={draft.property.lastVisit}
-                    onChange={(e) =>
-                      updateProperty({ lastVisit: e.target.value })
-                    }
-                    placeholder="June 24, 2026"
+                    readOnly
+                    disabled
+                    placeholder="Requires verified provider history"
                     className={`${inputClassName} mt-2`}
                   />
+                  <span className="mt-1 block text-xs text-muted">
+                    Added only from a verified provider visit record.
+                  </span>
                 </label>
               </div>
               <label className="block">
@@ -629,8 +625,8 @@ export function CreateHomeCarePlanWizard({
                 Standard Pricing
               </h2>
               <p className="text-sm text-muted">
-                Apply the Standard Pricing Engine from HQ, then adjust any amount
-                before generating the plan.
+                Atlas Pricing Engine derives every amount from the property and
+                service inputs. Refresh pricing after changing those inputs.
               </p>
 
               <div>
@@ -712,7 +708,7 @@ export function CreateHomeCarePlanWizard({
                 onClick={applyStandardPricing}
                 className="w-full rounded-2xl border border-accent/30 bg-accent/10 px-4 py-3.5 text-sm font-medium tracking-[0.06em] text-accent touch-manipulation"
               >
-                Apply Standard Pricing
+                Refresh Atlas Pricing
               </button>
 
               {draft.standardPricingApplied && (
@@ -728,18 +724,8 @@ export function CreateHomeCarePlanWizard({
                   </span>
                   <input
                     type="text"
-                    inputMode="numeric"
                     value={draft.membershipOneTimePrice}
-                    onChange={(e) =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        membershipOneTimePrice: e.target.value.replace(
-                          /[^\d]/g,
-                          "",
-                        ),
-                        standardPricingApplied: false,
-                      }))
-                    }
+                    readOnly
                     className={`${inputClassName} mt-2`}
                   />
                 </label>
@@ -749,18 +735,8 @@ export function CreateHomeCarePlanWizard({
                   </span>
                   <input
                     type="text"
-                    inputMode="numeric"
                     value={draft.membershipPreferredPrice}
-                    onChange={(e) =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        membershipPreferredPrice: e.target.value.replace(
-                          /[^\d]/g,
-                          "",
-                        ),
-                        standardPricingApplied: false,
-                      }))
-                    }
+                    readOnly
                     className={`${inputClassName} mt-2`}
                   />
                 </label>
@@ -770,18 +746,8 @@ export function CreateHomeCarePlanWizard({
                   </span>
                   <input
                     type="text"
-                    inputMode="numeric"
                     value={draft.membershipEstatePrice}
-                    onChange={(e) =>
-                      setDraft((prev) => ({
-                        ...prev,
-                        membershipEstatePrice: e.target.value.replace(
-                          /[^\d]/g,
-                          "",
-                        ),
-                        standardPricingApplied: false,
-                      }))
-                    }
+                    readOnly
                     className={`${inputClassName} mt-2`}
                   />
                 </label>

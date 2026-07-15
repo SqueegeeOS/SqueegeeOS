@@ -1,3 +1,5 @@
+import "server-only";
+
 import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
 import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
@@ -11,7 +13,7 @@ import type { AgreementKind } from "@/lib/agreement/one-time-agreement";
 import type { MembershipPlanId } from "@/lib/membership/types";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 import {
-  createServerSupabaseClient,
+  createServiceRoleSupabaseClient,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
@@ -40,7 +42,7 @@ export interface SignAgreementRequest {
 
 export interface SignAgreementResult {
   pdfUrl: string;
-  pdfStorageBackend: "supabase" | "data_url";
+  pdfStorageBackend: "supabase";
   agreementId: string;
   email: AgreementEmailResult;
   /** @deprecated use email.status === "sent" */
@@ -87,7 +89,7 @@ export async function processSignAgreement(
     );
   }
 
-  const supabase = createServerSupabaseClient();
+  const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("signed_agreements")
     .insert({
@@ -98,15 +100,15 @@ export async function processSignAgreement(
       plan_name: input.planName,
       signature_method: "drawn",
       signer_name: input.memberName,
-      signature_image_url: storedSignature?.storageRef ?? input.signatureDataUrl,
+      signature_image_url: storedSignature.storageRef,
       typed_text: null,
       signed_at: input.signedAt,
       ip_address: input.ipAddress ?? null,
       user_agent: input.userAgent ?? null,
       agreement_pdf_url: pdfStorageRef,
-      signature_image_storage_path: storedSignature?.storagePath ?? null,
+      signature_image_storage_path: storedSignature.storagePath,
       status: "complete",
-      storage_backend: storedPdf.backend === "supabase" ? "supabase" : "session",
+      storage_backend: "supabase",
     })
     .select("id")
     .single();

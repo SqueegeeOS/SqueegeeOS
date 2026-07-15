@@ -332,6 +332,11 @@ async function embedSignatureOnPage(
 export async function generateSignedPDF(
   input: GenerateSignedPDFInput,
 ): Promise<Uint8Array> {
+  const evidenceDate = new Date(input.signedAt);
+  const stabilizeEvidenceMetadata = (pdfDoc: PDFDocument) => {
+    pdfDoc.setCreationDate(evidenceDate);
+    pdfDoc.setModificationDate(evidenceDate);
+  };
   const agreementKind = input.agreementKind ?? "membership";
 
   if (agreementKind === "one_time") {
@@ -343,6 +348,7 @@ export async function generateSignedPDF(
         pageIndex: pdfDoc.getPageCount() - 1,
       };
       await embedSignatureOnPage(pdfDoc, placement.pageIndex, input, placement);
+      stabilizeEvidenceMetadata(pdfDoc);
       return pdfDoc.save();
     }
 
@@ -353,6 +359,7 @@ export async function generateSignedPDF(
       input,
       built.signaturePlacement,
     );
+    stabilizeEvidenceMetadata(built.pdfDoc);
     return built.pdfDoc.save();
   }
 
@@ -368,6 +375,7 @@ export async function generateSignedPDF(
       pageIndex: pdfDoc.getPageCount() - 1,
     };
     await embedSignatureOnPage(pdfDoc, placement.pageIndex, input, placement);
+    stabilizeEvidenceMetadata(pdfDoc);
     return pdfDoc.save();
   }
 
@@ -378,5 +386,6 @@ export async function generateSignedPDF(
     input,
     built.signaturePlacement,
   );
+  stabilizeEvidenceMetadata(built.pdfDoc);
   return built.pdfDoc.save();
 }

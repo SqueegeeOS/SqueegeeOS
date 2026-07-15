@@ -236,7 +236,8 @@ create trigger property_assets_updated_at before update on property_assets
   for each row execute function set_updated_at();
 
 -- Row Level Security
--- Server routes use service role (bypasses RLS). Anon key: customer persistence only.
+-- Server routes use service role (bypasses RLS). Browser mutation authority is
+-- closed by migration 036; only the generated plan document retains anon read.
 -- HQ / billing / ledger tables have RLS enabled with no anon policies (migration 030).
 alter table homeowners enable row level security;
 alter table properties enable row level security;
@@ -245,24 +246,14 @@ alter table memberships enable row level security;
 alter table signed_agreements enable row level security;
 alter table property_assets enable row level security;
 
-create policy "homeowners_anon_read" on homeowners for select to anon, authenticated using (true);
-create policy "homeowners_anon_insert" on homeowners for insert to anon, authenticated with check (true);
-create policy "homeowners_anon_update" on homeowners for update to anon, authenticated using (true) with check (true);
-create policy "properties_anon_read" on properties for select to anon, authenticated using (true);
-create policy "properties_anon_insert" on properties for insert to anon, authenticated with check (true);
-create policy "properties_anon_update" on properties for update to anon, authenticated using (true) with check (true);
 create policy "home_care_plans_anon_read" on home_care_plans for select to anon, authenticated using (true);
-create policy "home_care_plans_anon_insert" on home_care_plans for insert to anon, authenticated with check (true);
-create policy "home_care_plans_anon_update" on home_care_plans for update to anon, authenticated using (true) with check (true);
-create policy "memberships_anon_read" on memberships for select to anon, authenticated using (true);
-create policy "memberships_anon_insert" on memberships for insert to anon, authenticated with check (true);
-create policy "memberships_anon_update" on memberships for update to anon, authenticated using (true) with check (true);
-create policy "signed_agreements_anon_read" on signed_agreements for select to anon, authenticated using (true);
-create policy "signed_agreements_anon_insert" on signed_agreements for insert to anon, authenticated with check (true);
-create policy "signed_agreements_anon_update" on signed_agreements for update to anon, authenticated using (true) with check (true);
-create policy "property_assets_anon_read" on property_assets for select to anon, authenticated using (true);
-create policy "property_assets_anon_insert" on property_assets for insert to anon, authenticated with check (true);
-create policy "property_assets_anon_update" on property_assets for update to anon, authenticated using (true) with check (true);
+
+revoke select, insert, update, delete on homeowners from public, anon, authenticated;
+revoke select, insert, update, delete on properties from public, anon, authenticated;
+revoke insert, update, delete on home_care_plans from public, anon, authenticated;
+revoke select, insert, update, delete on memberships from public, anon, authenticated;
+revoke select, insert, update, delete on signed_agreements from public, anon, authenticated;
+revoke select, insert, update, delete on property_assets from public, anon, authenticated;
 
 alter table closed_jobs enable row level security;
 
@@ -287,6 +278,70 @@ alter table property_assets add column if not exists external_url text;
 
 alter table presentations add column if not exists enrollment_savings numeric(10, 2);
 alter table memberships add column if not exists membership_enrollment_savings numeric(10, 2);
+
+-- PR1b authority-input closure reference (migration 036 remains the rollout
+-- artifact and must be applied in numbered order).
+alter table homeowners add column if not exists source_presentation_id uuid
+  references presentations(id) on delete set null;
+alter table properties add column if not exists source_presentation_id uuid
+  references presentations(id) on delete set null;
+alter table properties
+  add column if not exists authority_address_key text generated always as (
+    lower(btrim(regexp_replace(address, '[[:space:]]+', ' ', 'g'))) || '|' ||
+    lower(btrim(regexp_replace(city, '[[:space:]]+', ' ', 'g'))) || '|' ||
+    lower(btrim(regexp_replace(state, '[[:space:]]+', ' ', 'g'))) || '|' ||
+    lower(btrim(regexp_replace(zip, '[[:space:]]+', ' ', 'g')))
+  ) stored;
+alter table presentations add column if not exists authority_sha256 text;
+alter table signed_agreements add column if not exists presentation_id uuid
+  references presentations(id) on delete set null;
+alter table signed_agreements add column if not exists signing_attempt_id uuid;
+alter table signed_agreements add column if not exists signing_evidence_sha256 text;
+alter table signed_agreements add column if not exists agreement_tier text;
+
+create unique index if not exists homeowners_source_presentation_uidx
+  on homeowners(source_presentation_id) where source_presentation_id is not null;
+create unique index if not exists properties_source_presentation_uidx
+  on properties(source_presentation_id) where source_presentation_id is not null;
+create unique index if not exists properties_authority_address_uidx
+  on properties(authority_address_key);
+create unique index if not exists signed_agreements_complete_presentation_uidx
+  on signed_agreements(presentation_id)
+  where presentation_id is not null and status = 'complete';
+
+create table if not exists presentation_signing_attempts (
+  presentation_id uuid primary key references presentations(id) on delete restrict,
+  attempt_id uuid not null unique,
+  agreement_tier text not null check (agreement_tier in ('biannual', 'quarterly')),
+  signature_sha256 text not null check (signature_sha256 ~ '^[0-9a-f]{64}$'),
+  presentation_authority_sha256 text not null
+    check (presentation_authority_sha256 ~ '^[0-9a-f]{64}$'),
+  signed_at timestamptz not null default now(),
+  status text not null default 'pending' check (status in ('pending', 'complete', 'held')),
+  agreement_id uuid references signed_agreements(id) on delete restrict,
+  conflict_count integer not null default 0 check (conflict_count >= 0),
+  last_conflict_at timestamptz,
+  last_conflict_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'signed_agreements_signing_attempt_fk'
+      and conrelid = 'signed_agreements'::regclass
+  ) then
+    alter table signed_agreements
+      add constraint signed_agreements_signing_attempt_fk
+      foreign key (signing_attempt_id) references presentation_signing_attempts(attempt_id)
+      on delete restrict;
+  end if;
+end $$;
+alter table presentation_signing_attempts enable row level security;
+revoke all on presentation_signing_attempts from public, anon, authenticated;
+revoke select, insert, update, delete on presentations
+  from public, anon, authenticated;
 
 -- member_profiles, member_savings_transactions, member_appointments,
 -- service_observations, ai_quotes — see 005_member_intelligence.sql
