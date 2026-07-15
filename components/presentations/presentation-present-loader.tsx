@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { readCachedPresentation } from "@/lib/presentations/client-cache";
 import type { PresentationData } from "@/lib/presentations/types";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { PresentationViewer } from "./presentation-viewer";
@@ -41,15 +40,6 @@ export function PresentationPresentLoader({
           return;
         }
 
-        const cached = readCachedPresentation(id);
-        if (cached) {
-          if (!cancelled) {
-            setPresentation(cached);
-            setLoading(false);
-          }
-          return;
-        }
-
         if (!cancelled) {
           setError(
             "Could not load this presentation. Return to the editor and tap Start Presentation again.",
@@ -57,12 +47,6 @@ export function PresentationPresentLoader({
           setLoading(false);
         }
       } catch {
-        const cached = readCachedPresentation(id);
-        if (cached && !cancelled) {
-          setPresentation(cached);
-          setLoading(false);
-          return;
-        }
         if (!cancelled) {
           setError("Connection error. Check your network and try again.");
           setLoading(false);

@@ -8,6 +8,10 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/hq/:path*",
+    "/presentations/:path*",
+    "/employee/home-care-plan/create",
+    "/api/persistence/home-care-plans",
+    "/api/presentations/:path*",
     "/api/admin/care-operations/:path*",
     "/auth/hq/request",
     "/auth/hq/callback",

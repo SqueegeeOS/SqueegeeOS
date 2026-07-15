@@ -1,12 +1,11 @@
 import {
   createServiceRoleSupabaseClient,
-  isServiceRoleConfigured,
-  isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import {
   formatSignedAgreementStorageRef,
   SIGNED_AGREEMENT_BUCKET,
 } from "./signed-agreement-storage";
+import { verifyExistingStorageEvidence } from "./verify-storage-evidence";
 
 export interface StoredSignatureResult {
   /** storage:signed-agreements/signatures/... */
@@ -23,17 +22,15 @@ function decodeSignatureDataUrl(dataUrl: string): Uint8Array | null {
 
 /**
  * Persist drawn signature PNG to the private signed-agreements bucket.
- * Falls back to null when storage is unavailable (caller keeps data URL in DB).
+ * Existing objects are accepted only when their bytes match this attempt.
  */
 export async function storeSignatureImage(
   signatureDataUrl: string,
   fileName: string,
-): Promise<StoredSignatureResult | null> {
+): Promise<StoredSignatureResult> {
   const bytes = decodeSignatureDataUrl(signatureDataUrl);
-  if (!bytes || bytes.byteLength === 0) return null;
-
-  if (!isSupabaseConfigured() || !isServiceRoleConfigured()) {
-    return null;
+  if (!bytes || bytes.byteLength === 0) {
+    throw new Error("Signature evidence is invalid");
   }
 
   const storagePath = fileName.startsWith("signatures/")
@@ -49,8 +46,14 @@ export async function storeSignatureImage(
     });
 
   if (error) {
-    console.error("[agreement] signature image upload failed:", error.message);
-    return null;
+    if (!/already exists|duplicate/i.test(error.message)) {
+      throw new Error(`Signature evidence upload failed: ${error.message}`);
+    }
+    await verifyExistingStorageEvidence(
+      SIGNED_AGREEMENT_BUCKET,
+      storagePath,
+      bytes,
+    );
   }
 
   return {

@@ -1,21 +1,19 @@
-import { enrollmentSavingsForPresentation } from "@/lib/presentations/calculations";
+import "server-only";
+
+import { randomUUID } from "node:crypto";
 import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
 import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
+import {
+  decodeAndValidateSignaturePng,
+  InvalidSignaturePngError,
+} from "@/lib/agreement/validate-signature-png";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendAgreementEmail } from "@/lib/agreement/send-agreement-email";
+import {
+  resolveAgreementPdfAccessUrl,
+} from "@/lib/agreement/signed-agreement-storage";
 import { storeSignatureImage } from "@/lib/agreement/store-signature-image";
 import { storeSignedPdf } from "@/lib/agreement/store-signed-pdf";
-import type { MembershipPlanId } from "@/lib/membership/types";
-import {
-  calculateAnnualFromVisits,
-  formatTierPrice,
-  type SqueegeeKingTierId,
-  SQUEEGEEKING_TIERS,
-} from "@/lib/membership/tier-config";
-import {
-  createServerSupabaseClient,
-  isSupabaseConfigured,
-} from "@/lib/persistence/supabase/client";
 import {
   resolveFoundingMemberFields,
 } from "@/lib/membership/founding-member";
@@ -27,37 +25,48 @@ import {
   buildPortalHomeCarePlanFromPresentation,
   persistPortalHomeCarePlan,
 } from "@/lib/membership/portal-home-care-plan";
+import {
+  membershipLinkageConflictReason,
+  propertyAuthorityAddressKey,
+  presentationSourceSlug,
+  signingEvidenceBytesSha256,
+  verifiedPresentationAuthority,
+  type ExistingMembershipLinkage,
+} from "@/lib/membership/signing-coherence";
+import {
+  calculateAnnualFromVisits,
+  formatTierPrice,
+  planNameForAgreement,
+  type SqueegeeKingTierId,
+  SQUEEGEEKING_TIERS,
+} from "@/lib/membership/tier-config";
+import {
+  createServiceRoleSupabaseClient,
+  isSupabaseConfigured,
+} from "@/lib/persistence/supabase/client";
 import type { MembershipSalesTier } from "@/lib/persistence/types/membership";
 import {
   firstNameFromFullName,
   parseClientAddress,
 } from "@/lib/presentations/parse-client-address";
-import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
-import type { PresentationData } from "@/lib/presentations/types";
 import {
-  legacyOverrideFieldsForTier,
-  normalizeVisitRateOverrides,
+  enrollmentSavingsForPresentation,
+  tierVisitPriceForPresentation,
 } from "@/lib/presentations/calculations";
+import type { PresentationData } from "@/lib/presentations/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface CompleteSignOnboardingInput {
   presentation: PresentationData;
   agreementTier: SqueegeeKingTierId;
-  visitPrice: number;
-  signedAt: string;
   signatureDataUrl: string;
-  planId: MembershipPlanId;
-  planName: string;
-  homeownerSlug: string;
-  propertySlug: string;
-  memberEmail?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
-  quoteSnapshot?: PresentationQuoteSnapshot | null;
 }
 
 export interface CompleteSignOnboardingResult {
   pdfUrl: string;
-  pdfStorageBackend: "supabase" | "data_url";
+  pdfStorageBackend: "supabase";
   agreementId: string;
   membershipId: string;
   homeownerId: string;
@@ -101,10 +110,20 @@ export class SignOnboardingError extends Error {
   }
 }
 
-/**
- * True when a prior sign attempt already linked membership + agreement.
- * Safe to short-circuit without creating a second PDF / agreement row.
- */
+export class SignOnboardingConflictError extends SignOnboardingError {
+  constructor(message: string) {
+    super(message);
+    this.name = "SignOnboardingConflictError";
+  }
+}
+
+export class SignOnboardingInputError extends SignOnboardingError {
+  constructor(message: string) {
+    super(message);
+    this.name = "SignOnboardingInputError";
+  }
+}
+
 export function isSignOnboardingAlreadyComplete(
   presentation: Pick<
     PresentationData,
@@ -118,388 +137,692 @@ export function isSignOnboardingAlreadyComplete(
   );
 }
 
-export async function completeSignOnboarding(
-  input: CompleteSignOnboardingInput,
-): Promise<CompleteSignOnboardingResult> {
-  if (!isSupabaseConfigured()) {
+type SigningClaim = {
+  outcome: "claimed" | "complete" | "conflict";
+  attempt_id: string;
+  agreement_tier: SqueegeeKingTierId;
+  signature_sha256: string;
+  presentation_authority_sha256: string;
+  signed_at: string;
+  agreement_id: string | null;
+  status: "pending" | "complete" | "held";
+};
+
+const injectedFaults = new Set<string>();
+
+function maybeInjectSigningFault(
+  stage: "after_claim" | "after_customer" | "after_storage" | "after_finalize",
+  presentationId: string,
+): void {
+  const faultKey = `${presentationId}:${stage}`;
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.PR1B_SIGNING_FAULT_STAGE === stage &&
+    !injectedFaults.has(faultKey)
+  ) {
+    injectedFaults.add(faultKey);
+    throw new SignOnboardingError(`Injected PR1b signing fault: ${stage}`);
+  }
+}
+
+async function holdSigningAttempt(
+  supabase: SupabaseClient,
+  presentationId: string,
+  reason: string,
+): Promise<never> {
+  const { error } = await supabase
+    .from("presentation_signing_attempts")
+    .update({
+      status: "held",
+      last_conflict_at: new Date().toISOString(),
+      last_conflict_reason: reason,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("presentation_id", presentationId);
+  if (error) {
     throw new SignOnboardingError(
-      "Supabase is required to complete membership onboarding. Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      `Failed to hold ambiguous signing evidence: ${error.message}`,
+    );
+  }
+  throw new SignOnboardingConflictError(
+    "Signing evidence requires Headquarters review",
+  );
+}
+
+async function claimSigningAttempt(
+  supabase: SupabaseClient,
+  input: CompleteSignOnboardingInput,
+  signatureSha256: string,
+  authoritySha256: string,
+): Promise<SigningClaim> {
+  const { data, error } = await supabase.rpc(
+    "claim_presentation_signing_attempt",
+    {
+      p_presentation_id: input.presentation.id,
+      p_attempt_id: randomUUID(),
+      p_agreement_tier: input.agreementTier,
+      p_signature_sha256: signatureSha256,
+      p_presentation_authority_sha256: authoritySha256,
+    },
+  );
+  if (error || !data) {
+    throw new SignOnboardingError(
+      `Failed to claim signing attempt: ${error?.message ?? "empty response"}`,
+    );
+  }
+  const claim = data as SigningClaim;
+  if (claim.outcome === "conflict" || claim.status === "held") {
+    throw new SignOnboardingConflictError(
+      "Conflicting signing evidence is held for Headquarters review",
+    );
+  }
+  return claim;
+}
+
+async function loadCompletedAttempt(
+  supabase: SupabaseClient,
+  presentation: PresentationData,
+  claim: SigningClaim,
+): Promise<CompleteSignOnboardingResult> {
+  const { data: agreement, error: agreementError } = await supabase
+    .from("signed_agreements")
+    .select(
+      "id, membership_id, homeowner_id, property_id, agreement_pdf_url, signature_image_url, signature_image_storage_path, storage_backend, signing_attempt_id, signing_evidence_sha256, agreement_tier",
+    )
+    .eq("id", claim.agreement_id)
+    .eq("presentation_id", presentation.id)
+    .maybeSingle();
+  if (
+    agreementError ||
+    !agreement?.id ||
+    agreement.storage_backend !== "supabase" ||
+    agreement.signing_attempt_id !== claim.attempt_id ||
+    agreement.signing_evidence_sha256 !== claim.signature_sha256 ||
+    agreement.agreement_tier !== claim.agreement_tier ||
+    agreement.agreement_pdf_url !==
+      `storage:signed-agreements/${presentation.id}/${claim.attempt_id}/agreement.pdf` ||
+    agreement.signature_image_storage_path !==
+      `signatures/${presentation.id}/${claim.attempt_id}/signature.png` ||
+    agreement.signature_image_url !==
+      `storage:signed-agreements/signatures/${presentation.id}/${claim.attempt_id}/signature.png`
+  ) {
+    return holdSigningAttempt(
+      supabase,
+      presentation.id,
+      "completed agreement evidence did not match signing attempt",
     );
   }
 
-  const supabase = createServerSupabaseClient();
-  const presentation = input.presentation;
-
-  if (isSignOnboardingAlreadyComplete(presentation)) {
-    const membershipId = presentation.membershipId as string;
-    const agreementId = presentation.agreementId as string;
-    const { data: membershipRow } = await supabase
-      .from("memberships")
-      .select("id, portal_access_token, homeowner_id, property_id")
-      .eq("id", membershipId)
-      .maybeSingle();
-
-    const { data: agreementRow } = await supabase
-      .from("signed_agreements")
-      .select("id, agreement_pdf_url, storage_backend")
-      .eq("id", agreementId)
-      .maybeSingle();
-
-    if (membershipRow?.id && agreementRow?.id) {
-      const portalToken = membershipRow.portal_access_token as string | null;
-      return {
-        pdfUrl: (agreementRow.agreement_pdf_url as string) || "",
-        pdfStorageBackend:
-          agreementRow.storage_backend === "supabase" ? "supabase" : "data_url",
-        agreementId,
-        membershipId,
-        homeownerId: membershipRow.homeowner_id as string,
-        propertyId: membershipRow.property_id as string,
-        email: {
-          status: "skipped",
-          reason: "already_signed",
-          recipient: null,
-        },
-        emailSent: false,
-        onboardingStatus: "pending_payment",
-        portalUrl: portalToken ? buildPortalAccessUrl(portalToken) : null,
-      };
-    }
+  const { data: membership, error: membershipError } = await supabase
+    .from("memberships")
+    .select("id, homeowner_id, property_id, presentation_id, agreement_id, portal_access_token")
+    .eq("id", agreement.membership_id)
+    .maybeSingle();
+  if (
+    membershipError ||
+    !membership?.id ||
+    membership.presentation_id !== presentation.id ||
+    membership.agreement_id !== agreement.id ||
+    membership.homeowner_id !== agreement.homeowner_id ||
+    membership.property_id !== agreement.property_id
+  ) {
+    return holdSigningAttempt(
+      supabase,
+      presentation.id,
+      "completed membership linkage did not match signing attempt",
+    );
   }
+
+  const { data: currentPresentation, error: presentationError } = await supabase
+    .from("presentations")
+    .select(
+      "status, agreement_id, membership_id, homeowner_id, property_id, authority_sha256",
+    )
+    .eq("id", presentation.id)
+    .maybeSingle();
+  if (
+    presentationError ||
+    currentPresentation?.status !== "signed" ||
+    currentPresentation.agreement_id !== agreement.id ||
+    currentPresentation.membership_id !== membership.id ||
+    currentPresentation.homeowner_id !== agreement.homeowner_id ||
+    currentPresentation.property_id !== agreement.property_id ||
+    currentPresentation.authority_sha256 !==
+      claim.presentation_authority_sha256
+  ) {
+    return holdSigningAttempt(
+      supabase,
+      presentation.id,
+      "completed presentation linkage did not match signing attempt",
+    );
+  }
+
+  const pdfUrl =
+    (await resolveAgreementPdfAccessUrl(agreement.agreement_pdf_url as string)) ??
+    (agreement.agreement_pdf_url as string);
+  const portalToken = membership.portal_access_token as string | null;
+  return {
+    pdfUrl,
+    pdfStorageBackend: "supabase",
+    agreementId: agreement.id as string,
+    membershipId: membership.id as string,
+    homeownerId: membership.homeowner_id as string,
+    propertyId: membership.property_id as string,
+    email: { status: "skipped", reason: "already_signed", recipient: null },
+    emailSent: false,
+    onboardingStatus: "pending_payment",
+    portalUrl: portalToken ? buildPortalAccessUrl(portalToken) : null,
+  };
+}
+
+type CustomerContext = {
+  homeownerId: string;
+  propertyId: string;
+  homeownerSlug: string;
+  propertySlug: string;
+  homeownerEmail: string | null;
+};
+
+function normalized(value: string | null | undefined): string {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+async function loadPrelinkedCustomerContext(
+  supabase: SupabaseClient,
+  presentation: PresentationData,
+): Promise<CustomerContext | null> {
+  if (!presentation.homeownerId && !presentation.propertyId) return null;
+  if (!presentation.homeownerId || !presentation.propertyId) {
+    return holdSigningAttempt(
+      supabase,
+      presentation.id,
+      "presentation has incomplete customer linkage",
+    );
+  }
+  const [{ data: homeowner }, { data: property }] = await Promise.all([
+    supabase
+      .from("homeowners")
+      .select("id, slug, full_name, email")
+      .eq("id", presentation.homeownerId)
+      .maybeSingle(),
+    supabase
+      .from("properties")
+      .select("id, homeowner_id, slug, address, city, state, zip, authority_address_key")
+      .eq("id", presentation.propertyId)
+      .maybeSingle(),
+  ]);
   const parsedAddress = parseClientAddress(
     presentation.clientAddress,
     presentation.clientName,
   );
-  const pricing = buildMembershipPricingFields({
-    tier: input.agreementTier,
-    visitPrice: input.visitPrice,
-    planName: input.planName,
-  });
+  if (
+    !homeowner?.id ||
+    !property?.id ||
+    property.homeowner_id !== homeowner.id ||
+    normalized(homeowner.full_name as string) !==
+      normalized(presentation.clientName) ||
+    (presentation.clientEmail &&
+      normalized(homeowner.email as string | null) !==
+        normalized(presentation.clientEmail)) ||
+    property.authority_address_key !== propertyAuthorityAddressKey(parsedAddress)
+  ) {
+    return holdSigningAttempt(
+      supabase,
+      presentation.id,
+      "prelinked customer identity is ambiguous",
+    );
+  }
+  return {
+    homeownerId: homeowner.id as string,
+    propertyId: property.id as string,
+    homeownerSlug: homeowner.slug as string,
+    propertySlug: property.slug as string,
+    homeownerEmail: (homeowner.email as string | null) ?? null,
+  };
+}
 
-  const { data: homeowner, error: homeownerError } = await supabase
-    .from("homeowners")
-    .upsert(
-      {
-        slug: input.homeownerSlug,
+async function ensureSourceCustomerContext(
+  supabase: SupabaseClient,
+  presentation: PresentationData,
+): Promise<CustomerContext> {
+  const prelinked = await loadPrelinkedCustomerContext(supabase, presentation);
+  if (prelinked) return prelinked;
+
+  const parsedAddress = parseClientAddress(
+    presentation.clientAddress,
+    presentation.clientName,
+  );
+  const homeownerSlug = presentationSourceSlug(
+    presentation.clientName,
+    presentation.id,
+    "client",
+  );
+  const propertySlug = presentationSourceSlug(
+    presentation.clientAddress,
+    presentation.id,
+    "property",
+  );
+
+  let [homeownerResult, propertyResult] = await Promise.all([
+    supabase
+      .from("homeowners")
+      .select("id, slug, full_name, email")
+      .eq("source_presentation_id", presentation.id)
+      .maybeSingle(),
+    supabase
+      .from("properties")
+      .select("id, homeowner_id, slug, address, authority_address_key")
+      .eq("source_presentation_id", presentation.id)
+      .maybeSingle(),
+  ]);
+  if (homeownerResult.error || propertyResult.error) {
+    throw new SignOnboardingError(
+      `Failed to verify presentation customer source: ${
+        homeownerResult.error?.message ?? propertyResult.error?.message
+      }`,
+    );
+  }
+  if (propertyResult.data && !homeownerResult.data) {
+    return holdSigningAttempt(
+      supabase,
+      presentation.id,
+      "presentation property source has no matching homeowner source",
+    );
+  }
+  if (!propertyResult.data) {
+    const { data: addressMatches, error: addressMatchError } = await supabase
+      .from("properties")
+      .select("id")
+      .eq("authority_address_key", propertyAuthorityAddressKey(parsedAddress))
+      .limit(2);
+    if (addressMatchError) {
+      throw new SignOnboardingError(
+        `Failed to verify property identity: ${addressMatchError.message}`,
+      );
+    }
+    if ((addressMatches ?? []).length > 0) {
+      return holdSigningAttempt(
+        supabase,
+        presentation.id,
+        "property address already exists without an explicit presentation linkage",
+      );
+    }
+  }
+  if (!homeownerResult.data) {
+    const inserted = await supabase
+      .from("homeowners")
+      .insert({
+        source_presentation_id: presentation.id,
+        slug: homeownerSlug,
         full_name: presentation.clientName,
         first_name: firstNameFromFullName(presentation.clientName),
         email: presentation.clientEmail || null,
         phone: null,
-      },
-      { onConflict: "slug" },
-    )
-    .select("id, email")
-    .single();
-
-  if (homeownerError || !homeowner?.id) {
-    throw new SignOnboardingError(
-      `Failed to create homeowner: ${homeownerError?.message ?? "unknown error"}`,
+      })
+      .select("id, slug, full_name, email")
+      .single();
+    if (inserted.error?.code === "23505") {
+      homeownerResult = await supabase
+        .from("homeowners")
+        .select("id, slug, full_name, email")
+        .eq("source_presentation_id", presentation.id)
+        .maybeSingle();
+    } else {
+      homeownerResult = inserted;
+    }
+  }
+  const homeowner = homeownerResult.data;
+  if (
+    homeownerResult.error ||
+    !homeowner?.id ||
+    normalized(homeowner.full_name as string) !==
+      normalized(presentation.clientName) ||
+    normalized(homeowner.email as string | null) !==
+      normalized(presentation.clientEmail)
+  ) {
+    return holdSigningAttempt(
+      supabase,
+      presentation.id,
+      "presentation homeowner source identity conflicts",
     );
   }
 
-  const { data: property, error: propertyError } = await supabase
-    .from("properties")
-    .upsert(
-      {
+  if (!propertyResult.data) {
+    const inserted = await supabase
+      .from("properties")
+      .insert({
+        source_presentation_id: presentation.id,
         homeowner_id: homeowner.id,
-        slug: input.propertySlug,
+        slug: propertySlug,
         name: parsedAddress.propertyName,
         address: parsedAddress.address,
         city: parsedAddress.city,
         state: parsedAddress.state,
         zip: parsedAddress.zip,
         type: "Residence",
-        square_feet: presentation.homeSqft || null,
-      },
-      { onConflict: "homeowner_id,slug" },
-    )
-    .select("id")
-    .single();
-
-  if (propertyError || !property?.id) {
-    throw new SignOnboardingError(
-      `Failed to create property: ${propertyError?.message ?? "unknown error"}`,
+        square_feet: presentation.homeSqft,
+      })
+      .select("id, homeowner_id, slug, address, authority_address_key")
+      .single();
+    if (inserted.error?.code === "23505") {
+      propertyResult = await supabase
+        .from("properties")
+        .select("id, homeowner_id, slug, address, authority_address_key")
+        .eq("source_presentation_id", presentation.id)
+        .maybeSingle();
+    } else {
+      propertyResult = inserted;
+    }
+  }
+  const property = propertyResult.data;
+  if (
+    propertyResult.error ||
+    !property?.id ||
+    property.homeowner_id !== homeowner.id ||
+    property.authority_address_key !== propertyAuthorityAddressKey(parsedAddress)
+  ) {
+    return holdSigningAttempt(
+      supabase,
+      presentation.id,
+      "presentation property source identity conflicts",
     );
   }
 
-  const founding = resolveFoundingMemberFields(input.signedAt);
+  return {
+    homeownerId: homeowner.id as string,
+    propertyId: property.id as string,
+    homeownerSlug: homeowner.slug as string,
+    propertySlug: property.slug as string,
+    homeownerEmail: (homeowner.email as string | null) ?? null,
+  };
+}
 
-  const { data: existingMembership } = await supabase
+type MembershipContext = { id: string; portalAccessToken: string };
+
+async function ensurePendingMembership(
+  supabase: SupabaseClient,
+  input: {
+    presentationId: string;
+    customer: CustomerContext;
+    signedAt: string;
+    pricing: ReturnType<typeof buildMembershipPricingFields>;
+  },
+): Promise<MembershipContext> {
+  const select =
+    "id, presentation_id, status, agreement_id, portal_access_token";
+  let existing = await supabase
     .from("memberships")
-    .select("portal_access_token")
-    .eq("property_id", property.id)
+    .select(select)
+    .eq("property_id", input.customer.propertyId)
     .maybeSingle();
 
-  const portalAccessToken =
-    (existingMembership?.portal_access_token as string | null | undefined) ??
-    generatePortalAccessToken();
+  if (existing.data) {
+    const reason = membershipLinkageConflictReason(
+      existing.data as ExistingMembershipLinkage,
+      input.presentationId,
+    );
+    if (reason) {
+      return holdSigningAttempt(supabase, input.presentationId, reason);
+    }
+  }
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("memberships")
-    .upsert(
-      {
-        homeowner_id: homeowner.id,
-        property_id: property.id,
-        presentation_id: presentation.id,
-        plan_id: input.planId,
-        plan_name: pricing.planName,
-        price_display: pricing.priceDisplay,
-        billing_period: pricing.billingPeriod,
-        sales_tier: pricing.salesTier,
-        visit_price: pricing.visitPrice,
-        annual_rate: pricing.annualRate,
-        visits_per_year: pricing.visitsPerYear,
+  if (!existing.data) {
+    const founding = resolveFoundingMemberFields(input.signedAt);
+    const inserted = await supabase
+      .from("memberships")
+      .insert({
+        homeowner_id: input.customer.homeownerId,
+        property_id: input.customer.propertyId,
+        presentation_id: input.presentationId,
+        plan_id: "preferred",
+        plan_name: input.pricing.planName,
+        price_display: input.pricing.priceDisplay,
+        billing_period: input.pricing.billingPeriod,
+        sales_tier: input.pricing.salesTier,
+        visit_price: input.pricing.visitPrice,
+        annual_rate: input.pricing.annualRate,
+        visits_per_year: input.pricing.visitsPerYear,
         billing_schedule: "first_of_service_month",
         status: "pending_payment",
         started_at: input.signedAt,
         founding_member: founding.foundingMember,
         founding_member_since: founding.foundingMemberSince,
-        portal_access_token: portalAccessToken,
-      },
-      { onConflict: "property_id" },
-    )
-    .select("id")
-    .single();
+        portal_access_token: generatePortalAccessToken(),
+      })
+      .select(select)
+      .single();
+    if (inserted.error?.code === "23505") {
+      existing = await supabase
+        .from("memberships")
+        .select(select)
+        .eq("property_id", input.customer.propertyId)
+        .maybeSingle();
+      if (existing.data) {
+        const reason = membershipLinkageConflictReason(
+          existing.data as ExistingMembershipLinkage,
+          input.presentationId,
+        );
+        if (reason) {
+          return holdSigningAttempt(supabase, input.presentationId, reason);
+        }
+      }
+    } else {
+      existing = inserted;
+    }
+  }
 
-  if (membershipError || !membership?.id) {
+  if (existing.error || !existing.data?.id || !existing.data.portal_access_token) {
     throw new SignOnboardingError(
-      `Failed to create membership: ${membershipError?.message ?? "unknown error"}`,
+      `Failed to create pending membership: ${existing.error?.message ?? "empty response"}`,
+    );
+  }
+  return {
+    id: existing.data.id as string,
+    portalAccessToken: existing.data.portal_access_token as string,
+  };
+}
+
+export async function completeSignOnboarding(
+  input: CompleteSignOnboardingInput,
+): Promise<CompleteSignOnboardingResult> {
+  if (!isSupabaseConfigured()) {
+    throw new SignOnboardingError(
+      "Supabase is required to complete membership onboarding",
+    );
+  }
+  const presentation = input.presentation;
+  const authoritySha256 = verifiedPresentationAuthority(presentation);
+  if (!authoritySha256) {
+    throw new SignOnboardingConflictError(
+      "Presentation pricing or identity authority is unverified",
     );
   }
 
-  const membershipId = membership.id as string;
-  const portalUrl = buildPortalAccessUrl(portalAccessToken);
+  let signatureBytes: Uint8Array;
+  try {
+    signatureBytes = await decodeAndValidateSignaturePng(input.signatureDataUrl);
+  } catch (error) {
+    if (error instanceof InvalidSignaturePngError) {
+      throw new SignOnboardingInputError("Signature PNG is invalid");
+    }
+    throw error;
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const signatureSha256 = signingEvidenceBytesSha256(signatureBytes);
+  const claim = await claimSigningAttempt(
+    supabase,
+    input,
+    signatureSha256,
+    authoritySha256,
+  );
+  if (claim.outcome === "complete") {
+    return loadCompletedAttempt(supabase, presentation, claim);
+  }
+  maybeInjectSigningFault("after_claim", presentation.id);
+
+  const signedAt = claim.signed_at;
+  const parsedAddress = parseClientAddress(
+    presentation.clientAddress,
+    presentation.clientName,
+  );
+  const visitPrice = tierVisitPriceForPresentation(
+    presentation,
+    input.agreementTier,
+  );
+  const enrollmentSavings = enrollmentSavingsForPresentation(
+    presentation,
+    input.agreementTier,
+  );
+  const planName = planNameForAgreement(input.agreementTier);
+  const pricing = buildMembershipPricingFields({
+    tier: input.agreementTier,
+    visitPrice,
+    planName,
+  });
+
+  const customer = await ensureSourceCustomerContext(supabase, presentation);
+  const membership = await ensurePendingMembership(supabase, {
+    presentationId: presentation.id,
+    customer,
+    signedAt,
+    pricing,
+  });
+  maybeInjectSigningFault("after_customer", presentation.id);
 
   const portalPlan = buildPortalHomeCarePlanFromPresentation({
     presentation,
-    homeownerSlug: input.homeownerSlug,
-    propertySlug: input.propertySlug,
-    planName: pricing.planName,
+    homeownerSlug: customer.homeownerSlug,
+    propertySlug: customer.propertySlug,
+    planName,
     agreementTier: input.agreementTier,
-    visitPrice: input.visitPrice,
+    visitPrice,
+  });
+  await persistPortalHomeCarePlan(supabase, {
+    homeownerId: customer.homeownerId,
+    propertyId: customer.propertyId,
+    homeownerSlug: customer.homeownerSlug,
+    propertySlug: customer.propertySlug,
+    plan: portalPlan,
   });
 
-  try {
-    await persistPortalHomeCarePlan(supabase, {
-      homeownerId: homeowner.id as string,
-      propertyId: property.id as string,
-      homeownerSlug: input.homeownerSlug,
-      propertySlug: input.propertySlug,
-      plan: portalPlan,
-    });
-  } catch (error) {
+  const pdfBytes = await generateSignedPDF({
+    memberName: presentation.clientName,
+    signedAt,
+    signatureDataUrl: input.signatureDataUrl,
+    tier: planName,
+    agreementTier: input.agreementTier,
+    propertyName: parsedAddress.propertyName,
+    monthlyPrice: visitPrice,
+    homeSqft: presentation.homeSqft,
+    twoStory: presentation.twoStory,
+    includeScreens: presentation.includeScreens,
+    includeInterior: presentation.quoteSnapshot?.includeInterior ?? false,
+    quoteSnapshot: presentation.quoteSnapshot,
+    enrollmentSavings,
+  });
+  const basePath = `${presentation.id}/${claim.attempt_id}`;
+  const storedPdf = await storeSignedPdf(pdfBytes, `${basePath}/agreement.pdf`);
+  const storedSignature = await storeSignatureImage(
+    input.signatureDataUrl,
+    `${basePath}/signature.png`,
+  );
+  maybeInjectSigningFault("after_storage", presentation.id);
+
+  const { data: finalized, error: finalizeError } = await supabase.rpc(
+    "finalize_presentation_signing_attempt",
+    {
+      p_presentation_id: presentation.id,
+      p_attempt_id: claim.attempt_id,
+      p_homeowner_id: customer.homeownerId,
+      p_property_id: customer.propertyId,
+      p_membership_id: membership.id,
+      p_homeowner_slug: customer.homeownerSlug,
+      p_property_slug: customer.propertySlug,
+      p_homeowner_name: presentation.clientName,
+      p_plan_id: "preferred",
+      p_plan_name: planName,
+      p_signature_image_url: storedSignature.storageRef,
+      p_signature_storage_path: storedSignature.storagePath,
+      p_pdf_storage_ref: storedPdf.url,
+      p_ip_address: input.ipAddress ?? null,
+      p_user_agent: input.userAgent ?? null,
+      p_visit_price: visitPrice,
+      p_annual_rate: pricing.annualRate,
+      p_enrollment_savings: enrollmentSavings,
+    },
+  );
+  if (finalizeError || !finalized) {
     throw new SignOnboardingError(
-      error instanceof Error
-        ? error.message
-        : "Failed to save portal home care plan",
-      { membershipId, onboardingStatus: "pending_payment" },
+      `Failed to finalize signing attempt: ${finalizeError?.message ?? "empty response"}`,
+      { membershipId: membership.id, onboardingStatus: "pending_payment" },
     );
   }
-
-  const { data: existingAgreement } = await supabase
-    .from("signed_agreements")
-    .select("id, agreement_pdf_url, storage_backend")
-    .eq("presentation_id", presentation.id)
-    .eq("status", "complete")
-    .order("signed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  let agreementId: string;
-  let pdfStorageRef: string;
-  let pdfAccessUrl: string;
-  let pdfBackend: "supabase" | "data_url";
-  let pdfBytesForEmail: Uint8Array | null = null;
-  let pdfFileNameForEmail: string | null = null;
-
-  if (existingAgreement?.id) {
-    agreementId = existingAgreement.id as string;
-    pdfStorageRef = (existingAgreement.agreement_pdf_url as string) || "";
-    pdfAccessUrl = pdfStorageRef;
-    pdfBackend =
-      existingAgreement.storage_backend === "supabase" ? "supabase" : "data_url";
-  } else {
-    const pdfBytes = await generateSignedPDF({
-      memberName: presentation.clientName,
-      signedAt: input.signedAt,
-      signatureDataUrl: input.signatureDataUrl,
-      tier: input.planName,
-      agreementTier: input.agreementTier,
-      propertyName: parsedAddress.propertyName,
-      monthlyPrice: input.visitPrice,
-      homeSqft: presentation.homeSqft,
-      twoStory: presentation.twoStory,
-      includeScreens: presentation.includeScreens,
-      includeInterior: input.quoteSnapshot?.includeInterior ?? false,
-      quoteSnapshot: input.quoteSnapshot,
-      enrollmentSavings: enrollmentSavingsForPresentation(
-        presentation,
-        input.agreementTier,
-      ),
-    });
-
-    const fileName = `${input.homeownerSlug}-${input.propertySlug}-agreement-${Date.now()}.pdf`;
-    const storedPdf = await storeSignedPdf(pdfBytes, fileName);
-    pdfStorageRef = storedPdf.url;
-    pdfAccessUrl = storedPdf.accessUrl ?? pdfStorageRef;
-    pdfBackend = storedPdf.backend;
-    pdfBytesForEmail = pdfBytes;
-    pdfFileNameForEmail = storedPdf.fileName;
-
-    const signatureFileName = `${input.homeownerSlug}-${input.propertySlug}-signature-${Date.now()}.png`;
-    const storedSignature = await storeSignatureImage(
-      input.signatureDataUrl,
-      signatureFileName,
-    );
-
-    const { data: agreement, error: agreementError } = await supabase
-      .from("signed_agreements")
-      .insert({
-        homeowner_id: homeowner.id,
-        property_id: property.id,
-        membership_id: membershipId,
-        presentation_id: presentation.id,
-        homeowner_slug: input.homeownerSlug,
-        property_slug: input.propertySlug,
-        homeowner_name: presentation.clientName,
-        plan_id: input.planId,
-        plan_name: input.planName,
-        signature_method: "drawn",
-        signer_name: presentation.clientName,
-        signature_image_url:
-          storedSignature?.storageRef ?? input.signatureDataUrl,
-        typed_text: null,
-        signed_at: input.signedAt,
-        ip_address: input.ipAddress ?? null,
-        user_agent: input.userAgent ?? null,
-        agreement_pdf_url: pdfStorageRef,
-        signature_image_storage_path: storedSignature?.storagePath ?? null,
-        status: "complete",
-        storage_backend: "supabase",
-      })
-      .select("id")
-      .single();
-
-    if (agreementError || !agreement?.id) {
-      throw new SignOnboardingError(
-        `Agreement signed locally but failed to save: ${agreementError?.message ?? "unknown error"}`,
-        { membershipId, onboardingStatus: "pending_payment" },
-      );
-    }
-
-    agreementId = agreement.id as string;
-  }
-
-  const { error: membershipLinkError } = await supabase
-    .from("memberships")
-    .update({
-      agreement_id: agreementId,
-      presentation_id: presentation.id,
-    })
-    .eq("id", membershipId);
-
-  if (membershipLinkError) {
-    console.error(
-      "[onboarding] Membership link update failed:",
-      membershipLinkError.message,
+  const finalResult = finalized as {
+    outcome: "complete" | "replay" | "held";
+    agreement_id?: string;
+  };
+  if (finalResult.outcome === "held" || !finalResult.agreement_id) {
+    throw new SignOnboardingConflictError(
+      "Signing linkage is held for Headquarters review",
     );
   }
+  maybeInjectSigningFault("after_finalize", presentation.id);
 
-  const { error: presentationError } = await supabase
-    .from("presentations")
-    .update({
-      status: "signed",
-      signed_at: input.signedAt,
-      agreement_id: agreementId,
-      homeowner_id: homeowner.id,
-      property_id: property.id,
-      membership_id: membershipId,
-      onboarding_status: "pending_payment",
-      tier: input.agreementTier,
-      annual_rate: pricing.annualRate,
-      visit_rate_overrides: normalizeVisitRateOverrides(presentation),
-      ...(() => {
-        const overrides = normalizeVisitRateOverrides(presentation);
-        const legacy = legacyOverrideFieldsForTier(
-          overrides,
-          input.agreementTier,
-        );
-        return {
-          monthly_rate: legacy.monthlyRate,
-          override_tier: legacy.overrideTier,
-        };
-      })(),
-    })
-    .eq("id", presentation.id);
-
-  if (presentationError) {
-    console.error(
-      "[onboarding] Presentation link update failed:",
-      presentationError.message,
-    );
-  }
-
-  const memberEmail = resolveMemberEmail(
-    input.memberEmail,
-    presentation.clientEmail,
-    homeowner.email as string | null,
+  const completedClaim: SigningClaim = {
+    ...claim,
+    outcome: "complete",
+    status: "complete",
+    agreement_id: finalResult.agreement_id,
+  };
+  const coherent = await loadCompletedAttempt(
+    supabase,
+    presentation,
+    completedClaim,
   );
 
+  const memberEmail = resolveMemberEmail(
+    presentation.clientEmail,
+    customer.homeownerEmail,
+  );
   let email: AgreementEmailResult = {
     status: "skipped",
-    reason: "no_valid_recipient_email",
-    recipient: presentation.clientEmail?.trim() || null,
+    reason:
+      finalResult.outcome === "replay"
+        ? "already_signed"
+        : "no_valid_recipient_email",
+    recipient: memberEmail,
   };
-
-  if (memberEmail && pdfBytesForEmail && pdfFileNameForEmail) {
+  if (finalResult.outcome === "complete" && memberEmail) {
     email = await sendAgreementEmail({
       to: memberEmail,
       name: presentation.clientName,
-      pdfUrl: pdfStorageRef,
-      tier: input.planName,
-      pdfBytes: pdfBytesForEmail,
-      fileName: pdfFileNameForEmail,
-      portalUrl,
-    });
-  } else if (memberEmail && !pdfBytesForEmail) {
-    email = {
-      status: "skipped",
-      reason: "already_signed",
-      recipient: memberEmail,
-    };
-  } else {
-    console.warn("[onboarding] agreement email skipped — no customer email on presentation", {
-      presentationId: presentation.id,
-      clientEmail: presentation.clientEmail || "(empty)",
+      pdfUrl: storedPdf.url,
+      tier: planName,
+      pdfBytes,
+      fileName: storedPdf.fileName,
+      portalUrl: buildPortalAccessUrl(membership.portalAccessToken),
     });
   }
 
-  // Referral conversion: if this new member arrived as a referred lead,
-  // flip their pending referral to converted. Best-effort, never fatal.
-  if (presentation.clientEmail) {
+  if (finalResult.outcome === "complete" && presentation.clientEmail) {
     try {
       const { markReferralConverted } = await import(
         "@/lib/referrals/repository"
       );
       await markReferralConverted({
         email: presentation.clientEmail,
-        membershipId,
+        membershipId: membership.id,
       });
     } catch {
-      // conversion tracking must never block signing
+      // Conversion tracking remains best-effort and cannot block signing.
     }
   }
 
   return {
-    pdfUrl: pdfAccessUrl,
-    pdfStorageBackend: pdfBackend,
-    agreementId,
-    membershipId,
-    homeownerId: homeowner.id as string,
-    propertyId: property.id as string,
+    ...coherent,
+    pdfUrl: storedPdf.accessUrl ?? coherent.pdfUrl,
     email,
     emailSent: email.status === "sent",
-    onboardingStatus: "pending_payment",
-    portalUrl,
   };
 }

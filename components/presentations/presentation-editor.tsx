@@ -6,13 +6,8 @@ import { useRouter } from "next/navigation";
 import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
   computePresentationRates,
-  applyTierVisitOverride,
-  tierVisitOverride,
   visitRateFromPresentation,
-  withComputedRates,
 } from "@/lib/presentations/calculations";
-import { defaultEnrollmentSavingsForTier } from "@/lib/membership/enrollment-savings";
-import { buildExteriorWindowBreakdown } from "@/lib/pricing/window-care-pricing";
 import {
   getPresentationSlides,
   tierLabel,
@@ -48,8 +43,6 @@ export function PresentationEditor({
   );
   const rates = useMemo(() => computePresentationRates(data), [data]);
   const visitRate = visitRateFromPresentation(data);
-  const tierOverride = tierVisitOverride(data, data.tier) ?? 0;
-  const isSigned = data.status === "signed";
 
   useEffect(() => {
     cachePresentation(data);
@@ -58,36 +51,15 @@ export function PresentationEditor({
   const twoStory = data.twoStory;
   const includeScreens = data.includeScreens;
 
-  const recalculateVisitRate = (
-    prev: PresentationData,
-    patch: Partial<PresentationData>,
-  ): PresentationData => {
-    const merged = { ...prev, ...patch };
-    return {
-      ...merged,
-      ...withComputedRates(merged),
-    };
-  };
-
   const setPricingOption = (
     patch: Partial<{ twoStory: boolean; includeScreens: boolean }>,
   ) => {
-    setData((prev) =>
-      recalculateVisitRate(prev, {
+    setData((prev) => ({
+      ...prev,
         twoStory: patch.twoStory ?? prev.twoStory,
         includeScreens: patch.includeScreens ?? prev.includeScreens,
-      }),
-    );
+    }));
   };
-
-  const exteriorBreakdown =
-    data.homeSqft > 0
-      ? buildExteriorWindowBreakdown(
-          data.homeSqft,
-          data.tier === "quarterly" ? "quarterly" : "bi_annual",
-          { twoStory, includeScreens },
-        )
-      : null;
 
   const update = <K extends keyof PresentationData>(
     field: K,
@@ -96,29 +68,10 @@ export function PresentationEditor({
     setData((prev) => {
       if (field === "tier") {
         const nextTier = value as PresentationData["tier"];
-        return recalculateVisitRate(prev, {
-          tier: nextTier,
-          retailValue: nextTier === "biannual" ? 0 : prev.retailValue,
-          enrollmentSavings: defaultEnrollmentSavingsForTier(nextTier),
-        });
-      }
-      if (field === "homeSqft") {
-        return recalculateVisitRate(prev, { [field]: value } as Partial<PresentationData>);
-      }
-      if (field === "monthlyRate") {
-        const patched = {
+        return {
           ...prev,
-          ...applyTierVisitOverride(
-            prev,
-            prev.tier,
-            Number.parseFloat(String(value)) || 0,
-          ),
+          tier: nextTier,
         };
-        return { ...patched, ...withComputedRates(patched) };
-      }
-      if (field === "retailValue") {
-        const patched = { ...prev, retailValue: value as number };
-        return { ...patched, ...withComputedRates(patched) };
       }
       return { ...prev, [field]: value };
     });
@@ -145,7 +98,17 @@ export function PresentationEditor({
       const res = await fetch(`/api/presentations/${data.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          clientName: data.clientName,
+          clientAddress: data.clientAddress,
+          clientEmail: data.clientEmail,
+          homeSqft: data.homeSqft,
+          tier: data.tier,
+          twoStory: data.twoStory,
+          includeScreens: data.includeScreens,
+          customNotes: data.customNotes,
+          slideOverrides: data.slideOverrides,
+        }),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as {
@@ -281,7 +244,7 @@ export function PresentationEditor({
                 placeholder="e.g. 2800"
                 onChange={(v) => {
                   const homeSqft = Number.parseInt(v, 10) || 0;
-                  setData((prev) => recalculateVisitRate(prev, { homeSqft }));
+                  setData((prev) => ({ ...prev, homeSqft }));
                 }}
               />
             </EditorField>
@@ -315,104 +278,22 @@ export function PresentationEditor({
               </button>
             </div>
 
-            {exteriorBreakdown ? (
-              <div className="rounded-lg bg-[#111] px-3 py-2.5 text-[11px] text-[#555]">
-                <p className="flex justify-between">
-                  <span>Sq ft base</span>
-                  <span>${exteriorBreakdown.sqftBase}</span>
-                </p>
-                {exteriorBreakdown.twoStorySurcharge > 0 ? (
-                  <p className="mt-1 flex justify-between">
-                    <span>Two-story</span>
-                    <span>+${exteriorBreakdown.twoStorySurcharge}</span>
-                  </p>
-                ) : null}
-                {exteriorBreakdown.screenCleaning > 0 ? (
-                  <p className="mt-1 flex justify-between">
-                    <span>Screens</span>
-                    <span>+${exteriorBreakdown.screenCleaning}</span>
-                  </p>
-                ) : null}
-                <p className="mt-1.5 flex justify-between border-t border-[#1a1a1a] pt-1.5 text-[#888]">
-                  <span>Per visit</span>
-                  <span>${exteriorBreakdown.visitTotal}</span>
-                </p>
-              </div>
-            ) : null}
+            <p className="rounded-lg bg-[#111] px-3 py-2.5 text-[11px] text-[#666]">
+              Save to refresh the authoritative Atlas price for these inputs.
+            </p>
 
             <EditorField
               label="Enrollment Savings"
               hint="Per-visit savings vs one-time at enrollment. Locked into the agreement and membership at activation."
             >
-              {isSigned ? (
-                <p className="text-sm text-[#888]">
-                  {formatTierPrice(
-                    data.enrollmentSavings || rates.enrollmentSavings,
-                  )}{" "}
-                  · locked at signing
-                </p>
-              ) : (
-                <EditorTextInput
-                  type="number"
-                  inputMode="decimal"
-                  value={String(
-                    data.enrollmentSavings || rates.enrollmentSavings,
-                  )}
-                  onChange={(v) =>
-                    update(
-                      "enrollmentSavings",
-                      Number.parseFloat(v) ||
-                        defaultEnrollmentSavingsForTier(data.tier),
-                    )
-                  }
-                />
-              )}
-            </EditorField>
-
-            <EditorField
-              label="Per-visit rate override"
-              hint="Optional. Standard pricing applies when blank."
-            >
-              <EditorTextInput
-                type="number"
-                inputMode="decimal"
-                value={tierOverride > 0 ? String(tierOverride) : ""}
-                placeholder={String(
-                  Math.round(
-                    data.tier === "biannual"
-                      ? rates.biannualVisit
-                      : rates.quarterlyVisit,
-                  ),
-                )}
-                onChange={(v) =>
-                  update("monthlyRate", Number.parseFloat(v) || 0)
-                }
-              />
+              <p className="text-sm text-[#888]">
+                {formatTierPrice(
+                  data.enrollmentSavings || rates.enrollmentSavings,
+                )}{" "}
+                · Atlas Pricing Engine
+              </p>
             </EditorField>
           </CollapsibleSection>
-
-          {data.tier === "quarterly" ? (
-            <CollapsibleSection
-              title="Quarterly treatment value"
-              summary="RainBlock + Hard Water retail value"
-              defaultOpen={false}
-            >
-              <EditorField
-                label="Added treatment value (Quarterly slide)"
-                hint="Retail value of RainBlock + Hard Water included with Quarterly — not the plan price. Shown on The Math slide only."
-              >
-                <EditorTextInput
-                  type="number"
-                  inputMode="decimal"
-                  value={data.retailValue > 0 ? String(data.retailValue) : ""}
-                  placeholder={String(rates.retailValue)}
-                  onChange={(v) =>
-                    update("retailValue", Number.parseFloat(v) || 0)
-                  }
-                />
-              </EditorField>
-            </CollapsibleSection>
-          ) : null}
 
           <CollapsibleSection
             title="Closing slide note"

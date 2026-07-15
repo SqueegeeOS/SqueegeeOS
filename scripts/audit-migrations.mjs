@@ -95,13 +95,14 @@ const checks = [
   ["033", "Jobber visit sample", (s) => hasTable(s, "jobber_visit_projections") && s.rlsTables.has("jobber_visit_projections")],
   ["034", "supervised Jobber property links", (s) => ["jobber_property_links", "jobber_property_link_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table))],
   ["035", "authenticated Headquarters access", (s) => ["hq_admin_users", "hq_admin_user_events", "hq_magic_link_request_events", "hq_magic_link_delivery_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && hasColumn(s, "hq_admin_users", "active") && hasColumn(s, "hq_admin_users", "role") && s.hqAuthAnonPolicies === 0 && ["reserve_hq_magic_link_request", "validate_hq_admin_user_auth_email", "sync_hq_admin_user_auth_email", "record_hq_admin_user_change", "save_jobber_connection_with_event", "acquire_jobber_refresh_lease_for_generation", "complete_jobber_refresh_with_event", "fail_jobber_refresh_with_event"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog")) && ["public.hq_admin_users.hq_admin_users_validate_auth_email", "public.hq_admin_users.hq_admin_users_record_change", "public.hq_admin_user_events.hq_admin_user_events_immutable", "auth.users.hq_admin_users_sync_auth_email"].every((name) => s.triggers.has(name))],
+  ["036", "HQ authority input closure", (s) => s.authorityMutationPolicies === 0 && s.authorityMutationGrants === 0 && s.sensitiveCustomerReadPolicies === 0 && s.sensitiveCustomerReadGrants === 0 && s.homeCarePlanReadPolicies === 1 && s.presentationBrowserPolicies === 0 && s.authorityAclExact && s.authorityFunctionAclExact && s.signingIdempotencyIndexExact && s.propertyAddressIndexExact && hasTable(s, "presentation_signing_attempts") && s.rlsTables.has("presentation_signing_attempts") && hasColumn(s, "presentations", "authority_sha256") && hasColumn(s, "signed_agreements", "signing_attempt_id") && hasColumn(s, "properties", "authority_address_key") && ["save_hq_home_care_plan", "claim_presentation_signing_attempt", "finalize_presentation_signing_attempt"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog"))],
 ];
 
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, functions, triggers, updatedAt, storageTable] = await Promise.all([
+  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -109,10 +110,20 @@ try {
     client.query("select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relrowsecurity"),
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('referral_codes', 'referral_visits', 'referrals') and ('anon' = any(roles) or 'public' = any(roles))"),
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('hq_admin_users', 'hq_admin_user_events', 'hq_magic_link_request_events', 'hq_magic_link_delivery_events') and ('anon' = any(roles) or 'authenticated' = any(roles) or 'public' = any(roles))"),
+    client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('homeowners', 'properties', 'home_care_plans', 'memberships', 'signed_agreements', 'property_assets', 'presentations') and cmd in ('ALL', 'INSERT', 'UPDATE', 'DELETE') and roles::text[] && array['public', 'anon', 'authenticated']::text[]"),
+    client.query("select count(*)::int as count from information_schema.role_table_grants where table_schema = 'public' and table_name in ('homeowners', 'properties', 'home_care_plans', 'memberships', 'signed_agreements', 'property_assets', 'presentations') and grantee in ('PUBLIC', 'anon', 'authenticated') and privilege_type in ('INSERT', 'UPDATE', 'DELETE')"),
+    client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('homeowners', 'properties', 'memberships', 'signed_agreements', 'property_assets') and roles::text[] && array['public', 'anon', 'authenticated']::text[]"),
+    client.query("select count(*)::int as count from information_schema.role_table_grants where table_schema = 'public' and table_name in ('homeowners', 'properties', 'memberships', 'signed_agreements', 'property_assets') and grantee in ('PUBLIC', 'anon', 'authenticated') and privilege_type = 'SELECT'"),
+    client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename = 'home_care_plans' and cmd = 'SELECT' and roles::text[] && array['anon', 'authenticated']::text[]"),
+    client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename = 'presentations' and roles::text[] && array['public', 'anon', 'authenticated']::text[]"),
     client.query("select p.proname, coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'"),
     client.query("select n.nspname as schema_name, c.relname as table_name, t.tgname as trigger_name from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace where not t.tgisinternal and n.nspname in ('public', 'auth')"),
     client.query("select coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'set_updated_at' limit 1"),
+    client.query("select i.indisunique, pg_get_indexdef(i.indexrelid) as definition, pg_get_expr(i.indpred, i.indrelid) as predicate, array_agg(a.attname order by k.ordinality) as columns from pg_index i join pg_class c on c.oid = i.indexrelid join lateral unnest(i.indkey) with ordinality k(attnum, ordinality) on true join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where c.oid = to_regclass('public.signed_agreements_complete_presentation_uidx') group by i.indisunique, i.indexrelid, i.indpred, i.indrelid"),
+    client.query("select i.indisunique, array_agg(a.attname order by k.ordinality) as columns from pg_index i join pg_class c on c.oid = i.indexrelid join lateral unnest(i.indkey) with ordinality k(attnum, ordinality) on true join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where c.oid = to_regclass('public.properties_authority_address_uidx') group by i.indisunique"),
     client.query("select to_regclass('storage.buckets') is not null as exists"),
+    client.query("select grantee, table_name, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name in ('homeowners', 'properties', 'home_care_plans', 'memberships', 'signed_agreements', 'property_assets', 'presentations', 'presentation_signing_attempts') and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role') order by grantee, table_name, privilege_type"),
+    client.query("select grantee, routine_name, privilege_type from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('save_hq_home_care_plan', 'claim_presentation_signing_attempt', 'finalize_presentation_signing_attempt') and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role') order by grantee, routine_name, privilege_type"),
   ]);
 
   let agreementBucket = null;
@@ -121,6 +132,38 @@ try {
     agreementBucket = bucket.rows.length ? bucket.rows[0].public : null;
   }
 
+  const browserTableAcl = authorityTableAcls.rows
+    .filter((row) => ["PUBLIC", "anon", "authenticated"].includes(row.grantee))
+    .map((row) => `${row.grantee}.${row.table_name}.${row.privilege_type}`);
+  const expectedBrowserTableAcl = [
+    "anon.home_care_plans.SELECT",
+    "authenticated.home_care_plans.SELECT",
+  ];
+  const serviceTableAcl = authorityTableAcls.rows
+    .filter((row) => row.grantee === "service_role")
+    .map((row) => `${row.table_name}.${row.privilege_type}`);
+  const authorityTables = [
+    "homeowners", "properties", "home_care_plans", "memberships",
+    "signed_agreements", "property_assets", "presentations",
+    "presentation_signing_attempts",
+  ];
+  const expectedServiceTableAcl = authorityTables.flatMap((table) =>
+    ["DELETE", "INSERT", "SELECT", "UPDATE"].map((privilege) => `${table}.${privilege}`),
+  ).sort();
+  const browserFunctionAcl = authorityFunctionAcls.rows.filter((row) =>
+    ["PUBLIC", "anon", "authenticated"].includes(row.grantee),
+  );
+  const serviceFunctionAcl = authorityFunctionAcls.rows
+    .filter((row) => row.grantee === "service_role")
+    .map((row) => `${row.routine_name}.${row.privilege_type}`)
+    .sort();
+  const expectedServiceFunctionAcl = [
+    "claim_presentation_signing_attempt.EXECUTE",
+    "finalize_presentation_signing_attempt.EXECUTE",
+    "save_hq_home_care_plan.EXECUTE",
+  ];
+  const signingIndexRow = signingIndex.rows[0];
+  const propertyAddressIndexRow = propertyAddressIndex.rows[0];
   const snapshot = {
     tables: new Set(tables.rows.map((row) => row.table_name)),
     columns: new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`)),
@@ -132,12 +175,36 @@ try {
     rlsTables: new Set(rls.rows.map((row) => row.relname)),
     referralAnonPolicies: referralPolicies.rows[0]?.count ?? 0,
     hqAuthAnonPolicies: hqAuthPolicies.rows[0]?.count ?? 0,
+    authorityMutationPolicies: authorityPolicies.rows[0]?.count ?? 0,
+    authorityMutationGrants: authorityGrants.rows[0]?.count ?? 0,
+    sensitiveCustomerReadPolicies: sensitiveReadPolicies.rows[0]?.count ?? 0,
+    sensitiveCustomerReadGrants: sensitiveReadGrants.rows[0]?.count ?? 0,
+    homeCarePlanReadPolicies: homeCarePlanReadPolicies.rows[0]?.count ?? 0,
+    presentationBrowserPolicies: presentationPolicies.rows[0]?.count ?? 0,
     functions: new Set(functions.rows.map((row) => row.proname)),
     functionConfigs: new Map(
       functions.rows.map((row) => [row.proname, String(row.config)]),
     ),
     triggers: new Set(triggers.rows.map((row) => `${row.schema_name}.${row.table_name}.${row.trigger_name}`)),
     secureUpdatedAt: updatedAt.rows.some((row) => String(row.config).includes("search_path=public")),
+    authorityAclExact:
+      JSON.stringify(browserTableAcl.sort()) ===
+        JSON.stringify(expectedBrowserTableAcl.sort()) &&
+      JSON.stringify(serviceTableAcl.sort()) ===
+        JSON.stringify(expectedServiceTableAcl),
+    authorityFunctionAclExact:
+      browserFunctionAcl.length === 0 &&
+      JSON.stringify(serviceFunctionAcl) ===
+        JSON.stringify(expectedServiceFunctionAcl),
+    signingIdempotencyIndexExact:
+      signingIndexRow?.indisunique === true &&
+      JSON.stringify(signingIndexRow.columns) === JSON.stringify(["presentation_id"]) &&
+      String(signingIndexRow.predicate).replaceAll('"', "") ===
+        "((presentation_id IS NOT NULL) AND (status = 'complete'::text))",
+    propertyAddressIndexExact:
+      propertyAddressIndexRow?.indisunique === true &&
+      JSON.stringify(propertyAddressIndexRow.columns) ===
+        JSON.stringify(["authority_address_key"]),
     agreementBucket,
   };
 

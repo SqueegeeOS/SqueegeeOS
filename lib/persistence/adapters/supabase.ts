@@ -13,7 +13,6 @@ import type {
   PersistedSignedAgreementInput,
 } from "../types";
 import type { PersistenceAdapter } from "../adapters/types";
-import { finalizeHomeCarePlanRecord } from "../mappers/home-care-plan";
 import { createBrowserSupabaseClient } from "../supabase/client";
 import {
   homeCarePlanFromRow,
@@ -32,44 +31,21 @@ function getClient() {
   return createBrowserSupabaseClient();
 }
 
+function browserMutationBlocked(): never {
+  throw new Error(
+    "Browser Supabase mutation authority is closed; use the narrow server domain route.",
+  );
+}
+
 export const supabaseAdapter: PersistenceAdapter = {
   backend: "supabase",
   isCloudConnected: true,
 
   async saveHomeCarePlan(
-    input: PersistedHomeCarePlanInput,
+    _input: PersistedHomeCarePlanInput,
   ): Promise<PersistedHomeCarePlan> {
-    const supabase = getClient();
-    const record = finalizeHomeCarePlanRecord(
-      { ...input, storageBackend: "supabase" },
-      input.id,
-    );
-
-    const { data, error } = await supabase
-      .from("home_care_plans")
-      .upsert(
-        {
-          homeowner_id: record.homeownerId,
-          property_id: record.propertyId,
-          homeowner_slug: record.homeownerSlug,
-          property_slug: record.propertySlug,
-          status: record.status,
-          presentation: record.presentation,
-          draft: record.draft,
-          storage_backend: "supabase",
-          generated_at: record.generatedAt,
-          updated_at: record.updatedAt,
-        },
-        { onConflict: "homeowner_slug,property_slug" },
-      )
-      .select("*")
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to save home care plan: ${error.message}`);
-    }
-
-    return homeCarePlanFromRow(data as HomeCarePlanRow);
+    void _input;
+    return browserMutationBlocked();
   },
 
   async getHomeCarePlanBySlugs(
@@ -108,47 +84,19 @@ export const supabaseAdapter: PersistenceAdapter = {
   },
 
   async deleteHomeCarePlan(
-    homeownerSlug: string,
-    propertySlug: string,
+    _homeownerSlug: string,
+    _propertySlug: string,
   ): Promise<void> {
-    const supabase = getClient();
-
-    const { error } = await supabase
-      .from("home_care_plans")
-      .delete()
-      .eq("homeowner_slug", homeownerSlug)
-      .eq("property_slug", propertySlug);
-
-    if (error) {
-      throw new Error(`Failed to delete home care plan: ${error.message}`);
-    }
+    void _homeownerSlug;
+    void _propertySlug;
+    browserMutationBlocked();
   },
 
   async upsertHomeowner(
-    input: PersistedHomeownerInput,
+    _input: PersistedHomeownerInput,
   ): Promise<PersistedHomeowner> {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from("homeowners")
-      .upsert(
-        {
-          slug: input.slug,
-          full_name: input.fullName,
-          first_name: input.firstName,
-          email: input.email,
-          phone: input.phone,
-        },
-        { onConflict: "slug" },
-      )
-      .select("*")
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to upsert homeowner: ${error.message}`);
-    }
-
-    return homeownerFromRow(data as HomeownerRow);
+    void _input;
+    return browserMutationBlocked();
   },
 
   async getHomeownerBySlug(slug: string): Promise<PersistedHomeowner | null> {
@@ -168,40 +116,10 @@ export const supabaseAdapter: PersistenceAdapter = {
   },
 
   async upsertProperty(
-    input: PersistedPropertyInput,
+    _input: PersistedPropertyInput,
   ): Promise<PersistedProperty> {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from("properties")
-      .upsert(
-        {
-          homeowner_id: input.homeownerId,
-          slug: input.slug,
-          name: input.name,
-          address: input.address,
-          city: input.city,
-          state: input.state,
-          zip: input.zip,
-          type: input.type,
-          hero_image: input.heroImage,
-          home_care_score: input.homeCareScore,
-          health_status: input.healthStatus,
-          year_built: input.yearBuilt,
-          square_feet: input.squareFeet,
-          narrative: input.narrative,
-          last_visit: input.lastVisit,
-        },
-        { onConflict: "homeowner_id,slug" },
-      )
-      .select("*")
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to upsert property: ${error.message}`);
-    }
-
-    return propertyFromRow(data as PropertyRow);
+    void _input;
+    return browserMutationBlocked();
   },
 
   async getPropertyBySlug(
@@ -227,50 +145,10 @@ export const supabaseAdapter: PersistenceAdapter = {
   },
 
   async saveMembership(
-    input: PersistedMembershipInput,
+    _input: PersistedMembershipInput,
   ): Promise<PersistedMembership> {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from("memberships")
-      .upsert(
-        {
-          homeowner_id: input.homeownerId,
-          property_id: input.propertyId,
-          home_care_plan_id: input.homeCarePlanId,
-          presentation_id: input.presentationId,
-          agreement_id: input.agreementId,
-          plan_id: input.planId,
-          plan_name: input.planName,
-          price_display: input.priceDisplay,
-          billing_period: input.billingPeriod,
-          sales_tier: input.salesTier,
-          visit_price: input.visitPrice,
-          annual_rate: input.annualRate,
-          visits_per_year: input.visitsPerYear,
-          billing_schedule: input.billingSchedule,
-          next_billing_date: input.nextBillingDate,
-          payment_setup_completed_at: input.paymentSetupCompletedAt,
-          status: input.status,
-          stripe_customer_id: input.stripeCustomerId,
-          stripe_payment_method_id: input.stripePaymentMethodId,
-          stripe_subscription_id: input.stripeSubscriptionId,
-          stripe_price_id: input.stripePriceId,
-          started_at: input.startedAt,
-          founding_member: input.foundingMember,
-          founding_member_since: input.foundingMemberSince,
-          cancelled_at: input.cancelledAt,
-        },
-        { onConflict: "property_id" },
-      )
-      .select("*")
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to save membership: ${error.message}`);
-    }
-
-    return membershipFromRow(data);
+    void _input;
+    return browserMutationBlocked();
   },
 
   async getMembershipByProperty(
@@ -298,43 +176,10 @@ export const supabaseAdapter: PersistenceAdapter = {
   },
 
   async saveSignedAgreement(
-    input: PersistedSignedAgreementInput,
+    _input: PersistedSignedAgreementInput,
   ): Promise<PersistedSignedAgreement> {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from("signed_agreements")
-      .insert({
-        homeowner_id: input.homeownerId,
-        property_id: input.propertyId,
-        membership_id: input.membershipId,
-        presentation_id: input.presentationId,
-        homeowner_slug: input.homeownerSlug,
-        property_slug: input.propertySlug,
-        homeowner_name: input.homeownerName,
-        plan_id: input.planId,
-        plan_name: input.planName,
-        signature_method: input.signature.method,
-        signer_name: input.signature.signerName,
-        signature_image_url: input.signature.signatureImageUrl,
-        typed_text: input.signature.typedText,
-        signed_at: input.metadata.signedAt,
-        ip_address: input.metadata.ipAddress,
-        user_agent: input.metadata.userAgent,
-        client_session_id: input.metadata.clientSessionId,
-        agreement_pdf_url: input.agreementPdfUrl,
-        signature_image_storage_path: input.signatureImageStoragePath,
-        status: input.status,
-        storage_backend: "supabase",
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to save signed agreement: ${error.message}`);
-    }
-
-    return signedAgreementFromRow(data as SignedAgreementRow);
+    void _input;
+    return browserMutationBlocked();
   },
 
   async listSignedAgreementsByProperty(
@@ -358,37 +203,10 @@ export const supabaseAdapter: PersistenceAdapter = {
   },
 
   async savePhotoDocument(
-    input: PersistedPhotoDocumentInput,
+    _input: PersistedPhotoDocumentInput,
   ): Promise<PersistedPhotoDocument> {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from("property_assets")
-      .insert({
-        property_id: input.propertyId,
-        homeowner_id: input.homeownerId,
-        kind: input.kind,
-        category: input.category,
-        title: input.title,
-        description: input.description,
-        storage_path: input.storagePath,
-        mime_type: input.mimeType,
-        file_size_bytes: input.fileSizeBytes,
-        visit_id: input.visitId,
-        signed_agreement_id: input.signedAgreementId,
-        photo_source: input.photoSource ?? null,
-        is_primary: input.isPrimary ?? false,
-        external_url: input.externalUrl ?? null,
-        captured_at: input.capturedAt,
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to save property asset: ${error.message}`);
-    }
-
-    return propertyAssetFromRow(data);
+    void _input;
+    return browserMutationBlocked();
   },
 
   async listPhotoDocumentsByProperty(

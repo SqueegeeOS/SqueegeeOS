@@ -139,6 +139,8 @@ export interface PresentationData {
   propertyId: string | null;
   membershipId: string | null;
   onboardingStatus: PresentationOnboardingStatus | null;
+  /** Server-authored digest of identity + immutable Atlas quote inputs. */
+  authoritySha256?: string | null;
   createdAt: string;
   updatedAt: string;
 }
