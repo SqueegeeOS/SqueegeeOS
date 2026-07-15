@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 interface ActiveMemberPropertyCandidate {
   membershipId: string;
@@ -69,7 +68,7 @@ interface MatchResponse {
 async function requestMatchingWorkspace(): Promise<MatchingWorkspace> {
   const response = await fetch(
     "/api/admin/care-operations/jobber/property-links",
-    { headers: getAdminRequestHeaders(), cache: "no-store" },
+    { cache: "no-store" },
   );
   const body = (await response.json().catch(() => null)) as
     | (MatchingWorkspace & { error?: string })
@@ -137,7 +136,7 @@ export function JobberVisitSamplePanel() {
         "/api/admin/care-operations/jobber/visits/sample",
         {
           method: "POST",
-          headers: getAdminRequestHeaders(),
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ limit: 5 }),
         },
       );
@@ -182,7 +181,7 @@ export function JobberVisitSamplePanel() {
         "/api/admin/care-operations/jobber/property-links",
         {
           method: "POST",
-          headers: getAdminRequestHeaders(),
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action,
             projectionId: visit.projectionId,

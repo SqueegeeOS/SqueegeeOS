@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeHqApiRequest } from "@/lib/auth/hq-route-authorization";
 import {
   linkJobberProperty,
   loadJobberPropertyMatchingWorkspace,
@@ -9,14 +9,9 @@ import {
 
 export const runtime = "nodejs";
 
-function unauthorized() {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
-
-export async function GET(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
-    return unauthorized();
-  }
+export async function GET() {
+  const authorization = await authorizeHqApiRequest();
+  if (authorization.response) return authorization.response;
   try {
     return NextResponse.json(await loadJobberPropertyMatchingWorkspace());
   } catch (error) {
@@ -31,9 +26,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
-    return unauthorized();
-  }
+  const authorization = await authorizeHqApiRequest();
+  if (authorization.response) return authorization.response;
   let body: {
     action?: "link" | "revoke";
     projectionId?: string;
@@ -58,6 +52,7 @@ export async function POST(request: Request) {
       const outcome = await linkJobberProperty({
         projectionId: body.projectionId,
         membershipId: body.membershipId,
+        actorId: authorization.actor.id,
         samePhysicalPropertyConfirmed:
           body.samePhysicalPropertyConfirmed === true,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
@@ -77,6 +72,7 @@ export async function POST(request: Request) {
       }
       const outcome = await revokeJobberPropertyLink({
         projectionId: body.projectionId,
+        actorId: authorization.actor.id,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
       });
       return NextResponse.json({
