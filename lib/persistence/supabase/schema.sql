@@ -278,6 +278,135 @@ alter table property_assets add column if not exists external_url text;
 
 alter table presentations add column if not exists enrollment_savings numeric(10, 2);
 alter table memberships add column if not exists membership_enrollment_savings numeric(10, 2);
+alter table memberships add column if not exists stripe_setup_intent_id text;
+
+create unique index if not exists memberships_stripe_setup_intent_uidx
+  on memberships(stripe_setup_intent_id)
+  where stripe_setup_intent_id is not null;
+create unique index if not exists memberships_stripe_customer_uidx
+  on memberships(stripe_customer_id)
+  where stripe_customer_id is not null;
+
+create table if not exists membership_stripe_setup_reconciliation_attempts (
+  id uuid primary key default gen_random_uuid(),
+  membership_id uuid not null unique references memberships(id) on delete restrict,
+  presentation_id uuid not null references presentations(id) on delete restrict,
+  agreement_id uuid not null references signed_agreements(id) on delete restrict,
+  homeowner_id uuid not null references homeowners(id) on delete restrict,
+  property_id uuid not null references properties(id) on delete restrict,
+  capability_kind text not null check (capability_kind in ('presentation', 'portal')),
+  sales_tier text not null check (sales_tier in ('biannual', 'quarterly')),
+  visit_price numeric(10, 2) not null check (visit_price > 0),
+  visits_per_year smallint not null check (
+    (sales_tier = 'biannual' and visits_per_year = 2)
+    or (sales_tier = 'quarterly' and visits_per_year = 4)
+  ),
+  enrollment_savings numeric(10, 2) not null check (enrollment_savings >= 0),
+  presentation_authority_sha256 text not null
+    check (presentation_authority_sha256 ~ '^[0-9a-f]{64}$'),
+  customer_idempotency_key text not null unique,
+  setup_intent_idempotency_key text not null unique,
+  operation_phase text not null default 'before_provider'
+    check (operation_phase = 'before_provider'),
+  operation_status text not null default 'reserved'
+    check (operation_status = 'reserved'),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists membership_stripe_setup_reconciliation_events (
+  id uuid primary key default gen_random_uuid(),
+  attempt_id uuid not null
+    references membership_stripe_setup_reconciliation_attempts(id)
+    on delete restrict,
+  event_key text not null,
+  operation_phase text not null,
+  operation_status text not null,
+  stripe_customer_id text,
+  stripe_setup_intent_id text,
+  outcome text,
+  error_code text,
+  occurred_at timestamptz not null default now(),
+  unique (attempt_id, event_key)
+);
+
+create table if not exists membership_payment_setup_events (
+  id uuid primary key default gen_random_uuid(),
+  reconciliation_attempt_id uuid not null unique
+    references membership_stripe_setup_reconciliation_attempts(id)
+    on delete restrict,
+  membership_id uuid not null unique
+    references memberships(id) on delete restrict,
+  presentation_id uuid not null references presentations(id) on delete restrict,
+  agreement_id uuid not null references signed_agreements(id) on delete restrict,
+  homeowner_id uuid not null references homeowners(id) on delete restrict,
+  property_id uuid not null references properties(id) on delete restrict,
+  sales_tier text not null constraint membership_payment_setup_events_sales_tier_check
+    check (sales_tier in ('biannual', 'quarterly')),
+  visit_price numeric(10, 2) not null constraint membership_payment_setup_events_visit_price_check
+    check (visit_price > 0),
+  visits_per_year smallint not null constraint membership_payment_setup_events_visits_per_year_check
+    check (
+      (sales_tier = 'biannual' and visits_per_year = 2)
+      or (sales_tier = 'quarterly' and visits_per_year = 4)
+    ),
+  presentation_authority_sha256 text not null constraint membership_payment_setup_events_authority_sha256_check
+    check (presentation_authority_sha256 ~ '^[0-9a-f]{64}$'),
+  enrollment_savings numeric(10, 2) not null constraint membership_payment_setup_events_enrollment_savings_check
+    check (enrollment_savings >= 0),
+  stripe_customer_id text not null unique,
+  stripe_setup_intent_id text not null unique,
+  stripe_payment_method_id text not null,
+  stripe_livemode boolean not null,
+  stripe_setup_intent_status text not null
+    check (stripe_setup_intent_status = 'succeeded'),
+  stripe_metadata jsonb not null,
+  payment_setup_completed_at timestamptz not null,
+  occurred_at timestamptz not null default now()
+);
+
+create or replace function reject_membership_payment_setup_event_change()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  raise exception 'Stripe setup evidence is append-only and immutable';
+end;
+$$;
+
+drop trigger if exists membership_stripe_setup_reconciliation_attempts_immutable
+  on membership_stripe_setup_reconciliation_attempts;
+create trigger membership_stripe_setup_reconciliation_attempts_immutable
+  before update or delete on membership_stripe_setup_reconciliation_attempts
+  for each row execute function reject_membership_payment_setup_event_change();
+
+drop trigger if exists membership_stripe_setup_reconciliation_events_immutable
+  on membership_stripe_setup_reconciliation_events;
+create trigger membership_stripe_setup_reconciliation_events_immutable
+  before update or delete on membership_stripe_setup_reconciliation_events
+  for each row execute function reject_membership_payment_setup_event_change();
+
+drop trigger if exists membership_payment_setup_events_immutable
+  on membership_payment_setup_events;
+create trigger membership_payment_setup_events_immutable
+  before update or delete on membership_payment_setup_events
+  for each row execute function reject_membership_payment_setup_event_change();
+
+alter table membership_payment_setup_events enable row level security;
+alter table membership_stripe_setup_reconciliation_attempts enable row level security;
+alter table membership_stripe_setup_reconciliation_events enable row level security;
+revoke all on membership_payment_setup_events,
+  membership_stripe_setup_reconciliation_attempts,
+  membership_stripe_setup_reconciliation_events
+  from public, anon, authenticated, service_role;
+grant select on membership_payment_setup_events,
+  membership_stripe_setup_reconciliation_attempts,
+  membership_stripe_setup_reconciliation_events to service_role;
+revoke all on function reject_membership_payment_setup_event_change()
+  from public, anon, authenticated;
+grant execute on function reject_membership_payment_setup_event_change()
+  to service_role;
 
 -- PR1b authority-input closure reference (migration 036 remains the rollout
 -- artifact and must be applied in numbered order).

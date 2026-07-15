@@ -11,10 +11,8 @@ import { loadStripe, type StripeElementsOptions } from "@stripe/stripe-js";
 import { getStripePublishableKey } from "@/lib/stripe/client";
 
 interface StripePaymentSetupProps {
-  memberName: string;
-  memberEmail?: string | null;
   presentationId?: string;
-  membershipId?: string;
+  portalToken?: string | null;
   theme?: "presentation" | "portal";
   onSuccess: () => void;
   onBack?: () => void;
@@ -22,20 +20,16 @@ interface StripePaymentSetupProps {
 
 function StripePaymentForm({
   theme,
-  memberName,
-  memberEmail,
   onSuccess,
   onBack,
   presentationId,
-  membershipId,
+  portalToken,
 }: {
   theme: "presentation" | "portal";
-  memberName: string;
-  memberEmail?: string | null;
   onSuccess: () => void;
   onBack?: () => void;
   presentationId?: string;
-  membershipId?: string;
+  portalToken?: string | null;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -67,22 +61,12 @@ function StripePaymentForm({
         throw new Error("Card setup was not completed. Please try again.");
       }
 
-      const paymentMethodId =
-        typeof setupIntent.payment_method === "string"
-          ? setupIntent.payment_method
-          : setupIntent.payment_method?.id;
-
-      if (!paymentMethodId) {
-        throw new Error("No payment method returned from Stripe");
-      }
-
       const response = await fetch("/api/membership/setup-payment", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           presentationId,
-          membershipId,
-          paymentMethodId,
+          portalToken,
           setupIntentId: setupIntent.id,
         }),
       });
@@ -110,12 +94,6 @@ function StripePaymentForm({
       <PaymentElement
         options={{
           layout: "tabs",
-          defaultValues: {
-            billingDetails: {
-              name: memberName,
-              email: memberEmail ?? undefined,
-            },
-          },
           wallets:
             theme === "presentation"
               ? {
@@ -187,9 +165,7 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             presentationId: props.presentationId,
-            membershipId: props.membershipId,
-            memberName: props.memberName,
-            memberEmail: props.memberEmail,
+            portalToken: props.portalToken,
           }),
         });
 
@@ -220,12 +196,7 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
     return () => {
       cancelled = true;
     };
-  }, [
-    props.memberEmail,
-    props.memberName,
-    props.membershipId,
-    props.presentationId,
-  ]);
+  }, [props.portalToken, props.presentationId]);
 
   if (!publishableKey) {
     return (
@@ -261,12 +232,10 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
     <Elements key={clientSecret} stripe={stripePromise} options={options}>
       <StripePaymentForm
         theme={props.theme ?? "presentation"}
-        memberName={props.memberName}
-        memberEmail={props.memberEmail}
         onSuccess={props.onSuccess}
         onBack={props.onBack}
         presentationId={props.presentationId}
-        membershipId={props.membershipId}
+        portalToken={props.portalToken}
       />
     </Elements>
   );
