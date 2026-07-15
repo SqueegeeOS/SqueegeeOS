@@ -454,10 +454,7 @@ export function PresentationOnboarding({
 
             <div className="mt-6">
               <CardOnFileSetup
-                memberName={presentation.clientName}
-                memberEmail={presentation.clientEmail}
                 presentationId={presentation.id}
-                membershipId={membershipId ?? undefined}
                 theme="presentation"
                 onBack={() => goToStep("welcome")}
                 onSuccess={handlePaymentSuccess}

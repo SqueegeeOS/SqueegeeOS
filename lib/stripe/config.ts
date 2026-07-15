@@ -1,7 +1,6 @@
-import { isStripeClientEnabled } from "./client";
+import { resolveStripeKeyMode } from "./mode";
 
 export function isStripeServerEnabled(): boolean {
-  return (
-    isStripeClientEnabled() && Boolean(process.env.STRIPE_SECRET_KEY?.trim())
-  );
+  const mode = resolveStripeKeyMode();
+  return mode === "test" || mode === "live";
 }
