@@ -1,7 +1,7 @@
 # HomeAtlas Current State
 
 **Status:** Operational index
-**Last verified:** July 10, 2026
+**Last verified:** July 14, 2026
 **Authority:** This document records what the repository can prove today. Product law remains in the Engineering Bible; membership truth remains in `operations/MEMBERSHIP_SOURCE_OF_TRUTH.md`; execution remains in `wargames/014-stabilization-master-plan.md`.
 
 ## One operating objective
@@ -16,12 +16,12 @@ New surfaces, themes, and speculative platform work stay behind reliability work
 
 | Gate | Result | Evidence |
 |---|---:|---|
-| Unit tests | **Pass** | 53 files, 235 tests |
-| Production build | **Pass** | Next.js 16.2.10; 74 static pages generated plus dynamic routes |
+| Unit tests | **Pass** | 69 files, 376 tests |
+| Production build | **Pass** | Next.js 16.2.10; 73 static pages generated plus dynamic routes |
 | TypeScript | **Pass** | Production build typecheck completed |
 | ESLint blocking errors | **Pass** | Zero blocking errors |
 | React 19 effect migration | **Open** | Existing `set-state-in-effect` findings are warnings and must be reduced by domain |
-| Production database state | **Unverified locally** | Repository contains migrations 002–030; applied-production ledger is not yet proven |
+| Production database state | **Unverified locally** | Repository contains migrations 002–035; applied-production ledger is not yet proven |
 | Production secrets | **Not inferred** | Local build warns when the Supabase service-role credential is absent |
 
 The React effect rule is temporarily warning-level so the inherited migration backlog cannot hide unrelated blocking failures. New occurrences are not acceptable; existing occurrences should be removed as each domain is touched.
@@ -50,7 +50,7 @@ No UI component should create a second lifecycle, pricing, revenue, or persisten
 
 | Surface | Canonical purpose | Current disposition |
 |---|---|---|
-| `/hq/*` | Founder operations and diagnostics | **Keep; reliability priority** |
+| `/hq/*` | Founder operations and diagnostics | **Keep; Supabase Auth outer boundary implemented, production rollout unverified** |
 | `/portal/[token]/*` | Production member experience | **Keep; customer canonical** |
 | `/homecare/[homeownerSlug]/[propertySlug]/portal` | Internal/demo portal | **Keep clearly non-production; never email** |
 | `/presentations/*` | Sales presentation and enrollment | **Keep; money-path critical** |
@@ -70,7 +70,7 @@ No UI component should create a second lifecycle, pricing, revenue, or persisten
 
 ## Security and production boundaries
 
-- Admin APIs are expected to use the shared PIN authorization boundary. OAuth start/callback routes are exceptions that require state/cookie validation rather than an `x-admin-pin` header.
+- `/hq/*` has a server-side Supabase Auth plus active `hq_admin_users` boundary in repository code. Scoped Proxy refresh/no-cache handling also covers every Care Operations route. Care Operations and Jobber OAuth require that session and no longer accept the shared PIN. An emergency environment switch fails all PR1a paths closed; other legacy Headquarters APIs retain the inner PIN flow until `operations/RETIRE_LEGACY_HQ_PIN.md` is implemented.
 - Service-role Supabase access is server-only and must never enter client bundles.
 - Portal tokens are credentials. Do not log, expose in screenshots, or substitute enumerable membership IDs.
 - Agreement PDFs belong in the private signed-agreements bucket and are served with short-lived signed URLs.
@@ -81,13 +81,14 @@ No UI component should create a second lifecycle, pricing, revenue, or persisten
 
 ### Newly implemented — verify before production use
 
+- Headquarters authenticated access (PR1a) adds migration 035, cookie-aware Supabase sessions, a durable database-backed and allowlist-gated magic-link flow, truthful accepted/rejected/unknown provider evidence, immutable authorization-change evidence, atomic Jobber connection and refresh transition events, `/hq` server-layout authorization, and authenticated Care Operations/Jobber routes. It has no automatic users or approvals and has not been migrated, deployed, or production-proven. Edge abuse control, disposable-database SQL rehearsals, and rollback rehearsal remain explicit release prerequisites. See `operations/HQ_AUTH_PR1A_RUNBOOK.md`.
 - Headquarters Billing now contains a reviewed **Complete & Charge Visit** flow connecting scheduled appointments, itemized Stripe invoices, payment outcomes, add-on records, and the savings ledger.
 - Stable operation and Stripe idempotency keys prevent duplicate invoices and payments during retries.
 - This code has unit/build verification but still requires a Stripe test-mode lifecycle pass before production activation. See `operations/COMPLETE_CHARGE_VISIT.md`.
 
 ### Now — reliability gate
 
-1. Build a read-only migration ledger and compare migrations 002–030 with production.
+1. Build a read-only migration ledger and compare migrations 002–035 with production.
 2. Verify referral-table RLS and change portal referral reads from membership ID to portal-token authorization if still required.
 3. Audit Supabase client boundaries: public anon reads only where RLS is proven; service role for protected server work.
 4. Run the Sylvia golden-case audit read-only and record discrepancies without automatic repairs.
