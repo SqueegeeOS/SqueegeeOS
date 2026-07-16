@@ -1,0 +1,17 @@
+{
+  "simulated": true,
+  "purpose": "Exercise fail-closed version-warning handling without contacting Jobber.",
+  "status": 200,
+  "headers": {
+    "content-type": "application/json",
+    "x-jobber-graphql-version-warning": "simulated warning"
+  },
+  "body": {
+    "data": {
+      "visits": {
+        "nodes": [],
+        "pageInfo": { "hasNextPage": false }
+      }
+    }
+  }
+}

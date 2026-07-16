@@ -51,14 +51,6 @@ interface MatchingWorkspace {
   visits: VisitPreview[];
 }
 
-interface ImportResponse {
-  observed?: number;
-  inserted?: number;
-  changed?: number;
-  unchanged?: number;
-  error?: string;
-}
-
 interface MatchResponse {
   outcome?: string;
   workspace?: MatchingWorkspace;
@@ -91,7 +83,6 @@ function formatVisitTime(value: string | null): string {
 
 export function JobberVisitSamplePanel() {
   const [workspace, setWorkspace] = useState<MatchingWorkspace | null>(null);
-  const [importSummary, setImportSummary] = useState<ImportResponse | null>(null);
   const [selectedMemberships, setSelectedMemberships] = useState<
     Record<string, string>
   >({});
@@ -99,7 +90,6 @@ export function JobberVisitSamplePanel() {
     Record<string, boolean>
   >({});
   const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
   const [savingProjectionId, setSavingProjectionId] = useState<string | null>(
     null,
   );
@@ -128,36 +118,19 @@ export function JobberVisitSamplePanel() {
     };
   }, []);
 
-  const importSample = async () => {
-    setImporting(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        "/api/admin/care-operations/jobber/visits/sample",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ limit: 5 }),
-        },
-      );
-      const body = (await response.json().catch(() => null)) as
-        | ImportResponse
-        | null;
-      if (!response.ok || !body) {
-        throw new Error(body?.error ?? "Jobber sample import failed");
-      }
-      setImportSummary(body);
-      setWorkspace(await requestMatchingWorkspace());
-    } catch (importError) {
-      setError(
-        importError instanceof Error
-          ? importError.message
-          : "Jobber sample import failed",
-      );
-    } finally {
-      setImporting(false);
-    }
-  };
+  useEffect(() => {
+    const refreshWorkspace = () => {
+      void requestMatchingWorkspace()
+        .then(setWorkspace)
+        .catch(() => {
+          setError("Schedule refreshed, but property review could not reload.");
+        });
+    };
+    window.addEventListener("jobber-schedule-refreshed", refreshWorkspace);
+    return () => {
+      window.removeEventListener("jobber-schedule-refreshed", refreshWorkspace);
+    };
+  }, []);
 
   const writePropertyLink = async (
     visit: VisitPreview,
@@ -222,37 +195,19 @@ export function JobberVisitSamplePanel() {
 
   return (
     <div className="mt-8 border-t border-border/70 pt-7">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
-            Supervised property classification
-          </p>
-          <h3 className="mt-2 font-serif text-xl font-light text-foreground">
-            Separate Jobber work from HomeAtlas
-          </h3>
-          <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted">
-            No property link means Jobber-only. A confirmed link identifies a
-            member property, but the visit still cannot fulfill a promise,
-            appear in the portal, or become billable.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void importSample()}
-          disabled={loading || importing || savingProjectionId !== null}
-          className="rounded-full border border-accent/40 bg-accent/10 px-5 py-3 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-50"
-        >
-          {importing ? "Reading Jobber…" : "Refresh five read-only visits"}
-        </button>
-      </div>
-
-      {importSummary?.observed !== undefined ? (
-        <p className="mt-4 text-xs text-accent">
-          Observed {importSummary.observed} · New {importSummary.inserted ?? 0} ·
-          Changed {importSummary.changed ?? 0} · Unchanged{" "}
-          {importSummary.unchanged ?? 0}
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
+          Supervised property classification
         </p>
-      ) : null}
+        <h3 className="mt-2 font-serif text-xl font-light text-foreground">
+          Separate Jobber work from HomeAtlas
+        </h3>
+        <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted">
+          No property link means Jobber-only. A confirmed link identifies a
+          member property, but the visit still cannot fulfill a promise, appear
+          in the portal, or become billable.
+        </p>
+      </div>
       {workspace?.candidateLimitReached ? (
         <p className="mt-4 text-xs text-amber-400">
           The active-member list reached its supervised review limit. Stop and

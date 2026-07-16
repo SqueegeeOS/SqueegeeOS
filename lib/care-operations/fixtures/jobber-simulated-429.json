@@ -1,0 +1,11 @@
+{
+  "simulated": true,
+  "purpose": "Exercise fail-closed HTTP 429 handling without rate-limiting Jobber.",
+  "status": 429,
+  "headers": {
+    "content-type": "application/json"
+  },
+  "body": {
+    "errors": [{ "message": "simulated rate limit" }]
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "apiVersion": "2025-04-16",
+  "sanitized": true,
+  "containsSecrets": false,
+  "evidence": {
+    "visits": {
+      "arguments": [
+        "filter: VisitFilterAttributes",
+        "sort: [VisitsSortInput!]",
+        "timezone",
+        "after",
+        "before",
+        "first",
+        "last"
+      ]
+    },
+    "VisitFilterAttributes": {
+      "startAt": "Iso8601DateTimeRangeInput"
+    },
+    "Iso8601DateTimeRangeInput": ["min", "max", "eq", "before", "after"],
+    "visitSortKeys": [
+      "CREATED_AT",
+      "START_AT",
+      "CLIENT_PRIMARY_NAME",
+      "STATUS"
+    ],
+    "relayCursorAvailable": true,
+    "uniqueSortOrTieBreakGuaranteed": false,
+    "visitStatus": {
+      "transport": "opaque provider string",
+      "enumValuesVerified": false,
+      "reason": "The temporary GraphiQL token expired before enum evidence was captured."
+    }
+  }
+}
