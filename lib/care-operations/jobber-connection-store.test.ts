@@ -173,6 +173,31 @@ describe("atomic Jobber refresh persistence", () => {
     expect(persistFailure).not.toHaveBeenCalled();
   });
 
+  it("does not call the token provider when the owning sync fence is lost", async () => {
+    const refreshTokens = vi.fn();
+    const persistFailure = vi.fn();
+    await expect(
+      refreshLeasedJobberConnection(
+        {
+          client: {} as never,
+          leaseId: "00000000-0000-0000-0000-000000000013",
+          tokenGeneration: 9,
+          refreshTokenCiphertext: "old-refresh-ciphertext",
+        },
+        {
+          beforeProviderRequest: vi.fn().mockRejectedValue(
+            new Error("coverage lease lost"),
+          ),
+          decryptToken: () => "old-refresh-token",
+          refreshTokens,
+          persistFailure,
+        },
+      ),
+    ).rejects.toThrow("coverage lease lost");
+    expect(refreshTokens).not.toHaveBeenCalled();
+    expect(persistFailure).not.toHaveBeenCalled();
+  });
+
   it("does not overwrite concurrent reauthorization after provider refresh failure", async () => {
     const persistFailure = vi.fn().mockResolvedValue(false);
     await expect(

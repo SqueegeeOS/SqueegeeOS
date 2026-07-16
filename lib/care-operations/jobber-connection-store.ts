@@ -150,6 +150,7 @@ export async function refreshLeasedJobberConnection(
     encryptToken?: typeof encryptJobberToken;
     persistSuccess?: typeof persistJobberRefreshSuccess;
     persistFailure?: typeof persistJobberRefreshFailure;
+    beforeProviderRequest?: () => Promise<void>;
   } = {},
 ): Promise<string> {
   const refreshTokens = dependencies.refreshTokens ?? refreshJobberTokens;
@@ -160,6 +161,7 @@ export async function refreshLeasedJobberConnection(
   const persistFailure =
     dependencies.persistFailure ?? persistJobberRefreshFailure;
 
+  await dependencies.beforeProviderRequest?.();
   let tokens: JobberOAuthTokens;
   try {
     tokens = await refreshTokens(decryptToken(input.refreshTokenCiphertext));
@@ -263,7 +265,9 @@ export async function readJobberConnectionStatus(): Promise<JobberConnectionStat
  * rotation is serialized in Supabase so two workers cannot redeem the same
  * rotating token concurrently.
  */
-export async function getFreshJobberAccessToken(): Promise<string> {
+export async function getFreshJobberAccessToken(
+  options: { beforeProviderRequest?: () => Promise<void> } = {},
+): Promise<string> {
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("jobber_connections")
@@ -299,5 +303,7 @@ export async function getFreshJobberAccessToken(): Promise<string> {
     leaseId,
     tokenGeneration: row.token_generation,
     refreshTokenCiphertext: row.refresh_token_ciphertext,
+  }, {
+    beforeProviderRequest: options.beforeProviderRequest,
   });
 }
