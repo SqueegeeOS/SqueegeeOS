@@ -73,3 +73,81 @@ create trigger member_referral_reward_events_immutable
 alter table member_referral_reward_events enable row level security;
 -- No anon/authenticated policies. Claim writes go through the service-role
 -- server path only; the portal reads its view through server routes.
+
+-- 4. Transactional claim: lock the reward row, verify ownership, allow only
+--    earned -> available, record exactly one 'claimed' event. Retries and
+--    concurrent clicks converge on one event and one balance. The caller
+--    resolves membership from the portal token; tokens never reach SQL.
+create or replace function public.claim_member_referral_reward(
+  p_reward_id uuid,
+  p_membership_id text,
+  p_idempotency_key text
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  reward record;
+  now_ts timestamptz := now();
+begin
+  if p_membership_id is null or trim(p_membership_id) = ''
+    or p_idempotency_key is null or trim(p_idempotency_key) = '' then
+    return jsonb_build_object('outcome', 'not_found');
+  end if;
+
+  select * into reward
+  from member_referral_rewards
+  where id = p_reward_id
+  for update;
+
+  if not found or reward.membership_id is distinct from p_membership_id then
+    -- Unrelated or unknown rewards are indistinguishable to the caller.
+    return jsonb_build_object('outcome', 'not_found');
+  end if;
+
+  if reward.status = 'earned' then
+    update member_referral_rewards
+    set status = 'available', claimed_at = now_ts
+    where id = p_reward_id;
+
+    insert into member_referral_reward_events (
+      reward_id, membership_id, event_type, amount_cents,
+      actor_type, idempotency_key, metadata
+    ) values (
+      p_reward_id, reward.membership_id, 'claimed',
+      coalesce(reward.value_cents, 0), 'member', p_idempotency_key,
+      jsonb_build_object('reward_label', reward.reward_label)
+    );
+
+    return jsonb_build_object(
+      'outcome', 'claimed',
+      'reward_id', p_reward_id,
+      'status', 'available',
+      'value_cents', coalesce(reward.value_cents, 0),
+      'claimed_at', now_ts
+    );
+  end if;
+
+  if reward.status = 'available' then
+    -- Already claimed (or grandfathered pre-claim row): idempotent result,
+    -- no second event.
+    return jsonb_build_object(
+      'outcome', 'already_claimed',
+      'reward_id', p_reward_id,
+      'status', 'available',
+      'value_cents', coalesce(reward.value_cents, 0),
+      'claimed_at', reward.claimed_at
+    );
+  end if;
+
+  return jsonb_build_object(
+    'outcome', 'unclaimable',
+    'reward_id', p_reward_id,
+    'status', reward.status
+  );
+end;
+$$;
+
+revoke all on function public.claim_member_referral_reward(uuid, text, text)
+  from public, anon, authenticated;

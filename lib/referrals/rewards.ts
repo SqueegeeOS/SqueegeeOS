@@ -108,6 +108,38 @@ export async function issueEarnedMilestoneRewards(
   }
 }
 
+/** Claimed, spendable Care Credit balance for one membership. Read-only. */
+export async function getAvailableCareCreditCents(
+  membershipId: string,
+): Promise<number> {
+  if (!isCloudPersistenceConnected()) return 0;
+
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("member_referral_rewards")
+    .select("reward_type, status, value_cents, milestone_converted_count")
+    .eq("membership_id", membershipId);
+
+  if (error) {
+    if (isMissingTableError(error.message, "member_referral_rewards")) return 0;
+    throw new Error(error.message);
+  }
+
+  return computeCareCreditCents(
+    ((data ?? []) as Array<{
+      reward_type: ReferralRewardType;
+      status: ReferralRewardStatus;
+      value_cents: number | null;
+      milestone_converted_count: number;
+    }>).map((row) => ({
+      milestoneConvertedCount: row.milestone_converted_count,
+      rewardType: row.reward_type,
+      status: row.status,
+      valueCents: row.value_cents,
+    })),
+  ).availableCreditCents;
+}
+
 /** Read-only rewards view. Never creates or mutates rows. */
 export async function loadMemberReferralRewards(
   membershipId: string,
