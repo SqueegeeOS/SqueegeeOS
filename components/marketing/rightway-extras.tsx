@@ -66,9 +66,12 @@ export function BeforeAfter({
             ⇔
           </div>
         </div>
-        <span aria-hidden className="absolute left-4 top-4 font-mono text-[10px] uppercase tracking-[0.25em]" style={{ color: `${IVORY}b3` }}>Before</span>
-        <span aria-hidden className="absolute right-4 top-4 font-mono text-[10px] uppercase tracking-[0.25em]" style={{ color: GOLD }}>After</span>
+        <span aria-hidden className="absolute left-4 top-4 font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: `${IVORY}b3` }}>Before</span>
+        <span aria-hidden className="absolute right-4 top-4 font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: GOLD }}>After</span>
       </div>
+      <p aria-hidden className="mt-6 text-center font-mono text-xs uppercase tracking-[0.3em] transition-opacity duration-700" style={{ color: GOLD, opacity: p > 0.8 ? 1 : 0 }}>
+        Same house. One visit.
+      </p>
     </section>
   );
 }
