@@ -79,9 +79,8 @@ function SqueegeeHero({ reduced }: { reduced: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const clean = useRef<HTMLDivElement>(null);
   const blade = useRef<HTMLDivElement>(null);
-  const head = useRef<HTMLDivElement>(null); void head;
   useScrub(ref, (p) => {
-    const pct = 30 + p * 92;
+    const pct = p * 118;
     clean.current?.style.setProperty("clip-path", `inset(0 0 ${Math.max(0, 100 - pct)}% 0)`);
     if (blade.current) {
       blade.current.style.top = `${Math.min(100, pct)}%`;
@@ -89,41 +88,35 @@ function SqueegeeHero({ reduced }: { reduced: boolean }) {
     }
   }, !reduced);
   return (
-    <section ref={ref} style={{ height: reduced ? "auto" : "160vh" }} aria-label="SqueegeeKing">
+    <section ref={ref} style={{ height: reduced ? "auto" : "230vh" }} aria-label="SqueegeeKing">
       <div className={reduced ? "relative min-h-[100svh] overflow-hidden" : "sticky top-0 h-dvh overflow-hidden"}>
         {!reduced && (
           <>
             <img src="/home/family-twilight.jpg" alt="" aria-hidden draggable={false}
               className="absolute inset-0 h-full w-full object-cover"
-              style={{ filter: "blur(4px) brightness(0.72) saturate(0.7)" }} />
+              style={{ filter: "blur(7px) brightness(0.55) saturate(0.55)" }} />
             <div aria-hidden className="absolute inset-0" style={{ background: "rgba(140,150,160,0.12)" }} />
           </>
         )}
-        <div ref={clean} className="absolute inset-0" style={reduced ? undefined : { clipPath: "inset(0 0 70% 0)" }}>
+        <div ref={clean} className="absolute inset-0" style={reduced ? undefined : { clipPath: "inset(0 0 100% 0)" }}>
           <img src="/home/family-twilight.jpg" alt="A family home glowing at twilight, freshly kept"
             draggable={false} className="h-full w-full object-cover" fetchPriority="high" />
         </div>
-        <div ref={blade} aria-hidden className="absolute inset-x-0 h-[8px] opacity-0 transition-opacity duration-300" style={{ top: "0%" }}>
-          <div className="absolute inset-x-0 top-0 h-px" style={{ background: "rgba(255,255,255,0.4)" }} />
-          <div className="absolute inset-x-0 top-[1px] h-[3px]" style={{ background: `linear-gradient(to bottom, ${GOLD}, #9a7f52)`, boxShadow: "0 6px 24px rgba(212,185,140,0.55)" }} />
-          <div className="absolute inset-x-0 top-[4px] h-[2px]" style={{ background: "#2a2118" }} />
-          {[["18%","7px","5px",0.5],["46%","10px","6px",0.35],["71%","6px","4px",0.55],["88%","9px","5px",0.4]].map(([l,t,sz,o]) => (
-            <span key={String(l)} className="absolute rounded-full" style={{ left: String(l), top: String(t), width: String(sz), height: String(sz), background: `rgba(220,230,240,${o})`, filter: "blur(0.5px)" }} />
-          ))}
-        </div>
+        <div ref={blade} aria-hidden className="absolute inset-x-0 h-[6px] opacity-0 transition-opacity duration-300"
+          style={{ top: "0%", background: `linear-gradient(to bottom, transparent, ${GOLD})`, boxShadow: "0 6px 22px rgba(212,185,140,0.5), 0 2px 0 rgba(255,255,255,0.35)" }} />
         <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(to top, ${INK} 4%, transparent 45%)` }} />
-        <div ref={head} className="night-rise absolute inset-x-0 bottom-0 z-10 px-5 pb-10 sm:px-12">
-          <h1 className="font-serif font-light uppercase leading-[0.86] tracking-tight"
+        <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-10 sm:px-12">
+          <h1 className="night-rise font-serif font-light uppercase leading-[0.86] tracking-tight"
             style={{ fontSize: "clamp(3.6rem, 13vw, 12rem)" }}>
             The right
             <br />
             <span className="night-shimmer-text italic normal-case">way.</span>
           </h1>
-          <div className="mt-8 flex flex-wrap items-end justify-between gap-6 pb-2">
+          <div className="night-rise-2 mt-8 flex flex-wrap items-end justify-between gap-6 pb-2">
             <p className="max-w-sm text-base leading-relaxed" style={{ color: MIST }}>
               Window, pressure washing, and solar care, done like we&apos;d do it
               for our own family. Because when you join, you are family.
-              {reduced ? "" : " Scroll. The blade does the rest."}
+              {reduced ? "" : " Scroll: the blade does the rest."}
             </p>
             <Cta big>Request a plan</Cta>
           </div>
@@ -184,7 +177,7 @@ export function StarryHomepage() {
 
       {/* the ribbon — never sleeps */}
       <div className="overflow-hidden border-y py-4" style={{ borderColor: "rgba(242,239,231,0.1)" }} aria-hidden>
-        <div className="night-marquee whitespace-nowrap font-mono text-xs uppercase tracking-[0.3em]" style={{ color: GOLD }}>
+        <div className="night-marquee whitespace-nowrap font-mono text-xs uppercase tracking-[0.35em]" style={{ color: GOLD }}>
           {MARQUEE.repeat(4)}
         </div>
       </div>
@@ -202,8 +195,7 @@ export function StarryHomepage() {
               className={`group relative overflow-hidden rounded-[1.5rem] border transition-transform duration-500 hover:-translate-y-2 ${i % 2 ? "md:translate-y-14" : ""}`}
               style={{ borderColor: "rgba(242,239,231,0.1)" }}>
               <Film src={film} poster={poster} reduced={reduced}
-                className="aspect-[16/10] w-full object-cover transition-transform duration-700 group-hover:scale-[1.05] [filter:saturate(0.9)_sepia(0.1)_contrast(1.03)_brightness(0.96)]" />
-              <div aria-hidden className="pointer-events-none absolute inset-0" style={{ boxShadow: "inset 0 0 120px rgba(7,8,12,0.55)" }} />
+                className="aspect-[16/10] w-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" />
               <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(to top, ${INK} 6%, transparent 55%)` }} />
               <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-7">
                 <div>
@@ -295,13 +287,6 @@ export function StarryHomepage() {
       </section>
 
       <SoundToggle />
-
-      <div className="flex flex-col items-center gap-5 px-6 pb-4 pt-20 text-center">
-        <AtlasMark size={44} />
-        <p className="font-serif text-xl font-light italic" style={{ color: `${IVORY}cc` }}>
-          Done once. Done right.
-        </p>
-      </div>
 
       <footer className="px-6 py-10 text-center">
         <p className="font-mono text-xs tracking-[0.14em]" style={{ color: `${MIST}99` }}>
