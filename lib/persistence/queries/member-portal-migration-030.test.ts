@@ -15,6 +15,8 @@ const EXISTING_APPOINTMENT = {
   provenance_state: "provider_imported",
   verification_state: "verified",
   match_state: "matched",
+  jobber_authority_state: "approved",
+  jobber_membership_id: "membership-1",
 };
 
 const insertSpy = vi.fn();
@@ -28,6 +30,7 @@ function chain(result: { data?: unknown; error?: unknown; count?: number }) {
     "eq",
     "in",
     "gte",
+    "not",
     "order",
     "limit",
     "update",

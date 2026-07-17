@@ -119,3 +119,13 @@ export function isInstantOnBusinessCalendarDay(
 export function businessTodayIsoDate(reference: Date = new Date()): string {
   return formatBusinessCalendarDate(reference);
 }
+
+/** Pacific calendar date for a persisted appointment instant. */
+export function appointmentBusinessCalendarDate(
+  scheduledAt: string | null,
+): string | null {
+  if (!scheduledAt) return null;
+  const instant = new Date(scheduledAt);
+  if (Number.isNaN(instant.getTime())) return null;
+  return formatBusinessCalendarDate(instant);
+}

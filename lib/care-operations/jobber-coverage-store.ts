@@ -12,7 +12,9 @@ import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 const JOBBER_COVERAGE_FRESHNESS_MS = 30 * 60_000;
 
 export function deriveJobberCoverageState(input: {
+  latestRunId: string | null;
   latestRunStatus: "running" | "complete" | "partial" | null;
+  watermarkRunId: string | null;
   coveredAt: string | null;
   now: Date;
 }): { coverageState: "complete" | "partial" | "stale"; fresh: boolean } {
@@ -22,10 +24,14 @@ export function deriveJobberCoverageState(input: {
     Number.isFinite(coveredAt) &&
     age >= 0 &&
     age <= JOBBER_COVERAGE_FRESHNESS_MS;
+  const latestRunIsWatermark =
+    input.latestRunId !== null &&
+    input.latestRunId === input.watermarkRunId &&
+    input.latestRunStatus === "complete";
   return {
     coverageState: input.latestRunStatus === "partial"
       ? "partial"
-      : fresh
+      : fresh && latestRunIsWatermark
         ? "complete"
         : "stale",
     fresh,
@@ -196,6 +202,7 @@ export const jobberCoveragePersistence: JobberCoveragePersistence = {
 
 export interface StoredCoverageRun {
   id: string;
+  reservation_sequence: number;
   status: "running" | "complete" | "partial";
   actor_id: string;
   window_start: string;
@@ -306,7 +313,9 @@ export function buildJobberCoverageSyncStatus(input: {
     throw new Error("Jobber coverage active run was inconsistent");
   }
   const derivedState = deriveJobberCoverageState({
+    latestRunId: latestRun?.id ?? null,
     latestRunStatus: latestRun?.status ?? null,
+    watermarkRunId: watermark?.run_id ?? null,
     coveredAt: watermark?.covered_at ?? null,
     now,
   });
@@ -347,13 +356,13 @@ export async function readJobberCoverageSyncStatus(
 ): Promise<JobberCoverageSyncStatus> {
   const supabase = createServiceRoleSupabaseClient();
   const runColumns =
-    "id, status, actor_id, window_start, window_end, failure_code, request_count, leaf_count, visit_count, started_at, completed_at";
+    "id, reservation_sequence, status, actor_id, window_start, window_end, failure_code, request_count, leaf_count, visit_count, started_at, completed_at";
   const [runResult, watermarkResult, lockResult] = await Promise.all([
     supabase
       .from("jobber_schedule_sync_runs")
       .select(runColumns)
       .eq("connection_id", JOBBER_CONNECTION_ID)
-      .order("started_at", { ascending: false })
+      .order("reservation_sequence", { ascending: false })
       .limit(1)
       .maybeSingle(),
     supabase

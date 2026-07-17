@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   fetchJobberVisitSample,
   JOBBER_VISIT_SAMPLE_QUERY,
@@ -114,5 +115,22 @@ describe("read-only Jobber visit sample", () => {
     expect(hashJobberVisitPayload(visit)).not.toBe(
       hashJobberVisitPayload({ ...visit, visitStatus: "COMPLETED" }),
     );
+  });
+
+  it("queries nearest future UPCOMING visits before filling the bounded review list", () => {
+    const source = readFileSync(
+      new URL("./jobber-visit-sample.ts", import.meta.url),
+      "utf8",
+    );
+    const reviewQuery = source.slice(
+      source.indexOf("export async function listJobberVisitReviewSample"),
+    );
+    expect(reviewQuery).toContain('.eq("visit_status", "UPCOMING")');
+    expect(reviewQuery).toContain('.eq("is_complete", false)');
+    expect(reviewQuery).toContain('.gt("scheduled_start", now.toISOString())');
+    expect(reviewQuery.indexOf('.order("scheduled_start", { ascending: true })'))
+      .toBeLessThan(
+        reviewQuery.indexOf('.order("scheduled_start", { ascending: false })'),
+      );
   });
 });

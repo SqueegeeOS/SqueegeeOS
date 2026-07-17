@@ -34,6 +34,7 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+  AUTHORITATIVE_JOBBER_AUTHORITY_STATE,
 } from "@/lib/care-operations/model";
 
 export interface ServiceObservationView {
@@ -418,6 +419,9 @@ export async function getMemberPortalDataBySlugs(
     .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
     .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
     .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+    .eq("jobber_authority_state", AUTHORITATIVE_JOBBER_AUTHORITY_STATE)
+    .not("jobber_visit_classification_id", "is", null)
+    .eq("jobber_membership_id", membershipRow?.id ?? "")
     .order("scheduled_at", { ascending: true });
 
   if (appointmentError) {

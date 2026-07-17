@@ -21,7 +21,9 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+  AUTHORITATIVE_JOBBER_AUTHORITY_STATE,
 } from "@/lib/care-operations/model";
+import { appointmentBusinessCalendarDate } from "@/lib/admin/company-business-timezone";
 
 export interface HqMembershipRow {
   id: string;
@@ -51,6 +53,7 @@ export interface HqMembershipRow {
 
 interface UpcomingAppointmentRow {
   property_id: string;
+  jobber_membership_id: string;
   scheduled_at: string;
   notes: string | null;
 }
@@ -240,12 +243,14 @@ export async function GET(request: Request) {
       propertyIds.length > 0
         ? await supabase
             .from("member_appointments")
-            .select("property_id, scheduled_at, notes")
+            .select("property_id, jobber_membership_id, scheduled_at, notes")
             .in("property_id", propertyIds)
             .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
             .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
             .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
             .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+            .eq("jobber_authority_state", AUTHORITATIVE_JOBBER_AUTHORITY_STATE)
+            .not("jobber_visit_classification_id", "is", null)
             .eq("status", "scheduled")
             .gte("scheduled_at", nowIso)
             .order("scheduled_at", { ascending: true })
@@ -255,10 +260,10 @@ export async function GET(request: Request) {
       throw new Error(appointmentError.message);
     }
 
-    const nextAppointmentByProperty = new Map<string, UpcomingAppointmentRow>();
+    const nextAppointmentByMembership = new Map<string, UpcomingAppointmentRow>();
     for (const row of (appointmentRows ?? []) as UpcomingAppointmentRow[]) {
-      if (!nextAppointmentByProperty.has(row.property_id)) {
-        nextAppointmentByProperty.set(row.property_id, row);
+      if (!nextAppointmentByMembership.has(row.jobber_membership_id)) {
+        nextAppointmentByMembership.set(row.jobber_membership_id, row);
       }
     }
 
@@ -280,12 +285,12 @@ export async function GET(request: Request) {
     );
 
     const out: HqMembershipRow[] = rows.map((m) => {
-      const upcoming = nextAppointmentByProperty.get(m.property_id) ?? null;
+      const upcoming = nextAppointmentByMembership.get(m.id) ?? null;
       const nextScheduledAt = upcoming?.scheduled_at ?? null;
       const nextServiceTimeWindow = parseTimeWindowFromNotes(
         upcoming?.notes ?? null,
       );
-      const nextServiceDate = nextScheduledAt?.slice(0, 10) ?? null;
+      const nextServiceDate = appointmentBusinessCalendarDate(nextScheduledAt);
       const nextServiceMonth =
         nextServiceDate?.slice(0, 7) ?? m.next_billing_date?.slice(0, 7) ?? null;
 

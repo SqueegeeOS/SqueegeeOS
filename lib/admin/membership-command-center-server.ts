@@ -1,6 +1,10 @@
 import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
 import { resolveNextChargeDate } from "@/lib/admin/billing-charge-dates";
 import { isPaidBillingStatus } from "@/lib/admin/billing-ledger";
+import {
+  appointmentBusinessCalendarDate,
+  COMPANY_BUSINESS_TIMEZONE,
+} from "@/lib/admin/company-business-timezone";
 import type { StripePaymentStatus } from "@/lib/admin/billing-workspace-types";
 import type {
   MembershipCommandCenterData,
@@ -32,6 +36,7 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+  AUTHORITATIVE_JOBBER_AUTHORITY_STATE,
 } from "@/lib/care-operations/model";
 
 interface MembershipRow {
@@ -82,6 +87,7 @@ interface ChargeRow {
 
 interface AppointmentRow {
   property_id: string;
+  jobber_membership_id: string;
   scheduled_at: string;
   status: string;
 }
@@ -175,7 +181,7 @@ function formatServiceDate(isoDate: string): string {
     month: "short",
     day: "numeric",
     year: "numeric",
-    timeZone: "UTC",
+    timeZone: COMPANY_BUSINESS_TIMEZONE,
   });
 }
 
@@ -185,7 +191,7 @@ function resolveNextService(
   openObligationStart: string | null,
 ): { date: string | null; label: string | null } {
   if (appointment?.status === "scheduled") {
-    const date = appointment.scheduled_at.slice(0, 10);
+    const date = appointmentBusinessCalendarDate(appointment.scheduled_at);
     return {
       date,
       label: formatServiceDate(appointment.scheduled_at),
@@ -393,12 +399,14 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
     propertyIds.length > 0
       ? supabase
           .from("member_appointments")
-          .select("property_id, scheduled_at, status")
+          .select("property_id, jobber_membership_id, scheduled_at, status")
           .in("property_id", propertyIds)
           .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
           .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
           .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
           .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+          .eq("jobber_authority_state", AUTHORITATIVE_JOBBER_AUTHORITY_STATE)
+          .not("jobber_visit_classification_id", "is", null)
           .eq("status", "scheduled")
           .gte("scheduled_at", referenceDate.toISOString())
           .order("scheduled_at", { ascending: true })
@@ -447,10 +455,10 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
   const agreementById = new Map(
     ((agreementsRes.data ?? []) as AgreementRow[]).map((row) => [row.id, row]),
   );
-  const nextAppointmentByProperty = new Map<string, AppointmentRow>();
+  const nextAppointmentByMembership = new Map<string, AppointmentRow>();
   for (const row of (appointmentsRes.data ?? []) as AppointmentRow[]) {
-    if (!nextAppointmentByProperty.has(row.property_id)) {
-      nextAppointmentByProperty.set(row.property_id, row);
+    if (!nextAppointmentByMembership.has(row.jobber_membership_id)) {
+      nextAppointmentByMembership.set(row.jobber_membership_id, row);
     }
   }
 
@@ -484,7 +492,7 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
       (row) =>
         !["completed", "waived", "void", "credited"].includes(row.status),
     );
-    const appointment = nextAppointmentByProperty.get(membership.property_id) ?? null;
+    const appointment = nextAppointmentByMembership.get(membership.id) ?? null;
     const nextService = resolveNextService(
       appointment,
       nextChargeDate,
