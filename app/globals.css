@@ -688,3 +688,25 @@ body {
   }
   .atlas-mark-roof { stroke-dashoffset: 0; }
 }
+
+/* ——— starry homepage: gilded shimmer text ——— */
+.night-shimmer-text {
+  background: linear-gradient(100deg, #d4b98c 30%, #f7ecd2 50%, #d4b98c 70%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: night-shimmer-slide 7s ease-in-out infinite;
+}
+@keyframes night-shimmer-slide {
+  0%, 100% { background-position: 0% 0; }
+  50% { background-position: 100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .night-shimmer-text { animation: none; color: #d4b98c; background: none; }
+}
+
+/* ——— cinema maximal marquee ——— */
+.night-marquee { display: inline-block; animation: night-marquee-slide 70s linear infinite; }
+@keyframes night-marquee-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce) { .night-marquee { animation: none; } }
