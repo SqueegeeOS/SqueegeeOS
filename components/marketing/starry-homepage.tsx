@@ -74,11 +74,7 @@ export function StarryHomepage() {
         <img src="/home/family-twilight.jpg" alt="" aria-hidden draggable={false} className="absolute inset-0 h-full w-full object-cover" />
         <div aria-hidden className="absolute inset-0"
           style={{ background: `linear-gradient(to top, ${INK} 4%, rgba(7,8,12,0.35) 40%, rgba(7,8,12,0.55))` }} />
-        <div className="relative z-10 flex min-h-[100svh] flex-col justify-between px-5 py-8 sm:px-12">
-          <div className="flex items-center justify-between">
-            <span className="font-serif text-2xl font-light tracking-wide">SqueegeeKing</span>
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em]" style={{ color: MIST }}>est. on a ladder</span>
-          </div>
+        <div className="relative z-10 flex min-h-[100svh] flex-col justify-end px-5 py-8 sm:px-12">
           <div>
             <h1 className="night-rise font-serif font-light uppercase leading-[0.86] tracking-tight"
               style={{ fontSize: "clamp(3.6rem, 13vw, 12rem)" }}>
