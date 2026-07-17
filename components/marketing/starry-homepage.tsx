@@ -56,6 +56,109 @@ function Cta({ children, big = false }: { children: React.ReactNode; big?: boole
   );
 }
 
+function useScrub(ref: React.RefObject<HTMLElement | null>, fn: (p: number) => void, active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    let raf = 0;
+    const loop = () => {
+      const el = ref.current;
+      if (el) {
+        const r = el.getBoundingClientRect();
+        const total = r.height - window.innerHeight;
+        fn(total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 1);
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [ref, fn, active]);
+}
+
+/* ACT I — approved demo #1: your scroll is the squeegee */
+function SqueegeeHero({ reduced }: { reduced: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+  const clean = useRef<HTMLDivElement>(null);
+  const blade = useRef<HTMLDivElement>(null);
+  useScrub(ref, (p) => {
+    const pct = p * 118;
+    clean.current?.style.setProperty("clip-path", `inset(0 0 ${Math.max(0, 100 - pct)}% 0)`);
+    if (blade.current) {
+      blade.current.style.top = `${Math.min(100, pct)}%`;
+      blade.current.style.opacity = p > 0.02 && p < 0.98 ? "1" : "0";
+    }
+  }, !reduced);
+  return (
+    <section ref={ref} style={{ height: reduced ? "auto" : "230vh" }} aria-label="SqueegeeKing">
+      <div className={reduced ? "relative min-h-[100svh] overflow-hidden" : "sticky top-0 h-dvh overflow-hidden"}>
+        {!reduced && (
+          <>
+            <img src="/home/family-twilight.jpg" alt="" aria-hidden draggable={false}
+              className="absolute inset-0 h-full w-full object-cover"
+              style={{ filter: "blur(7px) brightness(0.55) saturate(0.55)" }} />
+            <div aria-hidden className="absolute inset-0" style={{ background: "rgba(140,150,160,0.12)" }} />
+          </>
+        )}
+        <div ref={clean} className="absolute inset-0" style={reduced ? undefined : { clipPath: "inset(0 0 100% 0)" }}>
+          <img src="/home/family-twilight.jpg" alt="A family home glowing at twilight, freshly kept"
+            draggable={false} className="h-full w-full object-cover" fetchPriority="high" />
+        </div>
+        <div ref={blade} aria-hidden className="absolute inset-x-0 h-[6px] opacity-0 transition-opacity duration-300"
+          style={{ top: "0%", background: `linear-gradient(to bottom, transparent, ${GOLD})`, boxShadow: "0 6px 22px rgba(212,185,140,0.5), 0 2px 0 rgba(255,255,255,0.35)" }} />
+        <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(to top, ${INK} 4%, transparent 45%)` }} />
+        <div className="absolute inset-x-0 bottom-0 z-10 px-5 pb-10 sm:px-12">
+          <h1 className="night-rise font-serif font-light uppercase leading-[0.86] tracking-tight"
+            style={{ fontSize: "clamp(3.6rem, 13vw, 12rem)" }}>
+            The right
+            <br />
+            <span className="night-shimmer-text italic normal-case">way.</span>
+          </h1>
+          <div className="night-rise-2 mt-8 flex flex-wrap items-end justify-between gap-6 pb-2">
+            <p className="max-w-sm text-base leading-relaxed" style={{ color: MIST }}>
+              Window, pressure washing, and solar care, done like we&apos;d do it
+              for our own family. Because when you join, you are family.
+              {reduced ? "" : " Scroll: the blade does the rest."}
+            </p>
+            <Cta big>Request a plan</Cta>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* Approved demo #7: blade wipe between acts */
+function WipeInterlude({ reduced }: { reduced: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+  const top = useRef<HTMLDivElement>(null);
+  const edge = useRef<HTMLDivElement>(null);
+  useScrub(ref, (p) => {
+    const pct = Math.min(1, Math.max(0, (p - 0.15) / 0.7)) * 100;
+    top.current?.style.setProperty("clip-path", `polygon(0 0, 100% 0, 100% ${100 - pct}%, 0 ${Math.max(0, 100 - pct - 7)}%)`);
+    if (edge.current) edge.current.style.opacity = pct > 1 && pct < 99 ? "1" : "0";
+  }, !reduced);
+  if (reduced) {
+    return (
+      <section className="px-6 py-24 text-center" style={{ background: "#101627" }}>
+        <h2 className="font-serif text-4xl font-light sm:text-6xl" style={{ color: GOLD }}>Done once. Done right.</h2>
+      </section>
+    );
+  }
+  return (
+    <section ref={ref} style={{ height: "200vh" }} aria-label="Done once, done right">
+      <div className="sticky top-0 h-dvh overflow-hidden">
+        <div className="absolute inset-0 flex items-center justify-center px-6" style={{ background: "#101627" }}>
+          <h2 className="text-center font-serif text-5xl font-light sm:text-7xl" style={{ color: GOLD }}>done <em>right.</em></h2>
+        </div>
+        <div ref={top} className="absolute inset-0 flex items-center justify-center px-6" style={{ background: INK }}>
+          <h2 className="text-center font-serif text-5xl font-light sm:text-7xl" style={{ color: IVORY }}>Done once&hellip;</h2>
+        </div>
+        <div ref={edge} aria-hidden className="absolute inset-x-0 top-1/2 h-[3px] opacity-0"
+          style={{ background: GOLD, boxShadow: "0 0 24px rgba(212,185,140,0.6)", transform: "rotate(-2deg) scaleX(1.1)" }} />
+      </div>
+    </section>
+  );
+}
+
 const WORK = [
   ["01", "Window Cleaning", "Glass that disappears.", "/day/hour-window.mp4", "/day/hour-window.jpg"],
   ["02", "Pressure Washing", "The years rinse off.", "/day/hour-pressure.mp4", "/day/hour-pressure.jpg"],
@@ -70,29 +173,7 @@ export function StarryHomepage() {
   return (
     <main className="overflow-x-clip" style={{ background: INK, color: IVORY }}>
 
-      {/* ACT I — the living night */}
-      <section className="relative min-h-[100svh]" aria-label="SqueegeeKing">
-        <img src="/home/family-twilight.jpg" alt="" aria-hidden draggable={false} className="absolute inset-0 h-full w-full object-cover" />
-        <div aria-hidden className="absolute inset-0"
-          style={{ background: `linear-gradient(to top, ${INK} 4%, rgba(7,8,12,0.35) 40%, rgba(7,8,12,0.55))` }} />
-        <div className="relative z-10 flex min-h-[100svh] flex-col justify-end px-5 py-8 sm:px-12">
-          <div>
-            <h1 className="night-rise font-serif font-light uppercase leading-[0.86] tracking-tight"
-              style={{ fontSize: "clamp(3.6rem, 13vw, 12rem)" }}>
-              The right
-              <br />
-              <span className="night-shimmer-text italic normal-case">way.</span>
-            </h1>
-            <div className="night-rise-2 mt-8 flex flex-wrap items-end justify-between gap-6 pb-2">
-              <p className="max-w-sm text-base leading-relaxed" style={{ color: MIST }}>
-                Window, pressure washing, and solar care, done like we&apos;d do it
-                for our own family. Because when you join, you are family.
-              </p>
-              <Cta big>Request a plan</Cta>
-            </div>
-          </div>
-        </div>
-      </section>
+      <SqueegeeHero reduced={reduced} />
 
       {/* the ribbon — never sleeps */}
       <div className="overflow-hidden border-y py-4" style={{ borderColor: "rgba(242,239,231,0.1)" }} aria-hidden>
@@ -127,6 +208,8 @@ export function StarryHomepage() {
           ))}
         </div>
       </section>
+
+      <WipeInterlude reduced={reduced} />
 
       <BeforeAfter />
 
