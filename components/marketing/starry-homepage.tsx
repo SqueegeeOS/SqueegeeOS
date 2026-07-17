@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AtlasMark } from "@/components/theme/atlas-mark";
+import { BeforeAfter, ReviewsWall, SoundToggle } from "@/components/marketing/rightway-extras";
 
 /* CINEMA MAXIMAL — SqueegeeKing. Full-bleed Higgsfield film, colossal type. */
 
@@ -127,6 +128,10 @@ export function StarryHomepage() {
         </div>
       </section>
 
+      <BeforeAfter />
+
+      <ReviewsWall />
+
       {/* ACT III — the family */}
       <section className="px-5 py-28 sm:px-12 sm:py-36" aria-label="Membership">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em]" style={{ color: GOLD }}>
@@ -197,6 +202,8 @@ export function StarryHomepage() {
           </p>
         </div>
       </section>
+
+      <SoundToggle />
 
       <footer className="px-6 py-10 text-center">
         <p className="font-mono text-xs tracking-[0.14em]" style={{ color: `${MIST}99` }}>

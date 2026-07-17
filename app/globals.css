@@ -710,3 +710,6 @@ body {
 .night-marquee { display: inline-block; animation: night-marquee-slide 70s linear infinite; }
 @keyframes night-marquee-slide { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 @media (prefers-reduced-motion: reduce) { .night-marquee { animation: none; } }
+
+.night-marquee-slow { animation: night-marquee-slide 60s linear infinite; }
+@media (prefers-reduced-motion: reduce) { .night-marquee-slow { animation: none; flex-wrap: wrap; } }
