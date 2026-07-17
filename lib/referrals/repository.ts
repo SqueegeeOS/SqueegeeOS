@@ -9,7 +9,10 @@ import type {
 } from "./types";
 import { referralPath } from "./types";
 import { nextReferralMilestone } from "./milestones";
-import { loadMemberReferralRewards } from "./rewards";
+import {
+  issueEarnedMilestoneRewards,
+  loadMemberReferralRewards,
+} from "./rewards";
 
 /* Unambiguous alphabet: no 0/O/1/I/L. */
 const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -114,7 +117,39 @@ export async function attachLeadToReferral(input: {
   });
 }
 
-/** Mark a pending referral converted when the referred person signs. */
+/** Issue the member's referral code at membership activation. Idempotent. */
+export async function issueReferralCodeForMembership(
+  membershipId: string,
+): Promise<string | null> {
+  const supabase = supabaseOrNull();
+  if (!supabase) return null;
+
+  const membership = await supabase
+    .from("memberships")
+    .select("id, homeowner_id")
+    .eq("id", membershipId)
+    .maybeSingle();
+  if (!membership.data?.id) return null;
+
+  let memberName = "";
+  if (membership.data.homeowner_id) {
+    const homeowner = await supabase
+      .from("homeowners")
+      .select("full_name")
+      .eq("id", membership.data.homeowner_id)
+      .maybeSingle();
+    memberName = (homeowner.data?.full_name as string | null) ?? "";
+  }
+
+  return getOrCreateReferralCode(membershipId, memberName);
+}
+
+/**
+ * Mark a pending referral converted when the referred person signs, then
+ * issue any newly reached 'earned' milestone rewards to the REFERRING member.
+ * The conversion write stands even if issuance fails — the missing reward
+ * surfaces as an HQ reconciliation warning (missingMilestones).
+ */
 export async function markReferralConverted(input: {
   email: string;
   membershipId: string;
@@ -122,7 +157,7 @@ export async function markReferralConverted(input: {
   const supabase = supabaseOrNull();
   if (!supabase) return;
 
-  await supabase
+  const converted = await supabase
     .from("referrals")
     .update({
       status: "converted",
@@ -130,7 +165,47 @@ export async function markReferralConverted(input: {
       converted_at: new Date().toISOString(),
     })
     .eq("lead_email", input.email.trim().toLowerCase())
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .select("referral_code_id");
+
+  const codeIds = [
+    ...new Set(
+      (converted.data ?? [])
+        .map((r) => r.referral_code_id as string | null)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+
+  for (const codeId of codeIds) {
+    try {
+      const codeRow = await supabase
+        .from("referral_codes")
+        .select("membership_id")
+        .eq("id", codeId)
+        .maybeSingle();
+      const referrerMembershipId = codeRow.data?.membership_id as
+        | string
+        | undefined;
+      if (!referrerMembershipId) continue;
+
+      const convertedRows = await supabase
+        .from("referrals")
+        .select("id", { count: "exact", head: true })
+        .eq("referral_code_id", codeId)
+        .in("status", ["converted", "rewarded"]);
+
+      await issueEarnedMilestoneRewards(
+        referrerMembershipId,
+        convertedRows.count ?? 0,
+      );
+    } catch (error) {
+      // Conversion is already durable; reward issuance is reconciled in HQ.
+      console.error(
+        "[referrals] earned-reward issuance failed; HQ reconciliation will flag it",
+        { codeId, error: error instanceof Error ? error.message : String(error) },
+      );
+    }
+  }
 }
 
 interface ReferralRow {
@@ -142,24 +217,26 @@ interface ReferralRow {
   converted_at: string | null;
 }
 
-/** Portal summary for one member. Null when cloud persistence is off. */
+/**
+ * Portal summary for one member. STRICTLY read-only — never creates codes
+ * or rewards (issuance happens at activation/conversion; backfill covers
+ * legacy members). Null when the member has no code yet.
+ */
 export async function getMemberReferralSummary(
   membershipId: string,
-  memberName: string,
+  _memberName: string,
   origin: string | null,
 ): Promise<MemberReferralSummary | null> {
   const supabase = supabaseOrNull();
   if (!supabase) return null;
 
-  const code = await getOrCreateReferralCode(membershipId, memberName);
-  if (!code) return null;
-
   const codeRow = await supabase
     .from("referral_codes")
-    .select("id")
-    .eq("code", code)
+    .select("id, code")
+    .eq("membership_id", membershipId)
     .maybeSingle();
-  if (!codeRow.data?.id) return null;
+  if (!codeRow.data?.id || !codeRow.data.code) return null;
+  const code = codeRow.data.code as string;
 
   const [visits, referrals] = await Promise.all([
     supabase
@@ -280,6 +357,7 @@ export async function listReferralsForHq(): Promise<HqReferralRow[]> {
         availableRewardCount: rewardsView.rewards.filter(
           (r) => r.status === "available" || r.status === "earned",
         ).length,
+        rewardsOutOfSync: rewardsView.missingMilestones.length > 0,
         referrals: memberReferrals.map((r) => ({
           id: r.id,
           leadName: r.lead_name,

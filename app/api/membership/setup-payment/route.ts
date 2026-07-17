@@ -83,6 +83,18 @@ async function lockEnrollmentSavings(
   }
 }
 
+/** Referral codes issue server-side at activation. Best-effort, idempotent. */
+async function issueReferralCode(membershipId: string) {
+  try {
+    const { issueReferralCodeForMembership } = await import(
+      "@/lib/referrals/repository"
+    );
+    await issueReferralCodeForMembership(membershipId);
+  } catch (error) {
+    console.error("[setup-payment] referral code issuance failed:", error);
+  }
+}
+
 /**
  * Activates membership after payment method is on file.
  * - Stripe mode: requires paymentMethodId + setupIntentId (verified server-side)
@@ -155,6 +167,7 @@ export async function POST(req: NextRequest) {
         membership.id,
         membership.presentation_id,
       );
+      await issueReferralCode(membership.id);
       return NextResponse.json({
         membershipId: membership.id,
         presentationId: membership.presentation_id,
@@ -303,6 +316,7 @@ export async function POST(req: NextRequest) {
           reloaded.id,
           reloaded.presentation_id,
         );
+        await issueReferralCode(reloaded.id);
         return NextResponse.json({
           membershipId: reloaded.id,
           presentationId: reloaded.presentation_id,
@@ -345,6 +359,7 @@ export async function POST(req: NextRequest) {
       membership.id,
       resolvedPresentationId,
     );
+    await issueReferralCode(membership.id);
 
     const portalUrl = await getPortalAccessUrlForMembership(
       membership.id,

@@ -53,6 +53,8 @@ export interface HqReferralRow {
   nextMilestoneLabel: string | null;
   availableCareCreditLabel: string | null;
   availableRewardCount: number;
+  /** Milestones reached without reward rows — issuance needs reconciliation. */
+  rewardsOutOfSync: boolean;
   referrals: Array<{
     id: string;
     leadName: string;
