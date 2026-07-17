@@ -56,57 +56,6 @@ function Cta({ children, big = false }: { children: React.ReactNode; big?: boole
   );
 }
 
-function useScrub(ref: React.RefObject<HTMLElement | null>, fn: (p: number) => void, active: boolean) {
-  useEffect(() => {
-    if (!active) return;
-    let raf = 0;
-    const loop = () => {
-      const el = ref.current;
-      if (el) {
-        const r = el.getBoundingClientRect();
-        const total = r.height - window.innerHeight;
-        fn(total > 0 ? Math.min(1, Math.max(0, -r.top / total)) : 1);
-      }
-      raf = requestAnimationFrame(loop);
-    };
-    raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
-  }, [ref, fn, active]);
-}
-
-/* Approved demo #7: blade wipe between acts */
-function WipeInterlude({ reduced }: { reduced: boolean }) {
-  const ref = useRef<HTMLElement>(null);
-  const top = useRef<HTMLDivElement>(null);
-  const edge = useRef<HTMLDivElement>(null);
-  useScrub(ref, (p) => {
-    const pct = Math.min(1, Math.max(0, (p - 0.15) / 0.7)) * 100;
-    top.current?.style.setProperty("clip-path", `polygon(0 0, 100% 0, 100% ${100 - pct}%, 0 ${Math.max(0, 100 - pct - 7)}%)`);
-    if (edge.current) edge.current.style.opacity = pct > 1 && pct < 99 ? "1" : "0";
-  }, !reduced);
-  if (reduced) {
-    return (
-      <section className="px-6 py-24 text-center" style={{ background: "#101627" }}>
-        <h2 className="font-serif text-4xl font-light sm:text-6xl" style={{ color: GOLD }}>Done once. Done right.</h2>
-      </section>
-    );
-  }
-  return (
-    <section ref={ref} style={{ height: "200vh" }} aria-label="Done once, done right">
-      <div className="sticky top-0 h-dvh overflow-hidden">
-        <div className="absolute inset-0 flex items-center justify-center px-6" style={{ background: "#101627" }}>
-          <h2 className="text-center font-serif text-5xl font-light sm:text-7xl" style={{ color: GOLD }}>done <em>right.</em></h2>
-        </div>
-        <div ref={top} className="absolute inset-0 flex items-center justify-center px-6" style={{ background: INK }}>
-          <h2 className="text-center font-serif text-5xl font-light sm:text-7xl" style={{ color: IVORY }}>Done once&hellip;</h2>
-        </div>
-        <div ref={edge} aria-hidden className="absolute inset-x-0 top-1/2 h-[3px] opacity-0"
-          style={{ background: GOLD, boxShadow: "0 0 24px rgba(212,185,140,0.6)", transform: "rotate(-2deg) scaleX(1.1)" }} />
-      </div>
-    </section>
-  );
-}
-
 const WORK = [
   ["01", "Window Cleaning", "Glass that disappears.", "/day/hour-window.mp4", "/day/hour-window.jpg"],
   ["02", "Pressure Washing", "The years rinse off.", "/day/hour-pressure.mp4", "/day/hour-pressure.jpg"],
@@ -179,8 +128,6 @@ export function StarryHomepage() {
           ))}
         </div>
       </section>
-
-      <WipeInterlude reduced={reduced} />
 
       <BeforeAfter />
 
