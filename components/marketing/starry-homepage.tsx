@@ -95,6 +95,24 @@ export function StarryHomepage() {
         </div>
       </section>
 
+      {/* ACT II — the idea, first */}
+      <section className="relative overflow-hidden border-y py-36 text-center sm:py-48" style={{ borderColor: "rgba(242,239,231,0.1)" }} aria-label="HomeAtlas">
+        <div aria-hidden className="absolute inset-0" style={{ background: `radial-gradient(ellipse 65% 50% at 50% 0%, rgba(143,154,176,0.12), transparent), radial-gradient(ellipse 55% 45% at 50% 115%, rgba(212,165,110,0.16), transparent)` }} />
+        <div className="relative mx-auto max-w-3xl px-6">
+          <div className="mb-10 flex justify-center"><AtlasMark size={88} /></div>
+          <h2 className="font-serif text-5xl font-light leading-[0.98] sm:text-7xl">
+            What if your home
+            <br />
+            <em className="night-shimmer-text">remembered?</em>
+          </h2>
+          <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed" style={{ color: MIST }}>
+            Every membership includes HomeAtlas: a living record of every
+            visit, photo, observation, and promise. Nothing about your home
+            explained twice, ever again.
+          </p>
+        </div>
+      </section>
+
       {/* the ribbon — never sleeps */}
       <div className="overflow-hidden border-y py-4" style={{ borderColor: "rgba(242,239,231,0.1)" }} aria-hidden>
         <div className="night-marquee whitespace-nowrap font-mono text-xs uppercase tracking-[0.35em]" style={{ color: GOLD }}>
@@ -168,23 +186,6 @@ export function StarryHomepage() {
         </ul>
       </section>
 
-      {/* ACT IV — the idea */}
-      <section className="relative overflow-hidden border-y py-36 text-center sm:py-48" style={{ borderColor: "rgba(242,239,231,0.1)" }} aria-label="HomeAtlas">
-        <div aria-hidden className="absolute inset-0" style={{ background: `radial-gradient(ellipse 65% 50% at 50% 0%, rgba(143,154,176,0.12), transparent), radial-gradient(ellipse 55% 45% at 50% 115%, rgba(212,165,110,0.16), transparent)` }} />
-        <div className="relative mx-auto max-w-3xl px-6">
-          <div className="mb-10 flex justify-center"><AtlasMark size={88} /></div>
-          <h2 className="font-serif text-5xl font-light leading-[0.98] sm:text-7xl">
-            What if your home
-            <br />
-            <em className="night-shimmer-text">remembered?</em>
-          </h2>
-          <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed" style={{ color: MIST }}>
-            Every membership includes HomeAtlas: a living record of every
-            visit, photo, observation, and promise. Nothing about your home
-            explained twice, ever again.
-          </p>
-        </div>
-      </section>
 
       {/* ACT IV — dawn */}
       <section className="relative min-h-[80svh]" aria-label="Begin">
