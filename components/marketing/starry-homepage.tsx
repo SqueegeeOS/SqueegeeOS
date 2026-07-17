@@ -72,7 +72,7 @@ export function StarryHomepage() {
 
       {/* ACT I — the family at twilight */}
       <section className="relative min-h-[100svh]" aria-label="SqueegeeKing">
-        <img src="/home/family-twilight.jpg" alt="" aria-hidden draggable={false}
+        <img src="/home/family-twilight.jpg" alt="A family home at twilight with warm light in freshly cleaned windows, kept by SqueegeeKing" draggable={false}
           className="absolute inset-0 h-full w-full object-cover" fetchPriority="high" />
         <div aria-hidden className="absolute inset-0"
           style={{ background: `linear-gradient(to top, ${INK} 4%, rgba(7,8,12,0.35) 40%, rgba(7,8,12,0.55))` }} />
@@ -210,6 +210,12 @@ export function StarryHomepage() {
       <footer className="px-6 py-10 text-center">
         <p className="font-mono text-xs tracking-[0.14em]" style={{ color: `${MIST}99` }}>
           SqueegeeKing · powered by HomeAtlas
+        </p>
+        <p className="mx-auto mt-4 max-w-2xl text-xs leading-relaxed" style={{ color: `${MIST}80` }}>
+          Professional window cleaning, pressure washing, and solar panel
+          cleaning, plus recurring home maintenance memberships every 3 or 6
+          months. Every visit is recorded in HomeAtlas, the living memory of
+          your home&apos;s care.
         </p>
       </footer>
     </main>
