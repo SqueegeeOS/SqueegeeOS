@@ -16,21 +16,21 @@ interface JourneyEntry {
 
 function JourneyLedger({ entries }: { entries: JourneyEntry[] }) {
   return (
-    <div className="border-y border-border py-12 sm:py-14">
+    <div className="border-y border-white/[0.06] py-12 sm:py-14 portal-journey-ledger">
       <dl className="space-y-12 sm:space-y-14">
         {entries.map((entry) => (
           <div key={entry.label}>
-            <dt className="text-[10px] font-medium uppercase tracking-[0.22em] text-muted">
+            <dt className="text-[10px] font-medium uppercase tracking-[0.22em] text-white/35 portal-journey-label">
               {entry.label}
             </dt>
-            <dd className="mt-3 font-serif text-[1.625rem] font-light leading-snug tracking-[-0.01em] text-foreground sm:text-3xl">
+            <dd className="mt-3 font-serif text-[1.625rem] font-light leading-snug tracking-[-0.01em] text-white/[0.88] sm:text-3xl portal-journey-value">
               {entry.value}
             </dd>
           </div>
         ))}
       </dl>
       {/* Reserved for annual reviews, anniversaries, milestones, and property memories */}
-      <div className="mt-14 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+      <div className="mt-14 h-px bg-gradient-to-r from-transparent via-white/[0.05] to-transparent portal-journey-divider" />
     </div>
   );
 }
@@ -64,16 +64,16 @@ export function HomeAtlasJourneySection({
       className="scroll-mt-6"
       aria-labelledby="homeatlas-journey-heading"
     >
-      <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-accent">
+      <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-accent/55 portal-journey-eyebrow">
         Your record
       </p>
       <h2
         id="homeatlas-journey-heading"
-        className="mt-4 font-serif text-[1.75rem] font-light leading-[1.12] tracking-[-0.02em] text-foreground sm:text-4xl"
+        className="mt-4 font-serif text-[1.75rem] font-light leading-[1.12] tracking-[-0.02em] text-white/[0.92] sm:text-4xl portal-journey-heading"
       >
         Your HomeAtlas Journey
       </h2>
-      <p className="mt-5 max-w-md text-sm leading-[1.7] text-muted">
+      <p className="mt-5 max-w-md text-sm leading-[1.7] text-white/45 portal-journey-copy">
         A quiet record of care — written as your home&apos;s story unfolds.
       </p>
       <div className="mt-10 sm:mt-12">

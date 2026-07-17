@@ -512,6 +512,65 @@ body {
   color-scheme: light;
 }
 
+[data-atlas-theme="day"] .portal-payment-input {
+  background-color: color-mix(in srgb, var(--foreground) 5%, transparent);
+}
+
+[data-atlas-theme="day"] .portal-payment-input::placeholder,
+[data-atlas-theme="day"] .portal-payment-label,
+[data-atlas-theme="day"] .portal-payment-copy,
+[data-atlas-theme="day"] .portal-payment-demo-label,
+[data-atlas-theme="day"] .portal-payment-demo-note,
+[data-atlas-theme="day"] .portal-payment-loading {
+  color: var(--muted);
+}
+
+[data-atlas-theme="day"] .portal-payment-demo-panel {
+  background-color: color-mix(in srgb, var(--foreground) 2%, transparent);
+}
+
+[data-atlas-theme="day"] .portal-payment-back-button {
+  color: var(--muted);
+}
+
+[data-atlas-theme="day"] .portal-payment-back-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--foreground);
+}
+
+[data-atlas-theme="day"] .portal-journey-ledger {
+  border-color: var(--border);
+}
+
+[data-atlas-theme="day"] .portal-journey-label,
+[data-atlas-theme="day"] .portal-journey-copy {
+  color: var(--muted);
+}
+
+[data-atlas-theme="day"] .portal-journey-value,
+[data-atlas-theme="day"] .portal-journey-heading {
+  color: var(--foreground);
+}
+
+[data-atlas-theme="day"] .portal-journey-divider {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    var(--border),
+    transparent
+  );
+}
+
+[data-atlas-theme="day"] .portal-journey-eyebrow {
+  color: var(--accent);
+}
+
+[data-atlas-theme="day"] .portal-pending-payment-badge {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background-color: color-mix(in srgb, var(--accent) 3%, transparent);
+  color: var(--accent);
+}
+
 [data-atlas-theme="day"] .craft-stage {
   background: var(--background);
 }
