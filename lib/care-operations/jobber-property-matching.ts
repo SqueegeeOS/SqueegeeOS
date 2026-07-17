@@ -3,12 +3,13 @@ import "server-only";
 import { isMembershipActive } from "@/lib/membership/membership-status";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
-  listJobberVisitSample,
+  listJobberVisitReviewSample,
   type JobberVisitProjectionPreview,
 } from "./jobber-visit-sample";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 
 const MAX_ACTIVE_MEMBER_CANDIDATES = 250;
+const MAX_VISIT_REVIEW_ROWS = 100;
 const LINK_REASON =
   "Headquarters confirmed the same physical property in Jobber and HomeAtlas";
 const REVOKE_REASON =
@@ -95,6 +96,7 @@ export interface JobberPropertyMatchingWorkspace {
   obligationMatching: false;
   billingEnabled: false;
   candidateLimitReached: boolean;
+  visitLimitReached: boolean;
   activeMemberProperties: ActiveMemberPropertyCandidate[];
   visits: SupervisedJobberVisitPreview[];
 }
@@ -214,7 +216,11 @@ async function loadStrictMemberProperty(
 
 export async function loadJobberPropertyMatchingWorkspace(): Promise<JobberPropertyMatchingWorkspace> {
   const supabase = createServiceRoleSupabaseClient();
-  const visits = await listJobberVisitSample();
+  const observedVisits = await listJobberVisitReviewSample(
+    MAX_VISIT_REVIEW_ROWS + 1,
+  );
+  const visitLimitReached = observedVisits.length > MAX_VISIT_REVIEW_ROWS;
+  const visits = observedVisits.slice(0, MAX_VISIT_REVIEW_ROWS);
   const externalPropertyIds = [
     ...new Set(visits.map((visit) => visit.externalPropertyId)),
   ];
@@ -326,6 +332,7 @@ export async function loadJobberPropertyMatchingWorkspace(): Promise<JobberPrope
     obligationMatching: false,
     billingEnabled: false,
     candidateLimitReached,
+    visitLimitReached,
     activeMemberProperties,
     visits: visits.map((visit) => {
       const link = linkByExternalPropertyId.get(visit.externalPropertyId) ?? null;

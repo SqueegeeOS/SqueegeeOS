@@ -5,6 +5,7 @@ export const AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES = [
 ] as const;
 export const AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE = "verified" as const;
 export const AUTHORITATIVE_APPOINTMENT_MATCH_STATE = "matched" as const;
+export const AUTHORITATIVE_JOBBER_AUTHORITY_STATE = "approved" as const;
 export const HOMEATLAS_NATIVE_SCHEDULING_ENABLED = false as const;
 
 export interface AppointmentProvenance {

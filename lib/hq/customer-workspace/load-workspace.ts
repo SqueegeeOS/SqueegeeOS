@@ -25,6 +25,7 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+  AUTHORITATIVE_JOBBER_AUTHORITY_STATE,
 } from "@/lib/care-operations/model";
 
 function stageLabel(stage: CustomerWorkspaceStage): string {
@@ -223,7 +224,7 @@ async function loadPropertyWorkspace(
     .eq("homeowner_id", homeowner.id)
     .maybeSingle();
 
-  const { data: appointments } = profile?.id
+  const { data: appointments } = profile?.id && membership?.id
     ? await supabase
         .from("member_appointments")
         .select("id, service_type, scheduled_at, status")
@@ -233,6 +234,9 @@ async function loadPropertyWorkspace(
         .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
         .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
         .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+        .eq("jobber_authority_state", AUTHORITATIVE_JOBBER_AUTHORITY_STATE)
+        .not("jobber_visit_classification_id", "is", null)
+        .eq("jobber_membership_id", membership.id)
         .order("scheduled_at", { ascending: false })
     : { data: [] };
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { JobberScheduleSyncPanel } from "@/components/admin/jobber-schedule-sync-panel";
 import { JobberVisitSamplePanel } from "@/components/admin/jobber-visit-sample-panel";
+import { JobberVisitClassificationPanel } from "@/components/admin/jobber-visit-classification-panel";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
 
 interface JobberConnectionResponse {
@@ -242,6 +243,7 @@ export function JobberConnectionPanel() {
         <>
           <JobberScheduleSyncPanel />
           <JobberVisitSamplePanel />
+          <JobberVisitClassificationPanel />
         </>
       ) : null}
     </section>

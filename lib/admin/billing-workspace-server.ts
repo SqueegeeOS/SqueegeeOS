@@ -32,6 +32,7 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+  AUTHORITATIVE_JOBBER_AUTHORITY_STATE,
 } from "@/lib/care-operations/model";
 
 interface MembershipBillingRow {
@@ -86,6 +87,7 @@ interface AppointmentBillingRow {
   id: string;
   property_id: string;
   scheduled_at: string;
+  jobber_membership_id: string;
 }
 
 const EMPTY_OVERVIEW: BillingWorkspaceOverview = {
@@ -228,12 +230,14 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("member_appointments")
-      .select("id, property_id, scheduled_at")
+      .select("id, property_id, scheduled_at, jobber_membership_id")
       .in("property_id", propertyIds)
       .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
       .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
       .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
       .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+      .eq("jobber_authority_state", AUTHORITATIVE_JOBBER_AUTHORITY_STATE)
+      .not("jobber_visit_classification_id", "is", null)
       .eq("status", "scheduled")
       .order("scheduled_at", { ascending: true }),
   ]);
@@ -281,10 +285,10 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       row,
     ]),
   );
-  const appointmentByProperty = new Map<string, AppointmentBillingRow>();
+  const appointmentByMembership = new Map<string, AppointmentBillingRow>();
   for (const appointment of (appointmentsRes.data ?? []) as AppointmentBillingRow[]) {
-    if (!appointmentByProperty.has(appointment.property_id)) {
-      appointmentByProperty.set(appointment.property_id, appointment);
+    if (!appointmentByMembership.has(appointment.jobber_membership_id)) {
+      appointmentByMembership.set(appointment.jobber_membership_id, appointment);
     }
   }
 
@@ -391,9 +395,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
           ? Number(membership.membership_enrollment_savings)
           : null,
       nextAppointmentId:
-        appointmentByProperty.get(membership.property_id)?.id ?? null,
+        appointmentByMembership.get(membership.id)?.id ?? null,
       nextAppointmentDate:
-        appointmentByProperty.get(membership.property_id)?.scheduled_at ?? null,
+        appointmentByMembership.get(membership.id)?.scheduled_at ?? null,
       stripePaymentStatus: resolveStripePaymentStatus(membership),
       cardOnFileLabel,
       stripeCustomerId: membership.stripe_customer_id,

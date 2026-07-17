@@ -47,6 +47,7 @@ interface MatchingWorkspace {
   obligationMatching: false;
   billingEnabled: false;
   candidateLimitReached: boolean;
+  visitLimitReached: boolean;
   activeMemberProperties: ActiveMemberPropertyCandidate[];
   visits: VisitPreview[];
 }
@@ -174,6 +175,7 @@ export function JobberVisitSamplePanel() {
         throw new Error(body?.error ?? "The property link was not changed");
       }
       setWorkspace(body.workspace);
+      window.dispatchEvent(new Event("jobber-property-link-changed"));
       setSelectedMemberships((current) => ({
         ...current,
         [visit.projectionId]: "",
@@ -204,14 +206,20 @@ export function JobberVisitSamplePanel() {
         </h3>
         <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted">
           No property link means Jobber-only. A confirmed link identifies a
-          member property, but the visit still cannot fulfill a promise, appear
-          in the portal, or become billable.
+          member property. It does not classify any visit, fulfill a promise,
+          or enable billing.
         </p>
       </div>
       {workspace?.candidateLimitReached ? (
         <p className="mt-4 text-xs text-amber-400">
           The active-member list reached its supervised review limit. Stop and
           narrow the member list before linking.
+        </p>
+      ) : null}
+      {workspace?.visitLimitReached ? (
+        <p className="mt-4 text-xs text-amber-400">
+          The visit review list reached its 100-row safety bound. It is not a
+          complete-route claim.
         </p>
       ) : null}
       {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
@@ -291,8 +299,8 @@ export function JobberVisitSamplePanel() {
                     </p>
                     <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs text-muted">
-                        Property identity only. This visit is not HomeAtlas Care
-                        until an obligation is confirmed later.
+                        Property identity only. A separate per-visit decision is
+                        required before this schedule can appear in HomeAtlas.
                       </p>
                       <button
                         type="button"

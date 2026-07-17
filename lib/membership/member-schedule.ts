@@ -169,6 +169,7 @@ export function buildMemberAnnualSchedule(options: {
 
 function formatScheduleDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
+    timeZone: "America/Los_Angeles",
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -202,7 +203,10 @@ export function buildScheduleFromAppointments(options: {
   const items: ScheduledServiceItem[] = options.appointments.map((appt) => {
     const date = new Date(appt.date);
     const status = mapAppointmentStatus(appt.status, appt.date, now);
-    const monthLabel = date.toLocaleDateString("en-US", { month: "short" });
+    const monthLabel = date.toLocaleDateString("en-US", {
+      month: "short",
+      timeZone: "America/Los_Angeles",
+    });
 
     return {
       id: appt.id,

@@ -29,6 +29,24 @@ transaction before it:
 3. compare-and-sets the connection coverage watermark;
 4. marks the run complete and releases its durable lock.
 
+The durable lock order is part of the PR2/PR3 contract. PR2 begin locks the
+exact connection's `jobber_schedule_sync_locks` row before reading the watermark
+generation and reserving a run. Finalization locks its run row, then that exact
+sync row, then the watermark. Migration 039 decisions lock the same sync row
+before any projection/link/membership/watermark authority rows and never lock a
+run row. This compatible partial order prevents a reverse run/sync edge: a
+decision either linearizes before reservation against stable complete coverage,
+or waits for begin/finalize and then observes the reservation/new watermark.
+An expired lease with a non-null `active_run_id` is still unfinished for
+classification and cannot authorize a decision; the next PR2 begin is the only
+path that marks it partial and replaces the reservation.
+
+Migration 039 also adds a monotonic `reservation_sequence` to sync runs. PR2's
+run insert evaluates its default only after acquiring the connection lock, so
+a transaction that began earlier but waited behind another run still sorts
+after the run it causally follows. Runtime readiness and PR3 approval identify
+the latest run by this sequence, never by transaction-scoped `started_at`.
+
 If the finalization transaction commits but its transport response is lost,
 the caller performs one durable reconciliation by run ID. It reports complete
 only when that exact run is complete and its bounds, generation, and completion
@@ -43,6 +61,15 @@ of durable truth, including when finalization truly rolled back.
 No partial run touches the previous watermark. Missing visits are not deleted,
 cancelled, completed, or otherwise inferred. A later full-range run is the
 reconciliation path when a visit's `startAt` moves.
+
+Migration 039 adds one narrow downstream safety exception without changing
+PR2's provider semantics: after 039, successful COMPLETE finalization may
+indirectly demote an already approved Jobber-backed `member_appointments` row
+to `pending_review` when the new durable manifest omits that exact visit. It
+appends immutable invalidation evidence and never creates or promotes an
+appointment, infers cancellation/deletion/completion, fulfills an obligation,
+or enables billing. Partial, failed, running, and indeterminate attempts do not
+advance the watermark and cannot trigger this demotion.
 
 The former `POST /api/admin/care-operations/jobber/visits/sample` projection
 writer now returns `410`. Its read-only `GET` preview remains available for the
@@ -210,8 +237,10 @@ dependency installation or main-worktree write was performed.
 5. A simulated or naturally occurring partial result must leave the prior
    watermark byte-for-byte unchanged and show the latest run as partial.
 6. Confirm Jobber-only and unclassified projections remain outside Today and
-   the member portal. Confirm no forbidden-domain row count or reconciliation
-   hash changed.
+   the member portal. After migration 039, also confirm a later complete
+   manifest omission demotes existing authority and hides it from both surfaces
+   without changing appointment status or inferring cancellation. Confirm no
+   forbidden-domain row count or reconciliation hash changed.
 
 ## Rollback
 
