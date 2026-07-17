@@ -13,6 +13,7 @@ export type ClaimRewardOutcome =
 export interface ClaimRewardResult {
   outcome: ClaimRewardOutcome;
   rewardId: string | null;
+  label: string | null;
   status: string | null;
   valueCents: number;
   claimedAt: string | null;
@@ -21,6 +22,7 @@ export interface ClaimRewardResult {
 interface ClaimRow {
   outcome?: unknown;
   reward_id?: unknown;
+  label?: unknown;
   status?: unknown;
   value_cents?: unknown;
   claimed_at?: unknown;
@@ -38,6 +40,7 @@ export function mapClaimRow(row: ClaimRow | null): ClaimRewardResult {
     return {
       outcome: "unavailable",
       rewardId: null,
+      label: null,
       status: null,
       valueCents: 0,
       claimedAt: null,
@@ -46,6 +49,7 @@ export function mapClaimRow(row: ClaimRow | null): ClaimRewardResult {
   return {
     outcome,
     rewardId: typeof row?.reward_id === "string" ? row.reward_id : null,
+    label: typeof row?.label === "string" ? row.label : null,
     status: typeof row?.status === "string" ? row.status : null,
     valueCents: typeof row?.value_cents === "number" ? row.value_cents : 0,
     claimedAt: typeof row?.claimed_at === "string" ? row.claimed_at : null,

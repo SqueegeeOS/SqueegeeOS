@@ -6,6 +6,7 @@ describe("mapClaimRow", () => {
     const result = mapClaimRow({
       outcome: "claimed",
       reward_id: "r1",
+      label: "$25 HomeAtlas Care Credit",
       status: "available",
       value_cents: 2500,
       claimed_at: "2026-07-17T00:00:00Z",
@@ -13,6 +14,7 @@ describe("mapClaimRow", () => {
     expect(result).toEqual({
       outcome: "claimed",
       rewardId: "r1",
+      label: "$25 HomeAtlas Care Credit",
       status: "available",
       valueCents: 2500,
       claimedAt: "2026-07-17T00:00:00Z",

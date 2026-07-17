@@ -123,6 +123,7 @@ begin
     return jsonb_build_object(
       'outcome', 'claimed',
       'reward_id', p_reward_id,
+      'label', reward.reward_label,
       'status', 'available',
       'value_cents', coalesce(reward.value_cents, 0),
       'claimed_at', now_ts
@@ -135,6 +136,7 @@ begin
     return jsonb_build_object(
       'outcome', 'already_claimed',
       'reward_id', p_reward_id,
+      'label', reward.reward_label,
       'status', 'available',
       'value_cents', coalesce(reward.value_cents, 0),
       'claimed_at', reward.claimed_at
