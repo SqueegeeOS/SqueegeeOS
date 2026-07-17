@@ -9,6 +9,65 @@ function readProjectFile(path: string): string {
   );
 }
 
+const THEME_TOKEN_NAMES = ["background", "foreground", "muted", "accent"] as const;
+const TEXT_TOKEN_NAMES = ["foreground", "muted", "accent"] as const;
+
+type ThemeTokenName = (typeof THEME_TOKEN_NAMES)[number];
+type ThemeTokens = Record<ThemeTokenName, string>;
+
+const EXPECTED_NIGHT_TOKENS: ThemeTokens = {
+  background: "#070605",
+  foreground: "#f5f2eb",
+  muted: "#8a8680",
+  accent: "#c9b896",
+};
+
+const EXPECTED_LUX_TOKENS: ThemeTokens = {
+  background: "#090705",
+  foreground: "#f3ecdc",
+  muted: "#9c8f76",
+  accent: "#d4af37",
+};
+
+function readCssBlock(css: string, selector: string): string {
+  const opening = `${selector} {`;
+  const start = css.indexOf(opening);
+  const end = css.indexOf("\n}", start + opening.length);
+
+  if (start === -1 || end === -1) {
+    throw new Error(`Could not find CSS block for ${selector}`);
+  }
+
+  return css.slice(start + opening.length, end);
+}
+
+function parseEffectiveThemeTokens(
+  css: string,
+  selector: string,
+  inherited: Partial<ThemeTokens> = {},
+): ThemeTokens {
+  const block = readCssBlock(css, selector);
+  const tokens: Partial<ThemeTokens> = { ...inherited };
+
+  for (const token of THEME_TOKEN_NAMES) {
+    const value = block.match(
+      new RegExp(`--${token}:\\s*(#[\\da-f]{6})\\s*;`, "i"),
+    )?.[1];
+
+    if (value) {
+      tokens[token] = value.toLowerCase();
+    }
+  }
+
+  for (const token of THEME_TOKEN_NAMES) {
+    if (!tokens[token]) {
+      throw new Error(`Missing effective --${token} token for ${selector}`);
+    }
+  }
+
+  return tokens as ThemeTokens;
+}
+
 function relativeLuminance(hex: string): number {
   const channels = hex
     .match(/[\da-f]{2}/gi)
@@ -36,19 +95,31 @@ function contrastRatio(first: string, second: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-describe("member portal Day theme contrast", () => {
-  it("uses an AA-contrast Day accent for small text and accent controls", () => {
+describe("member portal atmosphere contrast", () => {
+  it("keeps shared text tokens AA across Night, Day, and Lux", () => {
     const css = readProjectFile("app/globals.css");
-    const dayTheme = css.match(
-      /\[data-atlas-theme="day"\]\s*\{([\s\S]*?)\n\}/,
-    )?.[1];
-    const background = dayTheme?.match(/--background:\s*(#[\da-f]{6})/i)?.[1];
-    const accent = dayTheme?.match(/--accent:\s*(#[\da-f]{6})/i)?.[1];
+    const night = parseEffectiveThemeTokens(css, ":root");
+    const atmospheres: Record<"Night" | "Day" | "Lux", ThemeTokens> = {
+      Night: night,
+      Day: parseEffectiveThemeTokens(css, '[data-atlas-theme="day"]', night),
+      Lux: parseEffectiveThemeTokens(css, '[data-atlas-theme="lux"]', night),
+    };
 
-    expect(background).toBeDefined();
-    expect(accent).toBeDefined();
-    expect(contrastRatio(accent!, background!)).toBeGreaterThanOrEqual(4.5);
-    expect(dayTheme).toContain("--on-accent: #fffdf8;");
+    expect(atmospheres.Night).toEqual(EXPECTED_NIGHT_TOKENS);
+    expect(atmospheres.Lux).toEqual(EXPECTED_LUX_TOKENS);
+
+    for (const [atmosphere, tokens] of Object.entries(atmospheres)) {
+      for (const token of TEXT_TOKEN_NAMES) {
+        expect(
+          contrastRatio(tokens[token], tokens.background),
+          `${atmosphere} --${token} contrast`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    }
+
+    expect(readCssBlock(css, '[data-atlas-theme="day"]')).toContain(
+      "--on-accent: #fffdf8;",
+    );
   });
 
   it("keeps portal journey text on theme-aware foreground tokens", () => {
