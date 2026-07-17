@@ -79,32 +79,27 @@ function SqueegeeHero({ reduced }: { reduced: boolean }) {
   const ref = useRef<HTMLElement>(null);
   const clean = useRef<HTMLDivElement>(null);
   const blade = useRef<HTMLDivElement>(null);
-  const head = useRef<HTMLDivElement>(null);
+  const head = useRef<HTMLDivElement>(null); void head;
   useScrub(ref, (p) => {
-    const pct = p * 118;
+    const pct = 30 + p * 92;
     clean.current?.style.setProperty("clip-path", `inset(0 0 ${Math.max(0, 100 - pct)}% 0)`);
     if (blade.current) {
       blade.current.style.top = `${Math.min(100, pct)}%`;
       blade.current.style.opacity = p > 0.02 && p < 0.98 ? "1" : "0";
     }
-    if (head.current) {
-      const o = Math.min(1, Math.max(0, (p - 0.16) / 0.3));
-      head.current.style.opacity = String(o);
-      head.current.style.transform = `translateY(${(1 - o) * 26}px)`;
-    }
   }, !reduced);
   return (
-    <section ref={ref} style={{ height: reduced ? "auto" : "230vh" }} aria-label="SqueegeeKing">
+    <section ref={ref} style={{ height: reduced ? "auto" : "160vh" }} aria-label="SqueegeeKing">
       <div className={reduced ? "relative min-h-[100svh] overflow-hidden" : "sticky top-0 h-dvh overflow-hidden"}>
         {!reduced && (
           <>
             <img src="/home/family-twilight.jpg" alt="" aria-hidden draggable={false}
               className="absolute inset-0 h-full w-full object-cover"
-              style={{ filter: "blur(7px) brightness(0.55) saturate(0.55)" }} />
+              style={{ filter: "blur(4px) brightness(0.72) saturate(0.7)" }} />
             <div aria-hidden className="absolute inset-0" style={{ background: "rgba(140,150,160,0.12)" }} />
           </>
         )}
-        <div ref={clean} className="absolute inset-0" style={reduced ? undefined : { clipPath: "inset(0 0 100% 0)" }}>
+        <div ref={clean} className="absolute inset-0" style={reduced ? undefined : { clipPath: "inset(0 0 70% 0)" }}>
           <img src="/home/family-twilight.jpg" alt="A family home glowing at twilight, freshly kept"
             draggable={false} className="h-full w-full object-cover" fetchPriority="high" />
         </div>
@@ -117,7 +112,7 @@ function SqueegeeHero({ reduced }: { reduced: boolean }) {
           ))}
         </div>
         <div aria-hidden className="absolute inset-0" style={{ background: `linear-gradient(to top, ${INK} 4%, transparent 45%)` }} />
-        <div ref={head} className="absolute inset-x-0 bottom-0 z-10 px-5 pb-10 sm:px-12" style={reduced ? undefined : { opacity: 0 }}>
+        <div ref={head} className="night-rise absolute inset-x-0 bottom-0 z-10 px-5 pb-10 sm:px-12">
           <h1 className="font-serif font-light uppercase leading-[0.86] tracking-tight"
             style={{ fontSize: "clamp(3.6rem, 13vw, 12rem)" }}>
             The right
@@ -128,7 +123,7 @@ function SqueegeeHero({ reduced }: { reduced: boolean }) {
             <p className="max-w-sm text-base leading-relaxed" style={{ color: MIST }}>
               Window, pressure washing, and solar care, done like we&apos;d do it
               for our own family. Because when you join, you are family.
-              {reduced ? "" : " Scroll: the blade does the rest."}
+              {reduced ? "" : " Scroll. The blade does the rest."}
             </p>
             <Cta big>Request a plan</Cta>
           </div>
