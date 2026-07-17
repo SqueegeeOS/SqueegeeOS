@@ -38,10 +38,10 @@ export function CardOnFileSetup({
 
   const isPresentation = theme === "presentation";
   const inputClass = isPresentation
-    ? "w-full rounded-lg border border-border bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-white/25 outline-none focus:border-accent/40"
+    ? "w-full rounded-lg border border-border bg-foreground/5 px-4 py-3 text-sm text-foreground placeholder:text-muted outline-none focus:border-accent/40"
     : "w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-foreground outline-none focus:border-accent/40";
   const labelClass = isPresentation
-    ? "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-foreground/45"
+    ? "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-muted"
     : "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-muted";
   const pointCardClass = isPresentation
     ? "rounded-lg border border-border bg-foreground/[0.03] p-4"
@@ -50,7 +50,7 @@ export function CardOnFileSetup({
     ? "text-sm font-medium text-foreground"
     : "text-sm font-medium text-foreground";
   const pointBodyClass = isPresentation
-    ? "mt-1 text-sm text-foreground/50"
+    ? "mt-1 text-sm text-muted"
     : "mt-1 text-sm text-muted";
 
   const handleMockSubmit = async () => {
@@ -111,11 +111,11 @@ export function CardOnFileSetup({
           onSuccess={onSuccess}
         />
       ) : (
-        <div className="space-y-4 rounded-lg border border-border bg-white/[0.02] p-5">
+        <div className="space-y-4 rounded-lg border border-border bg-foreground/[0.02] p-5">
           <p
             className={
               isPresentation
-                ? "text-[10px] uppercase tracking-[0.16em] text-foreground/40"
+                ? "text-[10px] uppercase tracking-[0.16em] text-muted"
                 : "text-[10px] uppercase tracking-[0.16em] text-muted"
             }
           >
@@ -133,7 +133,7 @@ export function CardOnFileSetup({
               autoComplete="cc-name"
             />
           </div>
-          <p className="text-xs text-white/30">
+          <p className="text-xs text-muted">
             Demo mode — confirms membership without charging. Add Stripe keys in
             Vercel for live card-on-file.
           </p>
@@ -172,7 +172,7 @@ export function CardOnFileSetup({
               disabled={loading}
               className={
                 isPresentation
-                  ? "rounded-lg border border-border px-5 py-3.5 text-sm text-foreground/60 transition hover:border-white/30 hover:text-foreground/80 disabled:opacity-40"
+                  ? "rounded-lg border border-border px-5 py-3.5 text-sm text-muted transition hover:border-accent/30 hover:text-foreground disabled:opacity-40"
                   : "rounded-full border border-border px-5 py-3.5 text-sm text-muted"
               }
             >

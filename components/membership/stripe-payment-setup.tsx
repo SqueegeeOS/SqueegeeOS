@@ -44,7 +44,7 @@ function StripePaymentForm({
 
   const isPresentation = theme === "presentation";
   const pointBodyClass = isPresentation
-    ? "text-sm text-white/45"
+    ? "text-sm text-muted"
     : "text-sm text-muted";
 
   const handleSubmit = async () => {
@@ -138,7 +138,7 @@ function StripePaymentForm({
             disabled={loading}
             className={
               isPresentation
-                ? "rounded-lg border border-white/15 px-5 py-3.5 text-sm text-white/60 transition hover:border-white/30 hover:text-white/80 disabled:opacity-40"
+                ? "rounded-lg border border-border px-5 py-3.5 text-sm text-muted transition hover:border-accent/30 hover:text-foreground disabled:opacity-40"
                 : "rounded-full border border-border px-5 py-3.5 text-sm text-muted"
             }
           >
@@ -241,7 +241,7 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
 
   if (!clientSecret || !stripePromise) {
     return (
-      <p className="text-sm text-white/50">Loading secure payment form…</p>
+      <p className="text-sm text-muted">Loading secure payment form…</p>
     );
   }
 

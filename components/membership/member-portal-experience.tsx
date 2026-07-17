@@ -139,7 +139,7 @@ export function MemberPortalExperience({
             </p>
           )}
           {view.pendingPayment && (
-            <p className="mt-6 inline-flex rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-amber-100/90">
+            <p className="mt-6 inline-flex rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-accent">
               Almost there
             </p>
           )}
