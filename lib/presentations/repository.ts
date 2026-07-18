@@ -354,6 +354,41 @@ export async function getPresentation(
   return data ? normalizePresentation(data) : null;
 }
 
+/** Privileged portal read bound to the immutable token-resolved identity. */
+export async function getPresentationForPortalAccess(
+  id: string,
+  identity: {
+    membershipId: string;
+    homeownerId: string;
+    propertyId: string;
+  },
+): Promise<PresentationData | null> {
+  if (!isCloudPersistenceConnected()) return null;
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("presentations")
+    .select("*")
+    .eq("id", id)
+    .eq("membership_id", identity.membershipId)
+    .eq("homeowner_id", identity.homeownerId)
+    .eq("property_id", identity.propertyId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const presentation = rowToPresentation(data as PresentationRow);
+  if (
+    presentation.membershipId !== identity.membershipId ||
+    presentation.homeownerId !== identity.homeownerId ||
+    presentation.propertyId !== identity.propertyId
+  ) {
+    return null;
+  }
+  return presentation;
+}
+
 /**
  * Resolve the opaque public presentation capability without local or anon
  * fallback. Public mutation routes must fail closed when privileged persistence

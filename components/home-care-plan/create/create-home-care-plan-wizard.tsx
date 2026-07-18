@@ -20,6 +20,7 @@ import { applyAtlasPricingToHomeCarePlanDraft } from "@/lib/home-care-plan/atlas
 import type { CareFrequency } from "@/lib/pricing/types";
 import { useCompanySettings } from "@/components/pricing/pricing-settings-provider";
 import { saveGeneratedHomeCarePlan } from "@/lib/persistence";
+import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { LocalStorageNotice } from "@/components/persistence/local-storage-notice";
 import type { Property } from "@/lib/property/types";
 import { AmbientGlow, Eyebrow, PageTitle, Reveal } from "@/components/property/ui/primitives";
@@ -159,7 +160,12 @@ export function CreateHomeCarePlanWizard({
         await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
-      router.push(getPlanPresentationPath(plan));
+      router.push(
+        getPlanPresentationPath(
+          outcome.record.presentation,
+          outcome.storageBackend === "supabase" ? outcome.record.id : undefined,
+        ),
+      );
     } catch (error) {
       console.error("[home-care-plan] Generate failed:", error);
       setGenerateError(
@@ -821,7 +827,9 @@ export function CreateHomeCarePlanWizard({
                 <div className="flex justify-between gap-4 border-t border-border pt-3">
                   <span className="text-muted">Presentation URL</span>
                   <span className="text-right text-xs text-foreground/80">
-                    {getPlanPresentationPath(previewPlan)}
+                    {isCloudPersistenceConnected()
+                      ? "Private link assigned after cloud save"
+                      : getPlanPresentationPath(previewPlan)}
                   </span>
                 </div>
               </div>

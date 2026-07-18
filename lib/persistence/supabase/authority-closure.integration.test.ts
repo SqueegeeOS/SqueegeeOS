@@ -237,11 +237,41 @@ integration("migration 036 disposable Supabase authority rehearsal", () => {
 
       const { data: plan, error: planError } = await service
         .from("home_care_plans")
-        .select("id")
+        .select("id, homeowner_slug, property_slug")
         .eq("property_id", first.propertyId)
         .single();
       expect(planError).toBeNull();
       createdIds.home_care_plans = plan!.id as string;
+
+      const { loadHomeCarePlanPresentationByCapability } = await import(
+        "@/lib/persistence/server/load-home-care-plan"
+      );
+      const serverLoadedPlan = await loadHomeCarePlanPresentationByCapability(
+        plan!.id as string,
+        plan!.homeowner_slug as string,
+        plan!.property_slug as string,
+      );
+      expect(serverLoadedPlan?.homeowner.slug).toBe(plan!.homeowner_slug);
+      await expect(
+        loadHomeCarePlanPresentationByCapability(
+          crypto.randomUUID(),
+          plan!.homeowner_slug as string,
+          plan!.property_slug as string,
+        ),
+      ).resolves.toBeNull();
+
+      for (const roleClient of [anon, authenticated]) {
+        await expectDenied(
+          roleClient.from("home_care_plans").select("id, homeowner_slug"),
+        );
+        await expectDenied(
+          roleClient
+            .from("home_care_plans")
+            .select("presentation")
+            .eq("id", createdIds.home_care_plans)
+            .maybeSingle(),
+        );
+      }
 
       const { data: asset, error: assetError } = await service
         .from("property_assets")

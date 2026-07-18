@@ -4,6 +4,8 @@ import { isAtlasThemeId, type AtlasThemeId } from "@/lib/theme/atlas-themes";
 
 export interface MembershipPortalRow {
   id: string;
+  homeowner_id: string;
+  property_id: string;
   plan_name: string;
   price_display: string;
   started_at: string | null;
@@ -22,7 +24,7 @@ export interface MembershipPortalRow {
 }
 
 const MEMBERSHIP_PORTAL_BASE_SELECT =
-  "id, plan_name, price_display, started_at, status, founding_member, founding_member_since, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, presentation_id, stripe_payment_method_id, agreement_id";
+  "id, homeowner_id, property_id, plan_name, price_display, started_at, status, founding_member, founding_member_since, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, presentation_id, stripe_payment_method_id, agreement_id";
 
 const MEMBERSHIP_PORTAL_FULL_SELECT = `${MEMBERSHIP_PORTAL_BASE_SELECT}, membership_enrollment_savings, portal_theme`;
 
@@ -34,11 +36,15 @@ export { isMissingColumnError };
 
 export async function loadMembershipPortalRow(
   supabase: SupabaseClient,
+  membershipId: string,
+  homeownerId: string,
   propertyId: string,
 ): Promise<MembershipPortalRow | null> {
   const full = await supabase
     .from("memberships")
     .select(MEMBERSHIP_PORTAL_FULL_SELECT)
+    .eq("id", membershipId)
+    .eq("homeowner_id", homeownerId)
     .eq("property_id", propertyId)
     .maybeSingle();
 
@@ -68,6 +74,8 @@ export async function loadMembershipPortalRow(
   const base = await supabase
     .from("memberships")
     .select(select)
+    .eq("id", membershipId)
+    .eq("homeowner_id", homeownerId)
     .eq("property_id", propertyId)
     .maybeSingle();
 

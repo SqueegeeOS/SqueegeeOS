@@ -8,7 +8,6 @@ import {
 } from "@/lib/health/assessment-repository";
 import {
   extractVisibleCustomerNotes,
-  getPropertyIdBySlugs,
   listStaffHealthChecks,
 } from "@/lib/health/repository";
 
@@ -31,24 +30,17 @@ export default async function TokenHomeHealthPage({
     return <MemberPortalNotFound />;
   }
 
-  const propertyId = await getPropertyIdBySlugs(
-    model.homeownerSlug,
-    model.propertySlug,
-  );
-
   const latest = model.homeHealth;
   let notes: ReturnType<typeof extractVisibleCustomerNotes> = [];
 
-  if (propertyId) {
-    const [assessments, checks] = await Promise.all([
-      listStaffAssessments(propertyId),
-      listStaffHealthChecks(propertyId),
-    ]);
-    notes = [
-      ...extractVisibleCustomerNotesFromAssessments(assessments),
-      ...extractVisibleCustomerNotes(checks),
-    ].sort((a, b) => b.visitDate.localeCompare(a.visitDate));
-  }
+  const [assessments, checks] = await Promise.all([
+    listStaffAssessments(model.propertyId),
+    listStaffHealthChecks(model.propertyId),
+  ]);
+  notes = [
+    ...extractVisibleCustomerNotesFromAssessments(assessments),
+    ...extractVisibleCustomerNotes(checks),
+  ].sort((a, b) => b.visitDate.localeCompare(a.visitDate));
 
   return (
     <div className="min-h-[100svh] bg-background text-foreground">

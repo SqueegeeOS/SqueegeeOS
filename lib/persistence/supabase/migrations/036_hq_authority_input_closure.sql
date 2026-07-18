@@ -158,12 +158,10 @@ begin
   end loop;
 end $$;
 
--- Browser presentation access is mediated by the opaque UUID route
--- capability. Direct table reads would make those capabilities enumerable.
--- The generated Home Care Plan page still reads its presentation document by
--- its existing slug route. Drop every other browser read policy, including
--- historical policies with an unexpected name, without touching service-role
--- policies.
+-- Browser presentation access is mediated by server routes/capabilities.
+-- Direct table reads make customer plans and presentation capabilities
+-- enumerable. Drop every browser read policy, including historical policies
+-- with an unexpected name, without touching service-role policies.
 do $$
 declare
   policy_row record;
@@ -183,10 +181,6 @@ begin
       ])
       and cmd = 'SELECT'
       and roles::text[] && array['public', 'anon', 'authenticated']::text[]
-      and not (
-        tablename = 'home_care_plans'
-        and policyname = 'home_care_plans_anon_read'
-      )
   loop
     execute format(
       'drop policy if exists %I on %I.%I',
@@ -203,7 +197,8 @@ revoke select, insert, update, delete on table public.properties
   from public, anon, authenticated;
 revoke insert, update, delete on table public.home_care_plans
   from public, anon, authenticated;
-revoke select on table public.home_care_plans from public;
+revoke select on table public.home_care_plans
+  from public, anon, authenticated;
 revoke select, insert, update, delete on table public.memberships
   from public, anon, authenticated;
 revoke select, insert, update, delete on table public.signed_agreements
