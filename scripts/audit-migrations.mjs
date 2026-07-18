@@ -11,6 +11,7 @@
  */
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import pg from "pg";
 
 function loadEnvLocal() {
@@ -32,6 +33,13 @@ function loadEnvLocal() {
 
 loadEnvLocal();
 
+const migration036Source = readFileSync(
+  resolve(
+    process.cwd(),
+    "lib/persistence/supabase/migrations/036_hq_authority_input_closure.sql",
+  ),
+  "utf8",
+);
 const migration037Source = readFileSync(
   resolve(
     process.cwd(),
@@ -41,12 +49,9 @@ const migration037Source = readFileSync(
 );
 
 const dbUrl = process.env.SUPABASE_DB_URL ?? process.env.DATABASE_URL;
-if (!dbUrl) {
-  console.error("Missing SUPABASE_DB_URL or DATABASE_URL in .env.local");
-  process.exit(2);
-}
-
-const client = new pg.Client({ connectionString: dbUrl });
+const isDirectExecution =
+  process.argv[1] !== undefined &&
+  resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 
 function hasTable(snapshot, table) {
   return snapshot.tables.has(table);
@@ -115,8 +120,101 @@ function expectedFunctionBody(name) {
   return normalizeFunctionBody(body);
 }
 
+function expectedMigration036FunctionBody(name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const body = migration036Source.match(
+    new RegExp(
+      `create or replace function public\\.${escaped}\\([\\s\\S]*?\\nas \\$\\$([\\s\\S]*?)\\n\\$\\$;`,
+      "i",
+    ),
+  )?.[1];
+  if (body === undefined) {
+    throw new Error(`Migration 036 function body is missing: ${name}`);
+  }
+  return normalizeFunctionBody(body);
+}
+
 function exactJson(actual, expected) {
   return JSON.stringify(actual) === JSON.stringify(expected);
+}
+
+export function hasExactAuthorityFunctionAcl(rows, expectedFunctionNames) {
+  const expectedNames = [...expectedFunctionNames].sort();
+  const rowsByFunction = new Map();
+
+  for (const row of rows) {
+    const functionName = String(row.routine_name);
+    if (!expectedNames.includes(functionName)) return false;
+
+    const functionOid = String(row.function_oid);
+    const ownerOid = String(row.owner_oid);
+    const ownerName = String(row.owner_name);
+    const existing = rowsByFunction.get(functionName) ?? {
+      functionOids: new Set(),
+      ownerOids: new Set(),
+      ownerNames: new Set(),
+      ownerRows: 0,
+      serviceRows: 0,
+    };
+    existing.functionOids.add(functionOid);
+    existing.ownerOids.add(ownerOid);
+    existing.ownerNames.add(ownerName);
+
+    const isOwner = row.is_owner === true;
+    if (isOwner) {
+      if (
+        String(row.grantee_oid) !== ownerOid ||
+        String(row.grantee_name) !== ownerName ||
+        row.privilege_type !== "EXECUTE"
+      ) {
+        return false;
+      }
+      existing.ownerRows += 1;
+    } else {
+      if (
+        row.grantee_name !== "service_role" ||
+        row.privilege_type !== "EXECUTE" ||
+        row.is_grantable !== false
+      ) {
+        return false;
+      }
+      existing.serviceRows += 1;
+    }
+
+    rowsByFunction.set(functionName, existing);
+  }
+
+  return (
+    exactJson([...rowsByFunction.keys()].sort(), expectedNames) &&
+    [...rowsByFunction.values()].every(
+      (entry) =>
+        entry.functionOids.size === 1 &&
+        entry.ownerOids.size === 1 &&
+        entry.ownerNames.size === 1 &&
+        entry.ownerRows === 1 &&
+        entry.serviceRows === 1,
+    )
+  );
+}
+
+export function isExactSignedAgreementImmutabilityTrigger(
+  rows,
+  expectedFunctionOid,
+) {
+  if (rows.length !== 1 || expectedFunctionOid == null) return false;
+
+  const row = rows[0];
+  return (
+    row.table_schema === "public" &&
+    row.table_name === "signed_agreements" &&
+    row.trigger_name === "signed_agreements_complete_immutable" &&
+    row.is_internal === false &&
+    Number(row.trigger_type) === 27 &&
+    row.enabled_state === "O" &&
+    String(row.function_oid) === String(expectedFunctionOid) &&
+    row.function_schema === "public" &&
+    row.function_name === "reject_completed_signed_agreement_mutation"
+  );
 }
 
 const stripeSetupTables = [
@@ -160,16 +258,23 @@ const checks = [
   ["033", "Jobber visit sample", (s) => hasTable(s, "jobber_visit_projections") && s.rlsTables.has("jobber_visit_projections")],
   ["034", "supervised Jobber property links", (s) => ["jobber_property_links", "jobber_property_link_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table))],
   ["035", "authenticated Headquarters access", (s) => ["hq_admin_users", "hq_admin_user_events", "hq_magic_link_request_events", "hq_magic_link_delivery_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && hasColumn(s, "hq_admin_users", "active") && hasColumn(s, "hq_admin_users", "role") && s.hqAuthAnonPolicies === 0 && ["reserve_hq_magic_link_request", "validate_hq_admin_user_auth_email", "sync_hq_admin_user_auth_email", "record_hq_admin_user_change", "save_jobber_connection_with_event", "acquire_jobber_refresh_lease_for_generation", "complete_jobber_refresh_with_event", "fail_jobber_refresh_with_event"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog")) && ["public.hq_admin_users.hq_admin_users_validate_auth_email", "public.hq_admin_users.hq_admin_users_record_change", "public.hq_admin_user_events.hq_admin_user_events_immutable", "auth.users.hq_admin_users_sync_auth_email"].every((name) => s.triggers.has(name))],
-  ["036", "HQ authority input closure", (s) => s.authorityMutationPolicies === 0 && s.authorityMutationGrants === 0 && s.sensitiveCustomerReadPolicies === 0 && s.sensitiveCustomerReadGrants === 0 && s.homeCarePlanReadPolicies === 0 && s.presentationBrowserPolicies === 0 && s.authorityAclExact && s.authorityFunctionAclExact && s.signingIdempotencyIndexExact && s.propertyAddressIndexExact && hasTable(s, "presentation_signing_attempts") && s.rlsTables.has("presentation_signing_attempts") && hasColumn(s, "presentations", "authority_sha256") && hasColumn(s, "signed_agreements", "signing_attempt_id") && hasColumn(s, "properties", "authority_address_key") && ["save_hq_home_care_plan", "claim_presentation_signing_attempt", "finalize_presentation_signing_attempt"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog"))],
+  ["036", "HQ authority input closure", (s) => s.authorityMutationPolicies === 0 && s.authorityMutationGrants === 0 && s.sensitiveCustomerReadPolicies === 0 && s.sensitiveCustomerReadGrants === 0 && s.homeCarePlanReadPolicies === 0 && s.presentationBrowserPolicies === 0 && s.authorityAclExact && s.authorityFunctionAclExact && s.signingIdempotencyIndexExact && s.propertyAddressIndexExact && s.signedAgreementImmutabilityFunctionExact && s.signedAgreementImmutabilityTriggerExact && hasTable(s, "presentation_signing_attempts") && s.rlsTables.has("presentation_signing_attempts") && hasColumn(s, "presentations", "authority_sha256") && hasColumn(s, "signed_agreements", "signing_attempt_id") && hasColumn(s, "properties", "authority_address_key") && ["save_hq_home_care_plan", "claim_presentation_signing_attempt", "finalize_presentation_signing_attempt", "reject_completed_signed_agreement_mutation"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog"))],
   ["037", "Stripe setup authorization", (s) => hasColumn(s, "memberships", "stripe_setup_intent_id") && stripeSetupTables.every((table) => hasTable(s, table) && s.rlsTables.has(table)) && s.stripeSetupIndexExact && s.stripeCustomerIndexExact && s.stripeSetupColumnsExact && s.stripeSetupEvidenceConstraintsExact && s.stripeSetupEvidenceAclExact && s.stripeSetupFunctionAclExact && s.stripeSetupFunctionDefinitionsExact && s.stripeSetupTriggerExact],
   ["038", "Jobber schedule coverage sync", (s) => ["jobber_schedule_sync_runs", "jobber_schedule_sync_partitions", "jobber_visit_source_observations", "jobber_schedule_sync_watermarks", "jobber_schedule_sync_locks"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && ["begin_jobber_schedule_coverage_sync", "renew_jobber_schedule_coverage_sync_lease", "append_jobber_schedule_coverage_leaf", "complete_jobber_schedule_coverage_pass", "finalize_jobber_schedule_coverage_sync", "reconcile_jobber_schedule_coverage_finalization", "mark_jobber_schedule_coverage_sync_partial"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog"))],
 ];
 
+if (isDirectExecution && !dbUrl) {
+  console.error("Missing SUPABASE_DB_URL or DATABASE_URL in .env.local");
+  process.exit(2);
+}
+
+if (isDirectExecution) {
+const client = new pg.Client({ connectionString: dbUrl });
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers] = await Promise.all([
+  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, k.conname as constraint_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -190,7 +295,9 @@ try {
     client.query("select i.indisunique, array_agg(a.attname order by k.ordinality) as columns from pg_index i join pg_class c on c.oid = i.indexrelid join lateral unnest(i.indkey) with ordinality k(attnum, ordinality) on true join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where c.oid = to_regclass('public.properties_authority_address_uidx') group by i.indisunique"),
     client.query("select to_regclass('storage.buckets') is not null as exists"),
     client.query("select grantee, table_name, privilege_type from information_schema.role_table_grants where table_schema = 'public' and table_name in ('homeowners', 'properties', 'home_care_plans', 'memberships', 'signed_agreements', 'property_assets', 'presentations', 'presentation_signing_attempts') and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role') order by grantee, table_name, privilege_type"),
-    client.query("select grantee, routine_name, privilege_type from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('save_hq_home_care_plan', 'claim_presentation_signing_attempt', 'finalize_presentation_signing_attempt') and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role') order by grantee, routine_name, privilege_type"),
+    client.query("select p.oid::text as function_oid, p.proname as routine_name, p.proowner::text as owner_oid, owner_role.rolname as owner_name, acl.grantee::text as grantee_oid, case when acl.grantee = 0 then 'PUBLIC' else grantee_role.rolname end as grantee_name, acl.grantee = p.proowner as is_owner, acl.privilege_type, acl.is_grantable from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_roles owner_role on owner_role.oid = p.proowner cross join lateral pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl left join pg_catalog.pg_roles grantee_role on grantee_role.oid = acl.grantee where n.nspname = 'public' and p.proname in ('save_hq_home_care_plan', 'claim_presentation_signing_attempt', 'finalize_presentation_signing_attempt', 'reject_completed_signed_agreement_mutation') order by p.proname, p.oid, acl.grantee, acl.privilege_type"),
+    client.query("select p.oid::text as function_oid, n.nspname as function_schema, p.proname, pg_catalog.oidvectortypes(p.proargtypes) as argument_types, p.proargnames as argument_names, pg_catalog.pg_get_expr(p.proargdefaults, 0) as argument_defaults, pg_catalog.pg_get_function_result(p.oid) as result_type, l.lanname as language_name, p.prosecdef as security_definer, p.proisstrict as is_strict, p.provolatile as volatility, p.proparallel as parallel_mode, coalesce(array_to_string(p.proconfig, ','), '') as config, p.prosrc as body from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_language l on l.oid = p.prolang where n.nspname = 'public' and p.proname = 'reject_completed_signed_agreement_mutation' order by p.proname, argument_types"),
+    client.query("select table_namespace.nspname as table_schema, c.relname as table_name, t.tgname as trigger_name, t.tgisinternal as is_internal, t.tgtype::integer as trigger_type, t.tgenabled as enabled_state, t.tgfoid::text as function_oid, function_namespace.nspname as function_schema, p.proname as function_name from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid = t.tgrelid join pg_catalog.pg_namespace table_namespace on table_namespace.oid = c.relnamespace join pg_catalog.pg_proc p on p.oid = t.tgfoid join pg_catalog.pg_namespace function_namespace on function_namespace.oid = p.pronamespace where t.tgname = 'signed_agreements_complete_immutable' order by table_schema, table_name, trigger_name"),
     client.query("select i.indisunique, pg_get_expr(i.indpred, i.indrelid) as predicate, array_agg(a.attname order by k.ordinality) as columns from pg_index i join pg_class c on c.oid = i.indexrelid join lateral unnest(i.indkey) with ordinality k(attnum, ordinality) on true join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where c.oid = to_regclass('public.memberships_stripe_setup_intent_uidx') group by i.indisunique, i.indpred, i.indrelid"),
     client.query("select i.indisunique, pg_get_expr(i.indpred, i.indrelid) as predicate, array_agg(a.attname order by k.ordinality) as columns from pg_index i join pg_class c on c.oid = i.indexrelid join lateral unnest(i.indkey) with ordinality k(attnum, ordinality) on true join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where c.oid = to_regclass('public.memberships_stripe_customer_uidx') group by i.indisunique, i.indpred, i.indrelid"),
     client.query("select table_name, ordinal_position, column_name, data_type, udt_name, is_nullable, column_default, numeric_precision, numeric_scale from information_schema.columns where table_schema = 'public' and table_name in ('membership_payment_setup_events', 'membership_stripe_setup_reconciliation_attempts', 'membership_stripe_setup_reconciliation_events') order by table_name, ordinal_position"),
@@ -221,18 +328,57 @@ try {
   const expectedServiceTableAcl = authorityTables.flatMap((table) =>
     ["DELETE", "INSERT", "SELECT", "UPDATE"].map((privilege) => `${table}.${privilege}`),
   ).sort();
-  const browserFunctionAcl = authorityFunctionAcls.rows.filter((row) =>
-    ["PUBLIC", "anon", "authenticated"].includes(row.grantee),
-  );
-  const serviceFunctionAcl = authorityFunctionAcls.rows
-    .filter((row) => row.grantee === "service_role")
-    .map((row) => `${row.routine_name}.${row.privilege_type}`)
-    .sort();
-  const expectedServiceFunctionAcl = [
-    "claim_presentation_signing_attempt.EXECUTE",
-    "finalize_presentation_signing_attempt.EXECUTE",
-    "save_hq_home_care_plan.EXECUTE",
+  const expectedAuthorityFunctionNames = [
+    "claim_presentation_signing_attempt",
+    "finalize_presentation_signing_attempt",
+    "reject_completed_signed_agreement_mutation",
+    "save_hq_home_care_plan",
   ];
+  const signedAgreementImmutabilityFunctionDetails =
+    authorityFunctionDetails.rows.map((row) => ({
+      function_oid: String(row.function_oid),
+      function_schema: String(row.function_schema),
+      proname: row.proname,
+      argument_types: String(row.argument_types),
+      argument_names: row.argument_names ?? null,
+      argument_defaults:
+        row.argument_defaults === null
+          ? null
+          : normalizeSql(row.argument_defaults),
+      result_type: String(row.result_type),
+      language_name: String(row.language_name),
+      security_definer: row.security_definer === true,
+      is_strict: row.is_strict === true,
+      volatility: String(row.volatility),
+      parallel_mode: String(row.parallel_mode),
+      config: String(row.config),
+      body: normalizeFunctionBody(row.body),
+    }));
+  const expectedSignedAgreementImmutabilityFunctions = [{
+    function_oid:
+      signedAgreementImmutabilityFunctionDetails.length === 1
+        ? signedAgreementImmutabilityFunctionDetails[0].function_oid
+        : null,
+    function_schema: "public",
+    proname: "reject_completed_signed_agreement_mutation",
+    argument_types: "",
+    argument_names: null,
+    argument_defaults: null,
+    result_type: "trigger",
+    language_name: "plpgsql",
+    security_definer: false,
+    is_strict: false,
+    volatility: "v",
+    parallel_mode: "u",
+    config: "search_path=pg_catalog",
+    body: expectedMigration036FunctionBody(
+      "reject_completed_signed_agreement_mutation",
+    ),
+  }];
+  const expectedSignedAgreementImmutabilityFunctionOid =
+    signedAgreementImmutabilityFunctionDetails.length === 1
+      ? signedAgreementImmutabilityFunctionDetails[0].function_oid
+      : null;
   const signingIndexRow = signingIndex.rows[0];
   const propertyAddressIndexRow = propertyAddressIndex.rows[0];
   const stripeSetupIndexRow = stripeSetupIndex.rows[0];
@@ -468,10 +614,20 @@ try {
         JSON.stringify(expectedBrowserTableAcl.sort()) &&
       JSON.stringify(serviceTableAcl.sort()) ===
         JSON.stringify(expectedServiceTableAcl),
-    authorityFunctionAclExact:
-      browserFunctionAcl.length === 0 &&
-      JSON.stringify(serviceFunctionAcl) ===
-        JSON.stringify(expectedServiceFunctionAcl),
+    authorityFunctionAclExact: hasExactAuthorityFunctionAcl(
+      authorityFunctionAcls.rows,
+      expectedAuthorityFunctionNames,
+    ),
+    signedAgreementImmutabilityFunctionExact:
+      exactJson(
+        signedAgreementImmutabilityFunctionDetails,
+        expectedSignedAgreementImmutabilityFunctions,
+      ),
+    signedAgreementImmutabilityTriggerExact:
+      isExactSignedAgreementImmutabilityTrigger(
+        authorityTriggers.rows,
+        expectedSignedAgreementImmutabilityFunctionOid,
+      ),
     signingIdempotencyIndexExact:
       signingIndexRow?.indisunique === true &&
       JSON.stringify(signingIndexRow.columns) === JSON.stringify(["presentation_id"]) &&
@@ -537,4 +693,5 @@ try {
 } finally {
   await client.query("rollback").catch(() => {});
   await client.end();
+}
 }

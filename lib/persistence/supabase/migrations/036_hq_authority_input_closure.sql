@@ -228,6 +228,41 @@ grant select, insert, update, delete on table public.presentations to service_ro
 grant select, insert, update, delete on table public.presentation_signing_attempts
   to service_role;
 
+-- Completed agreements are signed evidence. Preserve INSERT so finalization can
+-- create the completed row atomically, and preserve mutation of incomplete rows
+-- for retry/repair workflows, but reject every later UPDATE or DELETE once the
+-- stored row is complete (including service-role mutations and FK actions).
+create or replace function public.reject_completed_signed_agreement_mutation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  if old.status = 'complete' then
+    raise exception using
+      errcode = '23514',
+      message = 'Completed signed agreements are immutable';
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists signed_agreements_complete_immutable
+  on public.signed_agreements;
+create trigger signed_agreements_complete_immutable
+  before update or delete on public.signed_agreements
+  for each row execute function public.reject_completed_signed_agreement_mutation();
+
+revoke all on function public.reject_completed_signed_agreement_mutation()
+  from public, anon, authenticated, service_role;
+grant execute on function public.reject_completed_signed_agreement_mutation()
+  to service_role;
+
 -- One completed agreement per presentation makes customer retries converge on
 -- immutable evidence instead of creating a second signed agreement.
 do $$

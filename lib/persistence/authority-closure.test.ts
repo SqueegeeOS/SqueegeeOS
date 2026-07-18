@@ -53,6 +53,31 @@ describe("migration 036 authority closure", () => {
     );
   });
 
+  it("makes completed agreements immutable without blocking finalization or incomplete rows", () => {
+    expect(migration).toMatch(
+      /create or replace function public\.reject_completed_signed_agreement_mutation\(\)[\s\S]*?set search_path = pg_catalog[\s\S]*?if old\.status = 'complete' then[\s\S]*?Completed signed agreements are immutable/,
+    );
+    expect(migration).toMatch(
+      /create trigger signed_agreements_complete_immutable\s+before update or delete on public\.signed_agreements\s+for each row execute function public\.reject_completed_signed_agreement_mutation\(\)/,
+    );
+    expect(migration).not.toMatch(
+      /signed_agreements_complete_immutable\s+before insert/i,
+    );
+    expect(migration).toMatch(
+      /if tg_op = 'DELETE' then\s+return old;\s+end if;\s+return new;/,
+    );
+    expect(migration).toMatch(
+      /revoke all on function public\.reject_completed_signed_agreement_mutation\(\)\s+from public, anon, authenticated, service_role;\s+grant execute on function public\.reject_completed_signed_agreement_mutation\(\)\s+to service_role;/,
+    );
+    expect(migration).toMatch(
+      /finalize_presentation_signing_attempt[\s\S]*?insert into public\.signed_agreements[\s\S]*?'complete'/,
+    );
+
+    const schema = read("./supabase/schema.sql");
+    expect(schema).toContain("signed_agreements_complete_immutable");
+    expect(schema).toContain("reject_completed_signed_agreement_mutation");
+  });
+
   it("ships a service-role-only atomic plan-authoring function", () => {
     expect(migration).toContain(
       "create or replace function public.save_hq_home_care_plan",
@@ -89,6 +114,8 @@ describe("migration 036 authority closure", () => {
     expect(audit).toContain("authorityAclExact");
     expect(audit).toContain("authorityFunctionAclExact");
     expect(audit).toContain("signingIdempotencyIndexExact");
+    expect(audit).toContain("signedAgreementImmutabilityFunctionExact");
+    expect(audit).toContain("signedAgreementImmutabilityTriggerExact");
   });
 
   it("ships real anon/authenticated concurrency and fault rehearsal hooks", () => {
@@ -100,6 +127,8 @@ describe("migration 036 authority closure", () => {
     expect(harness).toContain("conflictingSignature");
     expect(harness).toContain('from("presentations")');
     expect(harness).toContain('select("id, homeowner_slug")');
+    expect(harness).toContain("Denied service-role mutation");
+    expect(harness).toContain("Updated incomplete workflow");
   });
 
   it("requires the plan UUID on cloud routes and keeps slug-only reads local", () => {

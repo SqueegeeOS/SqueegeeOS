@@ -65,7 +65,7 @@ npm test -- lib/persistence/supabase/authority-closure.integration.test.ts
 
 Also execute `lib/persistence/supabase/tests/036_home_care_plan_atomicity.sql` against that disposable database. It injects a plan-write failure and proves the preceding homeowner/property writes roll back, then proves a retry preserves all three source IDs and creates no duplicates. The script ends with `ROLLBACK`.
 
-The harness uses real anonymous and password-authenticated clients created from the disposable project's anon key. It proves global and exact-row `home_care_plans` SELECTs fail for both roles; proves INSERT, UPDATE, and DELETE fail for all seven authority tables, including `presentations`; proves the server-only UUID-plus-slugs presentation loader succeeds only for the matching capability; proves all three service-only RPCs deny EXECUTE; races two same-tier/same-signature calls through the real `/api/sign-agreement` route; checks replay convergence; checks conflicting tier and signature rejection; and verifies exactly one coherent completed agreement remains. It intentionally preserves signed test evidence; reset the disposable project after inspection.
+The harness uses real anonymous and password-authenticated clients created from the disposable project's anon key. It proves global and exact-row `home_care_plans` SELECTs fail for both roles; proves INSERT, UPDATE, and DELETE fail for all seven authority tables, including `presentations`; proves the server-only UUID-plus-slugs presentation loader succeeds only for the matching capability; proves all three service-only RPCs deny EXECUTE; races two same-tier/same-signature calls through the real `/api/sign-agreement` route; checks replay convergence; checks conflicting tier and signature rejection; verifies exactly one coherent completed agreement remains; proves even `service_role` cannot update or delete that completed agreement; and proves a service-role incomplete agreement can still be inserted, updated, and deleted. It intentionally preserves signed test evidence; reset the disposable project after inspection.
 
 For a one-shot fault/retry rehearsal, start a single non-production app instance with one of `after_claim`, `after_customer`, `after_storage`, or `after_finalize`:
 
@@ -110,6 +110,31 @@ where table_schema = 'public'
   )
   and grantee in ('PUBLIC', 'anon', 'authenticated')
 order by table_name, grantee, privilege_type;
+
+select p.proname,
+       pg_get_function_result(p.oid) as result_type,
+       p.prosecdef as security_definer,
+       p.proconfig
+from pg_proc p
+join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname = 'reject_completed_signed_agreement_mutation';
+
+select grantee, routine_name, privilege_type
+from information_schema.routine_privileges
+where specific_schema = 'public'
+  and routine_name = 'reject_completed_signed_agreement_mutation'
+  and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role')
+order by grantee, privilege_type;
+
+select t.tgname, pg_get_triggerdef(t.oid, false) as definition
+from pg_trigger t
+join pg_class c on c.oid = t.tgrelid
+join pg_namespace n on n.oid = c.relnamespace
+where n.nspname = 'public'
+  and c.relname = 'signed_agreements'
+  and t.tgname = 'signed_agreements_complete_immutable'
+  and not t.tgisinternal;
 ```
 
 Pass conditions:
@@ -121,6 +146,9 @@ Pass conditions:
 - slug-only cloud plan, portal, portal-manifest, and home-health paths perform no privileged customer-data read; the token portal resolves its token before those reads;
 - authenticated presentation authoring succeeds;
 - anon and authenticated clients cannot execute any PR1b service-only RPC;
+- the completed-agreement guard is exactly one `BEFORE UPDATE OR DELETE` row trigger backed by the dedicated `SECURITY INVOKER` trigger function with `search_path=pg_catalog`;
+- `PUBLIC`, `anon`, and `authenticated` have no function EXECUTE privilege, while `service_role` can finalize/insert but receives `Completed signed agreements are immutable` on any update or delete whose stored `OLD.status` is `complete`;
+- pending/incomplete signed-agreement rows remain updateable and deletable for retry or repair workflows;
 - the partial unique index has exactly `presentation_id` and predicate `presentation_id is not null and status = 'complete'`;
 - a private presentation capability signs once, concurrent/identical retries return the same IDs, and conflicting evidence is held without replacing the winner;
 - no unrelated Stripe, Jobber, appointment, obligation, portal, or Property Memory state changes.
@@ -136,17 +164,18 @@ If the application fails before migration 036, revert or fix the application wit
 - non-enumerable presentation capabilities;
 - UUID-bound Home Care Plan presentation links and token-bound member portals;
 - no direct browser reads from `home_care_plans`;
-- no client-supplied signing prices or customer/source IDs.
+- no client-supplied signing prices or customer/source IDs;
+- the completed-agreement immutability function and trigger.
 
 Never restore migration 030 anon mutation policies as a recovery action. Do not delete partial rows or signed objects. Retry the same presentation capability after repair; unique source keys and the completed-agreement index make retries converge. Escalate any linkage discrepancy for read-only reconciliation.
 
 ## Evidence record
 
-- Focused blocker tests: 3 files and 11 tests passed locally, covering migration/browser closure, the server-only exact read, and portal plan behavior; the credential-gated integration file/test skipped.
+- Scoped immutability focused tests (July 18, 2026): 2 files and 17 tests passed (`authority-closure.test.ts` plus the migration-037 dependent suite); the disposable integration file/test skipped because its required non-production acknowledgement and credentials were absent and this work order prohibited database access.
 - Targeted ESLint: passed with no findings across every changed TypeScript/TSX execution-path file.
-- Standalone `tsc --noEmit`: reports only the documented pre-existing fixture diagnostics outside this blocker's changed files; no changed file appears in the diagnostics.
-- Production build: attempted with Next.js 16.2.10 but blocked before compilation because the sandbox could not fetch the repository's configured Google Fonts. External network approval was not granted.
+- Standalone `tsc --noEmit`: not rerun for this SQL/test/audit/runbook-only change; the prior documented baseline reports only inherited fixture diagnostics outside this scope.
+- Production build: not rerun for this SQL/test/audit/runbook-only change; the prior documented attempt was blocked before compilation by unavailable configured Google Fonts.
 - `git diff --check`: passed.
 - Actual disposable anon/authenticated rehearsal: not run; credentials and disposable-database acknowledgement are absent locally.
-- Migration audit: intentionally not changed or evaluated in this blocker scope.
+- Migration audit: exact function definition, function ACL, and trigger-definition checks added for migration 036; audit script syntax passed. The read-only live audit was not run because this work order prohibited database access.
 - Production migration/deployment: not authorized and not performed.
