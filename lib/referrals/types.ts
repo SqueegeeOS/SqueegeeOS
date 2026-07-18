@@ -18,6 +18,8 @@ export interface PortalReferralRewardItem {
   label: string;
   status: "earned" | "available" | "redeemed" | "expired";
   earnedAt: string;
+  /** Cents for care-credit rewards; null for percent rewards. */
+  valueCents: number | null;
 }
 
 export interface PortalReferralMilestonePreview {
@@ -43,6 +45,26 @@ export interface MemberReferralSummary {
   availableCareCreditLabel: string | null;
 }
 
+/** One reward in the HQ lifecycle view. */
+export interface HqReferralRewardItem {
+  id: string;
+  label: string;
+  status: "earned" | "available" | "redeemed" | "expired";
+  earnedAt: string;
+  claimedAt: string | null;
+  valueCents: number | null;
+}
+
+/** One immutable claim-ledger event in the HQ view. */
+export interface HqReferralRewardEvent {
+  id: string;
+  rewardId: string;
+  eventType: string;
+  amountCents: number;
+  actorType: string;
+  createdAt: string;
+}
+
 /** HQ row: one referring member with their referral totals. */
 export interface HqReferralRow {
   code: string;
@@ -53,6 +75,14 @@ export interface HqReferralRow {
   nextMilestoneLabel: string | null;
   availableCareCreditLabel: string | null;
   availableRewardCount: number;
+  /** Milestones reached without reward rows — issuance needs reconciliation. */
+  rewardsOutOfSync: boolean;
+  /** Reached milestones missing reward rows, by label. */
+  missingMilestoneLabels: string[];
+  /** Full reward lifecycle, oldest milestone first. */
+  rewards: HqReferralRewardItem[];
+  /** Immutable claim-ledger events, newest first (empty pre-036). */
+  claimEvents: HqReferralRewardEvent[];
   referrals: Array<{
     id: string;
     leadName: string;

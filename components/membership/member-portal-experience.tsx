@@ -260,6 +260,7 @@ export function MemberPortalExperience({
           {view.membershipActive && resolvedPortalToken && (
             <ReferralSection
               portalToken={resolvedPortalToken}
+              firstName={view.firstName}
               index={3}
             />
           )}

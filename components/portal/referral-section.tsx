@@ -1,7 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ClaimCeremony } from "@/components/portal/claim-ceremony";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
+import {
+  dollarLabel,
+  firstClaimableReward,
+  preClaimCopy,
+  settledRewardStatusLine,
+} from "@/lib/referrals/ceremony-copy";
 import { REFERRAL_MILESTONES } from "@/lib/referrals/milestones";
 import type { MemberReferralSummary, ReferralStatus } from "@/lib/referrals/types";
 
@@ -22,8 +29,8 @@ const STATUS_TONE: Record<ReferralStatus, string> = {
 };
 
 const REWARD_STATUS_LABEL = {
-  earned: "Earned",
-  available: "Available",
+  earned: "Unlocked",
+  available: "Claimed",
   redeemed: "Redeemed",
   expired: "Expired",
 } as const;
@@ -46,14 +53,21 @@ function formatDate(value: string): string {
  */
 export function ReferralSection({
   portalToken,
+  firstName,
   index,
 }: {
   portalToken: string;
+  firstName: string;
   index: number;
 }) {
   const [summary, setSummary] = useState<MemberReferralSummary | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const [ceremony, setCeremony] = useState<{ rewardLabel: string } | null>(null);
+  /** One idempotency key per reward: retries converge on one claim event. */
+  const idempotencyKeys = useRef(new Map<string, string>());
 
   useEffect(() => {
     let cancelled = false;
@@ -86,7 +100,78 @@ export function ReferralSection({
       .catch(() => undefined);
   }, [summary]);
 
+  const claimReward = useCallback(
+    async (rewardId: string) => {
+      if (claiming) return;
+      setClaiming(true);
+      setClaimError(null);
+
+      let key = idempotencyKeys.current.get(rewardId);
+      if (!key) {
+        key = crypto.randomUUID();
+        idempotencyKeys.current.set(rewardId, key);
+      }
+
+      try {
+        const response = await fetch("/api/referrals/portal/claim", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ portalToken, rewardId, idempotencyKey: key }),
+        });
+        const data = (await response.json().catch(() => null)) as {
+          outcome?: string;
+          reward?: { id?: string; label?: string; valueCents?: number };
+          availableCareCreditCents?: number;
+        } | null;
+
+        if (!response.ok || !data?.outcome) {
+          setClaimError(
+            "We couldn't claim your reward just now. It stays saved for you — please try again shortly.",
+          );
+          return;
+        }
+
+        const availableCents =
+          typeof data.availableCareCreditCents === "number"
+            ? data.availableCareCreditCents
+            : 0;
+        setSummary((current) =>
+          current
+            ? {
+                ...current,
+                rewards: current.rewards.map((reward) =>
+                  reward.id === rewardId
+                    ? { ...reward, status: "available" as const }
+                    : reward,
+                ),
+                availableCareCreditLabel:
+                  availableCents > 0
+                    ? `${dollarLabel(availableCents)} in HomeAtlas Care Credits available`
+                    : current.availableCareCreditLabel,
+              }
+            : current,
+        );
+
+        // The ceremony plays ONLY on a fresh claim — an idempotent retry or
+        // refresh lands on already_claimed and stays quiet.
+        if (data.outcome === "claimed" && data.reward?.label) {
+          setCeremony({ rewardLabel: data.reward.label });
+        }
+      } catch {
+        setClaimError(
+          "We couldn't claim your reward just now. It stays saved for you — please try again shortly.",
+        );
+      } finally {
+        setClaiming(false);
+      }
+    },
+    [claiming, portalToken],
+  );
+
   if (!loaded || !summary) return null;
+
+  const claimable = firstClaimableReward(summary.rewards);
+  const invitation = claimable ? preClaimCopy(claimable) : null;
 
   return (
     <PortalSection
@@ -126,6 +211,33 @@ export function ReferralSection({
             </div>
           ))}
         </dl>
+
+        {claimable && invitation ? (
+          <div className="rounded-xl border border-accent/30 bg-accent/[0.07] px-5 py-5">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-accent/80">
+              {invitation.eyebrow}
+            </p>
+            <p className="mt-2 font-serif text-xl font-light text-foreground">
+              {invitation.headline}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed text-foreground/60">
+              {invitation.support}
+            </p>
+            <button
+              type="button"
+              onClick={() => void claimReward(claimable.id)}
+              disabled={claiming}
+              className="mt-4 inline-flex min-h-[44px] items-center justify-center rounded-full bg-accent px-6 text-[11px] font-medium uppercase tracking-[0.18em] text-[var(--on-accent)] transition-opacity hover:opacity-90 disabled:opacity-60 touch-manipulation"
+            >
+              {claiming ? "Claiming…" : invitation.button}
+            </button>
+            {claimError ? (
+              <p className="mt-3 text-xs leading-relaxed text-foreground/55" role="status">
+                {claimError}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
 
         {summary.availableCareCreditLabel ? (
           <p className="rounded-xl border border-accent/25 bg-accent/[0.07] px-4 py-3 text-sm leading-relaxed text-accent">
@@ -193,7 +305,9 @@ export function ReferralSection({
                   <div>
                     <p className="text-foreground/85">{reward.label}</p>
                     <p className="mt-1 text-xs text-foreground/45">
-                      Earned {formatDate(reward.earnedAt)}
+                      {reward.status === "available"
+                        ? settledRewardStatusLine()
+                        : `Earned ${formatDate(reward.earnedAt)}`}
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[10px] uppercase tracking-[0.16em] text-accent/90">
@@ -233,6 +347,13 @@ export function ReferralSection({
           </p>
         )}
       </PortalCard>
+
+      <ClaimCeremony
+        open={ceremony !== null}
+        firstName={firstName}
+        rewardLabel={ceremony?.rewardLabel ?? ""}
+        onSettled={() => setCeremony(null)}
+      />
     </PortalSection>
   );
 }

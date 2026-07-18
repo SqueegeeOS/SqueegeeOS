@@ -74,3 +74,47 @@ export function nextReferralMilestone(
     REFERRAL_MILESTONES.find((m) => m.convertedCount > convertedCount) ?? null
   );
 }
+
+interface RewardLike {
+  milestoneConvertedCount: number;
+  rewardType: ReferralRewardType;
+  status: ReferralRewardStatus;
+  valueCents: number | null;
+}
+
+/**
+ * Milestones the member has reached that have no reward row yet.
+ * Non-empty means issuance fell behind conversions — HQ must reconcile.
+ */
+export function milestonesMissingRewards(
+  convertedCount: number,
+  rewards: Array<Pick<RewardLike, "milestoneConvertedCount">>,
+): ReferralMilestoneDefinition[] {
+  const present = new Set(rewards.map((r) => r.milestoneConvertedCount));
+  return REFERRAL_MILESTONES.filter(
+    (m) => convertedCount >= m.convertedCount && !present.has(m.convertedCount),
+  );
+}
+
+/**
+ * Care Credit balances. Earned is a promise the member has not claimed;
+ * only claimed ("available") credit is spendable.
+ */
+export function computeCareCreditCents(rewards: RewardLike[]): {
+  availableCreditCents: number;
+  earnedCreditCents: number;
+  hasAvailablePercentReward: boolean;
+} {
+  const credits = rewards.filter((r) => r.rewardType === "care_credit");
+  return {
+    availableCreditCents: credits
+      .filter((r) => r.status === "available")
+      .reduce((sum, r) => sum + (r.valueCents ?? 0), 0),
+    earnedCreditCents: credits
+      .filter((r) => r.status === "earned")
+      .reduce((sum, r) => sum + (r.valueCents ?? 0), 0),
+    hasAvailablePercentReward: rewards.some(
+      (r) => r.rewardType === "percent_discount" && r.status === "available",
+    ),
+  };
+}
