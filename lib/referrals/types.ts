@@ -18,6 +18,8 @@ export interface PortalReferralRewardItem {
   label: string;
   status: "earned" | "available" | "redeemed" | "expired";
   earnedAt: string;
+  /** Cents for care-credit rewards; null for percent rewards. */
+  valueCents: number | null;
 }
 
 export interface PortalReferralMilestonePreview {

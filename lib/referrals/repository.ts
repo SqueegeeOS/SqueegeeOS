@@ -287,6 +287,7 @@ export async function getMemberReferralSummary(
       label: reward.rewardLabel,
       status: reward.status,
       earnedAt: reward.earnedAt,
+      valueCents: reward.valueCents,
     })),
     availableCareCreditLabel:
       rewardsView.availableCreditCents > 0
