@@ -329,6 +329,44 @@ export async function listReferralsForHq(): Promise<HqReferralRow[]> {
     visitCounts.set(k, (visitCounts.get(k) ?? 0) + 1);
   }
 
+  // Immutable claim-ledger events (service-role read; table exists only
+  // after migration 036 — any error degrades to an empty ledger, never a
+  // broken HQ page).
+  const membershipIds = codes.data.map((c) => c.membership_id as string);
+  const eventsByMembership = new Map<
+    string,
+    Array<{
+      id: string;
+      reward_id: string;
+      membership_id: string;
+      event_type: string;
+      amount_cents: number;
+      actor_type: string;
+      created_at: string;
+    }>
+  >();
+  const events = await supabase
+    .from("member_referral_reward_events")
+    .select("id, reward_id, membership_id, event_type, amount_cents, actor_type, created_at")
+    .in("membership_id", membershipIds)
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (!events.error) {
+    for (const event of (events.data ?? []) as Array<{
+      id: string;
+      reward_id: string;
+      membership_id: string;
+      event_type: string;
+      amount_cents: number;
+      actor_type: string;
+      created_at: string;
+    }>) {
+      const list = eventsByMembership.get(event.membership_id) ?? [];
+      list.push(event);
+      eventsByMembership.set(event.membership_id, list);
+    }
+  }
+
   return Promise.all(
     codes.data.map(async (c) => {
       const memberReferrals = ((referrals.data ?? []) as Array<
@@ -359,6 +397,25 @@ export async function listReferralsForHq(): Promise<HqReferralRow[]> {
           (r) => r.status === "available" || r.status === "earned",
         ).length,
         rewardsOutOfSync: rewardsView.missingMilestones.length > 0,
+        missingMilestoneLabels: rewardsView.missingMilestones.map((m) => m.label),
+        rewards: rewardsView.rewards.map((reward) => ({
+          id: reward.id,
+          label: reward.rewardLabel,
+          status: reward.status,
+          earnedAt: reward.earnedAt,
+          claimedAt: reward.claimedAt,
+          valueCents: reward.valueCents,
+        })),
+        claimEvents: (eventsByMembership.get(c.membership_id as string) ?? [])
+          .slice(0, 20)
+          .map((event) => ({
+            id: event.id,
+            rewardId: event.reward_id,
+            eventType: event.event_type,
+            amountCents: event.amount_cents,
+            actorType: event.actor_type,
+            createdAt: event.created_at,
+          })),
         referrals: memberReferrals.map((r) => ({
           id: r.id,
           leadName: r.lead_name,

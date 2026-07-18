@@ -23,6 +23,8 @@ export interface MemberReferralRewardRecord {
   valuePercent: number | null;
   status: ReferralRewardStatus;
   earnedAt: string;
+  /** Null until claimed — and until migration 036 adds the column. */
+  claimedAt: string | null;
   redeemedAt: string | null;
 }
 
@@ -49,6 +51,7 @@ interface RewardRow {
   value_percent: number | null;
   status: ReferralRewardStatus;
   earned_at: string;
+  claimed_at?: string | null;
   redeemed_at: string | null;
 }
 
@@ -62,6 +65,7 @@ function mapRewardRow(row: RewardRow): MemberReferralRewardRecord {
     valuePercent: row.value_percent,
     status: row.status,
     earnedAt: row.earned_at,
+    claimedAt: row.claimed_at ?? null,
     redeemedAt: row.redeemed_at,
   };
 }
@@ -160,11 +164,11 @@ export async function loadMemberReferralRewards(
   }
 
   const supabase = createServerSupabaseClient();
+  // select("*") keeps this read valid before AND after migration 036 adds
+  // claimed_at; the mapper treats the column as optional.
   const { data, error } = await supabase
     .from("member_referral_rewards")
-    .select(
-      "id, membership_id, milestone_converted_count, reward_type, reward_label, value_cents, value_percent, status, earned_at, redeemed_at",
-    )
+    .select("*")
     .eq("membership_id", membershipId)
     .order("milestone_converted_count", { ascending: true });
 

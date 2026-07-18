@@ -17,6 +17,25 @@ const STATUS_TONE: Record<ReferralStatus, string> = {
   cancelled: "text-muted/50",
 };
 
+const REWARD_LIFECYCLE_LABEL: Record<string, string> = {
+  earned: "Earned · awaiting member claim",
+  available: "Claimed · spendable Care Credit",
+  redeemed: "Redeemed",
+  expired: "Expired",
+};
+
+function formatHqDate(value: string): string {
+  try {
+    return new Date(value).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  } catch {
+    return value;
+  }
+}
+
 export function HqReferralsPage() {
   const [rows, setRows] = useState<HqReferralRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -56,8 +75,8 @@ export function HqReferralsPage() {
               No referral activity yet.
             </p>
             <p className="mt-3 text-sm text-muted">
-              Codes appear here the first time a member opens the referral
-              section of their portal.
+              Codes issue automatically when a membership activates. Legacy
+              active members without codes get theirs via the backfill.
             </p>
           </GlassCard>
         ) : (
@@ -82,6 +101,19 @@ export function HqReferralsPage() {
                   </div>
                 </div>
 
+                {row.rewardsOutOfSync ? (
+                  <div className="mt-4 rounded-xl border border-amber-400/40 bg-amber-400/[0.06] px-4 py-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.16em] text-amber-300">
+                      Reward issuance out of sync
+                    </p>
+                    <p className="mt-1 text-sm text-foreground/80">
+                      Reached milestones missing reward rows:{" "}
+                      {row.missingMilestoneLabels.join(", ")}. Conversions are
+                      recorded; issuance needs reconciliation.
+                    </p>
+                  </div>
+                ) : null}
+
                 {(row.nextMilestoneLabel || row.availableCareCreditLabel) && (
                   <div className="mt-4 space-y-2 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3">
                     {row.availableCareCreditLabel ? (
@@ -93,14 +125,56 @@ export function HqReferralsPage() {
                         <span className="text-foreground/85">{row.nextMilestoneLabel}</span>
                       </p>
                     ) : null}
-                    {row.availableRewardCount > 0 ? (
-                      <p className="text-xs text-muted">
-                        {row.availableRewardCount} reward
-                        {row.availableRewardCount === 1 ? "" : "s"} awaiting redemption
-                      </p>
-                    ) : null}
                   </div>
                 )}
+
+                {row.rewards.length > 0 ? (
+                  <div className="mt-4 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                      Reward lifecycle
+                    </p>
+                    <ul className="mt-2 space-y-2">
+                      {row.rewards.map((reward) => (
+                        <li
+                          key={reward.id}
+                          className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+                        >
+                          <span className="text-foreground/85">{reward.label}</span>
+                          <span className="text-xs text-muted">
+                            {REWARD_LIFECYCLE_LABEL[reward.status] ?? reward.status}
+                            {reward.claimedAt
+                              ? ` · claimed ${formatHqDate(reward.claimedAt)}`
+                              : ""}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                    {row.claimEvents.length > 0 ? (
+                      <div className="mt-3 border-t border-border/40 pt-3">
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-muted">
+                          Claim ledger
+                        </p>
+                        <ul className="mt-2 space-y-1">
+                          {row.claimEvents.map((event) => (
+                            <li
+                              key={event.id}
+                              className="flex flex-wrap items-baseline justify-between gap-2 font-mono text-[11px] text-muted"
+                            >
+                              <span className="uppercase tracking-[0.14em]">
+                                {event.eventType} · $
+                                {(event.amountCents / 100).toLocaleString("en-US", {
+                                  maximumFractionDigits: 0,
+                                })}{" "}
+                                · {event.actorType}
+                              </span>
+                              <span>{formatHqDate(event.createdAt)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {row.referrals.length > 0 ? (
                   <ul className="mt-5 divide-y divide-border/30 border-t border-border/30">
                     {row.referrals.map((r) => (
