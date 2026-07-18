@@ -220,6 +220,46 @@ begin
 end;
 $$;
 
+do $$
+declare
+  classifications_before bigint;
+  appointments_before bigint;
+  events_before bigint;
+begin
+  select count(*) into classifications_before
+  from public.jobber_visit_classifications;
+  select count(*) into appointments_before
+  from public.member_appointments;
+  select count(*) into events_before
+  from public.jobber_visit_classification_events;
+
+  begin
+    perform public.decide_jobber_visit_classification(
+      null::text, '00000000-0000-4000-8000-000000000739', repeat('a', 64),
+      '00000000-0000-4000-8000-000000000839',
+      (select updated_at from public.jobber_property_links
+       where id = '00000000-0000-4000-8000-000000000839'),
+      '00000000-0000-4000-8000-000000000439',
+      '00000000-0000-4000-8000-000000000339', 'home_care_visit',
+      'Null action must fail closed',
+      '00000000-0000-4000-8000-000000000139'
+    );
+    raise exception 'Null classification action was accepted';
+  exception when others then
+    if sqlerrm not like '%classification_invalid:%' then raise; end if;
+  end;
+
+  if (select count(*) from public.jobber_visit_classifications)
+      <> classifications_before
+    or (select count(*) from public.member_appointments) <> appointments_before
+    or (select count(*) from public.jobber_visit_classification_events)
+      <> events_before
+  then
+    raise exception 'Null classification action wrote authority evidence';
+  end if;
+end;
+$$;
+
 select public.decide_jobber_visit_classification(
   'approve', '00000000-0000-4000-8000-000000000739', repeat('a', 64),
   '00000000-0000-4000-8000-000000000839',

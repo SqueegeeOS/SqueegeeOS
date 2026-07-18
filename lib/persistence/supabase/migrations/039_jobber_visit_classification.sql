@@ -15,7 +15,10 @@ alter table public.jobber_schedule_sync_runs
   add column if not exists reservation_sequence bigint;
 
 with existing_max as (
-  select pg_catalog.coalesce(pg_catalog.max(reservation_sequence), 0) as value
+  select coalesce(
+    pg_catalog.max(reservation_sequence),
+    0::pg_catalog.int8
+  ) as value
   from public.jobber_schedule_sync_runs
 ), missing as (
   select run.id,
@@ -37,7 +40,10 @@ declare
   sequence_last_value bigint;
   sequence_is_called boolean;
 begin
-  select pg_catalog.coalesce(pg_catalog.max(run.reservation_sequence), 0)
+  select coalesce(
+    pg_catalog.max(run.reservation_sequence),
+    0::pg_catalog.int8
+  )
   into max_reservation_sequence
   from public.jobber_schedule_sync_runs run;
 
@@ -294,7 +300,8 @@ declare
   is_approval boolean;
 begin
   is_approval := requested_action = 'approve';
-  if requested_action not in ('approve', 'reject')
+  if requested_action is null
+    or requested_action not in ('approve', 'reject')
     or requested_projection_id is null
     or requested_property_link_id is null
     or requested_membership_id is null
@@ -305,7 +312,7 @@ begin
     or requested_source_payload_hash !~ '^[0-9a-f]{64}$'
     or requested_property_link_updated_at is null
     or requested_service_type not in ('home_care_visit', 'exterior_windows', 'pressure_wash')
-    or nullif(pg_catalog.btrim(pg_catalog.coalesce(requested_reason, '')), '') is null
+    or nullif(pg_catalog.btrim(coalesce(requested_reason, '')), '') is null
     or pg_catalog.char_length(pg_catalog.btrim(requested_reason)) > 1000
   then
     raise exception 'classification_invalid: invalid decision input';
@@ -387,7 +394,7 @@ begin
   if membership_row.status <> 'active'
     or membership_row.payment_setup_completed_at is null
     or membership_row.agreement_id is null
-    or nullif(pg_catalog.btrim(pg_catalog.coalesce(membership_row.sales_tier, '')), '') is null
+    or nullif(pg_catalog.btrim(coalesce(membership_row.sales_tier, '')), '') is null
     or membership_row.visit_price is null
     or not exists (
       select 1
@@ -485,7 +492,13 @@ begin
   for update;
 
   if found
-    and classification_row.classification_state = case when is_approval then 'approved' else 'rejected' end
+    and (
+      (is_approval and classification_row.classification_state = 'approved')
+      or (
+        not is_approval
+        and classification_row.classification_state = 'rejected'
+      )
+    )
     and classification_row.projection_id = projection_row.id
     and classification_row.source_payload_hash = projection_row.source_payload_hash
     and classification_row.property_link_id = link_row.id
@@ -773,7 +786,7 @@ begin
   if requested_classification_id is null
     or requested_expected_updated_at is null
     or requested_actor_id is null
-    or nullif(pg_catalog.btrim(pg_catalog.coalesce(requested_reason, '')), '') is null
+    or nullif(pg_catalog.btrim(coalesce(requested_reason, '')), '') is null
     or pg_catalog.char_length(pg_catalog.btrim(requested_reason)) > 1000
   then
     raise exception 'classification_invalid: invalid revocation input';

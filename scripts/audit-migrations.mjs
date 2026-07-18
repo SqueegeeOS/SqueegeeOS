@@ -78,9 +78,28 @@ function normalizeSql(value) {
 }
 
 function normalizeConstraintDefinition(value) {
-  return String(value ?? "")
-    .toLowerCase()
-    .replace(/\s+/g, "");
+  const definition = String(value ?? "");
+  let canonical = "";
+  let quoted = false;
+
+  for (let index = 0; index < definition.length; index += 1) {
+    const character = definition[index];
+    if (character === "'") {
+      canonical += character;
+      if (quoted && definition[index + 1] === "'") {
+        canonical += "'";
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (quoted) {
+      canonical += character;
+    } else if (!/\s/.test(character)) {
+      canonical += character.toLowerCase();
+    }
+  }
+
+  return canonical;
 }
 
 function normalizeFunctionBody(value) {
@@ -89,21 +108,32 @@ function normalizeFunctionBody(value) {
 
 function expectedConstraintDefinitions() {
   const block = migration037Source.match(
-    /with expected\(table_name, constraint_name, canonical_definition\) as \(values([\s\S]*?)\n  \), actual as/,
+    /with expected\(table_name, constraint_name, canonical_definition\) as \(values([\s\S]*?)\n  \), expected_counts as/,
   )?.[1];
   if (!block) throw new Error("Migration 037 exact constraint guard is missing");
-  return Array.from(
+  const definitions = Array.from(
     block.matchAll(/\('([^']+)', '([^']+)', '((?:''|[^'])*)'\)/g),
     (match) => ({
       table_name: match[1],
-      constraint_name: match[2],
       canonical_definition: match[3].replaceAll("''", "'"),
     }),
   ).sort((left, right) =>
-    `${left.table_name}.${left.constraint_name}`.localeCompare(
-      `${right.table_name}.${right.constraint_name}`,
+    `${left.table_name}.${left.canonical_definition}`.localeCompare(
+      `${right.table_name}.${right.canonical_definition}`,
     ),
   );
+  const expectedTables = new Set([
+    "membership_payment_setup_events",
+    "membership_stripe_setup_reconciliation_attempts",
+    "membership_stripe_setup_reconciliation_events",
+  ]);
+  if (
+    definitions.length !== 47 ||
+    definitions.some((definition) => !expectedTables.has(definition.table_name))
+  ) {
+    throw new Error("Migration 037 exact constraint inventory is malformed");
+  }
+  return definitions;
 }
 
 function expectedFunctionBody(name) {
@@ -477,12 +507,11 @@ try {
   const actualStripeConstraints = stripeSetupConstraints
     .map((row) => ({
       table_name: row.table_name,
-      constraint_name: row.constraint_name,
       canonical_definition: normalizeConstraintDefinition(row.definition),
     }))
     .sort((left, right) =>
-      `${left.table_name}.${left.constraint_name}`.localeCompare(
-        `${right.table_name}.${right.constraint_name}`,
+      `${left.table_name}.${left.canonical_definition}`.localeCompare(
+        `${right.table_name}.${right.canonical_definition}`,
       ),
     );
   const stripeSetupFunctionDefinitionRows = stripeSetupFunctionDetails.rows.map(

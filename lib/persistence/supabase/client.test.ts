@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+type SupabaseClientKeyView = { readonly supabaseKey: string };
+
 describe("createServerSupabaseClient", () => {
   afterEach(() => {
     vi.resetModules();
@@ -14,7 +16,8 @@ describe("createServerSupabaseClient", () => {
 
     const { createServerSupabaseClient } = await import("./client");
     const client = createServerSupabaseClient();
-    expect(client.supabaseKey).toBe("service-role-key");
+    const keyView = client as unknown as SupabaseClientKeyView;
+    expect(keyView.supabaseKey).toBe("service-role-key");
   });
 
   it("falls back to anon when service role is unset", async () => {
@@ -26,6 +29,7 @@ describe("createServerSupabaseClient", () => {
     const { createServerSupabaseClient, isServiceRoleConfigured } = await import("./client");
     const client = createServerSupabaseClient();
     expect(isServiceRoleConfigured()).toBe(false);
-    expect(client.supabaseKey).toBe("anon-key-example");
+    const keyView = client as unknown as SupabaseClientKeyView;
+    expect(keyView.supabaseKey).toBe("anon-key-example");
   });
 });

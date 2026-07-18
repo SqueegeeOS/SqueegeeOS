@@ -37,6 +37,7 @@ describe("computePresentationRates retailValue", () => {
     const rates = computePresentationRates({
       tier: "biannual",
       homeSqft: 2500,
+      monthlyRate: 0,
       retailValue: QUARTERLY_INCLUDED_TREATMENT_ANNUAL,
     });
     expect(rates.retailValue).toBe(0);
@@ -47,6 +48,7 @@ describe("computePresentationRates retailValue", () => {
     const rates = computePresentationRates({
       tier: "quarterly",
       homeSqft: 2500,
+      monthlyRate: 0,
       retailValue: 0,
     });
     expect(rates.retailValue).toBe(QUARTERLY_INCLUDED_TREATMENT_ANNUAL);

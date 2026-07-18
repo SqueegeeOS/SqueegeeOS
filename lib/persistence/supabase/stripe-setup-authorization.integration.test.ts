@@ -61,20 +61,87 @@ const migration037 = readFileSync(
 
 const constraintGuard =
   migration037.match(
-    /with expected\(table_name, constraint_name, canonical_definition\) as \(values([\s\S]*?)\n  \), actual as/,
+    /with expected\(table_name, constraint_name, canonical_definition\) as \(values([\s\S]*?)\n  \), expected_counts as/,
   )?.[1] ?? "";
 const EXPECTED_CONSTRAINT_DEFINITIONS = Array.from(
   constraintGuard.matchAll(/\('([^']+)', '([^']+)', '((?:''|[^'])*)'\)/g),
   (match) => ({
     table_name: match[1],
-    conname: match[2],
     canonical_definition: match[3].replaceAll("''", "'"),
   }),
 ).sort((left, right) =>
-  `${left.table_name}.${left.conname}`.localeCompare(
-    `${right.table_name}.${right.conname}`,
+  `${left.table_name}.${left.canonical_definition}`.localeCompare(
+    `${right.table_name}.${right.canonical_definition}`,
   ),
 );
+const EXPECTED_CONSTRAINT_TABLES = new Set([
+  "membership_payment_setup_events",
+  "membership_stripe_setup_reconciliation_attempts",
+  "membership_stripe_setup_reconciliation_events",
+]);
+
+function normalizeConstraintDefinition(value: unknown) {
+  const definition = String(value ?? "");
+  let canonical = "";
+  let quoted = false;
+
+  for (let index = 0; index < definition.length; index += 1) {
+    const character = definition[index];
+    if (character === "'") {
+      canonical += character;
+      if (quoted && definition[index + 1] === "'") {
+        canonical += "'";
+        index += 1;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (quoted) {
+      canonical += character;
+    } else if (!/\s/.test(character)) {
+      canonical += character.toLowerCase();
+    }
+  }
+
+  return canonical;
+}
+
+if (
+  EXPECTED_CONSTRAINT_DEFINITIONS.length !== 47 ||
+  EXPECTED_CONSTRAINT_DEFINITIONS.some(
+    (definition) => !EXPECTED_CONSTRAINT_TABLES.has(definition.table_name),
+  )
+) {
+  throw new Error("Migration 037 exact constraint inventory is malformed");
+}
+
+describe("migration 037 constraint inventory", () => {
+  it("extracts only the 47 intended constraints", () => {
+    expect(EXPECTED_CONSTRAINT_DEFINITIONS).toHaveLength(47);
+    expect(
+      EXPECTED_CONSTRAINT_DEFINITIONS.every((definition) =>
+        EXPECTED_CONSTRAINT_TABLES.has(definition.table_name),
+      ),
+    ).toBe(true);
+  });
+
+  it("normalizes SQL syntax without changing quoted authority literals", () => {
+    expect(
+      normalizeConstraintDefinition(
+        "CHECK ( ( operation_status = 'reserved'::text ) )",
+      ),
+    ).toBe("check((operation_status='reserved'::text))");
+    expect(
+      normalizeConstraintDefinition(
+        "CHECK ((operation_status = 'RESERVED'::text))",
+      ),
+    ).not.toBe("check((operation_status='reserved'::text))");
+    expect(
+      normalizeConstraintDefinition(
+        "CHECK ((event_key ~ '^[a-z0-9_ :]{1,96}$'::text))",
+      ),
+    ).not.toBe("check((event_key~'^[a-z0-9_:-]{1,96}$'::text))");
+  });
+});
 
 interface Fixture {
   membershipId: string;
@@ -529,22 +596,23 @@ integration("migration 037 disposable locked-activation rehearsal", () => {
 
     const { rows: constraints } = await pool.query(`
       select c.relname as table_name, k.conname,
-             pg_get_constraintdef(k.oid, false) as definition,
-             regexp_replace(
-               lower(pg_get_constraintdef(k.oid, false)),
-               '[[:space:]]+', '', 'g'
-             ) as canonical_definition
+             pg_get_constraintdef(k.oid, false) as definition
       from pg_catalog.pg_constraint k
       join pg_catalog.pg_class c on c.oid = k.conrelid
       where c.oid = any($1::regclass[])
       order by c.relname, k.conname
     `, [STRIPE_TABLES.map((table) => `public.${table}`)]);
     expect(
-      constraints.map(({ table_name, conname, canonical_definition }) => ({
-        table_name,
-        constraint_name: conname,
-        canonical_definition,
-      })),
+      constraints
+        .map(({ table_name, definition }) => ({
+          table_name,
+          canonical_definition: normalizeConstraintDefinition(definition),
+        }))
+        .sort((left, right) =>
+          `${left.table_name}.${left.canonical_definition}`.localeCompare(
+            `${right.table_name}.${right.canonical_definition}`,
+          ),
+        ),
     ).toEqual(
       EXPECTED_CONSTRAINT_DEFINITIONS,
     );
@@ -552,30 +620,26 @@ integration("migration 037 disposable locked-activation rehearsal", () => {
       (row) => `${row.conname}: ${row.definition}`,
     );
     for (const fragment of [
-      "membership_id_key: UNIQUE (membership_id)",
-      "stripe_customer_id_key: UNIQUE (stripe_customer_id)",
-      "stripe_setup_intent_id_key: UNIQUE (stripe_setup_intent_id)",
-      "membership_payment_setup_events_sales_tier_check",
-      "membership_payment_setup_events_visit_price_check",
-      "membership_payment_setup_events_visits_per_year_check",
-      "membership_payment_setup_events_authority_sha256_check",
-      "membership_payment_setup_events_enrollment_savings_check",
-      "membership_payment_setup_events_reconciliation_attempt_id_key: UNIQUE (reconciliation_attempt_id)",
-      "membership_payment_setup_events_reconciliation_attempt_id_fkey: FOREIGN KEY (reconciliation_attempt_id) REFERENCES membership_stripe_setup_reconciliation_attempts(id) ON DELETE RESTRICT",
-      "membership_payment_setup_events_membership_id_fkey: FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE RESTRICT",
-      "membership_payment_setup_events_presentation_id_fkey: FOREIGN KEY (presentation_id) REFERENCES presentations(id) ON DELETE RESTRICT",
-      "membership_payment_setup_events_agreement_id_fkey: FOREIGN KEY (agreement_id) REFERENCES signed_agreements(id) ON DELETE RESTRICT",
-      "membership_payment_setup_events_homeowner_id_fkey: FOREIGN KEY (homeowner_id) REFERENCES homeowners(id) ON DELETE RESTRICT",
-      "membership_payment_setup_events_property_id_fkey: FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE RESTRICT",
-      "membership_stripe_setup_reconciliation_attempts_pkey: PRIMARY KEY (id)",
-      "membership_stripe_setup_reconciliation_attempts_membership_id_key: UNIQUE (membership_id)",
-      "membership_stripe_setup_reconciliation_attempts_customer_idempotency_key_key: UNIQUE (customer_idempotency_key)",
-      "membership_stripe_setup_reconciliation_attempts_setup_intent_idempotency_key_key: UNIQUE (setup_intent_idempotency_key)",
-      "membership_stripe_setup_reconciliation_attempts_enrollment_savings_check",
-      "membership_stripe_setup_reconciliation_events_pkey: PRIMARY KEY (id)",
-      "membership_stripe_setup_reconciliation_events_attempt_id_event_key_key: UNIQUE (attempt_id, event_key)",
-      "membership_stripe_setup_reconciliation_events_attempt_id_fkey: FOREIGN KEY (attempt_id) REFERENCES membership_stripe_setup_reconciliation_attempts(id) ON DELETE RESTRICT",
-      "membership_stripe_setup_reconciliation_events_error_state_check",
+      "UNIQUE (membership_id)",
+      "UNIQUE (stripe_customer_id)",
+      "UNIQUE (stripe_setup_intent_id)",
+      "CHECK (sales_tier",
+      "CHECK (visit_price",
+      "CHECK (((sales_tier",
+      "CHECK ((presentation_authority_sha256",
+      "CHECK ((enrollment_savings",
+      "UNIQUE (reconciliation_attempt_id)",
+      "FOREIGN KEY (reconciliation_attempt_id) REFERENCES membership_stripe_setup_reconciliation_attempts(id) ON DELETE RESTRICT",
+      "FOREIGN KEY (membership_id) REFERENCES memberships(id) ON DELETE RESTRICT",
+      "FOREIGN KEY (presentation_id) REFERENCES presentations(id) ON DELETE RESTRICT",
+      "FOREIGN KEY (agreement_id) REFERENCES signed_agreements(id) ON DELETE RESTRICT",
+      "FOREIGN KEY (homeowner_id) REFERENCES homeowners(id) ON DELETE RESTRICT",
+      "FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE RESTRICT",
+      "PRIMARY KEY (id)",
+      "UNIQUE (customer_idempotency_key)",
+      "UNIQUE (setup_intent_idempotency_key)",
+      "UNIQUE (attempt_id, event_key)",
+      "FOREIGN KEY (attempt_id) REFERENCES membership_stripe_setup_reconciliation_attempts(id) ON DELETE RESTRICT",
     ]) {
       expect(definitions.some((definition) => definition.includes(fragment))).toBe(
         true,
@@ -599,6 +663,32 @@ integration("migration 037 disposable locked-activation rehearsal", () => {
     );
   });
 
+  it("accepts an equivalent constraint after a cosmetic rename", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const { rows: [constraint] } = await client.query<{ conname: string }>(`
+        select k.conname
+        from pg_catalog.pg_constraint k
+        where k.conrelid = 'public.membership_payment_setup_events'::regclass
+          and regexp_replace(
+            lower(pg_catalog.pg_get_constraintdef(k.oid, false)),
+            '[[:space:]]+', '', 'g'
+          ) = 'unique(reconciliation_attempt_id)'
+      `);
+      expect(constraint?.conname).toBeTruthy();
+      const constraintName = constraint.conname.replaceAll('"', '""');
+      await client.query(`
+        alter table public.membership_payment_setup_events
+          rename constraint "${constraintName}" to mpse_reconciliation_attempt_cosmetic_name
+      `);
+      await expect(client.query(migration037)).resolves.toBeDefined();
+    } finally {
+      await client.query("rollback").catch(() => {});
+      client.release();
+    }
+  });
+
   it("rejects a malformed partial reconciliation schema on rerun", async () => {
     const client = await pool.connect();
     try {
@@ -620,12 +710,93 @@ integration("migration 037 disposable locked-activation rehearsal", () => {
     const client = await pool.connect();
     try {
       await client.query("begin");
+      const { rows: [constraint] } = await client.query<{ conname: string }>(`
+        select k.conname
+        from pg_catalog.pg_constraint k
+        where k.conrelid = 'public.membership_stripe_setup_reconciliation_attempts'::regclass
+          and regexp_replace(
+            lower(pg_catalog.pg_get_constraintdef(k.oid, false)),
+            '[[:space:]]+', '', 'g'
+          ) = 'check((enrollment_savings>=(0)::numeric))'
+      `);
+      expect(constraint?.conname).toBeTruthy();
+      const constraintName = constraint.conname.replaceAll('"', '""');
       await client.query(`
         alter table public.membership_stripe_setup_reconciliation_attempts
-          drop constraint membership_stripe_setup_reconciliation_attempts_enrollment_savings_check;
+          drop constraint "${constraintName}";
         alter table public.membership_stripe_setup_reconciliation_attempts
-          add constraint membership_stripe_setup_reconciliation_attempts_enrollment_savings_check
+          add constraint mssra_enrollment_savings_weakened_check
           check (enrollment_savings >= -1000)
+      `);
+      await expect(client.query(migration037)).rejects.toThrow(
+        "Malformed PR1c constraint definitions require review",
+      );
+    } finally {
+      await client.query("rollback").catch(() => {});
+      client.release();
+    }
+  });
+
+  it("rejects a case-changed quoted constraint literal on rerun", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const { rows: constraints } = await client.query<{
+        conname: string;
+        definition: string;
+      }>(`
+        select k.conname, pg_catalog.pg_get_constraintdef(k.oid, false) as definition
+        from pg_catalog.pg_constraint k
+        where k.conrelid = 'public.membership_stripe_setup_reconciliation_attempts'::regclass
+      `);
+      const constraint = constraints.find(
+        (row) =>
+          normalizeConstraintDefinition(row.definition) ===
+          "check((operation_status='reserved'::text))",
+      );
+      expect(constraint?.conname).toBeTruthy();
+      const constraintName = constraint!.conname.replaceAll('"', '""');
+      await client.query(`
+        alter table public.membership_stripe_setup_reconciliation_attempts
+          drop constraint "${constraintName}";
+        alter table public.membership_stripe_setup_reconciliation_attempts
+          add constraint mssra_status_case_changed_check
+          check (operation_status = 'RESERVED'::text)
+      `);
+      await expect(client.query(migration037)).rejects.toThrow(
+        "Malformed PR1c constraint definitions require review",
+      );
+    } finally {
+      await client.query("rollback").catch(() => {});
+      client.release();
+    }
+  });
+
+  it("rejects whitespace added inside a quoted regex on rerun", async () => {
+    const client = await pool.connect();
+    try {
+      await client.query("begin");
+      const { rows: constraints } = await client.query<{
+        conname: string;
+        definition: string;
+      }>(`
+        select k.conname, pg_catalog.pg_get_constraintdef(k.oid, false) as definition
+        from pg_catalog.pg_constraint k
+        where k.conrelid = 'public.membership_stripe_setup_reconciliation_events'::regclass
+      `);
+      const constraint = constraints.find(
+        (row) =>
+          normalizeConstraintDefinition(row.definition) ===
+          "check((event_key~'^[a-z0-9_:-]{1,96}$'::text))",
+      );
+      expect(constraint?.conname).toBeTruthy();
+      const constraintName = constraint!.conname.replaceAll('"', '""');
+      await client.query(`
+        alter table public.membership_stripe_setup_reconciliation_events
+          drop constraint "${constraintName}";
+        alter table public.membership_stripe_setup_reconciliation_events
+          add constraint mssre_event_key_space_weakened_check
+          check (event_key ~ '^[a-z0-9_ :]{1,96}$'::text)
       `);
       await expect(client.query(migration037)).rejects.toThrow(
         "Malformed PR1c constraint definitions require review",

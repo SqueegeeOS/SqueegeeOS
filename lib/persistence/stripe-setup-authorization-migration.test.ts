@@ -21,6 +21,51 @@ const disposableHarness = readFileSync(
 );
 
 describe("migration 037 Stripe setup authorization", () => {
+  it("preserves the exact migration 042 activation successor on rerun", () => {
+    const successorHash = "1bd1f881ce2df4652f3b9b0ca149ab89";
+    const exactSignature = [
+      "uuid",
+      "uuid",
+      "uuid",
+      "uuid",
+      "uuid",
+      "text",
+      "uuid",
+      "text",
+      "text",
+      "text",
+      "boolean",
+    ];
+    const guardStart = migration.indexOf(
+      "-- Migration 042 replaces the exact signature below",
+    );
+    const guardedCreate = migration.indexOf(
+      "create or replace function public.activate_membership_after_stripe_setup(",
+      guardStart,
+    );
+
+    expect(guardStart).toBeGreaterThan(-1);
+    expect(guardedCreate).toBeGreaterThan(guardStart);
+
+    const preservationGuard = migration.slice(guardStart, guardedCreate);
+    expect(preservationGuard).toContain(
+      `'public.activate_membership_after_stripe_setup(${exactSignature.join(",")})'`,
+    );
+    expect(preservationGuard).toMatch(
+      new RegExp(
+        `\\)\\s+is distinct from '${successorHash}'\\s+then\\s+execute\\s+\\$migration_037_activation_ddl\\$`,
+      ),
+    );
+
+    const exactDropPattern = new RegExp(
+      `drop\\s+function\\s+if\\s+exists\\s+public\\.activate_membership_after_stripe_setup\\(\\s*${exactSignature.join(
+        "\\s*,\\s*",
+      )}\\s*\\)\\s*;`,
+      "i",
+    );
+    expect(migration.slice(0, guardedCreate)).not.toMatch(exactDropPattern);
+  });
+
   it("stores exclusive provider bindings and service-role transactional RPCs", () => {
     expect(migration).toContain("add column if not exists stripe_setup_intent_id");
     expect(migration).toContain("memberships_stripe_setup_intent_uidx");

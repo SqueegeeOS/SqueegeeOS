@@ -96,6 +96,11 @@ describe("migration 039 Jobber visit classification", () => {
     expect(decide).not.toContain("on conflict (provider, external_id)");
     expect(decide).not.toContain("technician_name = null");
     expect(decide).not.toContain("notes = null");
+    expect(decide).toContain("requested_action is null");
+    expect(rehearsal).toContain("Null classification action was accepted");
+    expect(rehearsal).toContain(
+      "Null classification action wrote authority evidence",
+    );
   });
 
   it("orders coverage attempts by a post-lock monotonic reservation sequence", () => {

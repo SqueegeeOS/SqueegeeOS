@@ -24,6 +24,7 @@ describe("manual per-visit override precedence", () => {
   const base = {
     tier: "quarterly" as const,
     homeSqft: SQFT,
+    monthlyRate: 0,
     twoStory: false,
     includeScreens: false,
   };
@@ -169,6 +170,7 @@ describe("manual per-visit override precedence", () => {
       computePresentationRates({
         tier: "quarterly",
         homeSqft: 3200,
+        monthlyRate: 0,
         visitRateOverrides: { quarterly: 300 },
         twoStory: true,
         includeScreens: true,
@@ -180,6 +182,7 @@ describe("manual per-visit override precedence", () => {
     const biannual = computePresentationRates({
       tier: "biannual",
       homeSqft: SQFT,
+      monthlyRate: 0,
       visitRateOverrides: { biannual: 300 },
     });
     expect(biannual.yearlyWindowSavings).toBe(200);
@@ -189,6 +192,7 @@ describe("manual per-visit override precedence", () => {
     const quarterly = computePresentationRates({
       tier: "quarterly",
       homeSqft: SQFT,
+      monthlyRate: 0,
       visitRateOverrides: { quarterly: 300 },
     });
     expect(quarterly.yearlyWindowSavings).toBe(600);
@@ -200,7 +204,6 @@ describe("manual per-visit override precedence", () => {
     const next = applyTierVisitOverride(
       {
         tier: "biannual",
-        homeSqft: SQFT,
         visitRateOverrides: {},
         monthlyRate: 0,
       },
@@ -213,7 +216,6 @@ describe("manual per-visit override precedence", () => {
     const quarterlyOverride = applyTierVisitOverride(
       {
         tier: "quarterly",
-        homeSqft: SQFT,
         visitRateOverrides: { biannual: 300 },
         monthlyRate: 0,
         overrideTier: null,
