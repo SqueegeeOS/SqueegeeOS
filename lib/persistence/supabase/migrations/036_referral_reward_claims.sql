@@ -3,6 +3,13 @@
 -- member claims them ('available'). Reservation/redemption state lives in an
 -- immutable event ledger, never in reward status. Additive and idempotent.
 
+-- 0. Defense in depth: reward status is now the spendability gate. 030's
+--    dynamic loop should already have dropped 028's wide-open anon policy,
+--    but assert the intended state explicitly — an anon UPDATE to
+--    status='available' would forge spendable credit.
+drop policy if exists member_referral_rewards_anon_all
+  on member_referral_rewards;
+
 -- 1. Re-assert the status constraint BEFORE changing the default (prod check
 --    constraints have lagged app enums before — 028 in the repo already
 --    permits 'earned', but this guarantees it wherever the migration runs).
@@ -73,6 +80,7 @@ create trigger member_referral_reward_events_immutable
 alter table member_referral_reward_events enable row level security;
 -- No anon/authenticated policies. Claim writes go through the service-role
 -- server path only; the portal reads its view through server routes.
+revoke all on table member_referral_reward_events from anon, authenticated;
 
 -- 4. Transactional claim: lock the reward row, verify ownership, allow only
 --    earned -> available, record exactly one 'claimed' event. Retries and
@@ -153,3 +161,5 @@ $$;
 
 revoke all on function public.claim_member_referral_reward(uuid, text, text)
   from public, anon, authenticated;
+grant execute on function public.claim_member_referral_reward(uuid, text, text)
+  to service_role;

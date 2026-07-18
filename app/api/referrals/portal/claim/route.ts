@@ -89,8 +89,14 @@ export async function POST(request: Request) {
       // charge-path audit both pass independently.
       creditApplicationReady: false,
     });
-  } catch {
-    // Deliberately detail-free: no token, no DB error, nothing to correlate.
+  } catch (error) {
+    // Server-side breadcrumb for incident diagnosis. The claim layer already
+    // reduces DB errors to "claim_failed"; the token is never interpolated.
+    console.error(
+      "[portal-claim] claim request failed:",
+      error instanceof Error ? error.message : "unknown error",
+    );
+    // Response stays detail-free: no token, no DB error, nothing to correlate.
     return NextResponse.json(
       { error: "Failed to claim reward" },
       { status: 500 },
