@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { JobberScheduleSyncPanel } from "@/components/admin/jobber-schedule-sync-panel";
+import { JobberMemberPropertyLinkPanel } from "@/components/admin/jobber-member-property-link-panel";
 import { JobberVisitSamplePanel } from "@/components/admin/jobber-visit-sample-panel";
 import { JobberVisitClassificationPanel } from "@/components/admin/jobber-visit-classification-panel";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
@@ -241,6 +242,7 @@ export function JobberConnectionPanel() {
 
       {status?.connection?.connected ? (
         <>
+          <JobberMemberPropertyLinkPanel />
           <JobberScheduleSyncPanel />
           <JobberVisitSamplePanel />
           <JobberVisitClassificationPanel />

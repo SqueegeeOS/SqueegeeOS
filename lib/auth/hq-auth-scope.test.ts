@@ -7,6 +7,8 @@ const careOperationRoutes = [
   "../../app/api/admin/care-operations/jobber/oauth/callback/route.ts",
   "../../app/api/admin/care-operations/jobber/oauth/status/route.ts",
   "../../app/api/admin/care-operations/jobber/property-links/route.ts",
+  "../../app/api/admin/care-operations/jobber/clients/search/route.ts",
+  "../../app/api/admin/care-operations/jobber/clients/properties/route.ts",
   "../../app/api/admin/care-operations/jobber/visits/sample/route.ts",
 ];
 
@@ -36,11 +38,20 @@ describe("PR1a authorization scope", () => {
     const propertyMatching = read(
       "../care-operations/jobber-property-matching.ts",
     );
+    const memberSearchLinkMigration = read(
+      "../persistence/supabase/migrations/040_jobber_member_property_search_link.sql",
+    );
 
     expect(callback).toContain("actorId: authorization.actor.id");
-    expect(links.match(/actorId: authorization\.actor\.id/g)).toHaveLength(2);
+    expect(links.match(/actorId: authorization\.actor\.id/g)).toHaveLength(3);
     expect(connectionStore).toContain("requested_actor_id: input.actorId");
-    expect(propertyMatching).toContain("linked_by: input.actorId");
+    expect(propertyMatching).toContain("requested_actor_id: input.actorId");
+    expect(memberSearchLinkMigration).toContain(
+      "'active', requested_actor_id::text",
+    );
+    expect(memberSearchLinkMigration).toContain(
+      "linked_by = requested_actor_id::text",
+    );
     expect(propertyMatching).toContain("revoked_by: input.actorId");
     expect(propertyMatching).not.toContain('const LINK_ACTOR = "hq_admin"');
   });

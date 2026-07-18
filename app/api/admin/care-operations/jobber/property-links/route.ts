@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeHqApiRequest } from "@/lib/auth/hq-route-authorization";
 import {
   linkJobberProperty,
+  linkSearchedJobberClientProperty,
   loadJobberPropertyMatchingWorkspace,
   revokeJobberPropertyLink,
   SupervisedPropertyMatchError,
@@ -29,8 +30,10 @@ export async function POST(request: Request) {
   const authorization = await authorizeHqApiRequest();
   if (authorization.response) return authorization.response;
   let body: {
-    action?: "link" | "revoke";
+    action?: "link" | "link_client_property" | "revoke";
     projectionId?: string;
+    clientId?: string;
+    externalPropertyId?: string;
     membershipId?: string;
     samePhysicalPropertyConfirmed?: boolean;
     expectedLinkUpdatedAt?: string | null;
@@ -61,6 +64,24 @@ export async function POST(request: Request) {
         outcome,
         workspace: await loadJobberPropertyMatchingWorkspace(),
       });
+    }
+
+    if (body.action === "link_client_property") {
+      if (!body.clientId || !body.externalPropertyId || !body.membershipId) {
+        throw new SupervisedPropertyMatchError(
+          "Select a Jobber customer property and an active HomeAtlas member property.",
+          400,
+        );
+      }
+      const outcome = await linkSearchedJobberClientProperty({
+        clientId: body.clientId,
+        externalPropertyId: body.externalPropertyId,
+        membershipId: body.membershipId,
+        actorId: authorization.actor.id,
+        samePhysicalPropertyConfirmed:
+          body.samePhysicalPropertyConfirmed === true,
+      });
+      return NextResponse.json({ outcome });
     }
 
     if (body.action === "revoke") {
