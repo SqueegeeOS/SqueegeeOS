@@ -159,6 +159,7 @@ export function JobberVisitSamplePanel() {
           body: JSON.stringify({
             action,
             projectionId: visit.projectionId,
+            linkId: action === "revoke" ? visit.propertyLink?.linkId : undefined,
             membershipId: action === "link" ? membershipId : undefined,
             samePhysicalPropertyConfirmed:
               action === "link"

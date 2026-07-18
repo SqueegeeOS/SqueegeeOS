@@ -32,6 +32,7 @@ export async function POST(request: Request) {
   let body: {
     action?: "link" | "link_client_property" | "revoke";
     projectionId?: string;
+    linkId?: string;
     clientId?: string;
     externalPropertyId?: string;
     membershipId?: string;
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "revoke") {
-      if (!body.projectionId || !body.expectedLinkUpdatedAt) {
+      if (!body.projectionId || !body.linkId || !body.expectedLinkUpdatedAt) {
         throw new SupervisedPropertyMatchError(
           "Refresh the property link before revoking it.",
           400,
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
       }
       const outcome = await revokeJobberPropertyLink({
         projectionId: body.projectionId,
+        linkId: body.linkId,
         actorId: authorization.actor.id,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
       });

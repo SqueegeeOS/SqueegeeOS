@@ -660,50 +660,123 @@ export async function linkSearchedJobberClientProperty(
   });
 }
 
-export async function revokeJobberPropertyLink(input: {
-  projectionId: string;
-  actorId: string;
-  expectedLinkUpdatedAt: string;
-}): Promise<"revoked" | "already_jobber_only"> {
-  const projection = await loadProjectionIdentity(input.projectionId);
-  const supabase = createServiceRoleSupabaseClient();
-  const existingResult = await supabase
-    .from("jobber_property_links")
-    .select(
-      "id, external_property_id, property_id, membership_id, link_state, updated_at",
-    )
-    .eq("connection_id", projection.connection_id)
-    .eq("external_property_id", projection.external_property_id)
-    .maybeSingle();
-  if (existingResult.error) throw existingResult.error;
-  const existing = (existingResult.data as LinkRow | null) ?? null;
-  if (!existing || existing.link_state === "revoked") {
-    return "already_jobber_only";
-  }
-  if (!input.expectedLinkUpdatedAt || input.expectedLinkUpdatedAt !== existing.updated_at) {
+export async function revokeJobberPropertyLink(
+  input: {
+    projectionId: string;
+    linkId: string;
+    actorId: string;
+    expectedLinkUpdatedAt: string;
+  },
+  client?: JobberPropertyLinkRevocationRpcClient,
+): Promise<"revoked" | "already_jobber_only"> {
+  return persistJobberPropertyLinkRevocation(
+    {
+      actorId: input.actorId,
+      connectionId: JOBBER_CONNECTION_ID,
+      projectionId: input.projectionId,
+      linkId: input.linkId,
+      expectedLinkUpdatedAt: input.expectedLinkUpdatedAt,
+      reason: REVOKE_REASON,
+    },
+    client,
+  );
+}
+
+interface JobberPropertyLinkRevocationRpcClient {
+  rpc(
+    name: "revoke_jobber_property_link",
+    args: {
+      requested_actor_id: string;
+      requested_connection_id: string;
+      requested_projection_id: string;
+      requested_link_id: string;
+      requested_expected_link_updated_at: string;
+      requested_reason: string;
+    },
+  ): PromiseLike<{
+    data: unknown;
+    error: { message: string; code?: string } | null;
+  }>;
+}
+
+export async function persistJobberPropertyLinkRevocation(
+  input: {
+    actorId: string;
+    connectionId: string;
+    projectionId: string;
+    linkId: string;
+    expectedLinkUpdatedAt: string;
+    reason: string;
+  },
+  client: JobberPropertyLinkRevocationRpcClient =
+    createServiceRoleSupabaseClient() as unknown as JobberPropertyLinkRevocationRpcClient,
+): Promise<"revoked" | "already_jobber_only"> {
+  if (
+    !isUuid(input.actorId) ||
+    !isUuid(input.projectionId) ||
+    !isUuid(input.linkId) ||
+    input.connectionId !== JOBBER_CONNECTION_ID ||
+    !Number.isFinite(Date.parse(input.expectedLinkUpdatedAt)) ||
+    !input.reason.trim()
+  ) {
     throw new SupervisedPropertyMatchError(
-      "The property link changed while you were reviewing it. Refresh and try again.",
-      409,
+      "Refresh the Jobber property link before revoking it.",
+      400,
     );
   }
-  const updateResult = await supabase
-    .from("jobber_property_links")
-    .update({
-      link_state: "revoked",
-      revoked_by: input.actorId,
-      revoke_reason: REVOKE_REASON,
-      revoked_at: new Date().toISOString(),
-    })
-    .eq("id", existing.id)
-    .eq("updated_at", input.expectedLinkUpdatedAt)
-    .select("id")
-    .maybeSingle();
-  if (updateResult.error) throw updateResult.error;
-  if (!updateResult.data) {
+  const { data, error } = await client.rpc("revoke_jobber_property_link", {
+    requested_actor_id: input.actorId,
+    requested_connection_id: input.connectionId,
+    requested_projection_id: input.projectionId,
+    requested_link_id: input.linkId,
+    requested_expected_link_updated_at: input.expectedLinkUpdatedAt,
+    requested_reason: input.reason.trim(),
+  });
+  if (error) {
+    if (error.message.includes("jobber_link_revoke_invalid:")) {
+      throw new SupervisedPropertyMatchError(
+        "Refresh the Jobber property link before revoking it.",
+        400,
+      );
+    }
+    if (error.message.includes("jobber_link_revoke_forbidden:")) {
+      throw new SupervisedPropertyMatchError(
+        "Headquarters authorization is no longer active.",
+        403,
+      );
+    }
+    if (error.message.includes("jobber_link_revoke_not_found:")) {
+      throw new SupervisedPropertyMatchError(
+        "The Jobber property link could not be found.",
+        404,
+      );
+    }
+    if (error.message.includes("jobber_link_revoke_conflict:")) {
+      throw new SupervisedPropertyMatchError(
+        "The property link changed while you were reviewing it. Refresh and try again.",
+        409,
+      );
+    }
     throw new SupervisedPropertyMatchError(
-      "The property link changed while you were reviewing it. Refresh and try again.",
-      409,
+      "Property-link storage is unavailable.",
+      503,
     );
   }
-  return "revoked";
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    throw new SupervisedPropertyMatchError(
+      "Property-link storage returned malformed data.",
+      503,
+    );
+  }
+  const result = data as Record<string, unknown>;
+  if (
+    !["revoked", "already_jobber_only"].includes(String(result.outcome)) ||
+    typeof result.link_id !== "string"
+  ) {
+    throw new SupervisedPropertyMatchError(
+      "Property-link storage returned malformed data.",
+      503,
+    );
+  }
+  return result.outcome as "revoked" | "already_jobber_only";
 }
