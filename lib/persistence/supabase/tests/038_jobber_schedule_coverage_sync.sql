@@ -130,7 +130,7 @@ end;
 $$;
 
 select public.append_jobber_schedule_coverage_leaf(
-  '00000000-0000-0000-0000-000000000338', 1, 0,
+  '00000000-0000-0000-0000-000000000338', 1::smallint, 0,
   '2026-04-17T07:00:00Z', '2027-07-17T07:00:00Z', repeat('a', 64),
   jsonb_build_array(jsonb_build_object(
     'external_visit_id', 'visit-038',
