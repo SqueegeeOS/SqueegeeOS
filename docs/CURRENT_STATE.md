@@ -76,7 +76,7 @@ No UI component should create a second lifecycle, pricing, revenue, or persisten
 - Agreement PDFs belong in the private signed-agreements bucket and are served with short-lived signed URLs.
 - Production migration state is unknown until a read-only ledger proves which migrations are applied.
 - Referral RLS and portal referral authorization remain release-blocking items until verified against production.
-- Migration 036 closes direct `anon` and `authenticated` mutations on customer authority tables and makes public presentation UUID capabilities non-enumerable. It has not been applied or rehearsed against a disposable Supabase project yet.
+- Migration 036 closes direct `anon` and `authenticated` reads and mutations on customer authority tables. Cloud Home Care Plan presentation links require the existing plan UUID plus both slugs and return only `generated` or `published` presentation JSON; slug-only cloud plan, portal, and home-health routes fail closed while the opaque-token portal remains authorized. Migration 036 has not been applied or rehearsed against a disposable Supabase project yet.
 - **RED release gate — PR1c Stripe activation identity authorization:** PR1c is implemented on its isolated branch with capability-bound, server-authoritative setup and atomic activation migration 037. It is not disposable-database rehearsed, Stripe-test proven, migrated, merged, deployed, or production-proven. Those gates must pass before migrations 036/037, deployment, or any production presentation-to-payment activation.
 
 ## Execution queue

@@ -15,13 +15,11 @@ import type {
 import type { PersistenceAdapter } from "../adapters/types";
 import { createBrowserSupabaseClient } from "../supabase/client";
 import {
-  homeCarePlanFromRow,
   homeownerFromRow,
   membershipFromRow,
   propertyAssetFromRow,
   propertyFromRow,
   signedAgreementFromRow,
-  type HomeCarePlanRow,
   type HomeownerRow,
   type PropertyRow,
   type SignedAgreementRow,
@@ -37,6 +35,12 @@ function browserMutationBlocked(): never {
   );
 }
 
+function browserPlanReadBlocked(): never {
+  throw new Error(
+    "Browser Supabase Home Care Plan reads are closed; use the narrow server presentation loader.",
+  );
+}
+
 export const supabaseAdapter: PersistenceAdapter = {
   backend: "supabase",
   isCloudConnected: true,
@@ -49,38 +53,16 @@ export const supabaseAdapter: PersistenceAdapter = {
   },
 
   async getHomeCarePlanBySlugs(
-    homeownerSlug: string,
-    propertySlug: string,
+    _homeownerSlug: string,
+    _propertySlug: string,
   ): Promise<PersistedHomeCarePlan | null> {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from("home_care_plans")
-      .select("*")
-      .eq("homeowner_slug", homeownerSlug)
-      .eq("property_slug", propertySlug)
-      .maybeSingle();
-
-    if (error) {
-      throw new Error(`Failed to load home care plan: ${error.message}`);
-    }
-
-    return data ? homeCarePlanFromRow(data as HomeCarePlanRow) : null;
+    void _homeownerSlug;
+    void _propertySlug;
+    return browserPlanReadBlocked();
   },
 
   async listHomeCarePlans(): Promise<PersistedHomeCarePlan[]> {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from("home_care_plans")
-      .select("*")
-      .order("updated_at", { ascending: false });
-
-    if (error) {
-      throw new Error(`Failed to list home care plans: ${error.message}`);
-    }
-
-    return (data as HomeCarePlanRow[]).map(homeCarePlanFromRow);
+    return browserPlanReadBlocked();
   },
 
   async deleteHomeCarePlan(

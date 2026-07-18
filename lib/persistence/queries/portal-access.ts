@@ -6,6 +6,8 @@ import { buildPortalAccessUrl } from "@/lib/membership/portal-access";
 
 export interface PortalAccessContext {
   membershipId: string;
+  homeownerId: string;
+  propertyId: string;
   memberName: string;
   homeownerSlug: string;
   propertySlug: string;
@@ -14,12 +16,17 @@ export interface PortalAccessContext {
 
 interface PortalAccessRow {
   id: string;
+  homeowner_id: string;
+  property_id: string;
   portal_access_token: string;
   homeowners:
-    | { slug: string; full_name: string }
-    | { slug: string; full_name: string }[]
+    | { id: string; slug: string; full_name: string }
+    | { id: string; slug: string; full_name: string }[]
     | null;
-  properties: { slug: string } | { slug: string }[] | null;
+  properties:
+    | { id: string; homeowner_id: string; slug: string }
+    | { id: string; homeowner_id: string; slug: string }[]
+    | null;
 }
 
 function firstRelation<T>(value: T | T[] | null | undefined): T | null {
@@ -39,7 +46,7 @@ export async function resolvePortalAccessByToken(
   const { data, error } = await supabase
     .from("memberships")
     .select(
-      "id, portal_access_token, homeowners!inner(slug, full_name), properties!inner(slug)",
+      "id, homeowner_id, property_id, portal_access_token, homeowners!inner(id, slug, full_name), properties!inner(id, homeowner_id, slug)",
     )
     .eq("portal_access_token", normalized)
     .maybeSingle();
@@ -52,14 +59,30 @@ export async function resolvePortalAccessByToken(
   const homeowner = firstRelation(row.homeowners);
   const homeownerSlug = homeowner?.slug;
   const memberName = homeowner?.full_name;
-  const propertySlug = firstRelation(row.properties)?.slug;
+  const property = firstRelation(row.properties);
+  const propertySlug = property?.slug;
 
-  if (!homeownerSlug || !memberName || !propertySlug || !row.portal_access_token) {
+  if (
+    !row.id ||
+    !row.homeowner_id ||
+    !row.property_id ||
+    !homeowner?.id ||
+    !property?.id ||
+    row.homeowner_id !== homeowner.id ||
+    row.property_id !== property.id ||
+    property.homeowner_id !== homeowner.id ||
+    !homeownerSlug ||
+    !memberName ||
+    !propertySlug ||
+    row.portal_access_token !== normalized
+  ) {
     return null;
   }
 
   return {
     membershipId: row.id,
+    homeownerId: row.homeowner_id,
+    propertyId: row.property_id,
     memberName,
     homeownerSlug,
     propertySlug,

@@ -248,6 +248,4 @@ export function draftFromProperty(
   };
 }
 
-export function getPlanPresentationPath(data: HomeCarePlanData): string {
-  return `/homecare/${data.homeowner.slug}/${data.property.slug}/plan`;
-}
+export { getPlanPresentationPath } from "./presentation-capability";

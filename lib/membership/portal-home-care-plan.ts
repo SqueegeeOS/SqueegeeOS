@@ -14,15 +14,10 @@ import {
   createHomeCarePlanRecord,
   presentationFromRecord,
 } from "@/lib/persistence/mappers/home-care-plan";
-import { loadGeneratedHomeCarePlan } from "@/lib/persistence/repository";
-import {
-  createPrivilegedServerSupabaseClient,
-  isSupabaseConfigured,
-} from "@/lib/persistence/supabase/client";
-import { getPresentation } from "@/lib/presentations/repository";
-import {
-  tierVisitPriceForPresentation,
-} from "@/lib/presentations/calculations";
+import { createPrivilegedServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import type { PortalAccessContext } from "@/lib/persistence/queries/portal-access";
+import { getPresentationForPortalAccess } from "@/lib/presentations/repository";
+import { tierVisitPriceForPresentation } from "@/lib/presentations/calculations";
 import {
   firstNameFromFullName,
   parseClientAddress,
@@ -225,31 +220,61 @@ interface BackfillContextRow {
 
 async function fetchBackfillContext(
   supabase: SupabaseClient,
-  homeownerSlug: string,
-  propertySlug: string,
+  access: PortalAccessContext,
 ): Promise<BackfillContextRow | null> {
   const { data: homeowner, error: homeownerError } = await supabase
     .from("homeowners")
     .select("id, slug, full_name")
-    .eq("slug", homeownerSlug)
+    .eq("id", access.homeownerId)
+    .eq("slug", access.homeownerSlug)
     .maybeSingle();
 
-  if (homeownerError || !homeowner) return null;
+  if (
+    homeownerError ||
+    !homeowner ||
+    homeowner.id !== access.homeownerId ||
+    homeowner.slug !== access.homeownerSlug
+  ) {
+    return null;
+  }
 
   const { data: property, error: propertyError } = await supabase
     .from("properties")
-    .select("id, slug, name, address, city, state, square_feet")
-    .eq("homeowner_id", homeowner.id)
-    .eq("slug", propertySlug)
+    .select("id, homeowner_id, slug, name, address, city, state, square_feet")
+    .eq("id", access.propertyId)
+    .eq("homeowner_id", access.homeownerId)
+    .eq("slug", access.propertySlug)
     .maybeSingle();
 
-  if (propertyError || !property) return null;
+  if (
+    propertyError ||
+    !property ||
+    property.id !== access.propertyId ||
+    property.homeowner_id !== access.homeownerId ||
+    property.slug !== access.propertySlug
+  ) {
+    return null;
+  }
 
-  const { data: membership } = await supabase
+  const { data: membership, error: membershipError } = await supabase
     .from("memberships")
-    .select("plan_name, sales_tier, visit_price, presentation_id")
-    .eq("property_id", property.id)
+    .select(
+      "id, homeowner_id, property_id, plan_name, sales_tier, visit_price, presentation_id",
+    )
+    .eq("id", access.membershipId)
+    .eq("homeowner_id", access.homeownerId)
+    .eq("property_id", access.propertyId)
     .maybeSingle();
+
+  if (
+    membershipError ||
+    !membership ||
+    membership.id !== access.membershipId ||
+    membership.homeowner_id !== access.homeownerId ||
+    membership.property_id !== access.propertyId
+  ) {
+    return null;
+  }
 
   return {
     homeowner_id: homeowner.id as string,
@@ -270,55 +295,50 @@ async function fetchBackfillContext(
 }
 
 async function backfillPortalHomeCarePlan(
-  homeownerSlug: string,
-  propertySlug: string,
+  supabase: SupabaseClient,
+  access: PortalAccessContext,
 ): Promise<HomeCarePlanData | null> {
-  if (!isSupabaseConfigured()) return null;
-
-  const supabase = createPrivilegedServerSupabaseClient();
-  const context = await fetchBackfillContext(
-    supabase,
-    homeownerSlug,
-    propertySlug,
-  );
+  const context = await fetchBackfillContext(supabase, access);
   if (!context) return null;
+
+  const { homeownerSlug, propertySlug } = access;
 
   let plan: HomeCarePlanData | null = null;
 
   if (context.presentation_id) {
-    const presentation = await getPresentation(context.presentation_id);
-    if (presentation) {
-      const tier = normalizeToSqueegeeKingTier(
-        context.sales_tier ?? presentation.tier,
-      );
-      const visitPrice =
-        context.visit_price && context.visit_price > 0
-          ? context.visit_price
-          : tierVisitPriceForPresentation(
-              { ...presentation, tier },
-              tier,
-            );
+    const presentation = await getPresentationForPortalAccess(
+      context.presentation_id,
+      access,
+    );
+    if (!presentation) return null;
 
-      plan = buildPortalHomeCarePlanFromPresentation({
-        presentation: {
-          ...presentation,
-          clientName: presentation.clientName || context.homeowner_full_name,
-          clientAddress:
-            presentation.clientAddress ||
-            formatPortalPropertyAddress({
-              address: context.property_address,
-              city: context.property_city,
-              state: context.property_state,
-            }),
-          homeSqft: presentation.homeSqft || context.square_feet || 0,
-        },
-        homeownerSlug,
-        propertySlug,
-        planName: context.membership_plan_name ?? presentation.tier,
-        agreementTier: tier,
-        visitPrice,
-      });
-    }
+    const tier = normalizeToSqueegeeKingTier(
+      context.sales_tier ?? presentation.tier,
+    );
+    const visitPrice =
+      context.visit_price && context.visit_price > 0
+        ? context.visit_price
+        : tierVisitPriceForPresentation({ ...presentation, tier }, tier);
+
+    plan = buildPortalHomeCarePlanFromPresentation({
+      presentation: {
+        ...presentation,
+        clientName: presentation.clientName || context.homeowner_full_name,
+        clientAddress:
+          presentation.clientAddress ||
+          formatPortalPropertyAddress({
+            address: context.property_address,
+            city: context.property_city,
+            state: context.property_state,
+          }),
+        homeSqft: presentation.homeSqft || context.square_feet || 0,
+      },
+      homeownerSlug,
+      propertySlug,
+      planName: context.membership_plan_name ?? presentation.tier,
+      agreementTier: tier,
+      visitPrice,
+    });
   }
 
   if (!plan) {
@@ -369,28 +389,94 @@ async function backfillPortalHomeCarePlan(
     });
   }
 
-  await persistPortalHomeCarePlan(supabase, {
-    homeownerId: context.homeowner_id,
-    propertyId: context.property_id,
-    homeownerSlug,
-    propertySlug,
+  return persistMissingPortalHomeCarePlanWithoutReplacement(
+    supabase,
+    access,
     plan,
-  });
-
-  return plan;
+  );
 }
 
-/** Loads portal plan data — existing row, or lazy backfill for legacy members. */
-export async function loadPortalHomeCarePlan(
-  homeownerSlug: string,
-  propertySlug: string,
-): Promise<HomeCarePlanData | null> {
-  const existing = await loadGeneratedHomeCarePlan(homeownerSlug, propertySlug);
-  if (existing) return existing;
+type AuthorizedPortalPlanLookup =
+  | { kind: "missing" }
+  | { kind: "blocked" }
+  | { kind: "found"; plan: HomeCarePlanData };
 
+async function loadExistingAuthorizedPortalPlan(
+  supabase: SupabaseClient,
+  access: PortalAccessContext,
+): Promise<AuthorizedPortalPlanLookup> {
+  const { data, error } = await supabase
+    .from("home_care_plans")
+    .select("status, presentation, homeowner_slug, property_slug")
+    .eq("homeowner_id", access.homeownerId)
+    .eq("property_id", access.propertyId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load portal Home Care Plan: ${error.message}`);
+  }
+  if (!data) return { kind: "missing" };
+
+  const presentation = data.presentation as HomeCarePlanData | null;
+  if (
+    !presentation ||
+    !["generated", "published"].includes(data.status as string) ||
+    data.homeowner_slug !== access.homeownerSlug ||
+    data.property_slug !== access.propertySlug ||
+    presentation.homeowner?.slug !== access.homeownerSlug ||
+    presentation.property?.slug !== access.propertySlug
+  ) {
+    return { kind: "blocked" };
+  }
+
+  return { kind: "found", plan: presentation };
+}
+
+async function persistMissingPortalHomeCarePlanWithoutReplacement(
+  supabase: SupabaseClient,
+  access: PortalAccessContext,
+  plan: HomeCarePlanData,
+): Promise<HomeCarePlanData | null> {
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("home_care_plans").upsert(
+    {
+      homeowner_id: access.homeownerId,
+      property_id: access.propertyId,
+      homeowner_slug: access.homeownerSlug,
+      property_slug: access.propertySlug,
+      status: "generated",
+      presentation: plan,
+      draft: null,
+      storage_backend: "supabase",
+      generated_at: now,
+      updated_at: now,
+    },
+    {
+      onConflict: "homeowner_slug,property_slug",
+      ignoreDuplicates: true,
+    },
+  );
+
+  if (error) {
+    throw new Error(`Failed to backfill portal Home Care Plan: ${error.message}`);
+  }
+
+  const persisted = await loadExistingAuthorizedPortalPlan(supabase, access);
+  return persisted.kind === "found" ? persisted.plan : null;
+}
+
+/** Loads portal plan data only after a portal token resolves to this member. */
+export async function loadPortalHomeCarePlan(
+  access: PortalAccessContext,
+): Promise<HomeCarePlanData | null> {
   if (!isCloudPersistenceConnected()) return null;
 
-  return backfillPortalHomeCarePlan(homeownerSlug, propertySlug);
+  const supabase = createPrivilegedServerSupabaseClient();
+  const existing = await loadExistingAuthorizedPortalPlan(supabase, access);
+  if (existing.kind === "found") return existing.plan;
+  if (existing.kind === "blocked") return null;
+
+  return backfillPortalHomeCarePlan(supabase, access);
 }
 
 /** Test helper — verifies persisted record round-trips. */

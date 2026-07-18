@@ -8,6 +8,8 @@
 
 Public signing uses the existing presentation UUID as a bearer capability. The UUID is generated with `crypto.randomUUID()`, carried in the private `noindex` presentation URL, and resolved server-side. Migration 036 removes direct browser access to `presentations`, while PR1b requires PR1a-authenticated HQ access for presentation listing, creation, and editing. This makes the UUID non-enumerable through supported database and application paths.
 
+Migration 036 also removes every direct `public`/`anon`/`authenticated` read policy and grant from `home_care_plans`. A cloud generated-plan URL uses the existing plan UUID as its bearer capability and includes both readable slugs. The server requires all three values, accepts only `generated` or `published` rows, and returns only the matching `presentation` JSON; it does not return plan IDs, drafts, customer foreign keys, or a list endpoint. The slug-only plan route reads session storage only when cloud persistence is disabled. Legacy cloud slug portal and home-health routes fail closed; the current token portal resolves its opaque token before any privileged plan, member, or health read.
+
 The public route accepts exactly:
 
 - `presentationId`: UUID capability
@@ -63,7 +65,7 @@ npm test -- lib/persistence/supabase/authority-closure.integration.test.ts
 
 Also execute `lib/persistence/supabase/tests/036_home_care_plan_atomicity.sql` against that disposable database. It injects a plan-write failure and proves the preceding homeowner/property writes roll back, then proves a retry preserves all three source IDs and creates no duplicates. The script ends with `ROLLBACK`.
 
-The harness uses real anonymous and password-authenticated clients created from the disposable project's anon key. It proves INSERT, UPDATE, and DELETE fail for all seven authority tables, including `presentations`; proves all three service-only RPCs deny EXECUTE; races two same-tier/same-signature calls through the real `/api/sign-agreement` route; checks replay convergence; checks conflicting tier and signature rejection; and verifies exactly one coherent completed agreement remains. It intentionally preserves signed test evidence; reset the disposable project after inspection.
+The harness uses real anonymous and password-authenticated clients created from the disposable project's anon key. It proves global and exact-row `home_care_plans` SELECTs fail for both roles; proves INSERT, UPDATE, and DELETE fail for all seven authority tables, including `presentations`; proves the server-only UUID-plus-slugs presentation loader succeeds only for the matching capability; proves all three service-only RPCs deny EXECUTE; races two same-tier/same-signature calls through the real `/api/sign-agreement` route; checks replay convergence; checks conflicting tier and signature rejection; and verifies exactly one coherent completed agreement remains. It intentionally preserves signed test evidence; reset the disposable project after inspection.
 
 For a one-shot fault/retry rehearsal, start a single non-production app instance with one of `after_claim`, `after_customer`, `after_storage`, or `after_finalize`:
 
@@ -114,7 +116,9 @@ Pass conditions:
 
 - no public/anon/authenticated INSERT, UPDATE, DELETE policy or grant exists on all seven authority tables;
 - `presentations` has no public/anon/authenticated policy or direct grant;
-- only the existing `home_care_plans_anon_read` customer-table read policy remains;
+- no public/anon/authenticated SELECT policy or grant exists on `home_care_plans`;
+- the generated plan route requires the plan UUID capability plus both slugs, loads only its exact `generated` or `published` presentation document, and a missing `SUPABASE_SERVICE_ROLE_KEY` fails closed;
+- slug-only cloud plan, portal, portal-manifest, and home-health paths perform no privileged customer-data read; the token portal resolves its token before those reads;
 - authenticated presentation authoring succeeds;
 - anon and authenticated clients cannot execute any PR1b service-only RPC;
 - the partial unique index has exactly `presentation_id` and predicate `presentation_id is not null and status = 'complete'`;
@@ -130,18 +134,19 @@ If the application fails before migration 036, revert or fix the application wit
 - PR1a HQ authorization for authoring;
 - service-role-only customer mutations;
 - non-enumerable presentation capabilities;
+- UUID-bound Home Care Plan presentation links and token-bound member portals;
+- no direct browser reads from `home_care_plans`;
 - no client-supplied signing prices or customer/source IDs.
 
 Never restore migration 030 anon mutation policies as a recovery action. Do not delete partial rows or signed objects. Retry the same presentation capability after repair; unique source keys and the completed-agreement index make retries converge. Escalate any linkage discrepancy for read-only reconciliation.
 
 ## Evidence record
 
-- Focused local tests: 16 files and 68 tests passed.
-- Full tests: 85 files and 443 tests passed; the disposable integration file/test was skipped because its explicit credentials and acknowledgement are absent.
-- Lint: passed with zero errors and 104 inherited warnings.
-- Production build/typecheck: Next.js 16.2.10 passed; 74 static pages generated.
-- Standalone `npx tsc --noEmit`: not green because pre-existing test fixtures outside PR1b do not satisfy current domain types; the production build TypeScript gate passed.
-- Migration audit script syntax: passed. Database-backed migration ledger: blocked locally because `SUPABASE_DB_URL`/`DATABASE_URL` is absent.
-- `git diff --check`: pass at final handoff.
-- Actual disposable anon-key rehearsal: not run; credentials are absent locally.
+- Focused blocker tests: 3 files and 11 tests passed locally, covering migration/browser closure, the server-only exact read, and portal plan behavior; the credential-gated integration file/test skipped.
+- Targeted ESLint: passed with no findings across every changed TypeScript/TSX execution-path file.
+- Standalone `tsc --noEmit`: reports only the documented pre-existing fixture diagnostics outside this blocker's changed files; no changed file appears in the diagnostics.
+- Production build: attempted with Next.js 16.2.10 but blocked before compilation because the sandbox could not fetch the repository's configured Google Fonts. External network approval was not granted.
+- `git diff --check`: passed.
+- Actual disposable anon/authenticated rehearsal: not run; credentials and disposable-database acknowledgement are absent locally.
+- Migration audit: intentionally not changed or evaluated in this blocker scope.
 - Production migration/deployment: not authorized and not performed.

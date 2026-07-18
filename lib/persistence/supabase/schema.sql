@@ -236,8 +236,8 @@ create trigger property_assets_updated_at before update on property_assets
   for each row execute function set_updated_at();
 
 -- Row Level Security
--- Server routes use service role (bypasses RLS). Browser mutation authority is
--- closed by migration 036; only the generated plan document retains anon read.
+-- Server routes use service role (bypasses RLS). Browser read and mutation
+-- authority over customer persistence is closed by migration 036.
 -- HQ / billing / ledger tables have RLS enabled with no anon policies (migration 030).
 alter table homeowners enable row level security;
 alter table properties enable row level security;
@@ -246,11 +246,11 @@ alter table memberships enable row level security;
 alter table signed_agreements enable row level security;
 alter table property_assets enable row level security;
 
-create policy "home_care_plans_anon_read" on home_care_plans for select to anon, authenticated using (true);
+drop policy if exists "home_care_plans_anon_read" on home_care_plans;
 
 revoke select, insert, update, delete on homeowners from public, anon, authenticated;
 revoke select, insert, update, delete on properties from public, anon, authenticated;
-revoke insert, update, delete on home_care_plans from public, anon, authenticated;
+revoke select, insert, update, delete on home_care_plans from public, anon, authenticated;
 revoke select, insert, update, delete on memberships from public, anon, authenticated;
 revoke select, insert, update, delete on signed_agreements from public, anon, authenticated;
 revoke select, insert, update, delete on property_assets from public, anon, authenticated;

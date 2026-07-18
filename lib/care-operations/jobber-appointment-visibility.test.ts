@@ -40,7 +40,7 @@ describe("current Jobber appointment visibility", () => {
     expect(sources.today).toContain("jobber_membership_id");
     expect(sources.today).toContain("appointmentByMembership.get(membership.id)");
     expect(sources.portal).toContain(
-      '.eq("jobber_membership_id", membershipRow?.id ?? "")',
+      '.eq("jobber_membership_id", access.membershipId)',
     );
   });
 
