@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { recordWebsiteMembershipSale } from "@/lib/admin/record-website-membership-sale";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendWelcomeEmail } from "@/lib/agreement/send-welcome-email";
 import {
@@ -12,7 +11,6 @@ import {
   reconciliationFactKey,
   type PaymentSetupContext,
 } from "@/lib/membership/payment-setup-authorization";
-import { ensureMembershipObligations } from "@/lib/obligations/ensure-membership-obligations";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import {
   createServiceRoleSupabaseClient,
@@ -25,48 +23,8 @@ import { getStripe } from "@/lib/stripe/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
-async function recordMembershipObligations(
-  supabase: SupabaseClient,
-  activation: LockedActivationResult,
-) {
-  try {
-    const result = await ensureMembershipObligations(supabase, {
-      membershipId: activation.membership_id,
-      homeownerId: activation.homeowner_id,
-      propertyId: activation.property_id,
-      visitsPerYear: activation.visits_per_year,
-      startedAt: activation.started_at,
-    });
-    if (result.created > 0) {
-      console.info("[setup-payment] obligations generated", {
-        membershipId: activation.membership_id,
-        created: result.created,
-      });
-    }
-  } catch (error) {
-    console.error("[setup-payment] obligation generation failed", error);
-  }
-}
-
-async function recordWebsiteSale(
-  supabase: SupabaseClient,
-  activation: LockedActivationResult,
-) {
-  try {
-    const result = await recordWebsiteMembershipSale(supabase, {
-      activation,
-      activationMode: "stripe",
-    });
-    if (result.recorded) {
-      console.info("[setup-payment] website membership sale recorded", {
-        membershipId: activation.membership_id,
-        saleId: result.saleId,
-      });
-    }
-  } catch (error) {
-    console.error("[setup-payment] website membership sale failed", error);
-  }
-}
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function stripeModeMatches(livemode: boolean): boolean {
   return livemode
@@ -168,6 +126,8 @@ interface LockedActivationResult {
   enrollment_savings: number;
   payment_setup_completed_at: string;
   started_at: string;
+  sale_id: string;
+  obligation_count: number;
 }
 
 type ActivationResult =
@@ -195,6 +155,10 @@ function isLockedActivationResult(value: unknown): value is LockedActivationResu
     row.visit_price > 0 &&
     typeof row.visits_per_year === "number" &&
     (row.visits_per_year === 2 || row.visits_per_year === 4) &&
+    typeof row.sale_id === "string" &&
+    UUID_PATTERN.test(row.sale_id) &&
+    typeof row.obligation_count === "number" &&
+    row.obligation_count === row.visits_per_year &&
     typeof row.enrollment_savings === "number" &&
     Number.isFinite(row.enrollment_savings) &&
     row.enrollment_savings >= 0
@@ -377,9 +341,6 @@ export async function POST(req: NextRequest) {
     });
 
     const paymentSetupCompletedAt = activation.payment_setup_completed_at;
-    await recordMembershipObligations(supabase, activation);
-    await recordWebsiteSale(supabase, activation);
-
     const portalUrl = await getPortalAccessUrlForMembership(
       activation.membership_id,
       req.nextUrl.origin,

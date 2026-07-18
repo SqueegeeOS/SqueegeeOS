@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-// @ts-expect-error The production audit is an ESM script without declarations.
 import {
+  hasExactAtomicCompletionNonOwnerAcl,
+  hasExactAtomicCompletionTableAcl,
   hasExactAuthorityFunctionAcl,
+  isExactAtomicCompletionTriggerSet,
   isExactSignedAgreementImmutabilityTrigger,
 } from "../../scripts/audit-migrations.mjs";
 
@@ -125,5 +127,110 @@ describe("migration audit catalog predicates", () => {
     expect(aclQuery).toContain("p.proowner");
     expect(aclQuery).toContain("acl.grantee");
     expect(aclQuery).not.toContain("grantee in");
+  });
+
+  it("accepts only the 042 service RPC grant and both exact immutable triggers", () => {
+    const tableAclRows = [
+      ["obligation_events", "INSERT"],
+      ["obligation_events", "SELECT"],
+      ["obligations", "INSERT"],
+      ["obligations", "SELECT"],
+      ["obligations", "UPDATE"],
+      ["website_membership_sales", "SELECT"],
+    ].map(([table_name, privilege_type]) => ({
+      table_name,
+      grantee: "service_role",
+      privilege_type,
+      is_grantable: false,
+    }));
+    expect(hasExactAtomicCompletionTableAcl(tableAclRows)).toBe(true);
+    expect(
+      hasExactAtomicCompletionTableAcl([
+        ...tableAclRows,
+        {
+          table_name: "obligations",
+          grantee: "service_role",
+          privilege_type: "DELETE",
+          is_grantable: false,
+        },
+      ]),
+    ).toBe(false);
+    expect(
+      hasExactAtomicCompletionTableAcl([
+        ...tableAclRows.slice(0, -1),
+        {
+          table_name: "website_membership_sales",
+          grantee: "service_role",
+          privilege_type: "SELECT",
+          is_grantable: true,
+        },
+      ]),
+    ).toBe(false);
+
+    const aclRows = [{
+      grantee: "service_role",
+      routine_name: "activate_membership_after_stripe_setup",
+      privilege_type: "EXECUTE",
+    }];
+    expect(hasExactAtomicCompletionNonOwnerAcl(aclRows)).toBe(true);
+    expect(
+      hasExactAtomicCompletionNonOwnerAcl([
+        ...aclRows,
+        {
+          grantee: "service_role",
+          routine_name: "reject_website_membership_sale_change",
+          privilege_type: "EXECUTE",
+        },
+      ]),
+    ).toBe(false);
+
+    const triggerRows = [
+      {
+        table_name: "obligation_events",
+        trigger_name: "obligation_events_membership_activated_immutable",
+        trigger_type: 27,
+        enabled_state: "O",
+        function_oid: "4201",
+      },
+      {
+        table_name: "website_membership_sales",
+        trigger_name: "website_membership_sales_immutable",
+        trigger_type: 27,
+        enabled_state: "O",
+        function_oid: "4202",
+      },
+    ];
+    expect(
+      isExactAtomicCompletionTriggerSet(triggerRows, "4201", "4202"),
+    ).toBe(true);
+    expect(
+      isExactAtomicCompletionTriggerSet(
+        [{ ...triggerRows[0], enabled_state: "D" }, triggerRows[1]],
+        "4201",
+        "4202",
+      ),
+    ).toBe(false);
+  });
+
+  it("audits migration 042 from its replacement source and catalog evidence", () => {
+    const audit = readFileSync(
+      new URL("../../scripts/audit-migrations.mjs", import.meta.url),
+      "utf8",
+    );
+    for (const fragment of [
+      "042_atomic_membership_activation_completion.sql",
+      '["042", "atomic membership activation completion"',
+      "obligation_events_membership_activated_uidx",
+      "website_membership_sales_immutable",
+      "obligation_events_membership_activated_immutable",
+      "expectedMigration042FunctionBody(\"activate_membership_after_stripe_setup\")",
+      "atomicCompletionTableAclExact",
+      "atomicCompletionBrowserPolicies",
+      "c.relname in ('obligations', 'obligation_events', 'website_membership_sales')",
+      "acl.grantee <> c.relowner",
+      "pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER')",
+    ]) {
+      expect(audit).toContain(fragment);
+    }
   });
 });

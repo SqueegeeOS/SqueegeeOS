@@ -153,6 +153,62 @@ create table if not exists closed_jobs (
 
 create index if not exists closed_jobs_closed_date_idx on closed_jobs(closed_date desc);
 
+-- Year-one membership obligations (migration 018; atomically populated by 042)
+create table if not exists obligations (
+  id uuid primary key default gen_random_uuid(),
+  membership_id uuid not null references memberships(id) on delete cascade,
+  property_id uuid not null references properties(id) on delete cascade,
+  homeowner_id uuid not null references homeowners(id) on delete cascade,
+  sequence smallint not null check (sequence >= 1),
+  membership_year smallint not null default 1 check (membership_year >= 1),
+  target_window_start date not null,
+  target_window_end date not null,
+  status text not null default 'promised' check (
+    status in ('promised', 'scheduled', 'completed', 'missed', 'credited',
+      'waived', 'void')
+  ),
+  memory_status text not null default 'none' check (
+    memory_status in ('none', 'present', 'missing_flagged')
+  ),
+  disposition text check (
+    disposition is null or disposition in ('rolled', 'credited', 'waived')
+  ),
+  disposition_reason text,
+  billing_service_month date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (membership_id, membership_year, sequence),
+  check (target_window_end >= target_window_start)
+);
+
+create index if not exists obligations_membership_id_idx
+  on obligations(membership_id);
+create index if not exists obligations_property_id_idx
+  on obligations(property_id);
+create index if not exists obligations_status_idx
+  on obligations(status);
+
+create table if not exists obligation_events (
+  id uuid primary key default gen_random_uuid(),
+  obligation_id uuid not null references obligations(id) on delete cascade,
+  from_status text,
+  to_status text not null,
+  actor text,
+  reason text,
+  source text not null check (source in ('jobber_sync', 'manual', 'system')),
+  occurred_at timestamptz not null default now()
+);
+
+create index if not exists obligation_events_obligation_id_idx
+  on obligation_events(obligation_id);
+create unique index if not exists obligation_events_membership_activated_uidx
+  on obligation_events(obligation_id)
+  where from_status is null
+    and to_status = 'promised'
+    and actor = 'system'
+    and reason = 'membership_activated'
+    and source = 'system';
+
 -- Website membership sales (presentation → sign → card on file → active)
 create table if not exists website_membership_sales (
   id uuid primary key default gen_random_uuid(),
@@ -178,6 +234,8 @@ create table if not exists website_membership_sales (
 
 create index if not exists website_membership_sales_sold_at_idx
   on website_membership_sales(sold_at desc);
+create index if not exists website_membership_sales_created_at_idx
+  on website_membership_sales(created_at desc);
 
 -- Manual billing charge ledger (Billing V2 placeholder)
 create table if not exists membership_billing_charges (
@@ -234,6 +292,48 @@ create trigger signed_agreements_updated_at before update on signed_agreements
   for each row execute function set_updated_at();
 create trigger property_assets_updated_at before update on property_assets
   for each row execute function set_updated_at();
+create trigger obligations_updated_at before update on obligations
+  for each row execute function set_updated_at();
+
+create or replace function public.reject_membership_activation_event_change()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  if old.reason = 'membership_activated'
+    or (tg_op = 'UPDATE' and new.reason = 'membership_activated')
+  then
+    raise exception 'Membership activation obligation evidence is immutable';
+  end if;
+  if tg_op = 'DELETE' then return old; end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists obligation_events_membership_activated_immutable
+  on obligation_events;
+create trigger obligation_events_membership_activated_immutable
+  before update or delete on obligation_events
+  for each row execute function reject_membership_activation_event_change();
+
+create or replace function public.reject_website_membership_sale_change()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  raise exception 'Website membership sale provenance is append-only and immutable';
+end;
+$$;
+
+drop trigger if exists website_membership_sales_immutable
+  on website_membership_sales;
+create trigger website_membership_sales_immutable
+  before update or delete on website_membership_sales
+  for each row execute function reject_website_membership_sale_change();
 
 -- Row Level Security
 -- Server routes use service role (bypasses RLS). Browser read and mutation
@@ -245,6 +345,52 @@ alter table home_care_plans enable row level security;
 alter table memberships enable row level security;
 alter table signed_agreements enable row level security;
 alter table property_assets enable row level security;
+alter table obligations enable row level security;
+alter table obligation_events enable row level security;
+alter table website_membership_sales enable row level security;
+
+drop policy if exists "obligations_anon_all" on obligations;
+drop policy if exists "obligation_events_anon_all" on obligation_events;
+drop policy if exists "website_membership_sales_anon_all"
+  on website_membership_sales;
+drop policy if exists website_membership_sales_anon_read
+  on website_membership_sales;
+do $$
+declare
+  policy_row record;
+begin
+  for policy_row in
+    select c.relname as table_name, p.polname as policy_name
+    from pg_catalog.pg_policy p
+    join pg_catalog.pg_class c on c.oid = p.polrelid
+    join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public'
+      and c.relname in (
+        'obligations', 'obligation_events', 'website_membership_sales'
+      )
+      and exists (
+        select 1
+        from unnest(p.polroles) as policy_role(role_oid)
+        where policy_role.role_oid = 0
+          or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER')
+          or pg_catalog.pg_has_role(
+            'authenticated', policy_role.role_oid, 'MEMBER'
+          )
+      )
+  loop
+    execute format(
+      'drop policy if exists %I on public.%I',
+      policy_row.policy_name,
+      policy_row.table_name
+    );
+  end loop;
+end;
+$$;
+revoke all on table obligations, obligation_events, website_membership_sales
+  from public, anon, authenticated, service_role;
+grant select, insert, update on obligations to service_role;
+grant select, insert on obligation_events to service_role;
+grant select on website_membership_sales to service_role;
 
 drop policy if exists "home_care_plans_anon_read" on home_care_plans;
 
@@ -257,7 +403,10 @@ revoke select, insert, update, delete on property_assets from public, anon, auth
 
 alter table closed_jobs enable row level security;
 
-alter table website_membership_sales enable row level security;
+revoke all on function reject_membership_activation_event_change()
+  from public, anon, authenticated, service_role;
+revoke all on function reject_website_membership_sale_change()
+  from public, anon, authenticated, service_role;
 
 alter table membership_billing_charges enable row level security;
 

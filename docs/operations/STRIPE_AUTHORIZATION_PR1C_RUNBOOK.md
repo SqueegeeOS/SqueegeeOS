@@ -1,7 +1,8 @@
 # PR1c Stripe setup authorization runbook
 
-**Status:** Implemented on `codex/jobber-j1-stripe-authorization`; not committed,
-merged, migrated, deployed, or production-proven.
+**Status:** Database and runtime halves implemented in the
+`codex/jobber-j1-release` worktree; not committed, merged, migrated, deployed,
+disposable-database proven, or production-proven.
 
 ## Outcome and boundary
 
@@ -30,11 +31,17 @@ charging a card or changing pricing, agreements, Jobber, or membership policy.
   037 transaction. The transaction locks and rechecks every HomeAtlas link,
   signing attempt, selected tier, per-visit price, visit cadence, and the signed
   presentation's Atlas quote-authority hash.
-- Activation appends immutable provider/linkage and locked-term evidence. Exact
-  retries require that evidence and return its original completion time and
-  authoritative activation snapshot. Other active, paused, cancelled, stale,
-  conflicting, cross-customer, or changed-term attempts are held with no
-  obligations, sale, enrollment lock, or presentation completion.
+- Activation appends immutable provider/linkage and locked-term evidence.
+  Migration 042 additionally creates exactly the year-one obligations, one
+  immutable activation event per obligation, and one immutable website sale
+  before publishing membership `active` or presentation onboarding `complete`.
+  Exact retries prove the complete durable set without requiring obligations to
+  remain `promised`, so legitimate later status transitions replay. Partial or
+  mismatched completion is held. Any insert failure aborts the RPC transaction.
+- The activation handler requires the RPC result to include the durable sale
+  UUID and an obligation count exactly matching the locked two- or four-visit
+  cadence before portal lookup, success response, or welcome email. It performs
+  no post-RPC obligation or sale writes; replay never sends another welcome.
 - The activation handler performs no Stripe write after SetupIntent creation;
   it only retrieves provider truth. In particular, it does not change customer
   invoice defaults. The succeeded SetupIntent attachment is card-on-file truth.
@@ -62,15 +69,35 @@ direct writes. Every function uses an explicit `pg_catalog` search path and
 locked exact-state checks. Browser roles receive no RPC or evidence-table
 authority. Migration 037 must follow 036 and must not be applied by the app.
 
+## Migration 042
+
+`042_atomic_membership_activation_completion.sql` is an additive, idempotent
+replacement of only `activate_membership_after_stripe_setup`. It preserves the
+migration 037 signature, lock order, identity/pricing/provider checks, immutable
+payment evidence, fixed `pg_catalog` search path, and service-role-only ACL. It
+adds a unique immutable activation-event proof and makes website sales
+append-only with service-role read-only access. No new table or pricing source is
+introduced. `annualized_value` is only the reporting derivation of the locked
+`visit_price × visits_per_year` captured by migration 037.
+
+The disposable rehearsal is
+`lib/persistence/supabase/tests/042_atomic_membership_activation_completion.sql`.
+Its opt-in Vitest wrapper requires both
+`PR1C_DISPOSABLE_DB_ACK=I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_DATABASE` and
+`PR1C_TEST_DATABASE_URL`. It covers forced sale-insert rollback, partial and
+mismatched state, exact and queued concurrent replay, a legitimate obligation
+status transition, UTC month-end parity, ACLs, and immutable evidence.
+
 ## Release gates
 
 All gates remain open until recorded against disposable/test resources:
 
-1. Review and rehearse migrations 036 then 037 on a disposable Supabase project.
+1. Review and rehearse migrations 036, 037, then 042 on a disposable Supabase project.
    The rehearsal must include a malformed partial-schema rejection and an exact
    audit of columns/types/nullability/defaults, primary keys, all FK/unique/check
-   constraints, function signatures/security/ACL/search paths, and all three
-   immutable triggers.
+   constraints, function signatures/security/ACL/search paths, migration 037's
+   three immutable triggers, migration 042's partial unique index, both
+   completion immutability triggers, and the website-sale ACL.
 2. Prove anon/authenticated cannot execute any PR1c function and service role
    can only converge the exact pending membership.
 3. Run two concurrent setup and activation requests, including two memberships
@@ -122,9 +149,32 @@ rewrite activation history. Function replacement or schema removal requires a
 separately reviewed maintenance migration after proving no retained evidence or
 active flow depends on it.
 
+Migration 042 is also additive and must not be reversed by deleting obligations,
+activation events, sales, or payment evidence. Before release, rollback is
+removal of the uncommitted 042 diff. After release, first deploy a fail-closed
+payment route, preserve all ledgers, and replace the RPC only through a new
+reviewed migration. Do not restore post-activation helper writes.
+
+## Local verification — July 18, 2026
+
+- Focused Vitest: 6 files and 47 tests passed; the 2 credential-gated
+  integration files and their 10 tests skipped without an acknowledged
+  disposable database URL.
+- Runtime route Vitest: 1 file and 24 tests passed, including malformed or
+  missing durable completion evidence, complete activation, and exact replay.
+- Full Vitest: 112 files passed and 5 credential-gated files skipped; 672 tests
+  passed and 14 skipped.
+- Migration audit JavaScript syntax and focused ESLint checks pass.
+- The read-only database migration audit stopped before opening a connection
+  because neither `SUPABASE_DB_URL` nor `DATABASE_URL` is configured locally.
+- Migration/rehearsal dollar-quote balance, forbidden pricing-write scan, and
+  `git diff --check` pass.
+- `tsc --noEmit` still reports only the documented unrelated fixture errors;
+  no migration-042 file appears in the diagnostics.
+
 ## Current unresolved evidence
 
-- Production migration state is unknown; neither 036 nor 037 has been applied.
+- Production migration state is unknown; migrations 036, 037, and 042 are not proven applied.
 - Disposable Supabase concurrency/RPC ACL rehearsal is not yet recorded.
 - Stripe test-mode end-to-end evidence is not yet recorded.
 - Merge, migration, deployment, production access, money movement, and customer

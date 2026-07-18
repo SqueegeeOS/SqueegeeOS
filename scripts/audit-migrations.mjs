@@ -47,6 +47,13 @@ const migration037Source = readFileSync(
   ),
   "utf8",
 );
+const migration042Source = readFileSync(
+  resolve(
+    process.cwd(),
+    "lib/persistence/supabase/migrations/042_atomic_membership_activation_completion.sql",
+  ),
+  "utf8",
+);
 
 const dbUrl = process.env.SUPABASE_DB_URL ?? process.env.DATABASE_URL;
 const isDirectExecution =
@@ -106,18 +113,26 @@ function expectedConstraintDefinitions() {
   );
 }
 
-function expectedFunctionBody(name) {
+function expectedFunctionBodyFrom(source, migrationId, name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const body = migration037Source.match(
+  const body = source.match(
     new RegExp(
       `create or replace function public\\.${escaped}\\([\\s\\S]*?\\nas \\$\\$([\\s\\S]*?)\\n\\$\\$;`,
       "i",
     ),
   )?.[1];
   if (body === undefined) {
-    throw new Error(`Migration 037 function body is missing: ${name}`);
+    throw new Error(`Migration ${migrationId} function body is missing: ${name}`);
   }
   return normalizeFunctionBody(body);
+}
+
+function expectedFunctionBody(name) {
+  return expectedFunctionBodyFrom(migration037Source, "037", name);
+}
+
+function expectedMigration042FunctionBody(name) {
+  return expectedFunctionBodyFrom(migration042Source, "042", name);
 }
 
 function expectedMigration036FunctionBody(name) {
@@ -217,6 +232,101 @@ export function isExactSignedAgreementImmutabilityTrigger(
   );
 }
 
+export function hasExactAtomicCompletionNonOwnerAcl(rows) {
+  return exactJson(
+    rows.map((row) => ({
+      grantee: row.grantee,
+      routine_name: row.routine_name,
+      privilege_type: row.privilege_type,
+    })),
+    [{
+      grantee: "service_role",
+      routine_name: "activate_membership_after_stripe_setup",
+      privilege_type: "EXECUTE",
+    }],
+  );
+}
+
+export function hasExactAtomicCompletionTableAcl(rows) {
+  const actual = rows.map((row) => ({
+    table_name: row.table_name,
+    grantee: row.grantee,
+    privilege_type: row.privilege_type,
+    is_grantable: row.is_grantable === true,
+  }));
+  const expected = [
+    {
+      table_name: "obligation_events",
+      grantee: "service_role",
+      privilege_type: "INSERT",
+      is_grantable: false,
+    },
+    {
+      table_name: "obligation_events",
+      grantee: "service_role",
+      privilege_type: "SELECT",
+      is_grantable: false,
+    },
+    {
+      table_name: "obligations",
+      grantee: "service_role",
+      privilege_type: "INSERT",
+      is_grantable: false,
+    },
+    {
+      table_name: "obligations",
+      grantee: "service_role",
+      privilege_type: "SELECT",
+      is_grantable: false,
+    },
+    {
+      table_name: "obligations",
+      grantee: "service_role",
+      privilege_type: "UPDATE",
+      is_grantable: false,
+    },
+    {
+      table_name: "website_membership_sales",
+      grantee: "service_role",
+      privilege_type: "SELECT",
+      is_grantable: false,
+    },
+  ];
+  return exactJson(actual, expected);
+}
+
+export function isExactAtomicCompletionTriggerSet(
+  rows,
+  activationEventFunctionOid,
+  saleFunctionOid,
+) {
+  if (activationEventFunctionOid == null || saleFunctionOid == null) return false;
+  const expected = [
+    {
+      table_name: "obligation_events",
+      trigger_name: "obligation_events_membership_activated_immutable",
+      trigger_type: 27,
+      enabled_state: "O",
+      function_oid: String(activationEventFunctionOid),
+    },
+    {
+      table_name: "website_membership_sales",
+      trigger_name: "website_membership_sales_immutable",
+      trigger_type: 27,
+      enabled_state: "O",
+      function_oid: String(saleFunctionOid),
+    },
+  ];
+  const actual = rows.map((row) => ({
+    table_name: row.table_name,
+    trigger_name: row.trigger_name,
+    trigger_type: Number(row.trigger_type),
+    enabled_state: row.enabled_state,
+    function_oid: String(row.function_oid),
+  }));
+  return exactJson(actual, expected);
+}
+
 const stripeSetupTables = [
   "membership_payment_setup_events",
   "membership_stripe_setup_reconciliation_attempts",
@@ -264,6 +374,7 @@ const checks = [
   ["039", "Jobber visit classification", (s) => ["jobber_visit_classifications", "jobber_visit_classification_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && ["decide_jobber_visit_classification", "revoke_jobber_visit_classification", "invalidate_jobber_visit_classification_on_link_change"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog"))],
   ["040", "Jobber member-property search link", (s) => ["jobber_client_id", "jobber_property_web_uri", "observed_graphql_version", "ownership_observed_at", "ownership_pages_scanned", "property_coverage_complete"].every((column) => hasColumn(s, "jobber_property_links", column) && hasColumn(s, "jobber_property_link_events", column)) && s.functions.has("link_jobber_member_property_from_search") && functionConfigIncludes(s, "link_jobber_member_property_from_search", "search_path=pg_catalog")],
   ["041", "Jobber property-link revocation", (s) => ["revocation_projection_id", "revocation_expected_link_updated_at"].every((column) => hasColumn(s, "jobber_property_links", column) && hasColumn(s, "jobber_property_link_events", column)) && ["jobber_property_links", "jobber_property_link_events", "jobber_visit_classifications", "jobber_visit_classification_events", "member_appointments"].every((table) => s.rlsTables.has(table)) && ["revoke_jobber_property_link", "invalidate_jobber_visit_authority_for_property_link", "invalidate_jobber_visit_classification_on_link_change"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog"))],
+  ["042", "atomic membership activation completion", (s) => ["obligations", "obligation_events", "website_membership_sales"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && s.atomicActivationIndexExact && s.atomicCompletionTableAclExact && s.atomicCompletionFunctionAclExact && s.atomicCompletionFunctionDefinitionsExact && s.atomicCompletionTriggersExact && s.atomicCompletionBrowserPolicies === 0],
 ];
 
 if (isDirectExecution && !dbUrl) {
@@ -277,7 +388,7 @@ await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers] = await Promise.all([
+  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers, atomicActivationIndex, atomicCompletionTableAcls, atomicCompletionFunctionAcls, atomicCompletionFunctionDetails, atomicCompletionTriggers, atomicCompletionBrowserPolicies] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, k.conname as constraint_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -308,6 +419,12 @@ try {
     client.query("select grantee, routine_name, privilege_type from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('reserve_membership_stripe_setup_reconciliation', 'append_membership_stripe_setup_reconciliation_event', 'claim_membership_stripe_setup', 'activate_membership_after_stripe_setup', 'reject_membership_payment_setup_event_change') and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role') order by grantee, routine_name, privilege_type"),
     client.query("select p.proname, pg_catalog.oidvectortypes(p.proargtypes) as argument_types, p.proargnames as argument_names, pg_catalog.pg_get_expr(p.proargdefaults, 0) as argument_defaults, pg_catalog.pg_get_function_result(p.oid) as result_type, l.lanname as language_name, p.prosecdef as security_definer, p.proisstrict as is_strict, p.provolatile as volatility, p.proparallel as parallel_mode, coalesce(array_to_string(p.proconfig, ','), '') as config, p.prosrc as body from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_language l on l.oid = p.prolang where n.nspname = 'public' and p.proname in ('reserve_membership_stripe_setup_reconciliation', 'append_membership_stripe_setup_reconciliation_event', 'claim_membership_stripe_setup', 'activate_membership_after_stripe_setup', 'reject_membership_payment_setup_event_change') order by p.proname, argument_types"),
     client.query("select c.relname as table_name, t.tgname as trigger_name, pg_get_triggerdef(t.oid, false) as definition from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid = t.tgrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('membership_payment_setup_events', 'membership_stripe_setup_reconciliation_attempts', 'membership_stripe_setup_reconciliation_events') and not t.tgisinternal order by c.relname, t.tgname"),
+    client.query("select i.indisunique, i.indisvalid, i.indisready, pg_get_expr(i.indpred, i.indrelid) as predicate, array_agg(a.attname order by k.ordinality) as columns from pg_index i join pg_class c on c.oid = i.indexrelid join lateral unnest(i.indkey) with ordinality k(attnum, ordinality) on true join pg_attribute a on a.attrelid = i.indrelid and a.attnum = k.attnum where c.oid = to_regclass('public.obligation_events_membership_activated_uidx') group by i.indisunique, i.indisvalid, i.indisready, i.indpred, i.indrelid"),
+    client.query("select c.relname as table_name, case when acl.grantee = 0 then 'PUBLIC' else grantee_role.rolname end as grantee, acl.privilege_type, acl.is_grantable from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace cross join lateral pg_catalog.aclexplode(coalesce(c.relacl, pg_catalog.acldefault('r', c.relowner))) acl left join pg_catalog.pg_roles grantee_role on grantee_role.oid = acl.grantee where n.nspname = 'public' and c.relname in ('obligations', 'obligation_events', 'website_membership_sales') and acl.grantee <> c.relowner order by c.relname, grantee, acl.privilege_type"),
+    client.query("select grantee, routine_name, privilege_type from information_schema.routine_privileges where specific_schema = 'public' and routine_name in ('activate_membership_after_stripe_setup', 'reject_membership_activation_event_change', 'reject_website_membership_sale_change') and grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role') order by grantee, routine_name, privilege_type"),
+    client.query("select p.oid::text as function_oid, p.proname, pg_catalog.oidvectortypes(p.proargtypes) as argument_types, p.proargnames as argument_names, pg_catalog.pg_get_expr(p.proargdefaults, 0) as argument_defaults, pg_catalog.pg_get_function_result(p.oid) as result_type, l.lanname as language_name, p.prosecdef as security_definer, p.proisstrict as is_strict, p.provolatile as volatility, p.proparallel as parallel_mode, coalesce(array_to_string(p.proconfig, ','), '') as config, p.prosrc as body from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_language l on l.oid = p.prolang where n.nspname = 'public' and p.proname in ('activate_membership_after_stripe_setup', 'reject_membership_activation_event_change', 'reject_website_membership_sale_change') order by p.proname, argument_types"),
+    client.query("select c.relname as table_name, t.tgname as trigger_name, t.tgtype::integer as trigger_type, t.tgenabled as enabled_state, t.tgfoid::text as function_oid from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid = t.tgrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and ((c.relname = 'obligation_events' and t.tgname = 'obligation_events_membership_activated_immutable') or (c.relname = 'website_membership_sales' and t.tgname = 'website_membership_sales_immutable')) and not t.tgisinternal order by c.relname, t.tgname"),
+    client.query("select count(*)::int as count from pg_catalog.pg_policy p join pg_catalog.pg_class c on c.oid = p.polrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('obligations', 'obligation_events', 'website_membership_sales') and exists (select 1 from unnest(p.polroles) as policy_role(role_oid) where policy_role.role_oid = 0 or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER') or pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER'))"),
   ]);
 
   let agreementBucket = null;
@@ -386,6 +503,7 @@ try {
   const propertyAddressIndexRow = propertyAddressIndex.rows[0];
   const stripeSetupIndexRow = stripeSetupIndex.rows[0];
   const stripeCustomerIndexRow = stripeCustomerIndex.rows[0];
+  const atomicActivationIndexRow = atomicActivationIndex.rows[0];
   const columnShape = (row) => ({
     table: row.table_name,
     name: row.column_name,
@@ -576,6 +694,78 @@ try {
       body: expectedFunctionBody("reserve_membership_stripe_setup_reconciliation"),
     },
   ];
+  const atomicCompletionFunctionRows = atomicCompletionFunctionDetails.rows.map(
+    (row) => ({
+      function_oid: String(row.function_oid),
+      proname: row.proname,
+      argument_types: String(row.argument_types),
+      argument_names: row.argument_names ?? null,
+      argument_defaults:
+        row.argument_defaults === null
+          ? null
+          : normalizeSql(row.argument_defaults),
+      result_type: String(row.result_type),
+      language_name: String(row.language_name),
+      security_definer: row.security_definer === true,
+      is_strict: row.is_strict === true,
+      volatility: String(row.volatility),
+      parallel_mode: String(row.parallel_mode),
+      config: String(row.config),
+      body: normalizeFunctionBody(row.body),
+    }),
+  ).sort((left, right) => left.proname.localeCompare(right.proname));
+  const atomicCompletionFunctionDefinitionRows = atomicCompletionFunctionRows.map(
+    (row) => Object.fromEntries(
+      Object.entries(row).filter(([key]) => key !== "function_oid"),
+    ),
+  );
+  const expectedAtomicCompletionFunctions = [
+    {
+      proname: "activate_membership_after_stripe_setup",
+      argument_types: "uuid, uuid, uuid, uuid, uuid, text, uuid, text, text, text, boolean",
+      argument_names: ["p_membership_id", "p_presentation_id", "p_agreement_id", "p_homeowner_id", "p_property_id", "p_expected_authority_sha256", "p_reconciliation_attempt_id", "p_stripe_customer_id", "p_stripe_setup_intent_id", "p_stripe_payment_method_id", "p_stripe_livemode"],
+      argument_defaults: null,
+      result_type: "jsonb",
+      language_name: "plpgsql",
+      security_definer: true,
+      is_strict: false,
+      volatility: "v",
+      parallel_mode: "u",
+      config: "search_path=pg_catalog",
+      body: expectedMigration042FunctionBody("activate_membership_after_stripe_setup"),
+    },
+    {
+      proname: "reject_membership_activation_event_change",
+      argument_types: "",
+      argument_names: null,
+      argument_defaults: null,
+      result_type: "trigger",
+      language_name: "plpgsql",
+      security_definer: false,
+      is_strict: false,
+      volatility: "v",
+      parallel_mode: "u",
+      config: "search_path=pg_catalog",
+      body: expectedMigration042FunctionBody("reject_membership_activation_event_change"),
+    },
+    {
+      proname: "reject_website_membership_sale_change",
+      argument_types: "",
+      argument_names: null,
+      argument_defaults: null,
+      result_type: "trigger",
+      language_name: "plpgsql",
+      security_definer: false,
+      is_strict: false,
+      volatility: "v",
+      parallel_mode: "u",
+      config: "search_path=pg_catalog",
+      body: expectedMigration042FunctionBody("reject_website_membership_sale_change"),
+    },
+  ];
+  const atomicCompletionFunctionOids = new Map(
+    atomicCompletionFunctionRows.map((row) => [row.proname, row.function_oid]),
+  );
   const expectedStripeTriggers = stripeSetupTables.map((table) => ({
     table_name: table,
     trigger_name: `${table}_immutable`,
@@ -676,9 +866,44 @@ try {
         ]),
     stripeSetupFunctionDetails: stripeSetupFunctionDefinitionRows,
     stripeSetupFunctionDefinitionsExact:
-      exactJson(stripeSetupFunctionDefinitionRows, expectedStripeFunctions),
+      exactJson(
+        stripeSetupFunctionDefinitionRows.filter(
+          (row) => row.proname !== "activate_membership_after_stripe_setup",
+        ),
+        expectedStripeFunctions.filter(
+          (row) => row.proname !== "activate_membership_after_stripe_setup",
+        ),
+      ),
     stripeSetupTriggerExact:
       exactJson(actualStripeTriggers, expectedStripeTriggers),
+    atomicActivationIndexExact:
+      atomicActivationIndexRow?.indisunique === true &&
+      atomicActivationIndexRow?.indisvalid === true &&
+      atomicActivationIndexRow?.indisready === true &&
+      JSON.stringify(atomicActivationIndexRow.columns) ===
+        JSON.stringify(["obligation_id"]) &&
+      normalizeConstraintDefinition(atomicActivationIndexRow.predicate)
+        .replace(/[()\"]/g, "") ===
+        "from_statusisnullandto_status='promised'::textandactor='system'::textandreason='membership_activated'::textandsource='system'::text",
+    atomicCompletionTableAclExact:
+      hasExactAtomicCompletionTableAcl(atomicCompletionTableAcls.rows),
+    atomicCompletionFunctionAclExact:
+      hasExactAtomicCompletionNonOwnerAcl(atomicCompletionFunctionAcls.rows),
+    atomicCompletionFunctionDefinitionsExact:
+      exactJson(
+        atomicCompletionFunctionDefinitionRows,
+        expectedAtomicCompletionFunctions,
+      ),
+    atomicCompletionTriggersExact:
+      isExactAtomicCompletionTriggerSet(
+        atomicCompletionTriggers.rows,
+        atomicCompletionFunctionOids.get(
+          "reject_membership_activation_event_change",
+        ),
+        atomicCompletionFunctionOids.get("reject_website_membership_sale_change"),
+      ),
+    atomicCompletionBrowserPolicies:
+      atomicCompletionBrowserPolicies.rows[0]?.count ?? 0,
     agreementBucket,
   };
 

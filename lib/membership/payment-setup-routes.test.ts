@@ -14,8 +14,6 @@ const mocks = vi.hoisted(() => ({
   setupIntentsCreate: vi.fn(),
   setupIntentsRetrieve: vi.fn(),
   paymentMethodsRetrieve: vi.fn(),
-  ensureObligations: vi.fn(),
-  recordSale: vi.fn(),
   portalUrl: vi.fn(),
   welcome: vi.fn(),
 }));
@@ -51,12 +49,6 @@ vi.mock("@/lib/stripe/server", () => ({
     paymentMethods: { retrieve: mocks.paymentMethodsRetrieve },
   }),
 }));
-vi.mock("@/lib/obligations/ensure-membership-obligations", () => ({
-  ensureMembershipObligations: mocks.ensureObligations,
-}));
-vi.mock("@/lib/admin/record-website-membership-sale", () => ({
-  recordWebsiteMembershipSale: mocks.recordSale,
-}));
 vi.mock("@/lib/persistence/queries/portal-access", () => ({
   getPortalAccessUrlForMembership: mocks.portalUrl,
 }));
@@ -73,6 +65,7 @@ const IDS = {
   agreement: "33333333-3333-4333-8333-333333333333",
   homeowner: "44444444-4444-4444-8444-444444444444",
   property: "55555555-5555-4555-8555-555555555555",
+  sale: "88888888-8888-4888-8888-888888888888",
 };
 const CUSTOMER_ID = "cus_expected123";
 const SETUP_INTENT_ID = "seti_expected123";
@@ -233,6 +226,8 @@ function lockedActivation(
     enrollment_savings: 25,
     payment_setup_completed_at: "2026-07-14T12:05:00.000Z",
     started_at: "2026-07-14T12:05:00.000Z",
+    sale_id: IDS.sale,
+    obligation_count: 4,
     ...overrides,
   };
 }
@@ -286,8 +281,6 @@ describe("PR1c Stripe setup authorization routes", () => {
       livemode: false,
       customer: CUSTOMER_ID,
     });
-    mocks.ensureObligations.mockResolvedValue({ created: 4 });
-    mocks.recordSale.mockResolvedValue({ recorded: true, saleId: "sale-1" });
     mocks.portalUrl.mockResolvedValue("https://homeatlas.example/portal/token");
     mocks.welcome.mockResolvedValue({ status: "sent" });
   });
@@ -740,18 +733,55 @@ describe("PR1c Stripe setup authorization routes", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it("activates through the atomic RPC and makes an exact replay idempotent", async () => {
+  it.each([
+    ["missing sale ID", { sale_id: undefined }],
+    ["malformed sale ID", { sale_id: "sale-1" }],
+    ["missing obligation count", { obligation_count: undefined }],
+    ["mismatched obligation count", { obligation_count: 2 }],
+  ])(
+    "fails closed on %s before portal lookup or welcome email",
+    async (_label, resultOverrides) => {
+      mocks.loadContext.mockResolvedValue(
+        context({ customerId: CUSTOMER_ID, setupIntentId: SETUP_INTENT_ID }),
+      );
+      mocks.rpc.mockResolvedValueOnce({
+        data: lockedActivation(resultOverrides),
+        error: null,
+      });
+
+      const response = await activatePaymentSetup(
+        request("/api/membership/setup-payment", {
+          presentationId: IDS.presentation,
+          setupIntentId: SETUP_INTENT_ID,
+        }),
+      );
+
+      expect(response.status).toBe(500);
+      await expect(response.json()).resolves.toEqual({
+        error: "Unable to verify and activate card setup",
+        recovery:
+          "Retry with the same onboarding capability and confirmed SetupIntent.",
+      });
+      expect(mocks.portalUrl).not.toHaveBeenCalled();
+      expect(mocks.welcome).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalledWith(
+        "append_membership_stripe_setup_reconciliation_event",
+        expect.anything(),
+      );
+    },
+  );
+
+  it("accepts complete activated and replay RPC results and emails only after activation", async () => {
     mocks.loadContext.mockResolvedValue(
       context({ customerId: CUSTOMER_ID, setupIntentId: SETUP_INTENT_ID }),
     );
-    mocks.ensureObligations.mockRejectedValueOnce(new Error("retry obligations"));
-    mocks.recordSale.mockRejectedValueOnce(new Error("retry sale"));
     mocks.rpc.mockResolvedValueOnce({
       data: lockedActivation({
         visit_price: 230,
         visits_per_year: 2,
         sales_tier: "biannual",
         started_at: "2026-07-14T12:04:00.000Z",
+        obligation_count: 2,
       }),
       error: null,
     });
@@ -775,25 +805,9 @@ describe("PR1c Stripe setup authorization routes", () => {
       }),
     );
     expect(mocks.customersUpdate).not.toHaveBeenCalled();
-    expect(mocks.ensureObligations).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        membershipId: IDS.membership,
-        visitsPerYear: 2,
-        startedAt: "2026-07-14T12:04:00.000Z",
-      }),
-    );
-    expect(mocks.recordSale).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        activation: expect.objectContaining({
-          sales_tier: "biannual",
-          visit_price: 230,
-          visits_per_year: 2,
-        }),
-      }),
-    );
     expect((await first.json()).alreadyActive).toBe(false);
+    expect(mocks.portalUrl).toHaveBeenCalledTimes(1);
+    expect(mocks.welcome).toHaveBeenCalledTimes(1);
 
     mocks.loadContext.mockResolvedValue(
       context({
@@ -812,6 +826,7 @@ describe("PR1c Stripe setup authorization routes", () => {
         visits_per_year: 2,
         sales_tier: "biannual",
         started_at: "2026-07-14T12:04:00.000Z",
+        obligation_count: 2,
       }),
       error: null,
     });
@@ -823,8 +838,8 @@ describe("PR1c Stripe setup authorization routes", () => {
     );
     expect(replay.status).toBe(200);
     expect((await replay.json()).alreadyActive).toBe(true);
-    expect(mocks.ensureObligations).toHaveBeenCalledTimes(2);
-    expect(mocks.recordSale).toHaveBeenCalledTimes(2);
+    expect(mocks.portalUrl).toHaveBeenCalledTimes(2);
+    expect(mocks.welcome).toHaveBeenCalledTimes(1);
     const activationEventKeys = mocks.rpc.mock.calls
       .filter(([name]) =>
         name === "append_membership_stripe_setup_reconciliation_event"
@@ -834,7 +849,6 @@ describe("PR1c Stripe setup authorization routes", () => {
       "activation_completed",
       "activation_replay_observed",
     ]);
-    expect(mocks.welcome).toHaveBeenCalledTimes(1);
   });
 
   it("holds an activation linkage race without mutating Stripe or follow-up state", async () => {
@@ -858,8 +872,6 @@ describe("PR1c Stripe setup authorization routes", () => {
     expect(mocks.customersRetrieve).toHaveBeenCalledTimes(1);
     expect(mocks.paymentMethodsRetrieve).toHaveBeenCalledTimes(1);
     expect(mocks.customersUpdate).not.toHaveBeenCalled();
-    expect(mocks.ensureObligations).not.toHaveBeenCalled();
-    expect(mocks.recordSale).not.toHaveBeenCalled();
     expect(mocks.portalUrl).not.toHaveBeenCalled();
     expect(mocks.welcome).not.toHaveBeenCalled();
   });
