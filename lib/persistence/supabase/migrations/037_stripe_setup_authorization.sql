@@ -231,21 +231,70 @@ alter table public.membership_payment_setup_events
   alter column presentation_authority_sha256 set not null,
   alter column enrollment_savings set not null;
 
+-- Constraint names may be truncated or changed cosmetically, so compare
+-- definitions instead. Normalize only unquoted SQL syntax; quoted literals
+-- (including regexes and enum values) remain byte-for-byte authoritative.
+create or replace function pg_temp.canonicalize_constraint_definition(
+  definition text
+)
+returns text
+language plpgsql
+immutable
+strict
+as $$
+declare
+  canonical text := '';
+  current_character text;
+  cursor_position integer := 1;
+  quoted boolean := false;
+begin
+  while cursor_position <= pg_catalog.char_length(definition) loop
+    current_character := pg_catalog.substr(definition, cursor_position, 1);
+    if current_character = '''' then
+      canonical := canonical || current_character;
+      if quoted
+        and cursor_position < pg_catalog.char_length(definition)
+        and pg_catalog.substr(definition, cursor_position + 1, 1) = ''''
+      then
+        canonical := canonical || '''';
+        cursor_position := cursor_position + 1;
+      else
+        quoted := not quoted;
+      end if;
+    elsif quoted then
+      canonical := canonical || current_character;
+    elsif current_character ~ '[[:space:]]' then
+      null;
+    else
+      canonical := canonical || pg_catalog.lower(current_character);
+    end if;
+    cursor_position := cursor_position + 1;
+  end loop;
+  return canonical;
+end;
+$$;
+
 do $$
 begin
   if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conname = 'membership_payment_setup_events_reconciliation_attempt_id_key'
-      and conrelid = 'public.membership_payment_setup_events'::regclass
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.membership_payment_setup_events'::regclass
+      and pg_temp.canonicalize_constraint_definition(
+        pg_catalog.pg_get_constraintdef(oid, false)
+      ) = 'unique(reconciliation_attempt_id)'
   ) then
     alter table public.membership_payment_setup_events
       add constraint membership_payment_setup_events_reconciliation_attempt_id_key
       unique (reconciliation_attempt_id);
   end if;
   if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conname = 'membership_payment_setup_events_reconciliation_attempt_id_fkey'
-      and conrelid = 'public.membership_payment_setup_events'::regclass
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.membership_payment_setup_events'::regclass
+      and pg_temp.canonicalize_constraint_definition(
+        pg_catalog.pg_get_constraintdef(oid, false)
+      ) = 'foreignkey(reconciliation_attempt_id)referencesmembership_stripe_setup_reconciliation_attempts(id)ondeleterestrict'
   ) then
     alter table public.membership_payment_setup_events
       add constraint membership_payment_setup_events_reconciliation_attempt_id_fkey
@@ -254,27 +303,36 @@ begin
       on delete restrict;
   end if;
   if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conname = 'membership_payment_setup_events_sales_tier_check'
-      and conrelid = 'public.membership_payment_setup_events'::regclass
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.membership_payment_setup_events'::regclass
+      and pg_temp.canonicalize_constraint_definition(
+        pg_catalog.pg_get_constraintdef(oid, false)
+      ) = 'check((sales_tier=any(array[''biannual''::text,''quarterly''::text])))'
   ) then
     alter table public.membership_payment_setup_events
       add constraint membership_payment_setup_events_sales_tier_check
       check (sales_tier in ('biannual', 'quarterly'));
   end if;
   if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conname = 'membership_payment_setup_events_visit_price_check'
-      and conrelid = 'public.membership_payment_setup_events'::regclass
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.membership_payment_setup_events'::regclass
+      and pg_temp.canonicalize_constraint_definition(
+        pg_catalog.pg_get_constraintdef(oid, false)
+      ) = 'check((visit_price>(0)::numeric))'
   ) then
     alter table public.membership_payment_setup_events
       add constraint membership_payment_setup_events_visit_price_check
       check (visit_price > 0);
   end if;
   if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conname = 'membership_payment_setup_events_visits_per_year_check'
-      and conrelid = 'public.membership_payment_setup_events'::regclass
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.membership_payment_setup_events'::regclass
+      and pg_temp.canonicalize_constraint_definition(
+        pg_catalog.pg_get_constraintdef(oid, false)
+      ) = 'check((((sales_tier=''biannual''::text)and(visits_per_year=2))or((sales_tier=''quarterly''::text)and(visits_per_year=4))))'
   ) then
     alter table public.membership_payment_setup_events
       add constraint membership_payment_setup_events_visits_per_year_check
@@ -284,18 +342,24 @@ begin
       );
   end if;
   if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conname = 'membership_payment_setup_events_authority_sha256_check'
-      and conrelid = 'public.membership_payment_setup_events'::regclass
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.membership_payment_setup_events'::regclass
+      and pg_temp.canonicalize_constraint_definition(
+        pg_catalog.pg_get_constraintdef(oid, false)
+      ) = 'check((presentation_authority_sha256~''^[0-9a-f]{64}$''::text))'
   ) then
     alter table public.membership_payment_setup_events
       add constraint membership_payment_setup_events_authority_sha256_check
       check (presentation_authority_sha256 ~ '^[0-9a-f]{64}$');
   end if;
   if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conname = 'membership_payment_setup_events_enrollment_savings_check'
-      and conrelid = 'public.membership_payment_setup_events'::regclass
+    select 1
+    from pg_catalog.pg_constraint
+    where conrelid = 'public.membership_payment_setup_events'::regclass
+      and pg_temp.canonicalize_constraint_definition(
+        pg_catalog.pg_get_constraintdef(oid, false)
+      ) = 'check((enrollment_savings>=(0)::numeric))'
   ) then
     alter table public.membership_payment_setup_events
       add constraint membership_payment_setup_events_enrollment_savings_check
@@ -303,9 +367,11 @@ begin
   end if;
 end $$;
 
--- A rerun must never silently accept a weakened same-name constraint. Compare
--- every PR1c constraint after normalizing only whitespace and case from
--- PostgreSQL's catalog representation.
+-- Constraint names are not authority: PostgreSQL truncates identifiers after
+-- 63 bytes, and known pre-release drafts used shorter names. A rerun must
+-- compare the exact semantic definitions and their multiplicity so a renamed
+-- equivalent is accepted while missing, extra, weakened, or duplicate
+-- constraints still fail closed.
 do $$
 declare
   mismatch_count integer;
@@ -353,19 +419,22 @@ begin
     ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_event_key_check', 'check((event_key~''^[a-z0-9_:-]{1,96}$''::text))'),
     ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_phase_check', 'check((operation_phase=any(array[''customer''::text,''setup_intent''::text,''claim''::text,''activation''::text])))'),
     ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_status_check', 'check((operation_status=any(array[''observed''::text,''created''::text,''claimed''::text,''ready''::text,''held''::text,''failed''::text,''activated''::text,''replayed''::text])))'),
-    ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_customer_check', 'check(((stripe_customer_idisnull)or(stripe_customer_id~''^cus_[a-za-z0-9]+$''::text)))'),
-    ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_intent_check', 'check(((stripe_setup_intent_idisnull)or(stripe_setup_intent_id~''^seti_[a-za-z0-9]+$''::text)))'),
+    ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_customer_check', 'check(((stripe_customer_idisnull)or(stripe_customer_id~''^cus_[A-Za-z0-9]+$''::text)))'),
+    ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_intent_check', 'check(((stripe_setup_intent_idisnull)or(stripe_setup_intent_id~''^seti_[A-Za-z0-9]+$''::text)))'),
     ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_outcome_check', 'check(((outcomeisnull)or(outcome=any(array[''provider_resolved''::text,''claimed''::text,''held''::text,''failed''::text,''ready''::text,''activated''::text,''replay''::text]))))'),
     ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_error_check', 'check(((error_codeisnull)or(error_code~''^[a-z0-9_:-]{1,128}$''::text)))'),
     ('membership_stripe_setup_reconciliation_events', 'membership_stripe_setup_reconciliation_events_error_state_check', 'check((((operation_status=any(array[''held''::text,''failed''::text]))and(error_codeisnotnull))or((operation_status<>all(array[''held''::text,''failed''::text]))and(error_codeisnull))))')
-  ), actual as (
+  ), expected_counts as (
+    select table_name, canonical_definition, count(*) as definition_count
+    from expected
+    group by table_name, canonical_definition
+  ), actual_counts as (
     select
       c.relname::text as table_name,
-      k.conname::text as constraint_name,
-      regexp_replace(
-        lower(pg_catalog.pg_get_constraintdef(k.oid, false)),
-        '[[:space:]]+', '', 'g'
-      ) as canonical_definition
+      pg_temp.canonicalize_constraint_definition(
+        pg_catalog.pg_get_constraintdef(k.oid, false)
+      ) as canonical_definition,
+      count(*) as definition_count
     from pg_catalog.pg_constraint k
     join pg_catalog.pg_class c on c.oid = k.conrelid
     join pg_catalog.pg_namespace n on n.oid = c.relnamespace
@@ -375,11 +444,15 @@ begin
         'membership_stripe_setup_reconciliation_attempts',
         'membership_stripe_setup_reconciliation_events'
       )
+    group by c.relname, pg_temp.canonicalize_constraint_definition(
+      pg_catalog.pg_get_constraintdef(k.oid, false)
+    )
   )
   select count(*) into mismatch_count
-  from expected
-  full outer join actual using (table_name, constraint_name, canonical_definition)
-  where expected.constraint_name is null or actual.constraint_name is null;
+  from expected_counts
+  full outer join actual_counts using (table_name, canonical_definition)
+  where coalesce(expected_counts.definition_count, 0)
+    <> coalesce(actual_counts.definition_count, 0);
 
   if mismatch_count <> 0 then
     raise exception using
@@ -414,7 +487,18 @@ begin
       ('reserve_membership_stripe_setup_reconciliation', 'uuid, uuid, uuid, uuid, uuid, text, text', 'jsonb', 'plpgsql', true, false, 'v', 'u', 'd5d7354afaa5c16c76ad0087920ff2f8'),
       ('append_membership_stripe_setup_reconciliation_event', 'uuid, text, text, text, text, text, text, text', 'jsonb', 'plpgsql', true, false, 'v', 'u', 'd82f6ce2aa2aead47e6818227f739020'),
       ('claim_membership_stripe_setup', 'uuid, uuid, uuid, uuid, uuid, text, uuid, text, text', 'jsonb', 'plpgsql', false, false, 'v', 'u', '20a8650237fe48c8deb5e7a7ad86716a'),
-      ('activate_membership_after_stripe_setup', 'uuid, uuid, uuid, uuid, uuid, text, uuid, text, text, text, boolean', 'jsonb', 'plpgsql', true, false, 'v', 'u', 'e463bd2e8f6fadbf3a2f3f2a150cce62')
+      ('activate_membership_after_stripe_setup', 'uuid, uuid, uuid, uuid, uuid, text, uuid, text, text, text, boolean', 'jsonb', 'plpgsql', true, false, 'v', 'u',
+        case
+          when (
+            select md5(btrim(regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')))
+            from pg_catalog.pg_proc p
+            where p.oid = to_regprocedure(
+              'public.activate_membership_after_stripe_setup(uuid,uuid,uuid,uuid,uuid,text,uuid,text,text,text,boolean)'
+            )
+          ) = '1bd1f881ce2df4652f3b9b0ca149ab89'
+          then '1bd1f881ce2df4652f3b9b0ca149ab89'
+          else 'e463bd2e8f6fadbf3a2f3f2a150cce62'
+        end)
     ), actual as (
       select
         p.proname::text as function_name,
@@ -992,9 +1076,20 @@ drop function if exists public.activate_membership_after_stripe_setup(
 drop function if exists public.activate_membership_after_stripe_setup(
   uuid, uuid, uuid, uuid, uuid, text, text, text, text, boolean
 );
-drop function if exists public.activate_membership_after_stripe_setup(
-  uuid, uuid, uuid, uuid, uuid, text, uuid, text, text, text, boolean
-);
+-- Migration 042 replaces the exact signature below with the atomic activation
+-- successor. Ordered replay must preserve that known body, while an unknown
+-- same-signature body remains blocked by the fail-closed inventory above.
+do $migration_037_activation$
+begin
+  if (
+    select md5(btrim(regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')))
+    from pg_catalog.pg_proc p
+    where p.oid = to_regprocedure(
+      'public.activate_membership_after_stripe_setup(uuid,uuid,uuid,uuid,uuid,text,uuid,text,text,text,boolean)'
+    )
+  ) is distinct from '1bd1f881ce2df4652f3b9b0ca149ab89'
+  then
+    execute $migration_037_activation_ddl$
 create or replace function public.activate_membership_after_stripe_setup(
   p_membership_id uuid,
   p_presentation_id uuid,
@@ -1317,6 +1412,10 @@ begin
   );
 end;
 $$;
+$migration_037_activation_ddl$;
+  end if;
+end;
+$migration_037_activation$;
 
 revoke all on function public.claim_membership_stripe_setup(
   uuid, uuid, uuid, uuid, uuid, text, uuid, text, text
@@ -1355,7 +1454,18 @@ begin
     ('reserve_membership_stripe_setup_reconciliation', 'uuid, uuid, uuid, uuid, uuid, text, text', 'jsonb', 'plpgsql', true, false, 'v', 'u', 'd5d7354afaa5c16c76ad0087920ff2f8'),
     ('append_membership_stripe_setup_reconciliation_event', 'uuid, text, text, text, text, text, text, text', 'jsonb', 'plpgsql', true, false, 'v', 'u', 'd82f6ce2aa2aead47e6818227f739020'),
     ('claim_membership_stripe_setup', 'uuid, uuid, uuid, uuid, uuid, text, uuid, text, text', 'jsonb', 'plpgsql', false, false, 'v', 'u', '20a8650237fe48c8deb5e7a7ad86716a'),
-    ('activate_membership_after_stripe_setup', 'uuid, uuid, uuid, uuid, uuid, text, uuid, text, text, text, boolean', 'jsonb', 'plpgsql', true, false, 'v', 'u', 'e463bd2e8f6fadbf3a2f3f2a150cce62')
+    ('activate_membership_after_stripe_setup', 'uuid, uuid, uuid, uuid, uuid, text, uuid, text, text, text, boolean', 'jsonb', 'plpgsql', true, false, 'v', 'u',
+      case
+        when (
+          select md5(btrim(regexp_replace(p.prosrc, '[[:space:]]+', ' ', 'g')))
+          from pg_catalog.pg_proc p
+          where p.oid = to_regprocedure(
+            'public.activate_membership_after_stripe_setup(uuid,uuid,uuid,uuid,uuid,text,uuid,text,text,text,boolean)'
+          )
+        ) = '1bd1f881ce2df4652f3b9b0ca149ab89'
+        then '1bd1f881ce2df4652f3b9b0ca149ab89'
+        else 'e463bd2e8f6fadbf3a2f3f2a150cce62'
+      end)
   ), actual as (
     select
       p.proname::text as function_name,

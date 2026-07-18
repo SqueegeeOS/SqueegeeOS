@@ -265,7 +265,7 @@ begin
   if membership_row.status <> 'active'
     or membership_row.payment_setup_completed_at is null
     or membership_row.agreement_id is null
-    or nullif(pg_catalog.btrim(pg_catalog.coalesce(membership_row.sales_tier, '')), '') is null
+    or nullif(pg_catalog.btrim(coalesce(membership_row.sales_tier, '')), '') is null
     or membership_row.visit_price is null
     or not found
   then

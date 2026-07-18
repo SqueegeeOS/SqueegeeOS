@@ -204,7 +204,7 @@ begin
   then
     return pg_catalog.jsonb_build_object(
       'outcome', 'locked',
-      'watermark_generation', pg_catalog.coalesce((
+      'watermark_generation', coalesce((
         select watermark.generation
         from public.jobber_schedule_sync_watermarks watermark
         where watermark.connection_id = requested_connection_id
@@ -226,7 +226,7 @@ begin
   select watermark.generation into watermark_generation
   from public.jobber_schedule_sync_watermarks watermark
   where watermark.connection_id = requested_connection_id;
-  watermark_generation := pg_catalog.coalesce(watermark_generation, 0);
+  watermark_generation := coalesce(watermark_generation, 0);
 
   insert into public.jobber_schedule_sync_runs (
     id, connection_id, actor_id, window_start, window_end,
@@ -392,11 +392,11 @@ begin
     select 1
     from pg_catalog.jsonb_array_elements(requested_observations) item
     where pg_catalog.jsonb_typeof(item) <> 'object'
-      or pg_catalog.coalesce(item->>'external_visit_id', '') = ''
-      or pg_catalog.coalesce(item->>'source_payload_hash', '') !~ '^[0-9a-f]{64}$'
-      or pg_catalog.coalesce(item->>'source_observed_at', '') = ''
+      or coalesce(item->>'external_visit_id', '') = ''
+      or coalesce(item->>'source_payload_hash', '') !~ '^[0-9a-f]{64}$'
+      or coalesce(item->>'source_observed_at', '') = ''
       or pg_catalog.jsonb_typeof(item->'raw_payload') <> 'object'
-      or pg_catalog.coalesce(item->>'scheduled_start', '') = ''
+      or coalesce(item->>'scheduled_start', '') = ''
       or item->'raw_payload'->>'id' is distinct from item->>'external_visit_id'
       or (item->>'scheduled_start')::timestamptz < requested_window_start
       or (item->>'scheduled_start')::timestamptz >= requested_window_end
@@ -490,7 +490,7 @@ begin
   end if;
 
   select pg_catalog.count(*)::integer,
-         pg_catalog.coalesce(pg_catalog.sum(partition.observation_count), 0)::integer
+         coalesce(pg_catalog.sum(partition.observation_count), 0)::integer
   into stored_leaf_count, stored_visit_count
   from public.jobber_schedule_sync_partitions partition
   where partition.run_id = requested_run_id
@@ -695,7 +695,7 @@ begin
   from public.jobber_schedule_sync_watermarks watermark
   where watermark.connection_id = run_row.connection_id
   for update;
-  current_generation := pg_catalog.coalesce(current_generation, 0);
+  current_generation := coalesce(current_generation, 0);
   if current_generation <> requested_expected_watermark_generation then
     return 'watermark_conflict';
   end if;
@@ -853,7 +853,7 @@ begin
   update public.jobber_schedule_sync_runs
   set status = 'partial',
       failure_code = requested_failure_code,
-      request_count = pg_catalog.greatest(request_count, requested_request_count),
+      request_count = greatest(request_count, requested_request_count),
       completed_at = pg_catalog.now()
   where id = requested_run_id
     and status = 'running';

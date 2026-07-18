@@ -85,7 +85,7 @@ declare
 begin
   if requested_link_id is null
     or requested_changed_at is null
-    or nullif(pg_catalog.btrim(pg_catalog.coalesce(requested_reason, '')), '') is null
+    or nullif(pg_catalog.btrim(coalesce(requested_reason, '')), '') is null
   then
     raise exception 'jobber_link_revoke_invalid: complete invalidation input is required';
   end if;
@@ -222,7 +222,7 @@ begin
     or requested_projection_id is null
     or requested_link_id is null
     or requested_expected_link_updated_at is null
-    or nullif(pg_catalog.btrim(pg_catalog.coalesce(requested_reason, '')), '') is null
+    or nullif(pg_catalog.btrim(coalesce(requested_reason, '')), '') is null
     or pg_catalog.char_length(pg_catalog.btrim(requested_reason)) > 1000
   then
     raise exception 'jobber_link_revoke_invalid: complete revocation input is required';
