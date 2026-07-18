@@ -438,6 +438,37 @@ create unique index if not exists signed_agreements_complete_presentation_uidx
   on signed_agreements(presentation_id)
   where presentation_id is not null and status = 'complete';
 
+create or replace function reject_completed_signed_agreement_mutation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  if old.status = 'complete' then
+    raise exception using
+      errcode = '23514',
+      message = 'Completed signed agreements are immutable';
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists signed_agreements_complete_immutable
+  on signed_agreements;
+create trigger signed_agreements_complete_immutable
+  before update or delete on signed_agreements
+  for each row execute function reject_completed_signed_agreement_mutation();
+
+revoke all on function reject_completed_signed_agreement_mutation()
+  from public, anon, authenticated, service_role;
+grant execute on function reject_completed_signed_agreement_mutation()
+  to service_role;
+
 create table if not exists presentation_signing_attempts (
   presentation_id uuid primary key references presentations(id) on delete restrict,
   attempt_id uuid not null unique,

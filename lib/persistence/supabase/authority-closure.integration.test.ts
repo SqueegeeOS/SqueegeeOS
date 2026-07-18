@@ -235,6 +235,68 @@ integration("migration 036 disposable Supabase authority rehearsal", () => {
         signed_agreements: first.agreementId,
       });
 
+      const { data: completedAgreementBefore, error: completedReadError } =
+        await service
+          .from("signed_agreements")
+          .select("id, status, homeowner_name")
+          .eq("id", first.agreementId)
+          .single();
+      expect(completedReadError).toBeNull();
+      expect(completedAgreementBefore?.status).toBe("complete");
+      await expectDenied(
+        service
+          .from("signed_agreements")
+          .update({ homeowner_name: "Denied service-role mutation" })
+          .eq("id", first.agreementId),
+      );
+      await expectDenied(
+        service.from("signed_agreements").delete().eq("id", first.agreementId),
+      );
+      const { data: completedAgreementAfter, error: completedRereadError } =
+        await service
+          .from("signed_agreements")
+          .select("id, status, homeowner_name")
+          .eq("id", first.agreementId)
+          .single();
+      expect(completedRereadError).toBeNull();
+      expect(completedAgreementAfter).toEqual(completedAgreementBefore);
+
+      const { data: incompleteAgreement, error: incompleteInsertError } =
+        await service
+          .from("signed_agreements")
+          .insert({
+            homeowner_slug: `incomplete-${suffix}`,
+            property_slug: `incomplete-${suffix}`,
+            homeowner_name: "Incomplete workflow",
+            plan_id: "preferred",
+            plan_name: "Incomplete workflow",
+            signature_method: "drawn",
+            signer_name: "Incomplete workflow",
+            signed_at: new Date().toISOString(),
+            status: "pending",
+          })
+          .select("id, status")
+          .single();
+      expect(incompleteInsertError).toBeNull();
+      expect(incompleteAgreement?.status).toBe("pending");
+      const { data: updatedIncompleteAgreement, error: incompleteUpdateError } =
+        await service
+          .from("signed_agreements")
+          .update({ plan_name: "Updated incomplete workflow" })
+          .eq("id", incompleteAgreement!.id)
+          .select("plan_name, status")
+          .single();
+      expect(incompleteUpdateError).toBeNull();
+      expect(updatedIncompleteAgreement).toEqual({
+        plan_name: "Updated incomplete workflow",
+        status: "pending",
+      });
+      const { error: incompleteDeleteError } = await service
+        .from("signed_agreements")
+        .delete()
+        .eq("id", incompleteAgreement!.id);
+      expect(incompleteDeleteError).toBeNull();
+
       const { data: plan, error: planError } = await service
         .from("home_care_plans")
         .select("id, homeowner_slug, property_slug")
