@@ -505,3 +505,26 @@ revoke select, insert, update, delete on presentations
 
 -- member_profiles, member_savings_transactions, member_appointments,
 -- service_observations, ai_quotes — see 005_member_intelligence.sql
+
+-- Jobber authority tables/functions are introduced by numbered migrations
+-- 032-041. Mirror migration 041's additive replay-evidence columns when this
+-- reference schema is applied over an existing migrated database; fresh
+-- databases receive them from migration 041 in order.
+do $$
+begin
+  if to_regclass('public.jobber_property_links') is not null then
+    alter table public.jobber_property_links
+      add column if not exists revocation_projection_id uuid
+        references public.jobber_visit_projections(id) on delete restrict,
+      add column if not exists revocation_expected_link_updated_at timestamptz;
+    alter table public.jobber_property_links enable row level security;
+  end if;
+  if to_regclass('public.jobber_property_link_events') is not null then
+    alter table public.jobber_property_link_events
+      add column if not exists revocation_projection_id uuid
+        references public.jobber_visit_projections(id) on delete restrict,
+      add column if not exists revocation_expected_link_updated_at timestamptz;
+    alter table public.jobber_property_link_events enable row level security;
+  end if;
+end;
+$$;

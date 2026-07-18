@@ -255,6 +255,220 @@ begin
 end;
 $$;
 
+-- Migration 041 reuses this seeded authority graph for a functional,
+-- rollback-only property-link revocation rehearsal. The exception block is a
+-- subtransaction so the remainder of migration 039's rehearsal sees the
+-- original approved fixture after these assertions complete.
+do $$
+declare
+  reviewed_link_updated_at timestamptz;
+  result jsonb;
+  approved_before integer;
+  classifications_before integer;
+  appointments_before integer;
+  link_events_before integer;
+  invalidation_events_before integer;
+  authority_after_revoke jsonb;
+  forbidden_before jsonb := '{}'::jsonb;
+  forbidden_after jsonb := '{}'::jsonb;
+  table_name text;
+  table_hash text;
+begin
+  if to_regprocedure(
+    'public.revoke_jobber_property_link(uuid,text,uuid,uuid,timestamp with time zone,text)'
+  ) is null then
+    return;
+  end if;
+
+  begin
+    select updated_at into strict reviewed_link_updated_at
+    from public.jobber_property_links
+    where id = '00000000-0000-4000-8000-000000000839';
+    select count(*) into approved_before
+    from public.jobber_visit_classifications
+    where property_link_id = '00000000-0000-4000-8000-000000000839'
+      and classification_state = 'approved';
+    select count(*) into classifications_before
+    from public.jobber_visit_classifications
+    where property_link_id = '00000000-0000-4000-8000-000000000839';
+    select count(*) into appointments_before
+    from public.member_appointments
+    where jobber_property_link_id = '00000000-0000-4000-8000-000000000839';
+    select count(*) into link_events_before
+    from public.jobber_property_link_events
+    where link_id = '00000000-0000-4000-8000-000000000839';
+    select count(*) into invalidation_events_before
+    from public.jobber_visit_classification_events
+    where property_link_id = '00000000-0000-4000-8000-000000000839'
+      and event_type = 'property_link_invalidated';
+
+    foreach table_name in array array[
+      'obligations', 'obligation_events', 'atlas_pricing_snapshots',
+      'billing_orders', 'billing_order_events', 'membership_billing_charges',
+      'member_savings_ledger_entries', 'property_visit_health_checks',
+      'property_assessments', 'service_observations', 'property_assets'
+    ] loop
+      execute format(
+        'select md5(coalesce(string_agg(to_jsonb(row_data)::text, ''|'' order by to_jsonb(row_data)::text), '''')) from public.%I row_data',
+        table_name
+      ) into table_hash;
+      forbidden_before := forbidden_before || jsonb_build_object(table_name, table_hash);
+    end loop;
+
+    result := public.revoke_jobber_property_link(
+      '00000000-0000-4000-8000-000000000139', 'squeegeeking',
+      '00000000-0000-4000-8000-000000000739',
+      '00000000-0000-4000-8000-000000000839', reviewed_link_updated_at,
+      'Disposable exact property-link revocation'
+    );
+    if result->>'outcome' <> 'revoked'
+      or not exists (
+        select 1 from public.jobber_property_links
+        where id = '00000000-0000-4000-8000-000000000839'
+          and link_state = 'revoked'
+      )
+      or exists (
+        select 1 from public.jobber_visit_classifications
+        where property_link_id = '00000000-0000-4000-8000-000000000839'
+          and classification_state = 'approved'
+      )
+      or exists (
+        select 1 from public.member_appointments
+        where jobber_property_link_id = '00000000-0000-4000-8000-000000000839'
+          and jobber_authority_state = 'approved'
+      )
+      or (select count(*) from public.jobber_property_link_events
+          where link_id = '00000000-0000-4000-8000-000000000839')
+          <> link_events_before + 1
+      or (select count(*) from public.jobber_visit_classification_events
+          where property_link_id = '00000000-0000-4000-8000-000000000839'
+            and event_type = 'property_link_invalidated')
+          <> invalidation_events_before + approved_before
+      or (select count(*) from public.jobber_visit_classifications
+          where property_link_id = '00000000-0000-4000-8000-000000000839')
+          <> classifications_before
+      or (select count(*) from public.member_appointments
+          where jobber_property_link_id = '00000000-0000-4000-8000-000000000839')
+          <> appointments_before
+    then
+      raise exception 'Migration 041 did not revoke and demote authority exactly once without deletes';
+    end if;
+
+    select jsonb_build_object(
+      'link', (select to_jsonb(link_row) from public.jobber_property_links link_row
+        where id = '00000000-0000-4000-8000-000000000839'),
+      'classifications', (select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.id), '[]'::jsonb)
+        from public.jobber_visit_classifications row_data
+        where property_link_id = '00000000-0000-4000-8000-000000000839'),
+      'appointments', (select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.id), '[]'::jsonb)
+        from public.member_appointments row_data
+        where jobber_property_link_id = '00000000-0000-4000-8000-000000000839'),
+      'link_events', (select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.id), '[]'::jsonb)
+        from public.jobber_property_link_events row_data
+        where link_id = '00000000-0000-4000-8000-000000000839'),
+      'classification_events', (select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.id), '[]'::jsonb)
+        from public.jobber_visit_classification_events row_data
+        where property_link_id = '00000000-0000-4000-8000-000000000839')
+    ) into authority_after_revoke;
+
+    result := public.revoke_jobber_property_link(
+      '00000000-0000-4000-8000-000000000139', 'squeegeeking',
+      '00000000-0000-4000-8000-000000000739',
+      '00000000-0000-4000-8000-000000000839', reviewed_link_updated_at,
+      'Disposable exact property-link revocation'
+    );
+    if result->>'outcome' <> 'already_jobber_only' then
+      raise exception 'Migration 041 exact replay did not converge';
+    end if;
+
+    begin
+      perform public.revoke_jobber_property_link(
+        '00000000-0000-4000-8000-000000000139', 'squeegeeking',
+        '00000000-0000-4000-8000-000000000739',
+        '00000000-0000-4000-8000-000000000839',
+        reviewed_link_updated_at - interval '1 second',
+        'Disposable exact property-link revocation'
+      );
+      raise exception 'Migration 041 stale revocation version was accepted';
+    exception when others then
+      if sqlerrm not like 'jobber_link_revoke_conflict:%' then raise; end if;
+    end;
+    begin
+      perform public.revoke_jobber_property_link(
+        '00000000-0000-4000-8000-000000000139', 'squeegeeking',
+        '00000000-0000-4000-8000-000000000749',
+        '00000000-0000-4000-8000-000000000839', reviewed_link_updated_at,
+        'Disposable exact property-link revocation'
+      );
+      raise exception 'Migration 041 different projection replay was accepted';
+    exception when others then
+      if sqlerrm not like 'jobber_link_revoke_conflict:%' then raise; end if;
+    end;
+    begin
+      perform public.revoke_jobber_property_link(
+        '00000000-0000-4000-8000-000000000139', 'squeegeeking',
+        '00000000-0000-4000-8000-000000000739',
+        '00000000-0000-4000-8000-000000000839', reviewed_link_updated_at,
+        'Different disposable revocation reason'
+      );
+      raise exception 'Migration 041 different reason replay was accepted';
+    exception when others then
+      if sqlerrm not like 'jobber_link_revoke_conflict:%' then raise; end if;
+    end;
+    begin
+      perform public.revoke_jobber_property_link(
+        '00000000-0000-4000-8000-000000000139', 'squeegeeking',
+        '00000000-0000-4000-8000-000000000739',
+        '00000000-0000-4000-8000-000000009999', reviewed_link_updated_at,
+        'Disposable exact property-link revocation'
+      );
+      raise exception 'Migration 041 missing reviewed link identity was accepted';
+    exception when others then
+      if sqlerrm not like 'jobber_link_revoke_conflict:%' then raise; end if;
+    end;
+
+    if authority_after_revoke is distinct from jsonb_build_object(
+      'link', (select to_jsonb(link_row) from public.jobber_property_links link_row
+        where id = '00000000-0000-4000-8000-000000000839'),
+      'classifications', (select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.id), '[]'::jsonb)
+        from public.jobber_visit_classifications row_data
+        where property_link_id = '00000000-0000-4000-8000-000000000839'),
+      'appointments', (select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.id), '[]'::jsonb)
+        from public.member_appointments row_data
+        where jobber_property_link_id = '00000000-0000-4000-8000-000000000839'),
+      'link_events', (select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.id), '[]'::jsonb)
+        from public.jobber_property_link_events row_data
+        where link_id = '00000000-0000-4000-8000-000000000839'),
+      'classification_events', (select coalesce(jsonb_agg(to_jsonb(row_data) order by row_data.id), '[]'::jsonb)
+        from public.jobber_visit_classification_events row_data
+        where property_link_id = '00000000-0000-4000-8000-000000000839')
+    ) then
+      raise exception 'Migration 041 replay or rejected stale input wrote authority state';
+    end if;
+
+    foreach table_name in array array[
+      'obligations', 'obligation_events', 'atlas_pricing_snapshots',
+      'billing_orders', 'billing_order_events', 'membership_billing_charges',
+      'member_savings_ledger_entries', 'property_visit_health_checks',
+      'property_assessments', 'service_observations', 'property_assets'
+    ] loop
+      execute format(
+        'select md5(coalesce(string_agg(to_jsonb(row_data)::text, ''|'' order by to_jsonb(row_data)::text), '''')) from public.%I row_data',
+        table_name
+      ) into table_hash;
+      forbidden_after := forbidden_after || jsonb_build_object(table_name, table_hash);
+    end loop;
+    if forbidden_after is distinct from forbidden_before then
+      raise exception 'Migration 041 changed forbidden money, obligation, or Property Memory state';
+    end if;
+
+    raise exception 'rollback_migration_041_functional_rehearsal';
+  exception when others then
+    if sqlerrm <> 'rollback_migration_041_functional_rehearsal' then raise; end if;
+  end;
+end;
+$$;
+
 do $$
 begin
   begin

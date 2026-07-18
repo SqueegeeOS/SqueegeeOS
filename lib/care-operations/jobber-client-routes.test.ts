@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   listProperties: vi.fn(),
   loadCandidates: vi.fn(),
   linkSearchedProperty: vi.fn(),
+  revokeProperty: vi.fn(),
+  loadWorkspace: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/hq-route-authorization", () => ({
@@ -37,6 +39,8 @@ vi.mock("@/lib/care-operations/jobber-property-matching", async () => {
     ...actual,
     loadActiveMemberPropertyCandidates: mocks.loadCandidates,
     linkSearchedJobberClientProperty: mocks.linkSearchedProperty,
+    revokeJobberPropertyLink: mocks.revokeProperty,
+    loadJobberPropertyMatchingWorkspace: mocks.loadWorkspace,
   };
 });
 
@@ -63,6 +67,7 @@ describe("Jobber member-search routes", () => {
     vi.clearAllMocks();
     mocks.authorize.mockResolvedValue({ actor });
     mocks.getToken.mockResolvedValue("access-token");
+    mocks.loadWorkspace.mockResolvedValue({ visits: [] });
   });
 
   it.each([401, 403])(
@@ -176,6 +181,38 @@ describe("Jobber member-search routes", () => {
       membershipId: "00000000-0000-4000-8000-000000000341",
       actorId: actor.id,
       samePhysicalPropertyConfirmed: true,
+    });
+  });
+
+  it("rejects revoke commands without the exact reviewed link ID", async () => {
+    const response = await LINK(
+      request("/api/admin/care-operations/jobber/property-links", {
+        action: "revoke",
+        projectionId: "00000000-0000-4000-8000-000000000341",
+        expectedLinkUpdatedAt: "2026-07-18T12:34:56.000Z",
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(mocks.revokeProperty).not.toHaveBeenCalled();
+  });
+
+  it("passes the exact reviewed projection, link, version, and server actor to revoke", async () => {
+    mocks.revokeProperty.mockResolvedValue("revoked");
+    const response = await LINK(
+      request("/api/admin/care-operations/jobber/property-links", {
+        action: "revoke",
+        projectionId: "00000000-0000-4000-8000-000000000341",
+        linkId: "00000000-0000-4000-8000-000000000342",
+        expectedLinkUpdatedAt: "2026-07-18T12:34:56.000Z",
+        actorId: "browser-actor",
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(mocks.revokeProperty).toHaveBeenCalledWith({
+      projectionId: "00000000-0000-4000-8000-000000000341",
+      linkId: "00000000-0000-4000-8000-000000000342",
+      expectedLinkUpdatedAt: "2026-07-18T12:34:56.000Z",
+      actorId: actor.id,
     });
   });
 });

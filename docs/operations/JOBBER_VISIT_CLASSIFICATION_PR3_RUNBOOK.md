@@ -1,6 +1,6 @@
 # Jobber visit classification — PR3 runbook
 
-**Status:** Repository implementation only; migration 039 is not applied
+**Status:** Repository implementation only; migrations 039-041 are not applied
 **Scope:** Supervised, per-visit schedule authority after PR2 coverage proof
 **Authority:** Jobber remains appointment and dispatch truth; HomeAtlas stores the reviewed classification and customer-visible appointment projection
 **Non-goals:** Automatic matching, obligation fulfillment, Jobber writes, completed-visit promotion, provider pricing, pricing snapshots, billing execution, Stripe, agreement or membership changes, add-ons, Property Memory, assets, or service observations
@@ -145,6 +145,24 @@ currently running. A newer running row with an expired or absent lease remains
 does not mislabel the older watermark complete. Revocation remains available as
 a fail-closed safety action.
 
+### Property-link revocation transaction (migration 041)
+
+The property-link safety action calls the service-role-only
+`revoke_jobber_property_link` RPC. One transaction locks the active HQ actor,
+exact connection sync row, projection, and link in approval-compatible order,
+then revalidates the exact connection/projection/external-property/link identity
+and pre-revocation `updated_at` token. The existing automatic immutable link
+event trigger inserts the sole revocation event and records the projection and
+pre-revocation token. Only an exact lost-response retry by the same actor and
+reason returns `already_jobber_only`; stale or different retries conflict.
+
+Migration 041 replaces the migration-039 link-fence function. The existing
+trigger demotes every approved classification and authoritative appointment
+derived from the link to `pending_review` and appends one classification event
+per approved classification. The RPC does not invoke the helper again. Nothing
+is deleted, cancelled, completed, detached, priced, billed, obligation-matched,
+sent to Stripe, or written to Property Memory.
+
 ## API boundary
 
 - `GET /api/admin/care-operations/jobber/visit-classifications` is uncached and
@@ -177,16 +195,18 @@ These steps require separate approval. This runbook does not authorize a
 migration, deployment, real sync, or customer-data write.
 
 1. Prove the production migration ledger through 038 before considering 039.
-2. Rehearse migrations 035–039 twice on a disposable Supabase project.
+2. Rehearse migrations 035–041 twice on a disposable Supabase project.
 3. Run the rollback-only SQL harness:
 
    ```bash
    psql --set ON_ERROR_STOP=1 --file lib/persistence/supabase/tests/039_jobber_visit_classification.sql
+   psql --set ON_ERROR_STOP=1 --file lib/persistence/supabase/tests/041_jobber_property_link_revocation.sql
    ```
 
-4. Prove classification tables have RLS, no `anon`/`authenticated` access,
+4. Prove classification/link tables have RLS, no `anon`/`authenticated` access,
    service-role select only, and service-role-only execute on both decision
-   RPCs. Prove the legacy anonymous `member_appointments` policy is absent.
+   RPCs plus `revoke_jobber_property_link`. Prove the legacy anonymous
+   `member_appointments` policy is absent.
 5. Exercise inactive/revoked HQ actors, stale source hashes, stale link tokens,
    stale/partial/running coverage (including expired unfinished reservations),
    membership disagreement, same external ID across different homes/connections,
@@ -203,9 +223,43 @@ migration, deployment, real sync, or customer-data write.
 
 The disposable two-session matrix must include approval racing PR2 begin and
 finalize, actor deactivation racing decide and revoke, approval racing source or
-link invalidation, and same external identity across connections. Static tests
-and the single-session rollback harness document the intended order but are not
-PostgreSQL concurrency proof.
+link invalidation, property-link revocation racing approval, stale revocations
+with different expected tokens, exact replay after a lost response, and same
+external identity across connections. Static tests and the single-session
+rollback harness document the intended order but are not PostgreSQL concurrency
+proof; this matrix remains a release gate.
+
+### Manual two-session migration-041 concurrency procedure
+
+Use only the acknowledged disposable database after migrations 001-041. Seed
+the synthetic migration-039 authority fixture through its first approved visit,
+then record the projection ID, property-link ID, and pre-revocation
+`jobber_property_links.updated_at`. Open two `psql` sessions with
+`ON_ERROR_STOP=1`; never point either session at production.
+
+1. **Missing reviewed identity versus link/relink:** in session A begin a
+   transaction and call `revoke_jobber_property_link` with a new nonexistent
+   link UUID but the real projection/version. In session B concurrently call
+   migration 040's link RPC for that external property. Commit whichever
+   obtains the connection lock first. Session A must return
+   `jobber_link_revoke_conflict`, never `already_jobber_only`; session B may
+   serialize before or after it, but no revoke response may claim success over
+   the new active link.
+2. **Approval versus exact revoke:** session A begins, calls the exact revocation
+   RPC, and holds the transaction open before commit. Session B calls the
+   migration-039 approval RPC and must wait, then conflict after A commits.
+   Repeat with approval obtaining the link lock first; revocation must wait,
+   then demote that approval and its appointment in the same transaction.
+3. **Concurrent exact replay:** call the same exact revocation request from both
+   sessions. The committed outcomes must be one `revoked` and one
+   `already_jobber_only`, with one immutable `revoked` link event and one
+   `property_link_invalidated` event for each classification approved before
+   the winner acquired the link lock.
+4. After each case compare link/classification/appointment rows and immutable
+   event counts, then compare hashes for obligations, obligation events, Atlas
+   pricing snapshots, billing tables, savings ledger, property health and
+   assessment tables, service observations, and property assets. Roll back or
+   discard the disposable database after recording both session transcripts.
 
 ## Repository verification
 
@@ -222,6 +276,24 @@ The rollback-only SQL harness was authored but has not been executed because
 this implementation session has no approved disposable database target.
 Repository tests are not proof that migration 039 has run successfully in
 PostgreSQL.
+
+Migration 041 has an opt-in disposable integration wrapper. It runs only when
+`JOBBER_J1_DISPOSABLE_DB_ACK` is exactly
+`I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_DATABASE` and
+`JOBBER_J1_TEST_DATABASE_URL` is set. Without that configured target it is
+skipped and the two-session concurrency rehearsal remains unproven.
+
+Migration-041 repository evidence recorded July 18, 2026:
+
+- Focused UI, runtime, route, authority-scope, migration, and audit tests: 9
+  files and 67 tests passed; 2 opt-in disposable integration tests were
+  skipped.
+- Scoped ESLint, `node --check scripts/audit-migrations.mjs`, and
+  `git diff --check` exited 0.
+- Full TypeScript checking still exits 2 on inherited test-fixture diagnostics;
+  no diagnostic names a migration-041 changed implementation or test file.
+- No SQL harness, two-session race, migration, deployment, or production write
+  was executed in this implementation session.
 
 Repository evidence recorded July 16, 2026:
 
@@ -286,3 +358,9 @@ not an applied or rehearsed migration; the rehearsal remains a release gate.
 Destructive schema rollback is appropriate only in a disposable database and
 still requires explicit approval. No destructive production rollback is
 shipped.
+
+For a migration-041 defect, preserve all link/classification events and keep
+the migration-039 fail-closed fences active. Disable only service-role execute
+on `revoke_jobber_property_link` through a separately reviewed forward
+migration, fix forward, and rerun both SQL harnesses plus the two-session matrix
+before restoring execute authority.

@@ -9,7 +9,9 @@ import {
   isEligibleMemberProperty,
   isEligibleSignedMemberProperty,
   linkSearchedJobberClientProperty,
+  persistJobberPropertyLinkRevocation,
   persistJobberMemberPropertySearchLink,
+  revokeJobberPropertyLink,
 } from "./jobber-property-matching";
 
 const activeMembership = {
@@ -263,4 +265,103 @@ describe("supervised Jobber property classification", () => {
       ).rejects.toMatchObject({ status });
     },
   );
+
+  it.each(["revoked", "already_jobber_only"] as const)(
+    "maps the atomic property-link revocation RPC %s result",
+    async (outcome) => {
+      const rpc = vi.fn().mockResolvedValue({
+        data: { outcome, link_id: "00000000-0000-4000-8000-000000000343" },
+        error: null,
+      });
+      await expect(
+        persistJobberPropertyLinkRevocation(
+          {
+            actorId: "00000000-0000-4000-8000-000000000341",
+            connectionId: "squeegeeking",
+            projectionId: "00000000-0000-4000-8000-000000000342",
+            linkId: "00000000-0000-4000-8000-000000000343",
+            expectedLinkUpdatedAt: "2026-07-18T12:34:56.000Z",
+            reason: "Headquarters revoked the supervised Jobber property link",
+          },
+          { rpc },
+        ),
+      ).resolves.toBe(outcome);
+      expect(rpc).toHaveBeenCalledWith("revoke_jobber_property_link", {
+        requested_actor_id: "00000000-0000-4000-8000-000000000341",
+        requested_connection_id: "squeegeeking",
+        requested_projection_id: "00000000-0000-4000-8000-000000000342",
+        requested_link_id: "00000000-0000-4000-8000-000000000343",
+        requested_expected_link_updated_at: "2026-07-18T12:34:56.000Z",
+        requested_reason:
+          "Headquarters revoked the supervised Jobber property link",
+      });
+    },
+  );
+
+  it("always sends the exact reviewed link identity to the revocation RPC", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: { outcome: "revoked", link_id: "00000000-0000-4000-8000-000000000343" },
+      error: null,
+    });
+    await expect(
+      revokeJobberPropertyLink(
+        {
+          actorId: "00000000-0000-4000-8000-000000000341",
+          projectionId: "00000000-0000-4000-8000-000000000342",
+          linkId: "00000000-0000-4000-8000-000000000343",
+          expectedLinkUpdatedAt: "2026-07-18T12:34:56.000Z",
+        },
+        { rpc },
+      ),
+    ).resolves.toBe("revoked");
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith(
+      "revoke_jobber_property_link",
+      expect.objectContaining({
+        requested_projection_id: "00000000-0000-4000-8000-000000000342",
+        requested_link_id: "00000000-0000-4000-8000-000000000343",
+        requested_expected_link_updated_at: "2026-07-18T12:34:56.000Z",
+      }),
+    );
+  });
+
+  it("does not convert a missing reviewed link into an early success", async () => {
+    const rpc = vi.fn().mockResolvedValue({
+      data: null,
+      error: { message: "jobber_link_revoke_conflict: link missing" },
+    });
+    await expect(
+      revokeJobberPropertyLink(
+        {
+          actorId: "00000000-0000-4000-8000-000000000341",
+          projectionId: "00000000-0000-4000-8000-000000000342",
+          linkId: "00000000-0000-4000-8000-000000000343",
+          expectedLinkUpdatedAt: "2026-07-18T12:34:56.000Z",
+        },
+        { rpc },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(rpc).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ["jobber_link_revoke_forbidden: actor inactive", 403],
+    ["jobber_link_revoke_conflict: stale link", 409],
+    ["jobber_link_revoke_not_found: link missing", 404],
+  ] as const)("maps %s revocation RPC failures to HTTP %i", async (message, status) => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: { message } });
+    await expect(
+      persistJobberPropertyLinkRevocation(
+        {
+          actorId: "00000000-0000-4000-8000-000000000341",
+          connectionId: "squeegeeking",
+          projectionId: "00000000-0000-4000-8000-000000000342",
+          linkId: "00000000-0000-4000-8000-000000000343",
+          expectedLinkUpdatedAt: "2026-07-18T12:34:56.000Z",
+          reason: "Headquarters revoked the supervised Jobber property link",
+        },
+        { rpc },
+      ),
+    ).rejects.toMatchObject({ status });
+  });
 });
