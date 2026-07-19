@@ -1,11 +1,17 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  assertMigration043RequiredClauses,
   hasExactAtomicCompletionNonOwnerAcl,
   hasExactAtomicCompletionTableAcl,
   hasExactAuthorityFunctionAcl,
+  hasExactVisitCompletionFunctionAcl,
+  hasExactVisitCompletionConstraints,
+  hasExactVisitCompletionTableAcl,
+  expectedVisitCompletionConstraintInventory,
   isExactAtomicCompletionTriggerSet,
   isExactSignedAgreementImmutabilityTrigger,
+  isExactVisitCompletionTriggerSet,
 } from "../../scripts/audit-migrations.mjs";
 
 const expectedFunctionNames = [
@@ -231,6 +237,191 @@ describe("migration audit catalog predicates", () => {
       "pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER')",
     ]) {
       expect(audit).toContain(fragment);
+    }
+  });
+
+  it("records migration 043 completion/evidence schema and function evidence", () => {
+    const audit = readFileSync(
+      new URL("../../scripts/audit-migrations.mjs", import.meta.url),
+      "utf8",
+    );
+    for (const fragment of [
+      "043_authoritative_visit_completion_evidence.sql",
+      '["043", "authoritative visit completion and evidence"',
+      '"jobber_visit_completion_events", "visit_text_evidence"',
+      "visitCompletionTableAclExact",
+      "visitCompletionFunctionAclExact",
+      "visitCompletionFunctionDefinitionsExact",
+      "visitCompletionTriggersExact",
+      "visitCompletionConstraintsExact",
+      "visitCompletionBrowserPolicies === 0",
+      'expectedMigration043FunctionBody("confirm_jobber_visit_completion")',
+      "pg_catalog.aclexplode",
+      "con.convalidated",
+      "con.condeferrable",
+      "con.condeferred",
+      "pg_catalog.pg_get_constraintdef(con.oid)",
+    ]) {
+      expect(audit).toContain(fragment);
+    }
+  });
+
+  it("fails migration 043 audit predicates for widened ACLs or disabled immutability", () => {
+    const tableRows = [
+      ["jobber_visit_completion_events", "SELECT"],
+      ["visit_text_evidence", "SELECT"],
+    ].map(([table_name, privilege_type]) => ({
+      table_name,
+      grantee: "service_role",
+      privilege_type,
+      is_grantable: false,
+    }));
+    expect(hasExactVisitCompletionTableAcl(tableRows)).toBe(true);
+    expect(hasExactVisitCompletionTableAcl([
+      ...tableRows,
+      { ...tableRows[0], grantee: "authenticated" },
+    ])).toBe(false);
+
+    const names = [
+      "append_visit_text_evidence",
+      "confirm_jobber_visit_completion",
+      "reject_authoritative_visit_evidence_change",
+    ];
+    const functionRows = names.flatMap((name, index) => {
+      const owner = {
+        function_oid: String(4300 + index),
+        routine_name: name,
+        owner_oid: "10",
+        grantee_oid: "10",
+        grantee_name: "postgres",
+        is_owner: true,
+        privilege_type: "EXECUTE",
+        is_grantable: false,
+      };
+      return name.startsWith("reject_")
+        ? [owner]
+        : [owner, {
+            ...owner,
+            grantee_oid: "20",
+            grantee_name: "service_role",
+            is_owner: false,
+          }];
+    });
+    expect(hasExactVisitCompletionFunctionAcl(functionRows)).toBe(true);
+    expect(hasExactVisitCompletionFunctionAcl([
+      ...functionRows,
+      {
+        ...functionRows[0],
+        grantee_oid: "30",
+        grantee_name: "authenticated",
+        is_owner: false,
+      },
+    ])).toBe(false);
+
+    const triggers = [
+      {
+        table_name: "jobber_visit_completion_events",
+        trigger_name: "jobber_visit_completion_events_immutable",
+        trigger_type: 27,
+        enabled_state: "O",
+        function_oid: "4343",
+      },
+      {
+        table_name: "visit_text_evidence",
+        trigger_name: "visit_text_evidence_immutable",
+        trigger_type: 27,
+        enabled_state: "O",
+        function_oid: "4343",
+      },
+    ];
+    expect(isExactVisitCompletionTriggerSet(triggers, "4343")).toBe(true);
+    expect(isExactVisitCompletionTriggerSet([
+      { ...triggers[0], enabled_state: "D" },
+      triggers[1],
+    ], "4343")).toBe(false);
+  });
+
+  it("requires migration 043 authority clauses and exact key relationships", () => {
+    const migration = readFileSync(
+      new URL(
+        "./supabase/migrations/043_authoritative_visit_completion_evidence.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(assertMigration043RequiredClauses(migration)).toBe(true);
+    expect(() => assertMigration043RequiredClauses(
+      migration.replace("connection_row.status <> 'connected'", "true"),
+    )).toThrow("required authority clause");
+    expect(() => assertMigration043RequiredClauses(
+      migration.replace(
+        "where connection.id = appointment_identity.connection_id\n  for share;",
+        "where connection.id = appointment_identity.connection_id;",
+      ),
+    )).toThrow("required connection lock");
+
+    const rows = expectedVisitCompletionConstraintInventory();
+    const checkIndex = rows.findIndex(
+      (row) => row.definition ===
+        "check((provider_visit_status='COMPLETED'::text))",
+    );
+    expect(checkIndex).toBeGreaterThan(-1);
+    expect(hasExactVisitCompletionConstraints(rows)).toBe(true);
+    expect(hasExactVisitCompletionConstraints(rows.slice(0, -1))).toBe(false);
+    for (const mutation of [
+      { definition: "check((provider_is_complete=false))" },
+      { validated: false },
+      { deferrable: true },
+      { deferred: true },
+    ]) {
+      expect(hasExactVisitCompletionConstraints([
+        ...rows.slice(0, checkIndex),
+        { ...rows[checkIndex], ...mutation },
+        ...rows.slice(checkIndex + 1),
+      ])).toBe(false);
+    }
+    expect(rows.filter((row) => row.constraint_type === "c")).toHaveLength(10);
+    const foreignKeyIndex = rows.findIndex(
+      (row) => row.constraint_type === "f",
+    );
+    expect(foreignKeyIndex).toBeGreaterThan(-1);
+    for (const mutation of [
+      { validated: false },
+      { deferrable: true },
+      { deferred: true },
+    ]) {
+      expect(hasExactVisitCompletionConstraints([
+        ...rows.slice(0, foreignKeyIndex),
+        { ...rows[foreignKeyIndex], ...mutation },
+        ...rows.slice(foreignKeyIndex + 1),
+      ])).toBe(false);
+    }
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        table_name: "member_appointments",
+        constraint_name: "member_appointments_jobber_authority_state_check",
+      }),
+      expect.objectContaining({
+        table_name: "member_appointments",
+        constraint_name: "member_appointments_jobber_authority_binding_check",
+      }),
+    ]));
+    for (const constraintName of [
+      "member_appointments_jobber_authority_state_check",
+      "member_appointments_jobber_authority_binding_check",
+    ]) {
+      const appointmentCheckIndex = rows.findIndex(
+        (row) => row.constraint_name === constraintName,
+      );
+      expect(appointmentCheckIndex).toBeGreaterThan(-1);
+      expect(hasExactVisitCompletionConstraints([
+        ...rows.slice(0, appointmentCheckIndex),
+        {
+          ...rows[appointmentCheckIndex],
+          definition: "check((true))",
+        },
+        ...rows.slice(appointmentCheckIndex + 1),
+      ])).toBe(false);
     }
   });
 });

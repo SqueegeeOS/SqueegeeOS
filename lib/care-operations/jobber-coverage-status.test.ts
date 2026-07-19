@@ -15,6 +15,7 @@ function run(
     reservation_sequence: Number.parseInt(id.slice(-3), 10),
     status,
     actor_id: "2d9bfd32-1262-40af-9ce2-33f5710ed85b",
+    graphql_version: "2025-04-16",
     window_start: "2026-04-17T07:00:00.000Z",
     window_end: "2027-07-17T07:00:00.000Z",
     failure_code: status === "partial" ? "storage_failure" : null,

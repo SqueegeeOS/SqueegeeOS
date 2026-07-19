@@ -10,6 +10,8 @@ const careOperationRoutes = [
   "../../app/api/admin/care-operations/jobber/clients/search/route.ts",
   "../../app/api/admin/care-operations/jobber/clients/properties/route.ts",
   "../../app/api/admin/care-operations/jobber/visits/sample/route.ts",
+  "../../app/api/admin/care-operations/jobber/visit-completions/route.ts",
+  "../../app/api/admin/care-operations/jobber/visit-completions/evidence/route.ts",
 ];
 
 function read(relativePath: string): string {

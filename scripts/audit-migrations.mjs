@@ -54,6 +54,13 @@ const migration042Source = readFileSync(
   ),
   "utf8",
 );
+const migration043Source = readFileSync(
+  resolve(
+    process.cwd(),
+    "lib/persistence/supabase/migrations/043_authoritative_visit_completion_evidence.sql",
+  ),
+  "utf8",
+);
 
 const dbUrl = process.env.SUPABASE_DB_URL ?? process.env.DATABASE_URL;
 const isDirectExecution =
@@ -164,6 +171,34 @@ function expectedFunctionBody(name) {
 function expectedMigration042FunctionBody(name) {
   return expectedFunctionBodyFrom(migration042Source, "042", name);
 }
+
+function expectedMigration043FunctionBody(name) {
+  return expectedFunctionBodyFrom(migration043Source, "043", name);
+}
+
+export function assertMigration043RequiredClauses(source = migration043Source) {
+  const required = [
+    "from public.jobber_connections connection",
+    "for share;",
+    "connection_row.id <> 'squeegeeking'",
+    "connection_row.status <> 'connected'",
+    "connection_row.graphql_version <> '2025-04-16'",
+    "coverage_run_row.graphql_version <> '2025-04-16'",
+    "completion_row.actor_id <> requested_actor_id",
+    "completion_row.reason <> normalized_reason",
+    "alter table public.jobber_visit_completion_events enable row level security",
+    "alter table public.visit_text_evidence enable row level security",
+  ];
+  if (required.some((clause) => !source.includes(clause))) {
+    throw new Error("Migration 043 required authority clause is missing");
+  }
+  if (!/from public\.jobber_connections connection\s+where connection\.id = appointment_identity\.connection_id\s+for share;/m.test(source)) {
+    throw new Error("Migration 043 required connection lock is missing");
+  }
+  return true;
+}
+
+assertMigration043RequiredClauses();
 
 function expectedMigration036FunctionBody(name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -357,6 +392,177 @@ export function isExactAtomicCompletionTriggerSet(
   return exactJson(actual, expected);
 }
 
+export function hasExactVisitCompletionTableAcl(rows) {
+  return exactJson(
+    rows.map((row) => ({
+      table_name: row.table_name,
+      grantee: row.grantee,
+      privilege_type: row.privilege_type,
+      is_grantable: row.is_grantable === true,
+    })),
+    [
+      {
+        table_name: "jobber_visit_completion_events",
+        grantee: "service_role",
+        privilege_type: "SELECT",
+        is_grantable: false,
+      },
+      {
+        table_name: "visit_text_evidence",
+        grantee: "service_role",
+        privilege_type: "SELECT",
+        is_grantable: false,
+      },
+    ],
+  );
+}
+
+export function hasExactVisitCompletionFunctionAcl(rows) {
+  const expectedServiceFunctions = new Set([
+    "append_visit_text_evidence",
+    "confirm_jobber_visit_completion",
+  ]);
+  const expectedFunctions = new Set([
+    ...expectedServiceFunctions,
+    "reject_authoritative_visit_evidence_change",
+  ]);
+  const inventory = new Map();
+
+  for (const row of rows) {
+    const name = String(row.routine_name);
+    if (!expectedFunctions.has(name)) return false;
+    const entry = inventory.get(name) ?? {
+      functionOids: new Set(),
+      ownerOids: new Set(),
+      ownerRows: 0,
+      serviceRows: 0,
+    };
+    entry.functionOids.add(String(row.function_oid));
+    entry.ownerOids.add(String(row.owner_oid));
+    if (row.is_owner === true) {
+      if (
+        String(row.grantee_oid) !== String(row.owner_oid) ||
+        row.privilege_type !== "EXECUTE"
+      ) return false;
+      entry.ownerRows += 1;
+    } else {
+      if (
+        !expectedServiceFunctions.has(name) ||
+        row.grantee_name !== "service_role" ||
+        row.privilege_type !== "EXECUTE" ||
+        row.is_grantable !== false
+      ) return false;
+      entry.serviceRows += 1;
+    }
+    inventory.set(name, entry);
+  }
+
+  return (
+    inventory.size === expectedFunctions.size &&
+    [...expectedFunctions].every((name) => {
+      const entry = inventory.get(name);
+      return Boolean(
+        entry &&
+        entry.functionOids.size === 1 &&
+        entry.ownerOids.size === 1 &&
+        entry.ownerRows === 1 &&
+        entry.serviceRows === (expectedServiceFunctions.has(name) ? 1 : 0),
+      );
+    })
+  );
+}
+
+export function expectedVisitCompletionConstraintInventory() {
+  const relation = (table_name, constraint_type, definition, constraint_name = null) => ({
+    table_name,
+    constraint_name,
+    constraint_type,
+    definition,
+    validated: true,
+    deferrable: false,
+    deferred: false,
+  });
+  const completion = "jobber_visit_completion_events";
+  const evidence = "visit_text_evidence";
+  return [
+    relation(completion, "p", "primarykey(id)"),
+    relation(completion, "u", "unique(appointment_id)"),
+    relation(completion, "u", "unique(classification_id)"),
+    relation(completion, "f", "foreignkey(appointment_id)referencesmember_appointments(id)ondeleterestrict"),
+    relation(completion, "f", "foreignkey(classification_id)referencesjobber_visit_classifications(id)ondeleterestrict"),
+    relation(completion, "f", "foreignkey(projection_id)referencesjobber_visit_projections(id)ondeleterestrict"),
+    relation(completion, "f", "foreignkey(connection_id)referencesjobber_connections(id)ondeleterestrict"),
+    relation(completion, "f", "foreignkey(property_link_id)referencesjobber_property_links(id)ondeleterestrict"),
+    relation(completion, "f", "foreignkey(membership_id)referencesmemberships(id)ondeleterestrict"),
+    relation(completion, "f", "foreignkey(property_id)referencesproperties(id)ondeleterestrict"),
+    relation(completion, "f", "foreignkey(actor_id)referenceshq_admin_users(user_id)ondeleterestrict"),
+    relation(completion, "f", "foreignkey(membership_id,property_id)referencesmemberships(id,property_id)ondeleterestrict"),
+    relation(completion, "c", "check((source_payload_hash~'^[0-9a-f]{64}$'::text))"),
+    relation(completion, "c", "check((prior_approved_source_payload_hash~'^[0-9a-f]{64}$'::text))"),
+    relation(completion, "c", "check((provider_visit_status='COMPLETED'::text))"),
+    relation(completion, "c", "check((provider_is_complete=true))"),
+    relation(completion, "c", "check(((nullif(btrim(reason),''::text)isnotnull)and(char_length(btrim(reason))<=1000)))"),
+    relation(completion, "c", "check((nullif(btrim(external_visit_id),''::text)isnotnull))"),
+    relation(completion, "c", "check((source_payload_hash<>prior_approved_source_payload_hash))"),
+    relation(evidence, "p", "primarykey(id)"),
+    relation(evidence, "f", "foreignkey(appointment_id)referencesmember_appointments(id)ondeleterestrict"),
+    relation(evidence, "f", "foreignkey(completion_event_id)referencesjobber_visit_completion_events(id)ondeleterestrict"),
+    relation(evidence, "f", "foreignkey(property_id)referencesproperties(id)ondeleterestrict"),
+    relation(evidence, "f", "foreignkey(membership_id)referencesmemberships(id)ondeleterestrict"),
+    relation(evidence, "f", "foreignkey(actor_id)referenceshq_admin_users(user_id)ondeleterestrict"),
+    relation(evidence, "f", "foreignkey(membership_id,property_id)referencesmemberships(id,property_id)ondeleterestrict"),
+    relation(evidence, "c", "check(((nullif(btrim(evidence_text),''::text)isnotnull)and(char_length(btrim(evidence_text))<=4000)))"),
+    relation("member_appointments", "c", "check(((jobber_authority_stateisnull)or(jobber_authority_state=any(array['approved'::text,'pending_review'::text,'rejected'::text,'revoked'::text,'completed'::text]))))", "member_appointments_jobber_authority_state_check"),
+    relation("member_appointments", "c", "check(((jobber_authority_state<>all(array['approved'::text,'completed'::text]))or((provider='jobber'::text)and(nullif(btrim(external_id),''::text)isnotnull)and(jobber_visit_classification_idisnotnull)and(jobber_connection_idisnotnull)and(jobber_projection_idisnotnull)and(jobber_property_link_idisnotnull)and(jobber_membership_idisnotnull)and(jobber_property_link_updated_atisnotnull)and(source_payload_hashisnotnull)and(matched_obligation_idisnull)and(((jobber_authority_state='approved'::text)and(status='scheduled'::text)and(completed_atisnull))or((jobber_authority_state='completed'::text)and(status='completed'::text)and(completed_atisnotnull))))))", "member_appointments_jobber_authority_binding_check"),
+  ];
+}
+
+export function hasExactVisitCompletionConstraints(rows) {
+  const shape = (row) => ({
+    table_name: row.table_name,
+    constraint_name:
+      row.table_name === "member_appointments" ? row.constraint_name : null,
+    constraint_type: row.constraint_type,
+    definition: normalizeConstraintDefinition(row.definition),
+    validated: row.validated === true,
+    deferrable: row.deferrable === true,
+    deferred: row.deferred === true,
+  });
+  const key = (row) => JSON.stringify(shape(row));
+  return exactJson(
+    rows.map(key).sort(),
+    expectedVisitCompletionConstraintInventory().map(key).sort(),
+  );
+}
+
+export function isExactVisitCompletionTriggerSet(rows, functionOid) {
+  if (functionOid == null) return false;
+  const actual = rows.map((row) => ({
+    table_name: row.table_name,
+    trigger_name: row.trigger_name,
+    trigger_type: Number(row.trigger_type),
+    enabled_state: row.enabled_state,
+    function_oid: String(row.function_oid),
+  }));
+  const expected = [
+    {
+      table_name: "jobber_visit_completion_events",
+      trigger_name: "jobber_visit_completion_events_immutable",
+      trigger_type: 27,
+      enabled_state: "O",
+      function_oid: String(functionOid),
+    },
+    {
+      table_name: "visit_text_evidence",
+      trigger_name: "visit_text_evidence_immutable",
+      trigger_type: 27,
+      enabled_state: "O",
+      function_oid: String(functionOid),
+    },
+  ];
+  return exactJson(actual, expected);
+}
+
 const stripeSetupTables = [
   "membership_payment_setup_events",
   "membership_stripe_setup_reconciliation_attempts",
@@ -405,6 +611,7 @@ const checks = [
   ["040", "Jobber member-property search link", (s) => ["jobber_client_id", "jobber_property_web_uri", "observed_graphql_version", "ownership_observed_at", "ownership_pages_scanned", "property_coverage_complete"].every((column) => hasColumn(s, "jobber_property_links", column) && hasColumn(s, "jobber_property_link_events", column)) && s.functions.has("link_jobber_member_property_from_search") && functionConfigIncludes(s, "link_jobber_member_property_from_search", "search_path=pg_catalog")],
   ["041", "Jobber property-link revocation", (s) => ["revocation_projection_id", "revocation_expected_link_updated_at"].every((column) => hasColumn(s, "jobber_property_links", column) && hasColumn(s, "jobber_property_link_events", column)) && ["jobber_property_links", "jobber_property_link_events", "jobber_visit_classifications", "jobber_visit_classification_events", "member_appointments"].every((table) => s.rlsTables.has(table)) && ["revoke_jobber_property_link", "invalidate_jobber_visit_authority_for_property_link", "invalidate_jobber_visit_classification_on_link_change"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog"))],
   ["042", "atomic membership activation completion", (s) => ["obligations", "obligation_events", "website_membership_sales"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && s.atomicActivationIndexExact && s.atomicCompletionTableAclExact && s.atomicCompletionFunctionAclExact && s.atomicCompletionFunctionDefinitionsExact && s.atomicCompletionTriggersExact && s.atomicCompletionBrowserPolicies === 0],
+  ["043", "authoritative visit completion and evidence", (s) => ["jobber_visit_completion_events", "visit_text_evidence"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && hasColumn(s, "member_appointments", "jobber_authority_state") && s.visitCompletionTableAclExact && s.visitCompletionFunctionAclExact && s.visitCompletionFunctionDefinitionsExact && s.visitCompletionTriggersExact && s.visitCompletionConstraintsExact && s.visitCompletionBrowserPolicies === 0],
 ];
 
 if (isDirectExecution && !dbUrl) {
@@ -418,7 +625,7 @@ await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers, atomicActivationIndex, atomicCompletionTableAcls, atomicCompletionFunctionAcls, atomicCompletionFunctionDetails, atomicCompletionTriggers, atomicCompletionBrowserPolicies] = await Promise.all([
+  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers, atomicActivationIndex, atomicCompletionTableAcls, atomicCompletionFunctionAcls, atomicCompletionFunctionDetails, atomicCompletionTriggers, atomicCompletionBrowserPolicies, visitCompletionTableAcls, visitCompletionFunctionAcls, visitCompletionFunctionDetails, visitCompletionTriggers, visitCompletionBrowserPolicies, visitCompletionConstraints] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, k.conname as constraint_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -455,6 +662,12 @@ try {
     client.query("select p.oid::text as function_oid, p.proname, pg_catalog.oidvectortypes(p.proargtypes) as argument_types, p.proargnames as argument_names, pg_catalog.pg_get_expr(p.proargdefaults, 0) as argument_defaults, pg_catalog.pg_get_function_result(p.oid) as result_type, l.lanname as language_name, p.prosecdef as security_definer, p.proisstrict as is_strict, p.provolatile as volatility, p.proparallel as parallel_mode, coalesce(array_to_string(p.proconfig, ','), '') as config, p.prosrc as body from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_language l on l.oid = p.prolang where n.nspname = 'public' and p.proname in ('activate_membership_after_stripe_setup', 'reject_membership_activation_event_change', 'reject_website_membership_sale_change') order by p.proname, argument_types"),
     client.query("select c.relname as table_name, t.tgname as trigger_name, t.tgtype::integer as trigger_type, t.tgenabled as enabled_state, t.tgfoid::text as function_oid from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid = t.tgrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and ((c.relname = 'obligation_events' and t.tgname = 'obligation_events_membership_activated_immutable') or (c.relname = 'website_membership_sales' and t.tgname = 'website_membership_sales_immutable')) and not t.tgisinternal order by c.relname, t.tgname"),
     client.query("select count(*)::int as count from pg_catalog.pg_policy p join pg_catalog.pg_class c on c.oid = p.polrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('obligations', 'obligation_events', 'website_membership_sales') and exists (select 1 from unnest(p.polroles) as policy_role(role_oid) where policy_role.role_oid = 0 or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER') or pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER'))"),
+    client.query("select c.relname as table_name, case when acl.grantee = 0 then 'PUBLIC' else grantee_role.rolname end as grantee, acl.privilege_type, acl.is_grantable from pg_catalog.pg_class c join pg_catalog.pg_namespace n on n.oid = c.relnamespace cross join lateral pg_catalog.aclexplode(coalesce(c.relacl, pg_catalog.acldefault('r', c.relowner))) acl left join pg_catalog.pg_roles grantee_role on grantee_role.oid = acl.grantee where n.nspname = 'public' and c.relname in ('jobber_visit_completion_events', 'visit_text_evidence') and acl.grantee <> c.relowner order by c.relname, grantee, acl.privilege_type"),
+    client.query("select p.oid::text as function_oid, p.proname as routine_name, p.proowner::text as owner_oid, owner_role.rolname as owner_name, acl.grantee::text as grantee_oid, case when acl.grantee = 0 then 'PUBLIC' else grantee_role.rolname end as grantee_name, acl.grantee = p.proowner as is_owner, acl.privilege_type, acl.is_grantable from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_roles owner_role on owner_role.oid = p.proowner cross join lateral pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl left join pg_catalog.pg_roles grantee_role on grantee_role.oid = acl.grantee where n.nspname = 'public' and p.proname in ('confirm_jobber_visit_completion', 'append_visit_text_evidence', 'reject_authoritative_visit_evidence_change') order by p.proname, p.oid, acl.grantee, acl.privilege_type"),
+    client.query("select p.oid::text as function_oid, p.proname, pg_catalog.oidvectortypes(p.proargtypes) as argument_types, p.proargnames as argument_names, pg_catalog.pg_get_expr(p.proargdefaults, 0) as argument_defaults, pg_catalog.pg_get_function_result(p.oid) as result_type, l.lanname as language_name, p.prosecdef as security_definer, p.proisstrict as is_strict, p.provolatile as volatility, p.proparallel as parallel_mode, coalesce(array_to_string(p.proconfig, ','), '') as config, p.prosrc as body from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_language l on l.oid = p.prolang where n.nspname = 'public' and p.proname in ('confirm_jobber_visit_completion', 'append_visit_text_evidence', 'reject_authoritative_visit_evidence_change') order by p.proname, argument_types"),
+    client.query("select c.relname as table_name, t.tgname as trigger_name, t.tgtype::integer as trigger_type, t.tgenabled as enabled_state, t.tgfoid::text as function_oid from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid = t.tgrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('jobber_visit_completion_events', 'visit_text_evidence') and not t.tgisinternal order by c.relname, t.tgname"),
+    client.query("select count(*)::int as count from pg_catalog.pg_policy p join pg_catalog.pg_class c on c.oid = p.polrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('jobber_visit_completion_events', 'visit_text_evidence') and exists (select 1 from unnest(p.polroles) as policy_role(role_oid) where policy_role.role_oid = 0 or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER') or pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER'))"),
+    client.query("select c.relname as table_name, con.conname as constraint_name, con.contype::text as constraint_type, pg_catalog.pg_get_constraintdef(con.oid) as definition, con.convalidated as validated, con.condeferrable as deferrable, con.condeferred as deferred from pg_catalog.pg_constraint con join pg_catalog.pg_class c on c.oid = con.conrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and ((c.relname in ('jobber_visit_completion_events', 'visit_text_evidence') and con.contype in ('p', 'u', 'f', 'c')) or (c.relname = 'member_appointments' and con.conname in ('member_appointments_jobber_authority_state_check', 'member_appointments_jobber_authority_binding_check'))) order by c.relname, con.contype, con.conname"),
   ]);
 
   let agreementBucket = null;
@@ -795,6 +1008,78 @@ try {
   const atomicCompletionFunctionOids = new Map(
     atomicCompletionFunctionRows.map((row) => [row.proname, row.function_oid]),
   );
+  const visitCompletionFunctionRows = visitCompletionFunctionDetails.rows.map(
+    (row) => ({
+      function_oid: String(row.function_oid),
+      proname: row.proname,
+      argument_types: String(row.argument_types),
+      argument_names: row.argument_names ?? null,
+      argument_defaults:
+        row.argument_defaults === null
+          ? null
+          : normalizeSql(row.argument_defaults),
+      result_type: String(row.result_type),
+      language_name: String(row.language_name),
+      security_definer: row.security_definer === true,
+      is_strict: row.is_strict === true,
+      volatility: String(row.volatility),
+      parallel_mode: String(row.parallel_mode),
+      config: String(row.config),
+      body: normalizeFunctionBody(row.body),
+    }),
+  ).sort((left, right) => left.proname.localeCompare(right.proname));
+  const visitCompletionFunctionDefinitionRows = visitCompletionFunctionRows.map(
+    (row) => Object.fromEntries(
+      Object.entries(row).filter(([key]) => key !== "function_oid"),
+    ),
+  );
+  const expectedVisitCompletionFunctions = [
+    {
+      proname: "append_visit_text_evidence",
+      argument_types: "uuid, uuid, text, uuid",
+      argument_names: ["requested_evidence_id", "requested_appointment_id", "requested_evidence_text", "requested_actor_id"],
+      argument_defaults: null,
+      result_type: "jsonb",
+      language_name: "plpgsql",
+      security_definer: true,
+      is_strict: false,
+      volatility: "v",
+      parallel_mode: "u",
+      config: "search_path=pg_catalog",
+      body: expectedMigration043FunctionBody("append_visit_text_evidence"),
+    },
+    {
+      proname: "confirm_jobber_visit_completion",
+      argument_types: "uuid, uuid, text, uuid, timestamp with time zone, timestamp with time zone, text, uuid",
+      argument_names: ["requested_appointment_id", "requested_projection_id", "requested_source_payload_hash", "requested_classification_id", "requested_classification_updated_at", "requested_property_link_updated_at", "requested_reason", "requested_actor_id"],
+      argument_defaults: null,
+      result_type: "jsonb",
+      language_name: "plpgsql",
+      security_definer: true,
+      is_strict: false,
+      volatility: "v",
+      parallel_mode: "u",
+      config: "search_path=pg_catalog",
+      body: expectedMigration043FunctionBody("confirm_jobber_visit_completion"),
+    },
+    {
+      proname: "reject_authoritative_visit_evidence_change",
+      argument_types: "",
+      argument_names: null,
+      argument_defaults: null,
+      result_type: "trigger",
+      language_name: "plpgsql",
+      security_definer: false,
+      is_strict: false,
+      volatility: "v",
+      parallel_mode: "u",
+      config: "search_path=pg_catalog",
+      body: expectedMigration043FunctionBody("reject_authoritative_visit_evidence_change"),
+    },
+  ];
+  const visitCompletionFunctionOids = new Map(
+    visitCompletionFunctionRows.map((row) => [row.proname, row.function_oid]),
+  );
   const expectedStripeTriggers = stripeSetupTables.map((table) => ({
     table_name: table,
     trigger_name: `${table}_immutable`,
@@ -933,6 +1218,26 @@ try {
       ),
     atomicCompletionBrowserPolicies:
       atomicCompletionBrowserPolicies.rows[0]?.count ?? 0,
+    visitCompletionTableAclExact:
+      hasExactVisitCompletionTableAcl(visitCompletionTableAcls.rows),
+    visitCompletionFunctionAclExact:
+      hasExactVisitCompletionFunctionAcl(visitCompletionFunctionAcls.rows),
+    visitCompletionFunctionDefinitionsExact:
+      exactJson(
+        visitCompletionFunctionDefinitionRows,
+        expectedVisitCompletionFunctions,
+      ),
+    visitCompletionTriggersExact:
+      isExactVisitCompletionTriggerSet(
+        visitCompletionTriggers.rows,
+        visitCompletionFunctionOids.get(
+          "reject_authoritative_visit_evidence_change",
+        ),
+      ),
+    visitCompletionConstraintsExact:
+      hasExactVisitCompletionConstraints(visitCompletionConstraints.rows),
+    visitCompletionBrowserPolicies:
+      visitCompletionBrowserPolicies.rows[0]?.count ?? 0,
     agreementBucket,
   };
 

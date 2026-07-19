@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   matching: vi.fn(),
   coverage: vi.fn(),
+  connection: vi.fn(),
 }));
 
 vi.mock("@/lib/persistence/supabase/client", () => ({
@@ -17,6 +18,9 @@ vi.mock("./jobber-property-matching", () => ({
 vi.mock("./jobber-coverage-store", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./jobber-coverage-store")>()),
   readJobberCoverageSyncStatus: mocks.coverage,
+}));
+vi.mock("./jobber-connection-store", () => ({
+  readJobberConnectionStatus: mocks.connection,
 }));
 
 import {
@@ -51,6 +55,11 @@ const decision = {
 describe("supervised Jobber visit classification", () => {
   beforeEach(() => {
     for (const mock of Object.values(mocks)) mock.mockReset();
+    mocks.connection.mockResolvedValue({
+      connected: true,
+      status: "connected",
+      graphqlVersion: "2025-04-16",
+    });
   });
 
   it("promotes only an unambiguously future UPCOMING provider record", () => {
@@ -213,7 +222,10 @@ describe("supervised Jobber visit classification", () => {
       coverageState: "complete",
       fresh: true,
       syncInProgress: false,
-      watermark: { coveredAt: "2026-07-16T19:50:00.000Z" },
+      watermark: {
+        coveredAt: "2026-07-16T19:50:00.000Z",
+        graphqlVersion: "2025-04-16",
+      },
     });
     mocks.from.mockReturnValue({
       select: () => ({
@@ -234,6 +246,7 @@ describe("supervised Jobber visit classification", () => {
       reservation_sequence: 401,
       status: "complete",
       actor_id: ids.actorId,
+      graphql_version: "2025-04-16",
       window_start: "2026-04-17T07:00:00.000Z",
       window_end: "2027-07-17T07:00:00.000Z",
       failure_code: null,
@@ -300,6 +313,36 @@ describe("supervised Jobber visit classification", () => {
     expect(workspace.coverage.decisionsEnabled).toBe(false);
     expect(workspace.visits[0]?.promotionReadiness).toBe("coverage_not_ready");
   });
+
+  it.each([
+    [{ connected: false, status: "disconnected", graphqlVersion: "2025-04-16" }, "2025-04-16"],
+    [{ connected: true, status: "connected", graphqlVersion: "2024-01-01" }, "2025-04-16"],
+    [{ connected: true, status: "connected", graphqlVersion: "2025-04-16" }, "2024-01-01"],
+    [{ connected: true, status: "connected", graphqlVersion: "2025-04-16" }, null],
+  ])(
+    "fails HQ readiness closed for connection/provenance mismatch %#",
+    async (connection, graphqlVersion) => {
+      mocks.connection.mockResolvedValue(connection);
+      mocks.matching.mockResolvedValue({ visitLimitReached: false, visits: [] });
+      mocks.coverage.mockResolvedValue({
+        coverageState: "complete",
+        fresh: true,
+        syncInProgress: false,
+        watermark: {
+          coveredAt: "2026-07-16T19:50:00.000Z",
+          graphqlVersion,
+        },
+      });
+      mocks.from.mockReturnValue({
+        select: () => ({ in: async () => ({ data: [], error: null }) }),
+      });
+
+      const workspace = await loadJobberVisitClassificationWorkspace(
+        new Date("2026-07-16T20:00:00.000Z"),
+      );
+      expect(workspace.coverage.decisionsEnabled).toBe(false);
+    },
+  );
 
   it("uses one appointment instant and the Pacific date in both HQ and portal views", () => {
     const scheduledAt = "2026-07-10T01:30:00.000Z";

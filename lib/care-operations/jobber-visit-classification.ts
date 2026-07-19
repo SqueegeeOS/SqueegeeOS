@@ -3,10 +3,14 @@ import "server-only";
 import { isMembershipAppointmentType } from "@/lib/membership/membership-appointment-types";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { readJobberCoverageSyncStatus } from "./jobber-coverage-store";
+import { readJobberConnectionStatus } from "./jobber-connection-store";
 import {
   loadJobberPropertyMatchingWorkspace,
   type SupervisedJobberVisitPreview,
 } from "./jobber-property-matching";
+import { assessJobberCompletionState } from "./jobber-visit-completion";
+
+const AUTHORITATIVE_COMPLETION_GRAPHQL_VERSION = "2025-04-16";
 
 const HASH_PATTERN = /^[0-9a-f]{64}$/;
 const UUID_PATTERN =
@@ -32,6 +36,20 @@ interface StoredClassificationRow {
   updated_at: string;
 }
 
+interface StoredAppointmentRow {
+  id: string;
+  status: "scheduled" | "completed" | "cancelled" | "no_show";
+  completed_at: string | null;
+  jobber_authority_state: string | null;
+  source_payload_hash: string | null;
+}
+
+interface StoredCompletionRow {
+  id: string;
+  appointment_id: string;
+  provider_completed_at: string;
+}
+
 export interface VisitClassificationPreview {
   classificationId: string;
   state: VisitClassificationState;
@@ -47,12 +65,31 @@ export interface VisitClassificationPreview {
 
 export interface ClassifiableJobberVisit extends SupervisedJobberVisitPreview {
   classification: VisitClassificationPreview | null;
+  appointment: {
+    appointmentId: string;
+    status: StoredAppointmentRow["status"];
+    completedAt: string | null;
+    authorityState: string | null;
+    sourcePayloadHash: string | null;
+  } | null;
+  completion: {
+    completionEventId: string;
+    completedAt: string;
+  } | null;
   promotionReadiness:
     | "ready_for_review"
     | "coverage_not_ready"
     | "property_link_required"
     | "provider_state_not_promotable";
   promotionBlockReason: string | null;
+  completionReadiness:
+    | "ready_for_confirmation"
+    | "already_completed"
+    | "coverage_not_ready"
+    | "prior_approval_required"
+    | "property_link_required"
+    | "provider_state_not_complete";
+  completionBlockReason: string | null;
 }
 
 export interface JobberVisitClassificationWorkspace {
@@ -67,6 +104,7 @@ export interface JobberVisitClassificationWorkspace {
     syncInProgress: boolean;
     decisionsEnabled: boolean;
     coveredAt: string | null;
+    graphqlVersion: string | null;
     routeCompletenessClaimed: false;
   };
   visits: ClassifiableJobberVisit[];
@@ -128,9 +166,10 @@ function toClassificationPreview(
 export async function loadJobberVisitClassificationWorkspace(
   now = new Date(),
 ): Promise<JobberVisitClassificationWorkspace> {
-  const [matching, coverage] = await Promise.all([
+  const [matching, coverage, connection] = await Promise.all([
     loadJobberPropertyMatchingWorkspace(),
     readJobberCoverageSyncStatus(now),
+    readJobberConnectionStatus(),
   ]);
   const projectionIds = matching.visits.map((visit) => visit.projectionId);
   const supabase = createServiceRoleSupabaseClient();
@@ -150,10 +189,40 @@ export async function loadJobberVisitClassificationWorkspace(
       (row) => [row.projection_id, toClassificationPreview(row)],
     ),
   );
+  const appointmentIds = [...classificationByProjection.values()].flatMap(
+    (classification) => classification.appointmentId
+      ? [classification.appointmentId]
+      : [],
+  );
+  const appointmentResult = appointmentIds.length
+    ? await supabase
+        .from("member_appointments")
+        .select("id, status, completed_at, jobber_authority_state, source_payload_hash")
+        .in("id", appointmentIds)
+    : { data: [], error: null };
+  if (appointmentResult.error) throw new Error(appointmentResult.error.message);
+  const appointmentById = new Map(
+    ((appointmentResult.data ?? []) as StoredAppointmentRow[]).map((row) => [row.id, row]),
+  );
+  const completionResult = appointmentIds.length
+    ? await supabase
+        .from("jobber_visit_completion_events")
+        .select("id, appointment_id, provider_completed_at")
+        .in("appointment_id", appointmentIds)
+    : { data: [], error: null };
+  if (completionResult.error) throw new Error(completionResult.error.message);
+  const completionByAppointment = new Map(
+    ((completionResult.data ?? []) as StoredCompletionRow[]).map((row) => [row.appointment_id, row]),
+  );
   const decisionsEnabled =
     coverage.coverageState === "complete" &&
     coverage.fresh &&
-    !coverage.syncInProgress;
+    !coverage.syncInProgress &&
+    connection.connected &&
+    connection.status === "connected" &&
+    connection.graphqlVersion === AUTHORITATIVE_COMPLETION_GRAPHQL_VERSION &&
+    coverage.watermark?.graphqlVersion ===
+      AUTHORITATIVE_COMPLETION_GRAPHQL_VERSION;
 
   return {
     executionMode: "supervised_per_visit_classification",
@@ -167,9 +236,17 @@ export async function loadJobberVisitClassificationWorkspace(
       syncInProgress: coverage.syncInProgress,
       decisionsEnabled,
       coveredAt: coverage.watermark?.coveredAt ?? null,
+      graphqlVersion: coverage.watermark?.graphqlVersion ?? null,
       routeCompletenessClaimed: false,
     },
     visits: matching.visits.map((visit) => {
+      const classification = classificationByProjection.get(visit.projectionId) ?? null;
+      const appointmentRow = classification?.appointmentId
+        ? appointmentById.get(classification.appointmentId) ?? null
+        : null;
+      const completionRow = appointmentRow
+        ? completionByAppointment.get(appointmentRow.id) ?? null
+        : null;
       const assessment = assessVisitPromotion({
         visitStatus: visit.visitStatus,
         isComplete: visit.isComplete,
@@ -181,10 +258,43 @@ export async function loadJobberVisitClassificationWorkspace(
         visit.propertyClassification === "homeatlas_member_property" &&
         visit.propertyLink?.linkState === "active" &&
         visit.propertyLink.membershipActive;
+      const completionAssessment = assessJobberCompletionState({
+        visitStatus: visit.visitStatus,
+        isComplete: visit.isComplete,
+        completedAt: visit.completedAt,
+        sourceObservedAt: visit.sourceObservedAt,
+        now,
+      });
+      const priorApprovalReady = Boolean(
+        classification?.state === "pending_review" &&
+        classification.appointmentId &&
+        appointmentRow?.status === "scheduled" &&
+        appointmentRow.jobber_authority_state === "pending_review" &&
+        appointmentRow.source_payload_hash === classification.reviewedSourcePayloadHash &&
+        classification.reviewedSourcePayloadHash !== visit.sourcePayloadHash &&
+        visit.propertyLink?.linkId === classification.reviewedPropertyLinkId &&
+        visit.propertyLink?.updatedAt === classification.reviewedPropertyLinkUpdatedAt &&
+        visit.propertyLink?.membershipId === classification.membershipId &&
+        visit.propertyLink?.propertyId === classification.propertyId
+      );
       return {
         ...visit,
-        classification:
-          classificationByProjection.get(visit.projectionId) ?? null,
+        classification,
+        appointment: appointmentRow
+          ? {
+              appointmentId: appointmentRow.id,
+              status: appointmentRow.status,
+              completedAt: appointmentRow.completed_at,
+              authorityState: appointmentRow.jobber_authority_state,
+              sourcePayloadHash: appointmentRow.source_payload_hash,
+            }
+          : null,
+        completion: completionRow
+          ? {
+              completionEventId: completionRow.id,
+              completedAt: completionRow.provider_completed_at,
+            }
+          : null,
         promotionReadiness: !decisionsEnabled
           ? "coverage_not_ready"
           : !propertyReady
@@ -197,6 +307,28 @@ export async function loadJobberVisitClassificationWorkspace(
           : !propertyReady
             ? "An active reviewed member-property link is required."
             : assessment.reason,
+        completionReadiness: completionRow
+          ? "already_completed"
+          : !decisionsEnabled
+            ? "coverage_not_ready"
+            : !propertyReady
+              ? "property_link_required"
+              : !completionAssessment.confirmable
+                ? "provider_state_not_complete"
+                : priorApprovalReady
+                  ? "ready_for_confirmation"
+                  : "prior_approval_required",
+        completionBlockReason: completionRow
+          ? null
+          : !decisionsEnabled
+            ? "A current complete Jobber coverage watermark no older than 30 minutes is required, with no sync in progress."
+            : !propertyReady
+              ? "The exact reviewed property link and strictly active membership are required."
+              : !completionAssessment.confirmable
+                ? completionAssessment.reason
+                : priorApprovalReady
+                  ? null
+                  : "The exact prior approved appointment and source-change evidence are required.",
       };
     }),
   };

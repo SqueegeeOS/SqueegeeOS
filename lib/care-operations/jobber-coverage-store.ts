@@ -205,6 +205,7 @@ export interface StoredCoverageRun {
   reservation_sequence: number;
   status: "running" | "complete" | "partial";
   actor_id: string;
+  graphql_version: string;
   window_start: string;
   window_end: string;
   failure_code: JobberCoverageFailureCode | null;
@@ -237,6 +238,7 @@ export interface JobberCoverageSyncStatus {
     runId: string;
     status: StoredCoverageRun["status"];
     actorId: string;
+    graphqlVersion: string;
     windowStart: string;
     windowEnd: string;
     failureCode: JobberCoverageFailureCode | null;
@@ -263,6 +265,7 @@ export interface JobberCoverageSyncStatus {
     coveredAt: string;
     generation: number;
     visitCount: number;
+    graphqlVersion: string;
   } | null;
 }
 
@@ -271,6 +274,7 @@ function presentRun(run: StoredCoverageRun) {
     runId: run.id,
     status: run.status,
     actorId: run.actor_id,
+    graphqlVersion: run.graphql_version,
     windowStart: run.window_start,
     windowEnd: run.window_end,
     failureCode: run.failure_code,
@@ -346,6 +350,7 @@ export function buildJobberCoverageSyncStatus(input: {
           coveredAt: watermark.covered_at,
           generation: watermark.generation,
           visitCount: watermarkRun.visit_count,
+          graphqlVersion: watermarkRun.graphql_version,
         }
       : null,
   };
@@ -356,7 +361,7 @@ export async function readJobberCoverageSyncStatus(
 ): Promise<JobberCoverageSyncStatus> {
   const supabase = createServiceRoleSupabaseClient();
   const runColumns =
-    "id, reservation_sequence, status, actor_id, window_start, window_end, failure_code, request_count, leaf_count, visit_count, started_at, completed_at";
+    "id, reservation_sequence, status, actor_id, graphql_version, window_start, window_end, failure_code, request_count, leaf_count, visit_count, started_at, completed_at";
   const [runResult, watermarkResult, lockResult] = await Promise.all([
     supabase
       .from("jobber_schedule_sync_runs")
