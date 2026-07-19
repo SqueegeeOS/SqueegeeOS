@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { StarryHomepage } from "@/components/marketing/starry-homepage";
+import { AtlasHomepage } from "@/components/marketing/atlas/atlas-homepage";
 import { getGooglePlaceId } from "@/lib/reviews/config";
 
 const BASE = "https://www.squeegeeking.net";
@@ -50,7 +50,7 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildJsonLd()) }}
       />
-      <StarryHomepage />
+      <AtlasHomepage />
     </>
   );
 }
