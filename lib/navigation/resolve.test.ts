@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getNavigationMode } from "./resolve";
+import { getNavigationMode, shouldUseOverlayNav } from "./resolve";
 
 describe("getNavigationMode", () => {
   it("keeps the day experience and its descendants hidden", () => {
@@ -7,12 +7,22 @@ describe("getNavigationMode", () => {
     expect(getNavigationMode("/day/guide")).toBe("hidden");
   });
 
-  it("does not hide the separate day2 staging route", () => {
+  it("uses segment-aware matching for the day and night routes", () => {
     expect(getNavigationMode("/day2")).toBe("customer");
+    expect(getNavigationMode("/night2")).toBe("customer");
+    expect(getNavigationMode("/night")).toBe("hidden");
+    expect(getNavigationMode("/night/guide")).toBe("hidden");
   });
 
   it("keeps existing employee prefix behavior", () => {
     expect(getNavigationMode("/employee")).toBe("employee");
     expect(getNavigationMode("/employee/requests")).toBe("employee");
+  });
+});
+
+describe("shouldUseOverlayNav", () => {
+  it("uses overlay navigation on both homepage experiences", () => {
+    expect(shouldUseOverlayNav("/")).toBe(true);
+    expect(shouldUseOverlayNav("/night2")).toBe(true);
   });
 });
