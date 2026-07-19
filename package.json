@@ -17,6 +17,7 @@
     "@stripe/react-stripe-js": "^6.7.0",
     "@stripe/stripe-js": "^9.9.0",
     "@supabase/supabase-js": "^2.110.0",
+    "@types/three": "^0.185.1",
     "@vercel/speed-insights": "^2.0.0",
     "framer-motion": "^12.42.2",
     "next": "16.2.10",
@@ -25,7 +26,8 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "server-only": "^0.0.1",
-    "stripe": "^22.3.0"
+    "stripe": "^22.3.0",
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
