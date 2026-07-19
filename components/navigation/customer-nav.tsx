@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 import {
   CUSTOMER_PRIMARY_NAV,
   CUSTOMER_TAIL_NAV,
@@ -27,24 +27,34 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const scrolled = useNavScroll(pathname);
   const immersive = shouldUseOverlayNav(pathname);
-  const elevated = scrolled || !immersive;
-  const lightText = immersive && !scrolled;
+  const daylight = pathname === ROUTES.day2;
+  const elevated = daylight || scrolled || !immersive;
+  const lightText = !daylight && immersive && !scrolled;
   const session = getNavigationSession();
   const backItem = getMobileBackItem(pathname, "customer");
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const openMenu = useCallback(() => setMenuOpen(true), []);
 
-  const headerSurface = elevated
-    ? lightText
-      ? "border-accent/20 bg-black/55 shadow-[0_10px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl"
-      : "border-accent/20 bg-background/82 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-xl"
-    : "border-transparent bg-transparent";
+  const headerSurface = daylight
+    ? "border-[#173f32]/10 bg-[#fffaf0]/88 shadow-[0_8px_32px_rgba(23,63,50,0.12)] backdrop-blur-xl"
+    : elevated
+      ? lightText
+        ? "border-accent/20 bg-black/55 shadow-[0_10px_40px_rgba(0,0,0,0.18)] backdrop-blur-xl"
+        : "border-accent/20 bg-background/82 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-xl"
+      : "border-transparent bg-transparent";
 
   return (
     <>
       <header
         className={`fixed inset-x-0 top-0 z-[60] border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${headerSurface}`}
-        style={{ height: "var(--site-nav-height)" }}
+        style={daylight ? ({
+          height: "var(--site-nav-height)",
+          "--background": "#fffaf0",
+          "--foreground": "#173f32",
+          "--muted": "#526b60",
+          "--accent": "#99683d",
+          "--border": "rgba(23,63,50,0.14)",
+        } as CSSProperties) : { height: "var(--site-nav-height)" }}
       >
         <div className="relative z-[1] mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
           <Link
@@ -113,6 +123,7 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
         brandHref={ROUTES.home}
         backItem={backItem}
         activePath={pathname}
+        daylight={daylight}
       />
     </>
   );

@@ -2,12 +2,18 @@
 
 import { MembershipActiveBadge } from "@/components/membership/membership-active-badge";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { NavItem } from "@/lib/navigation/config";
 import type { NavigationSession } from "@/lib/navigation/session";
 import { isActiveNavItem } from "@/lib/navigation/resolve";
 import { NavLink } from "./nav-link";
+
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 interface MobileMenuProps {
   open: boolean;
@@ -20,6 +26,7 @@ interface MobileMenuProps {
   brandHref: string;
   backItem?: NavItem | null;
   activePath: string;
+  daylight?: boolean;
 }
 
 export function MobileMenu({
@@ -33,11 +40,14 @@ export function MobileMenu({
   brandHref,
   backItem,
   activePath,
+  daylight = false,
 }: MobileMenuProps) {
   const [mounted, setMounted] = useState(false);
   const [visible, setVisible] = useState(false);
   const onCloseRef = useRef(onClose);
   const previousPathname = useRef(pathname);
+  const dialogRef = useRef<HTMLElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -68,11 +78,59 @@ export function MobileMenu({
 
   useEffect(() => {
     if (!open) return;
+    previousFocusRef.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    const focusFrame = requestAnimationFrame(() => {
+      const dialog = dialogRef.current;
+      const firstFocusable = dialog?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (firstFocusable ?? dialog)?.focus();
+    });
+
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onCloseRef.current();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+
+      const dialog = dialogRef.current;
+      if (!dialog) return;
+      const focusable = Array.from(
+        dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      );
+
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (event.shiftKey && (active === first || !dialog.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialog.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", onKeyDown);
+      const previousFocus = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (previousFocus?.isConnected) previousFocus.focus();
+    };
   }, [open]);
 
   useEffect(() => {
@@ -92,20 +150,29 @@ export function MobileMenu({
       <button
         type="button"
         aria-label="Close menu"
-        className={`absolute inset-0 bg-black/25 backdrop-blur-md transition-opacity duration-300 ease-out motion-reduce:transition-none ${
+        className={`absolute inset-0 backdrop-blur-md transition-opacity duration-300 ease-out motion-reduce:transition-none ${daylight ? "bg-[#173f32]/10" : "bg-black/25"} ${
           visible ? "opacity-100" : "opacity-0"
         }`}
         onClick={onClose}
       />
 
       <aside
+        ref={dialogRef}
         id="mobile-site-menu"
         role="dialog"
         aria-modal="true"
         aria-label="Site navigation"
-        className={`absolute inset-y-0 right-0 flex w-[min(88vw,22rem)] flex-col border-l border-border/60 bg-background/95 px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] shadow-[-8px_0_40px_rgba(0,0,0,0.2)] backdrop-blur-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+        tabIndex={-1}
+        className={`absolute inset-y-0 right-0 flex w-[min(88vw,22rem)] flex-col border-l px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${daylight ? "border-[#173f32]/15 bg-[#fffaf0]/95 shadow-[-8px_0_40px_rgba(23,63,50,0.16)]" : "border-border/60 bg-background/95 shadow-[-8px_0_40px_rgba(0,0,0,0.2)]"} ${
           visible ? "translate-x-0" : "translate-x-full"
         }`}
+        style={daylight ? ({
+          "--background": "#fffaf0",
+          "--foreground": "#173f32",
+          "--muted": "#526b60",
+          "--accent": "#99683d",
+          "--border": "rgba(23,63,50,0.14)",
+        } as CSSProperties) : undefined}
       >
         <div className="flex items-center justify-between gap-4 border-b border-border/50 pb-5">
           <p className="font-serif text-lg font-light tracking-[0.12em] text-foreground/90">

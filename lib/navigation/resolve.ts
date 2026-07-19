@@ -21,12 +21,16 @@ export interface FloatingBackConfig {
 const EMPLOYEE_PREFIXES = ["/employee", "/properties", "/presentations", "/tech"];
 const HIDDEN_PREFIXES = ["/hq", "/admin", "/night", "/day"];
 
+function matchesPathPrefix(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 function isPresentationPresentMode(pathname: string): boolean {
   return /^\/presentations\/[^/]+\/present$/.test(pathname);
 }
 
 export function getNavigationMode(pathname: string): NavigationMode {
-  if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) {
+  if (HIDDEN_PREFIXES.some((prefix) => matchesPathPrefix(pathname, prefix))) {
     return "hidden";
   }
   if (pathname === "/portal" || pathname.startsWith("/portal/")) {
