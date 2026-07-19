@@ -5,6 +5,8 @@ export const SITE_NAV_HEIGHT = "3.5rem";
 
 export const ROUTES = {
   home: "/",
+  day2: "/day2",
+  night2: "/night2",
   request: "/request",
   contact: "/contact",
   employeeHome: "/employee",

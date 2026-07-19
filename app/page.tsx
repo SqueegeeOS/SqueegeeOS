@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { StarryHomepage } from "@/components/marketing/starry-homepage";
+import { Day2Homepage } from "@/components/marketing/day2-homepage";
 import { getGooglePlaceId } from "@/lib/reviews/config";
 
 const BASE = "https://www.squeegeeking.net";
@@ -13,7 +13,7 @@ function buildJsonLd() {
     "@id": `${BASE}/#business`,
     name: "SqueegeeKing",
     url: BASE,
-    image: `${BASE}/home/family-twilight.jpg`,
+    image: `${BASE}/day/morning.jpg`,
     description:
       "Premium window cleaning, pressure washing, solar panel cleaning, and recurring home maintenance memberships. Every membership includes HomeAtlas, a living record of your home's care.",
     slogan: "Done the right way. When you join, you are family.",
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
     title: "SqueegeeKing — The Right Way",
     description:
       "Premium home care with a memory. When you join, you are family.",
-    images: [{ url: "/home/family-twilight.jpg", width: 1584, height: 672 }],
+    images: [{ url: "/day/morning.jpg", width: 1376, height: 768 }],
   },
 };
 
@@ -50,7 +50,7 @@ export default function HomePage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(buildJsonLd()) }}
       />
-      <StarryHomepage />
+      <Day2Homepage />
     </>
   );
 }
