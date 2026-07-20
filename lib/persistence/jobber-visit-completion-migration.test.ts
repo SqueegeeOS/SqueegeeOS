@@ -15,6 +15,27 @@ const rehearsal = readFileSync(
   ),
   "utf8",
 );
+const fingerprintUtility = readFileSync(
+  new URL(
+    "./supabase/tests/support/forbidden_domain_fingerprints.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const concurrencyHarness = readFileSync(
+  new URL(
+    "./supabase/jobber-visit-completion-concurrency.integration.test.ts",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const concurrencyCleanup = readFileSync(
+  new URL(
+    "./supabase/tests/support/043_authoritative_visit_completion_concurrency_cleanup.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("migration 043 authoritative visit completion and evidence", () => {
   it("creates RLS-protected immutable completion and text-only evidence ledgers", () => {
@@ -159,7 +180,7 @@ describe("migration 043 authoritative visit completion and evidence", () => {
       "Completion created a second appointment",
       "Browser-selected evidence scope was possible",
       "Text evidence mutation was accepted",
-      "Forbidden-domain fingerprints changed",
+      "pg_temp.assert_forbidden_domain_content_unchanged('before', 'after')",
       "rollback;",
     ]) {
       expect(rehearsal).toContain(fragment);
@@ -184,7 +205,7 @@ describe("migration 043 authoritative visit completion and evidence", () => {
       "row_count is distinct from",
       "content_sha256 is distinct from",
     ]) {
-      expect(rehearsal).toContain(fragment);
+      expect(`${rehearsal}\n${fingerprintUtility}`).toContain(fragment);
     }
     for (const relation of [
       "public.obligations",
@@ -222,8 +243,67 @@ describe("migration 043 authoritative visit completion and evidence", () => {
       "public.ai_quotes",
       "public.appointment_source_events",
     ]) {
-      expect(rehearsal).toContain(`'${relation}'`);
+      expect(fingerprintUtility).toContain(`'${relation}'`);
     }
-    expect(rehearsal).not.toContain("select jsonb_build_object(\n    'obligations'");
+    expect(fingerprintUtility).not.toContain(
+      "select jsonb_build_object(\n    'obligations'",
+    );
+    expect(rehearsal).toContain(
+      "\\ir support/forbidden_domain_fingerprints.sql",
+    );
+  });
+
+  it("ships an opt-in true two-session consolidated completion race matrix", () => {
+    for (const fragment of [
+      "expect(firstPid).not.toBe(secondPid)",
+      "pg_catalog.pg_blocking_pids",
+      "beginCoverageSync(context.second)",
+      "finalize_jobber_schedule_coverage_sync",
+      "revokePropertyLink(context.first",
+      "set active = false",
+      "set status = 'paused'",
+      "set status = 'cancelled'",
+      'expect(replay.value.outcome).toBe("replay")',
+      "expectOneCompletedIdentity",
+      "captureForbiddenDomainFingerprints",
+      "assertForbiddenDomainFingerprintsUnchanged",
+      "loadAuthoritativeRaceState",
+      "expectPendingWithoutCompletion",
+      'completionEventCount: "0"',
+      'completionEventCount: "1"',
+      "syncActiveRunId",
+      "watermarkGeneration",
+      "revokedLinkEventCount",
+      "actorActive",
+      "membershipStatus",
+    ]) {
+      expect(concurrencyHarness).toContain(fragment);
+    }
+    expect(concurrencyHarness).toMatch(
+      /it\("serializes completion before a new PR2 sync reservation"[\s\S]*?await context\.first\.query\("commit"\);[\s\S]*?await context\.second\.query\("commit"\);[\s\S]*?expectOneCompletedIdentity\(state\)/,
+    );
+  });
+
+  it("guards committed concurrency cleanup before every deletion", () => {
+    expect(concurrencyCleanup).toMatch(
+      /where id = 'squeegeeking'\s+and account_id is distinct from 'disposable-concurrency-043'/,
+    );
+    const guardIndex = concurrencyCleanup.indexOf("account_id is distinct from");
+    const replicaModeIndex = concurrencyCleanup.indexOf(
+      "set local session_replication_role = replica",
+    );
+    const firstDeleteIndex = concurrencyCleanup.indexOf("delete from");
+    expect(guardIndex).toBeGreaterThan(concurrencyCleanup.indexOf("begin;"));
+    expect(replicaModeIndex).toBeGreaterThan(guardIndex);
+    expect(firstDeleteIndex).toBeGreaterThan(guardIndex);
+    for (const fragment of [
+      "refuses cleanup before deleting any non-marker canonical connection fixture",
+      "loadCleanupSentinels",
+      "expect(afterCleanup).toEqual(beforeCleanup)",
+      'nonMarkerAccountIds.push(null)',
+      "is_nullable",
+    ]) {
+      expect(concurrencyHarness).toContain(fragment);
+    }
   });
 });

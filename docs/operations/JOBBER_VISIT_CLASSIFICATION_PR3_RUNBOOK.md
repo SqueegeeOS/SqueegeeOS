@@ -200,6 +200,7 @@ migration, deployment, real sync, or customer-data write.
 
    ```bash
    psql --set ON_ERROR_STOP=1 --file lib/persistence/supabase/tests/039_jobber_visit_classification.sql
+   psql --set ON_ERROR_STOP=1 --file lib/persistence/supabase/tests/040_jobber_member_property_search_link.sql
    psql --set ON_ERROR_STOP=1 --file lib/persistence/supabase/tests/041_jobber_property_link_revocation.sql
    ```
 
@@ -282,6 +283,19 @@ Migration 041 has an opt-in disposable integration wrapper. It runs only when
 `I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_DATABASE` and
 `JOBBER_J1_TEST_DATABASE_URL` is set. Without that configured target it is
 skipped and the two-session concurrency rehearsal remains unproven.
+
+Migration 040 now has the same opt-in boundary and actually invokes
+`link_jobber_member_property_from_search` through its rollback-only SQL
+rehearsal. The exact isolated command is:
+
+```bash
+JOBBER_J1_DISPOSABLE_DB_ACK=I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_DATABASE \
+JOBBER_J1_TEST_DATABASE_URL='postgresql://DISPOSABLE-ONLY' \
+npm test -- lib/persistence/supabase/jobber-member-property-search-link.integration.test.ts
+```
+
+It remains unexecuted until both exact values identify an approved disposable
+database with migrations 001–040 already applied.
 
 Migration-041 repository evidence recorded July 18, 2026:
 

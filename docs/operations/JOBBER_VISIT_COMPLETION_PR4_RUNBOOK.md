@@ -108,6 +108,29 @@ The opt-in Vitest wrapper runs only when
 `JOBBER_J1_TEST_DATABASE_URL` are set. Static/unit tests are not PostgreSQL or
 concurrency proof.
 
+Run the rollback rehearsal and the true multi-session race matrix as separate
+isolated commands so no other disposable integration file shares the singleton
+Jobber fixture:
+
+```bash
+JOBBER_J1_DISPOSABLE_DB_ACK=I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_DATABASE \
+JOBBER_J1_TEST_DATABASE_URL='postgresql://DISPOSABLE-ONLY' \
+npm test -- lib/persistence/supabase/jobber-visit-completion.integration.test.ts
+
+JOBBER_J1_DISPOSABLE_DB_ACK=I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_DATABASE \
+JOBBER_J1_TEST_DATABASE_URL='postgresql://DISPOSABLE-ONLY' \
+npm test -- lib/persistence/supabase/jobber-visit-completion-concurrency.integration.test.ts
+```
+
+The race harness verifies distinct PostgreSQL backend PIDs and observed lock
+blocking for begin/finalize, revocation, deactivation, membership lifecycle,
+and exact-confirmation races. Because cross-session fixtures must be committed
+to become visible, its guarded cleanup uses transaction-local
+`session_replication_role=replica` only for reserved synthetic identities; the
+disposable database role must support that setting. It refuses to clean a
+non-harness `squeegeeking` connection. Both commands remain unexecuted in this
+implementation session because no acknowledged disposable URL was supplied.
+
 Before any migration or deployment decision:
 
 1. Prove the production ledger through 042 read-only.
