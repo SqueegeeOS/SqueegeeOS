@@ -1,28 +1,28 @@
-import { getLatestCustomerHealthUnified } from "@/lib/health/assessment-repository";
-import { getPropertyIdBySlugs } from "@/lib/health/repository";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
-import { buildPortalHomeHealthPath } from "@/lib/membership/portal-access";
 import { loadPortalHomeCarePlan } from "@/lib/membership/portal-home-care-plan";
+import { startPortalTiming } from "@/lib/observability/portal-timing";
 import { getMemberPortalDataBySlugs } from "@/lib/persistence/queries/member-portal";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
-import type { CustomerHealthView } from "@/lib/health/types";
 
 export interface MemberPortalPageModel {
   planData: HomeCarePlanData;
   portalData: MemberPortalData | null;
   homeownerSlug: string;
   propertySlug: string;
-  homeHealth: CustomerHealthView | null;
-  homeHealthHref: string;
   portalBasePath: string;
   customerPortalMode: "token" | "slug";
 }
 
-export async function loadMemberPortalPageBySlugs(
+interface MemberPortalPageOptions {
+  portalBasePath?: string;
+  customerPortalMode?: "token" | "slug";
+}
+
+async function loadMemberPortalPageBySlugsInternal(
   homeownerSlug: string,
   propertySlug: string,
-  options?: { portalBasePath?: string; customerPortalMode?: "token" | "slug" },
+  options?: MemberPortalPageOptions,
 ): Promise<MemberPortalPageModel | null> {
   const planData =
     (await loadPortalHomeCarePlan(homeownerSlug, propertySlug)) ?? null;
@@ -40,35 +40,54 @@ export async function loadMemberPortalPageBySlugs(
     ? await getMemberPortalDataBySlugs(homeownerSlug, propertySlug)
     : null;
 
-  const propertyId = await getPropertyIdBySlugs(homeownerSlug, propertySlug);
-  const homeHealth = propertyId
-    ? await getLatestCustomerHealthUnified(propertyId)
-    : null;
-
-  const homeHealthHref =
-    customerPortalMode === "token"
-      ? `${portalBasePath}/home-health`
-      : `/homecare/${homeownerSlug}/${propertySlug}/portal/home-health`;
-
   return {
     planData,
     portalData,
     homeownerSlug,
     propertySlug,
-    homeHealth,
-    homeHealthHref,
     portalBasePath,
     customerPortalMode,
   };
 }
 
+export async function loadMemberPortalPageBySlugs(
+  homeownerSlug: string,
+  propertySlug: string,
+  options?: MemberPortalPageOptions,
+): Promise<MemberPortalPageModel | null> {
+  const timing = startPortalTiming("portal-page-load");
+
+  try {
+    const model = await loadMemberPortalPageBySlugsInternal(
+      homeownerSlug,
+      propertySlug,
+      options,
+    );
+    timing.finish(model ? "success" : "not-found");
+    return model;
+  } catch (error) {
+    timing.finish("error");
+    throw error;
+  }
+}
+
 export async function loadMemberPortalPageByToken(
   token: string,
 ): Promise<MemberPortalPageModel | null> {
+  const timing = startPortalTiming("portal-token-access");
   const { resolvePortalAccessByToken } = await import(
     "@/lib/persistence/queries/portal-access"
   );
-  const access = await resolvePortalAccessByToken(token);
+  let access;
+
+  try {
+    access = await resolvePortalAccessByToken(token);
+    timing.finish(access ? "success" : "not-found");
+  } catch (error) {
+    timing.finish("error");
+    throw error;
+  }
+
   if (!access) return null;
 
   const portalBasePath = `/portal/${encodeURIComponent(access.portalAccessToken)}`;
