@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   acquireJobberRefreshLease,
   persistJobberRefreshFailure,
@@ -18,18 +18,29 @@ const INPUT = {
   actorId: "2d9bfd32-1262-40af-9ce2-33f5710ed85b",
 };
 
+beforeEach(() => {
+  vi.stubEnv("JOBBER_EXPECTED_ACCOUNT_ID", INPUT.account.id);
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 describe("atomic Jobber connection persistence", () => {
   it("uses one database operation containing encrypted state and actor identity", async () => {
-    const rpc = vi.fn().mockResolvedValue({ error: null });
+    const rpc = vi.fn().mockResolvedValue({ data: "connected", error: null });
     await expect(
       saveJobberConnection(INPUT, {
         client: { rpc } as never,
         encryptToken: (value) => `encrypted:${value.length}`,
+        operationId: "00000000-0000-4000-8000-000000000035",
       }),
-    ).resolves.toBeUndefined();
+    ).resolves.toBe("connected");
 
     expect(rpc).toHaveBeenCalledOnce();
     expect(rpc).toHaveBeenCalledWith("save_jobber_connection_with_event", {
+      requested_operation_id: "00000000-0000-4000-8000-000000000035",
+      requested_expected_account_id: "jobber-account-1",
       requested_account_id: "jobber-account-1",
       requested_account_name: "SqueegeeKing",
       requested_access_token_ciphertext: "encrypted:18",
@@ -44,7 +55,11 @@ describe("atomic Jobber connection persistence", () => {
 
   it("fails the callback persistence when the atomic RPC injects an event failure", async () => {
     const rpc = vi.fn().mockResolvedValue({
-      error: { message: "injected jobber_connection_events failure" },
+      data: null,
+      error: {
+        message: "injected jobber_connection_events failure",
+        code: "P0001",
+      },
     });
 
     await expect(
@@ -54,6 +69,130 @@ describe("atomic Jobber connection persistence", () => {
       }),
     ).rejects.toThrow("injected jobber_connection_events failure");
     expect(rpc).toHaveBeenCalledOnce();
+  });
+
+  it("rejects a mismatched account before encryption or persistence", async () => {
+    vi.stubEnv("JOBBER_EXPECTED_ACCOUNT_ID", "expected-jobber-account");
+    const rpc = vi.fn();
+    const encryptToken = vi.fn();
+
+    await expect(
+      saveJobberConnection(INPUT, {
+        client: { rpc } as never,
+        encryptToken,
+      }),
+    ).rejects.toThrow("did not match configured authority");
+    expect(encryptToken).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it("replays the exact encrypted operation once after a lost response", async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "response lost after commit" },
+      })
+      .mockResolvedValueOnce({ data: "replay", error: null });
+
+    await expect(
+      saveJobberConnection(INPUT, {
+        client: { rpc } as never,
+        encryptToken: (value) => `encrypted:${value}`,
+        operationId: "00000000-0000-4000-8000-000000000135",
+      }),
+    ).resolves.toBe("replay");
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[1]).toEqual(rpc.mock.calls[0]);
+  });
+
+  it("retries one thrown fetch transport failure with the exact operation", async () => {
+    const rpc = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"))
+      .mockResolvedValueOnce({ data: "replay", error: null });
+
+    await expect(
+      saveJobberConnection(INPUT, {
+        client: { rpc } as never,
+        encryptToken: (value) => `encrypted:${value}`,
+        operationId: "00000000-0000-4000-8000-000000000235",
+      }),
+    ).resolves.toBe("replay");
+
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[1]).toEqual(rpc.mock.calls[0]);
+  });
+
+  it("preserves a sanitized ambiguous cause when the retry is deterministic", async () => {
+    const rpc = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: null,
+        error: { message: "response lost after commit" },
+      })
+      .mockResolvedValueOnce({
+        data: null,
+        error: {
+          message: "Jobber OAuth operation replay payload conflict",
+          code: "P0001",
+        },
+      });
+
+    const failure = await saveJobberConnection(INPUT, {
+      client: { rpc } as never,
+      encryptToken: () => "encrypted-token",
+    }).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toContain("replay payload conflict");
+    expect((failure as Error).cause).toMatchObject({
+      message: "response lost after commit",
+    });
+    expect(JSON.stringify((failure as Error).cause)).not.toContain(
+      "plain-access-token",
+    );
+    expect(rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a thrown deterministic database error", async () => {
+    const databaseError = Object.assign(
+      new Error("Jobber connection actor is not an active owner or operator"),
+      { code: "P0001" },
+    );
+    const rpc = vi.fn().mockRejectedValue(databaseError);
+
+    await expect(
+      saveJobberConnection(INPUT, {
+        client: { rpc } as never,
+        encryptToken: () => "encrypted-token",
+      }),
+    ).rejects.toBe(databaseError);
+    expect(rpc).toHaveBeenCalledOnce();
+  });
+
+  it("does not retry an unclassified thrown application error", async () => {
+    const applicationError = new Error("client contract failed");
+    const rpc = vi.fn().mockRejectedValue(applicationError);
+
+    await expect(
+      saveJobberConnection(INPUT, {
+        client: { rpc } as never,
+        encryptToken: () => "encrypted-token",
+      }),
+    ).rejects.toBe(applicationError);
+    expect(rpc).toHaveBeenCalledOnce();
+  });
+
+  it("fails closed when persistence returns no durable outcome", async () => {
+    const rpc = vi.fn().mockResolvedValue({ data: null, error: null });
+    await expect(
+      saveJobberConnection(INPUT, {
+        client: { rpc } as never,
+        encryptToken: () => "encrypted-token",
+      }),
+    ).rejects.toThrow("no durable outcome");
   });
 });
 

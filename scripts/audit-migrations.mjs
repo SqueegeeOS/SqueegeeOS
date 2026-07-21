@@ -33,6 +33,13 @@ function loadEnvLocal() {
 
 loadEnvLocal();
 
+const migration032Source = readFileSync(
+  resolve(
+    process.cwd(),
+    "lib/persistence/supabase/migrations/032_jobber_oauth_connection.sql",
+  ),
+  "utf8",
+);
 const migration036Source = readFileSync(
   resolve(
     process.cwd(),
@@ -58,6 +65,13 @@ const migration043Source = readFileSync(
   resolve(
     process.cwd(),
     "lib/persistence/supabase/migrations/043_authoritative_visit_completion_evidence.sql",
+  ),
+  "utf8",
+);
+const migration044Source = readFileSync(
+  resolve(
+    process.cwd(),
+    "lib/persistence/supabase/migrations/044_jobber_oauth_authority_hardening.sql",
   ),
   "utf8",
 );
@@ -200,6 +214,14 @@ export function assertMigration043RequiredClauses(source = migration043Source) {
 
 assertMigration043RequiredClauses();
 
+function expectedMigration032FunctionBody(name) {
+  return expectedFunctionBodyFrom(migration032Source, "032", name);
+}
+
+function expectedMigration044FunctionBody(name) {
+  return expectedFunctionBodyFrom(migration044Source, "044", name);
+}
+
 function expectedMigration036FunctionBody(name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const body = migration036Source.match(
@@ -245,7 +267,8 @@ export function hasExactAuthorityFunctionAcl(rows, expectedFunctionNames) {
       if (
         String(row.grantee_oid) !== ownerOid ||
         String(row.grantee_name) !== ownerName ||
-        row.privilege_type !== "EXECUTE"
+        row.privilege_type !== "EXECUTE" ||
+        row.is_grantable !== false
       ) {
         return false;
       }
@@ -275,6 +298,134 @@ export function hasExactAuthorityFunctionAcl(rows, expectedFunctionNames) {
         entry.serviceRows === 1,
     )
   );
+}
+
+export function isExactJobberOauthOperationColumn(rows) {
+  return exactJson(
+    rows.map((row) => ({
+      table_schema: row.table_schema,
+      table_name: row.table_name,
+      column_name: row.column_name,
+      data_type: row.data_type,
+      udt_name: row.udt_name,
+      is_nullable: row.is_nullable,
+      column_default: row.column_default,
+    })),
+    [{
+      table_schema: "public",
+      table_name: "jobber_connection_events",
+      column_name: "oauth_operation_id",
+      data_type: "uuid",
+      udt_name: "uuid",
+      is_nullable: "YES",
+      column_default: null,
+    }],
+  );
+}
+
+export function isExactJobberOauthOperationIndex(rows) {
+  if (rows.length !== 1) return false;
+  const row = rows[0];
+  return (
+    row.index_schema === "public" &&
+    row.index_name === "jobber_connection_events_oauth_operation_uidx" &&
+    row.table_schema === "public" &&
+    row.table_name === "jobber_connection_events" &&
+    row.access_method === "btree" &&
+    row.is_unique === true &&
+    row.is_valid === true &&
+    row.is_ready === true &&
+    Number(row.key_attribute_count) === 1 &&
+    Number(row.attribute_count) === 1 &&
+    exactJson(row.columns, ["oauth_operation_id"]) &&
+    normalizeConstraintDefinition(row.predicate).replace(/[()\"]/g, "") ===
+      "oauth_operation_idisnotnull"
+  );
+}
+
+export function isExactJobberOauthFunctionDefinition(rows) {
+  const actual = rows.map((row) => ({
+    function_schema: row.function_schema,
+    proname: row.proname,
+    argument_types: String(row.argument_types),
+    argument_names: row.argument_names ?? null,
+    argument_defaults:
+      row.argument_defaults === null
+        ? null
+        : normalizeSql(row.argument_defaults),
+    result_type: String(row.result_type),
+    language_name: String(row.language_name),
+    security_definer: row.security_definer === true,
+    is_strict: row.is_strict === true,
+    volatility: String(row.volatility),
+    parallel_mode: String(row.parallel_mode),
+    config: String(row.config),
+    body: normalizeFunctionBody(row.body),
+  }));
+  return exactJson(actual, [{
+    function_schema: "public",
+    proname: "save_jobber_connection_with_event",
+    argument_types:
+      "uuid, text, text, text, text, text, timestamp with time zone, text, uuid",
+    argument_names: [
+      "requested_operation_id",
+      "requested_expected_account_id",
+      "requested_account_id",
+      "requested_account_name",
+      "requested_access_token_ciphertext",
+      "requested_refresh_token_ciphertext",
+      "requested_access_token_expires_at",
+      "requested_graphql_version",
+      "requested_actor_id",
+    ],
+    argument_defaults: null,
+    result_type: "text",
+    language_name: "plpgsql",
+    security_definer: true,
+    is_strict: false,
+    volatility: "v",
+    parallel_mode: "u",
+    config: "search_path=pg_catalog",
+    body: expectedMigration044FunctionBody("save_jobber_connection_with_event"),
+  }]);
+}
+
+export function isExactJobberConnectionEventImmutabilityTrigger(rows) {
+  return exactJson(rows.map((row) => ({
+    table_schema: row.table_schema,
+    table_name: row.table_name,
+    trigger_name: row.trigger_name,
+    is_internal: row.is_internal === true,
+    trigger_type: Number(row.trigger_type),
+    enabled_state: row.enabled_state,
+    function_schema: row.function_schema,
+    function_name: row.function_name,
+    language_name: row.language_name,
+    security_definer: row.security_definer === true,
+    is_strict: row.is_strict === true,
+    volatility: String(row.volatility),
+    parallel_mode: String(row.parallel_mode),
+    config: String(row.config),
+    body: normalizeFunctionBody(row.body),
+  })), [{
+    table_schema: "public",
+    table_name: "jobber_connection_events",
+    trigger_name: "jobber_connection_events_immutable",
+    is_internal: false,
+    trigger_type: 27,
+    enabled_state: "O",
+    function_schema: "public",
+    function_name: "reject_jobber_connection_event_change",
+    language_name: "plpgsql",
+    security_definer: false,
+    is_strict: false,
+    volatility: "v",
+    parallel_mode: "u",
+    config: "search_path=public",
+    body: expectedMigration032FunctionBody(
+      "reject_jobber_connection_event_change",
+    ),
+  }]);
 }
 
 export function isExactSignedAgreementImmutabilityTrigger(
@@ -612,6 +763,7 @@ const checks = [
   ["041", "Jobber property-link revocation", (s) => ["revocation_projection_id", "revocation_expected_link_updated_at"].every((column) => hasColumn(s, "jobber_property_links", column) && hasColumn(s, "jobber_property_link_events", column)) && ["jobber_property_links", "jobber_property_link_events", "jobber_visit_classifications", "jobber_visit_classification_events", "member_appointments"].every((table) => s.rlsTables.has(table)) && ["revoke_jobber_property_link", "invalidate_jobber_visit_authority_for_property_link", "invalidate_jobber_visit_classification_on_link_change"].every((name) => s.functions.has(name) && functionConfigIncludes(s, name, "search_path=pg_catalog"))],
   ["042", "atomic membership activation completion", (s) => ["obligations", "obligation_events", "website_membership_sales"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && s.atomicActivationIndexExact && s.atomicCompletionTableAclExact && s.atomicCompletionFunctionAclExact && s.atomicCompletionFunctionDefinitionsExact && s.atomicCompletionTriggersExact && s.atomicCompletionBrowserPolicies === 0],
   ["043", "authoritative visit completion and evidence", (s) => ["jobber_visit_completion_events", "visit_text_evidence"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && hasColumn(s, "member_appointments", "jobber_authority_state") && s.visitCompletionTableAclExact && s.visitCompletionFunctionAclExact && s.visitCompletionFunctionDefinitionsExact && s.visitCompletionTriggersExact && s.visitCompletionConstraintsExact && s.visitCompletionBrowserPolicies === 0],
+  ["044", "Jobber OAuth authority hardening", (s) => ["jobber_connections", "jobber_connection_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && s.jobberOauthOperationColumnExact && s.jobberOauthOperationIndexExact && s.jobberOauthFunctionDefinitionExact && s.jobberOauthFunctionAclExact && s.jobberConnectionEventTriggerExact && s.jobberOauthBrowserGrants === 0 && s.jobberOauthBrowserPolicies === 0],
 ];
 
 if (isDirectExecution && !dbUrl) {
@@ -625,7 +777,7 @@ await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers, atomicActivationIndex, atomicCompletionTableAcls, atomicCompletionFunctionAcls, atomicCompletionFunctionDetails, atomicCompletionTriggers, atomicCompletionBrowserPolicies, visitCompletionTableAcls, visitCompletionFunctionAcls, visitCompletionFunctionDetails, visitCompletionTriggers, visitCompletionBrowserPolicies, visitCompletionConstraints] = await Promise.all([
+  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers, atomicActivationIndex, atomicCompletionTableAcls, atomicCompletionFunctionAcls, atomicCompletionFunctionDetails, atomicCompletionTriggers, atomicCompletionBrowserPolicies, visitCompletionTableAcls, visitCompletionFunctionAcls, visitCompletionFunctionDetails, visitCompletionTriggers, visitCompletionBrowserPolicies, visitCompletionConstraints, jobberOauthColumn, jobberOauthIndex, jobberOauthFunctionDetails, jobberOauthFunctionAcls, jobberConnectionEventTrigger, jobberOauthBrowserGrants, jobberOauthBrowserPolicies] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, k.conname as constraint_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -668,6 +820,13 @@ try {
     client.query("select c.relname as table_name, t.tgname as trigger_name, t.tgtype::integer as trigger_type, t.tgenabled as enabled_state, t.tgfoid::text as function_oid from pg_catalog.pg_trigger t join pg_catalog.pg_class c on c.oid = t.tgrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('jobber_visit_completion_events', 'visit_text_evidence') and not t.tgisinternal order by c.relname, t.tgname"),
     client.query("select count(*)::int as count from pg_catalog.pg_policy p join pg_catalog.pg_class c on c.oid = p.polrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relname in ('jobber_visit_completion_events', 'visit_text_evidence') and exists (select 1 from unnest(p.polroles) as policy_role(role_oid) where policy_role.role_oid = 0 or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER') or pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER'))"),
     client.query("select c.relname as table_name, con.conname as constraint_name, con.contype::text as constraint_type, pg_catalog.pg_get_constraintdef(con.oid) as definition, con.convalidated as validated, con.condeferrable as deferrable, con.condeferred as deferred from pg_catalog.pg_constraint con join pg_catalog.pg_class c on c.oid = con.conrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and ((c.relname in ('jobber_visit_completion_events', 'visit_text_evidence') and con.contype in ('p', 'u', 'f', 'c')) or (c.relname = 'member_appointments' and con.conname in ('member_appointments_jobber_authority_state_check', 'member_appointments_jobber_authority_binding_check'))) order by c.relname, con.contype, con.conname"),
+    client.query("select table_schema, table_name, column_name, data_type, udt_name, is_nullable, column_default from information_schema.columns where table_schema = 'public' and table_name = 'jobber_connection_events' and column_name = 'oauth_operation_id' order by ordinal_position"),
+    client.query("select index_namespace.nspname as index_schema, index_relation.relname as index_name, table_namespace.nspname as table_schema, table_relation.relname as table_name, access_method.amname as access_method, index_info.indisunique as is_unique, index_info.indisvalid as is_valid, index_info.indisready as is_ready, index_info.indnkeyatts as key_attribute_count, index_info.indnatts as attribute_count, pg_catalog.pg_get_expr(index_info.indpred, index_info.indrelid) as predicate, pg_catalog.array_agg(attribute.attname order by index_key.ordinality) as columns from pg_catalog.pg_index index_info join pg_catalog.pg_class index_relation on index_relation.oid = index_info.indexrelid join pg_catalog.pg_namespace index_namespace on index_namespace.oid = index_relation.relnamespace join pg_catalog.pg_class table_relation on table_relation.oid = index_info.indrelid join pg_catalog.pg_namespace table_namespace on table_namespace.oid = table_relation.relnamespace join pg_catalog.pg_am access_method on access_method.oid = index_relation.relam join lateral pg_catalog.unnest(index_info.indkey) with ordinality index_key(attnum, ordinality) on true join pg_catalog.pg_attribute attribute on attribute.attrelid = index_info.indrelid and attribute.attnum = index_key.attnum where index_namespace.nspname = 'public' and index_relation.relname = 'jobber_connection_events_oauth_operation_uidx' group by index_namespace.nspname, index_relation.relname, table_namespace.nspname, table_relation.relname, access_method.amname, index_info.indisunique, index_info.indisvalid, index_info.indisready, index_info.indnkeyatts, index_info.indnatts, index_info.indpred, index_info.indrelid"),
+    client.query("select n.nspname as function_schema, p.proname, pg_catalog.oidvectortypes(p.proargtypes) as argument_types, p.proargnames as argument_names, pg_catalog.pg_get_expr(p.proargdefaults, 0) as argument_defaults, pg_catalog.pg_get_function_result(p.oid) as result_type, l.lanname as language_name, p.prosecdef as security_definer, p.proisstrict as is_strict, p.provolatile as volatility, p.proparallel as parallel_mode, coalesce(array_to_string(p.proconfig, ','), '') as config, p.prosrc as body from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_language l on l.oid = p.prolang where n.nspname = 'public' and p.proname = 'save_jobber_connection_with_event' order by argument_types"),
+    client.query("select p.oid::text as function_oid, p.proname as routine_name, p.proowner::text as owner_oid, owner_role.rolname as owner_name, acl.grantee::text as grantee_oid, case when acl.grantee = 0 then 'PUBLIC' else grantee_role.rolname end as grantee_name, acl.grantee = p.proowner as is_owner, acl.privilege_type, acl.is_grantable from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace join pg_catalog.pg_roles owner_role on owner_role.oid = p.proowner cross join lateral pg_catalog.aclexplode(coalesce(p.proacl, pg_catalog.acldefault('f', p.proowner))) acl left join pg_catalog.pg_roles grantee_role on grantee_role.oid = acl.grantee where n.nspname = 'public' and p.proname = 'save_jobber_connection_with_event' order by p.oid, acl.grantee, acl.privilege_type"),
+    client.query("select table_namespace.nspname as table_schema, relation.relname as table_name, trigger_info.tgname as trigger_name, trigger_info.tgisinternal as is_internal, trigger_info.tgtype::integer as trigger_type, trigger_info.tgenabled as enabled_state, function_namespace.nspname as function_schema, trigger_function.proname as function_name, language.lanname as language_name, trigger_function.prosecdef as security_definer, trigger_function.proisstrict as is_strict, trigger_function.provolatile as volatility, trigger_function.proparallel as parallel_mode, coalesce(array_to_string(trigger_function.proconfig, ','), '') as config, trigger_function.prosrc as body from pg_catalog.pg_trigger trigger_info join pg_catalog.pg_class relation on relation.oid = trigger_info.tgrelid join pg_catalog.pg_namespace table_namespace on table_namespace.oid = relation.relnamespace join pg_catalog.pg_proc trigger_function on trigger_function.oid = trigger_info.tgfoid join pg_catalog.pg_namespace function_namespace on function_namespace.oid = trigger_function.pronamespace join pg_catalog.pg_language language on language.oid = trigger_function.prolang where trigger_info.tgname = 'jobber_connection_events_immutable' order by table_schema, table_name, trigger_name"),
+    client.query("select count(*)::integer as count from pg_catalog.pg_class relation join pg_catalog.pg_namespace relation_namespace on relation_namespace.oid = relation.relnamespace cross join lateral pg_catalog.aclexplode(coalesce(relation.relacl, pg_catalog.acldefault('r', relation.relowner))) acl where relation_namespace.nspname = 'public' and relation.relname in ('jobber_connections', 'jobber_connection_events') and (acl.grantee = 0 or pg_catalog.pg_has_role('anon', acl.grantee, 'MEMBER') or pg_catalog.pg_has_role('authenticated', acl.grantee, 'MEMBER'))"),
+    client.query("select count(*)::integer as count from pg_catalog.pg_policy policy join pg_catalog.pg_class relation on relation.oid = policy.polrelid join pg_catalog.pg_namespace relation_namespace on relation_namespace.oid = relation.relnamespace where relation_namespace.nspname = 'public' and relation.relname in ('jobber_connections', 'jobber_connection_events') and exists (select 1 from pg_catalog.unnest(policy.polroles) policy_role(role_oid) where policy_role.role_oid = 0 or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER') or pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER'))"),
   ]);
 
   let agreementBucket = null;
@@ -1238,6 +1397,25 @@ try {
       hasExactVisitCompletionConstraints(visitCompletionConstraints.rows),
     visitCompletionBrowserPolicies:
       visitCompletionBrowserPolicies.rows[0]?.count ?? 0,
+    jobberOauthOperationColumnExact:
+      isExactJobberOauthOperationColumn(jobberOauthColumn.rows),
+    jobberOauthOperationIndexExact:
+      isExactJobberOauthOperationIndex(jobberOauthIndex.rows),
+    jobberOauthFunctionDefinitionExact:
+      isExactJobberOauthFunctionDefinition(jobberOauthFunctionDetails.rows),
+    jobberOauthFunctionAclExact:
+      hasExactAuthorityFunctionAcl(
+        jobberOauthFunctionAcls.rows,
+        ["save_jobber_connection_with_event"],
+      ),
+    jobberConnectionEventTriggerExact:
+      isExactJobberConnectionEventImmutabilityTrigger(
+        jobberConnectionEventTrigger.rows,
+      ),
+    jobberOauthBrowserGrants:
+      jobberOauthBrowserGrants.rows[0]?.count ?? 0,
+    jobberOauthBrowserPolicies:
+      jobberOauthBrowserPolicies.rows[0]?.count ?? 0,
     agreementBucket,
   };
 

@@ -10,6 +10,10 @@ import {
   hasExactVisitCompletionTableAcl,
   expectedVisitCompletionConstraintInventory,
   isExactAtomicCompletionTriggerSet,
+  isExactJobberConnectionEventImmutabilityTrigger,
+  isExactJobberOauthFunctionDefinition,
+  isExactJobberOauthOperationColumn,
+  isExactJobberOauthOperationIndex,
   isExactSignedAgreementImmutabilityTrigger,
   isExactVisitCompletionTriggerSet,
 } from "../../scripts/audit-migrations.mjs";
@@ -422,6 +426,158 @@ describe("migration audit catalog predicates", () => {
         },
         ...rows.slice(appointmentCheckIndex + 1),
       ])).toBe(false);
+    }
+  });
+
+  it("requires the exact migration 044 UUID column, partial index, and trigger", () => {
+    const column = {
+      table_schema: "public",
+      table_name: "jobber_connection_events",
+      column_name: "oauth_operation_id",
+      data_type: "uuid",
+      udt_name: "uuid",
+      is_nullable: "YES",
+      column_default: null,
+    };
+    expect(isExactJobberOauthOperationColumn([column])).toBe(true);
+    expect(
+      isExactJobberOauthOperationColumn([
+        { ...column, is_nullable: "NO" },
+      ]),
+    ).toBe(false);
+
+    const index = {
+      index_schema: "public",
+      index_name: "jobber_connection_events_oauth_operation_uidx",
+      table_schema: "public",
+      table_name: "jobber_connection_events",
+      access_method: "btree",
+      is_unique: true,
+      is_valid: true,
+      is_ready: true,
+      key_attribute_count: 1,
+      attribute_count: 1,
+      columns: ["oauth_operation_id"],
+      predicate: "(oauth_operation_id IS NOT NULL)",
+    };
+    expect(isExactJobberOauthOperationIndex([index])).toBe(true);
+    expect(
+      isExactJobberOauthOperationIndex([
+        { ...index, predicate: null },
+      ]),
+    ).toBe(false);
+    expect(
+      isExactJobberOauthOperationIndex([
+        { ...index, is_unique: false },
+      ]),
+    ).toBe(false);
+
+    const trigger = {
+      table_schema: "public",
+      table_name: "jobber_connection_events",
+      trigger_name: "jobber_connection_events_immutable",
+      is_internal: false,
+      trigger_type: 27,
+      enabled_state: "O",
+      function_schema: "public",
+      function_name: "reject_jobber_connection_event_change",
+      language_name: "plpgsql",
+      security_definer: false,
+      is_strict: false,
+      volatility: "v",
+      parallel_mode: "u",
+      config: "search_path=public",
+      body: `
+begin
+  raise exception 'jobber_connection_events is append-only and immutable';
+end;`,
+    };
+    expect(isExactJobberConnectionEventImmutabilityTrigger([trigger])).toBe(true);
+    expect(
+      isExactJobberConnectionEventImmutabilityTrigger([
+        { ...trigger, enabled_state: "D" },
+      ]),
+    ).toBe(false);
+    expect(
+      isExactJobberConnectionEventImmutabilityTrigger([
+        { ...trigger, body: "begin return old; end;" },
+      ]),
+    ).toBe(false);
+  });
+
+  it("requires the sole exact database-owned Jobber OAuth function definition", () => {
+    const migration = readFileSync(
+      new URL(
+        "./supabase/migrations/044_jobber_oauth_authority_hardening.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const body = migration.match(
+      /create or replace function public\.save_jobber_connection_with_event\([\s\S]*?\nas \$\$([\s\S]*?)\n\$\$;/i,
+    )?.[1];
+    expect(body).toBeDefined();
+    const definition = {
+      function_schema: "public",
+      proname: "save_jobber_connection_with_event",
+      argument_types:
+        "uuid, text, text, text, text, text, timestamp with time zone, text, uuid",
+      argument_names: [
+        "requested_operation_id",
+        "requested_expected_account_id",
+        "requested_account_id",
+        "requested_account_name",
+        "requested_access_token_ciphertext",
+        "requested_refresh_token_ciphertext",
+        "requested_access_token_expires_at",
+        "requested_graphql_version",
+        "requested_actor_id",
+      ],
+      argument_defaults: null,
+      result_type: "text",
+      language_name: "plpgsql",
+      security_definer: true,
+      is_strict: false,
+      volatility: "v",
+      parallel_mode: "u",
+      config: "search_path=pg_catalog",
+      body,
+    };
+    expect(isExactJobberOauthFunctionDefinition([definition])).toBe(true);
+    expect(
+      isExactJobberOauthFunctionDefinition([
+        { ...definition, security_definer: false },
+      ]),
+    ).toBe(false);
+    expect(
+      isExactJobberOauthFunctionDefinition([
+        definition,
+        { ...definition, argument_types: "text" },
+      ]),
+    ).toBe(false);
+  });
+
+  it("audits migration 044 from exact catalog evidence", () => {
+    const audit = readFileSync(
+      new URL("../../scripts/audit-migrations.mjs", import.meta.url),
+      "utf8",
+    );
+    for (const fragment of [
+      "044_jobber_oauth_authority_hardening.sql",
+      "032_jobber_oauth_connection.sql",
+      '["044", "Jobber OAuth authority hardening"',
+      "jobber_connection_events_oauth_operation_uidx",
+      "expectedMigration044FunctionBody(\"save_jobber_connection_with_event\")",
+      "isExactJobberOauthFunctionDefinition",
+      "hasExactAuthorityFunctionAcl",
+      "jobberConnectionEventTriggerExact",
+      "expectedMigration032FunctionBody",
+      "jobberOauthBrowserGrants",
+      "jobberOauthBrowserPolicies",
+      "pg_catalog.aclexplode",
+      "pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER')",
+    ]) {
+      expect(audit).toContain(fragment);
     }
   });
 });

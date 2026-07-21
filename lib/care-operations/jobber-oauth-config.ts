@@ -12,6 +12,7 @@ export interface JobberConfigStatus {
   clientIdConfigured: boolean;
   clientSecretConfigured: boolean;
   encryptionKeyConfigured: boolean;
+  expectedAccountIdConfigured: boolean;
   redirectUriConfigured: boolean;
   configured: boolean;
 }
@@ -35,6 +36,9 @@ export function getJobberConfigStatus(): JobberConfigStatus {
   const encryptionKeyConfigured = hasValidEncryptionKeyShape(
     process.env.JOBBER_TOKEN_ENCRYPTION_KEY,
   );
+  const expectedAccountIdConfigured = Boolean(
+    process.env.JOBBER_EXPECTED_ACCOUNT_ID?.trim(),
+  );
   const redirectUriConfigured = Boolean(
     process.env.JOBBER_OAUTH_REDIRECT_URI?.trim(),
   );
@@ -42,11 +46,13 @@ export function getJobberConfigStatus(): JobberConfigStatus {
     clientIdConfigured,
     clientSecretConfigured,
     encryptionKeyConfigured,
+    expectedAccountIdConfigured,
     redirectUriConfigured,
     configured:
       clientIdConfigured &&
       clientSecretConfigured &&
       encryptionKeyConfigured &&
+      expectedAccountIdConfigured &&
       (process.env.NODE_ENV !== "production" || redirectUriConfigured),
   };
 }
@@ -60,6 +66,14 @@ export function getJobberClientId(): string {
 export function getJobberClientSecret(): string {
   const value = process.env.JOBBER_CLIENT_SECRET?.trim();
   if (!value) throw new Error("JOBBER_CLIENT_SECRET is not configured");
+  return value;
+}
+
+export function getExpectedJobberAccountId(): string {
+  const value = process.env.JOBBER_EXPECTED_ACCOUNT_ID?.trim();
+  if (!value) {
+    throw new Error("JOBBER_EXPECTED_ACCOUNT_ID is not configured");
+  }
   return value;
 }
 
