@@ -27,7 +27,7 @@ vi.mock(
     return {
       ...actual,
       searchJobberClients: mocks.searchClients,
-      listJobberClientProperties: mocks.listProperties,
+      listJobberClientPropertiesPage: mocks.listProperties,
     };
   },
 );
@@ -109,15 +109,15 @@ describe("Jobber member-search routes", () => {
   it("keeps successful customer search private, uncached, and body-based", async () => {
     mocks.searchClients.mockResolvedValue({
       clients: [],
-      resultLimitReached: false,
-      clientCoverageLimitReached: false,
-      clientsScanned: 205,
-      pagesScanned: 3,
+      endCursor: "client-cursor-2",
+      hasNextPage: true,
+      clientsScanned: 100,
+      pagesScanned: 1,
     });
     const response = await SEARCH(
       request(
         "/api/admin/care-operations/jobber/clients/search",
-        { query: "private customer term" },
+        { query: "private customer term", after: "client-cursor-1" },
       ),
     );
     expect(response.status).toBe(200);
@@ -126,6 +126,7 @@ describe("Jobber member-search routes", () => {
     expect(mocks.searchClients).toHaveBeenCalledWith(
       "access-token",
       "private customer term",
+      { after: "client-cursor-1" },
     );
   });
 
@@ -137,8 +138,13 @@ describe("Jobber member-search routes", () => {
           jobberWebUri: "https://secure.getjobber.com/properties/1",
         },
       ],
-      propertyCoverageLimitReached: false,
+      endCursor: "property-cursor-2",
+      hasNextPage: true,
+      propertyCoverageComplete: false,
+      ownershipProofPageLimit: 10,
       pagesScanned: 1,
+      observedGraphqlVersion: "2025-04-16",
+      observedAt: "2026-07-21T00:00:00.000Z",
     });
     mocks.loadCandidates.mockResolvedValue({
       activeMemberProperties: [],
@@ -147,15 +153,33 @@ describe("Jobber member-search routes", () => {
     const response = await PROPERTIES(
       request(
         "/api/admin/care-operations/jobber/clients/properties",
-        { clientId: "client-1" },
+        { clientId: "client-1", after: "property-cursor-1" },
       ),
     );
     expect(response.status).toBe(200);
     expect(response.headers.get("cache-control")).toContain("no-store");
     expect(await response.json()).toMatchObject({
       properties: [{ id: "property-1" }],
+      endCursor: "property-cursor-2",
+      hasNextPage: true,
       activeMemberProperties: [],
     });
+    expect(mocks.listProperties).toHaveBeenCalledWith(
+      "access-token",
+      "client-1",
+      { after: "property-cursor-1" },
+    );
+  });
+
+  it.each([
+    [SEARCH, "/api/admin/care-operations/jobber/clients/search", { query: "member", after: 12 }],
+    [PROPERTIES, "/api/admin/care-operations/jobber/clients/properties", { clientId: "client-1", after: false }],
+  ] as const)("rejects malformed optional cursors before provider work", async (handler, path, body) => {
+    const response = await handler(request(path, body));
+    expect(response.status).toBe(400);
+    expect(mocks.getToken).not.toHaveBeenCalled();
+    expect(mocks.searchClients).not.toHaveBeenCalled();
+    expect(mocks.listProperties).not.toHaveBeenCalled();
   });
 
   it("uses the authenticated actor and ignores browser URI or actor claims", async () => {

@@ -6,11 +6,10 @@ import {
 } from "./jobber-oauth-config";
 
 export const JOBBER_CLIENT_PAGE_SIZE = 100;
-export const JOBBER_CLIENT_MAX_PAGES = 10;
-export const JOBBER_CLIENT_RESULT_LIMIT = 20;
 export const JOBBER_CLIENT_PROPERTY_PAGE_SIZE = 50;
 export const JOBBER_CLIENT_PROPERTY_MAX_PAGES = 10;
 export const JOBBER_MEMBER_SEARCH_TIMEOUT_MS = 15_000;
+const JOBBER_CURSOR_MAX_LENGTH = 2_048;
 
 export const JOBBER_CLIENT_SEARCH_QUERY = `
   query HomeAtlasClientSearch($after: String) {
@@ -45,6 +44,7 @@ export type JobberClientProviderFailureCode =
   | "graphql_partial_errors"
   | "http_429"
   | "http_error"
+  | "invalid_cursor"
   | "invalid_client_id"
   | "invalid_query"
   | "malformed_response"
@@ -78,10 +78,21 @@ export interface JobberClientProperty {
 
 export interface JobberClientSearchResult {
   clients: JobberClientSearchResultItem[];
-  resultLimitReached: boolean;
-  clientCoverageLimitReached: boolean;
+  endCursor: string | null;
+  hasNextPage: boolean;
   clientsScanned: number;
   pagesScanned: number;
+}
+
+export interface JobberClientPropertiesPageResult {
+  properties: JobberClientProperty[];
+  endCursor: string | null;
+  hasNextPage: boolean;
+  propertyCoverageComplete: boolean;
+  ownershipProofPageLimit: number;
+  pagesScanned: 1;
+  observedGraphqlVersion: string;
+  observedAt: string;
 }
 
 export interface JobberClientPropertiesResult {
@@ -113,6 +124,10 @@ interface ProviderOptions {
   timeoutMs?: number;
   expectedVersion?: string;
   now?: () => string;
+}
+
+interface PageProviderOptions extends ProviderOptions {
+  after?: string | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -435,91 +450,155 @@ function validatedClientId(clientId: string): string {
   return trimmed;
 }
 
+function validatedAfterCursor(after: unknown): string | null {
+  if (after === undefined || after === null) return null;
+  if (
+    typeof after !== "string" ||
+    after.length === 0 ||
+    after.length > JOBBER_CURSOR_MAX_LENGTH
+  ) {
+    throw new JobberClientProviderError(
+      "invalid_cursor",
+      "Select a valid Jobber pagination cursor",
+    );
+  }
+  return after;
+}
+
 export async function searchJobberClients(
   accessToken: string,
   query: string,
-  options: ProviderOptions = {},
+  options: PageProviderOptions = {},
 ): Promise<JobberClientSearchResult> {
   const normalizedQuery = validatedSearchQuery(query);
+  const after = validatedAfterCursor(options.after);
   const matches: JobberClientSearchResultItem[] = [];
   const seenClientIds = new Set<string>();
-  const seenCursors = new Set<string>();
-  let cursor: string | null = null;
-  let pagesScanned = 0;
-  let resultLimitReached = false;
-  let clientCoverageLimitReached = false;
-
-  for (let page = 0; page < JOBBER_CLIENT_MAX_PAGES; page += 1) {
-    if (cursor !== null) seenCursors.add(cursor);
-    const { data } = await requestJobberGraphql(
-      accessToken,
-      JOBBER_CLIENT_SEARCH_QUERY,
-      { after: cursor },
-      options,
+  const { data } = await requestJobberGraphql(
+    accessToken,
+    JOBBER_CLIENT_SEARCH_QUERY,
+    { after },
+    options,
+  );
+  const connection = isRecord(data.clients) ? data.clients : null;
+  if (!connection || !Array.isArray(connection.nodes)) {
+    throw new JobberClientProviderError(
+      "malformed_response",
+      "Jobber client search omitted the client connection",
     );
-    const connection = isRecord(data.clients) ? data.clients : null;
-    if (!connection || !Array.isArray(connection.nodes)) {
+  }
+  if (connection.nodes.length > JOBBER_CLIENT_PAGE_SIZE) {
+    throw new JobberClientProviderError(
+      "malformed_response",
+      "Jobber client search exceeded its requested page size",
+    );
+  }
+  const pageInfo = parsePageInfo(connection.pageInfo);
+  if (pageInfo.hasNextPage && pageInfo.endCursor === after) {
+    throw new JobberClientProviderError(
+      "cursor_loop",
+      "Jobber client pagination repeated a cursor",
+    );
+  }
+
+  for (const value of connection.nodes) {
+    if (!isRecord(value)) {
       throw new JobberClientProviderError(
         "malformed_response",
-        "Jobber client search omitted the client connection",
+        "Jobber client data was malformed",
       );
     }
-    if (connection.nodes.length > JOBBER_CLIENT_PAGE_SIZE) {
-      throw new JobberClientProviderError(
-        "malformed_response",
-        "Jobber client search exceeded its requested page size",
-      );
+    const client = {
+      id: requiredString(value.id, "client id"),
+      name: requiredString(value.name, "client name"),
+      jobberWebUri: requiredHttpsUri(value.jobberWebUri, "client web URI"),
+    };
+    if (seenClientIds.has(client.id)) continue;
+    seenClientIds.add(client.id);
+    if (normalizeJobberClientSearchText(client.name).includes(normalizedQuery)) {
+      matches.push(client);
     }
-    const pageInfo = parsePageInfo(connection.pageInfo);
-    pagesScanned += 1;
-
-    for (const value of connection.nodes) {
-      if (!isRecord(value)) {
-        throw new JobberClientProviderError(
-          "malformed_response",
-          "Jobber client data was malformed",
-        );
-      }
-      const client = {
-        id: requiredString(value.id, "client id"),
-        name: requiredString(value.name, "client name"),
-        jobberWebUri: requiredHttpsUri(
-          value.jobberWebUri,
-          "client web URI",
-        ),
-      };
-      if (seenClientIds.has(client.id)) continue;
-      seenClientIds.add(client.id);
-      if (!normalizeJobberClientSearchText(client.name).includes(normalizedQuery)) {
-        continue;
-      }
-      if (matches.length < JOBBER_CLIENT_RESULT_LIMIT) {
-        matches.push(client);
-      } else {
-        resultLimitReached = true;
-      }
-    }
-
-    if (!pageInfo.hasNextPage) break;
-    if (!pageInfo.endCursor || seenCursors.has(pageInfo.endCursor)) {
-      throw new JobberClientProviderError(
-        "cursor_loop",
-        "Jobber client pagination repeated a cursor",
-      );
-    }
-    if (page === JOBBER_CLIENT_MAX_PAGES - 1) {
-      clientCoverageLimitReached = true;
-      break;
-    }
-    cursor = pageInfo.endCursor;
   }
 
   return {
     clients: matches,
-    resultLimitReached,
-    clientCoverageLimitReached,
+    endCursor: pageInfo.endCursor,
+    hasNextPage: pageInfo.hasNextPage,
     clientsScanned: seenClientIds.size,
-    pagesScanned,
+    pagesScanned: 1,
+  };
+}
+
+export async function listJobberClientPropertiesPage(
+  accessToken: string,
+  clientId: string,
+  options: PageProviderOptions = {},
+): Promise<JobberClientPropertiesPageResult> {
+  const validatedId = validatedClientId(clientId);
+  const after = validatedAfterCursor(options.after);
+  const response = await requestJobberGraphql(
+    accessToken,
+    JOBBER_CLIENT_PROPERTIES_QUERY,
+    { clientId: validatedId, after },
+    options,
+  );
+  const { data } = response;
+  if (data.client === null) {
+    throw new JobberClientProviderError(
+      "client_not_found",
+      "Jobber client was not found",
+    );
+  }
+  const client = isRecord(data.client) ? data.client : null;
+  const connection = client && isRecord(client.clientProperties)
+    ? client.clientProperties
+    : null;
+  if (!connection || !Array.isArray(connection.nodes)) {
+    throw new JobberClientProviderError(
+      "malformed_response",
+      "Jobber client properties response was malformed",
+    );
+  }
+  if (connection.nodes.length > JOBBER_CLIENT_PROPERTY_PAGE_SIZE) {
+    throw new JobberClientProviderError(
+      "malformed_response",
+      "Jobber client properties exceeded the requested page size",
+    );
+  }
+  const pageInfo = parsePageInfo(connection.pageInfo);
+  if (pageInfo.hasNextPage && pageInfo.endCursor === after) {
+    throw new JobberClientProviderError(
+      "cursor_loop",
+      "Jobber client-property pagination repeated a cursor",
+    );
+  }
+  const properties: JobberClientProperty[] = [];
+  const seenPropertyIds = new Set<string>();
+  for (const value of connection.nodes) {
+    if (!isRecord(value)) {
+      throw new JobberClientProviderError(
+        "malformed_response",
+        "Jobber property data was malformed",
+      );
+    }
+    const property = {
+      id: requiredString(value.id, "property id"),
+      jobberWebUri: requiredHttpsUri(value.jobberWebUri, "property web URI"),
+    };
+    if (seenPropertyIds.has(property.id)) continue;
+    seenPropertyIds.add(property.id);
+    properties.push(property);
+  }
+
+  return {
+    properties,
+    endCursor: pageInfo.endCursor,
+    hasNextPage: pageInfo.hasNextPage,
+    propertyCoverageComplete: !pageInfo.hasNextPage,
+    ownershipProofPageLimit: JOBBER_CLIENT_PROPERTY_MAX_PAGES,
+    pagesScanned: 1,
+    observedGraphqlVersion: response.observedVersion,
+    observedAt: (options.now ?? (() => new Date().toISOString()))(),
   };
 }
 
@@ -539,70 +618,31 @@ export async function listJobberClientProperties(
 
   for (let page = 0; page < JOBBER_CLIENT_PROPERTY_MAX_PAGES; page += 1) {
     if (cursor !== null) seenCursors.add(cursor);
-    const response = await requestJobberGraphql(
+    const response = await listJobberClientPropertiesPage(
       accessToken,
-      JOBBER_CLIENT_PROPERTIES_QUERY,
-      { clientId: validatedId, after: cursor },
-      options,
+      validatedId,
+      { ...options, after: cursor },
     );
-    const { data } = response;
     if (
       observedGraphqlVersion &&
-      response.observedVersion &&
-      observedGraphqlVersion !== response.observedVersion
+      observedGraphqlVersion !== response.observedGraphqlVersion
     ) {
       throw new JobberClientProviderError(
         "version_mismatch",
         "Jobber API version changed during property pagination",
       );
     }
-    observedGraphqlVersion ??= response.observedVersion;
-    if (data.client === null) {
-      throw new JobberClientProviderError(
-        "client_not_found",
-        "Jobber client was not found",
-      );
-    }
-    const client = isRecord(data.client) ? data.client : null;
-    const connection = client && isRecord(client.clientProperties)
-      ? client.clientProperties
-      : null;
-    if (!connection || !Array.isArray(connection.nodes)) {
-      throw new JobberClientProviderError(
-        "malformed_response",
-        "Jobber client properties response was malformed",
-      );
-    }
-    if (connection.nodes.length > JOBBER_CLIENT_PROPERTY_PAGE_SIZE) {
-      throw new JobberClientProviderError(
-        "malformed_response",
-        "Jobber client properties exceeded the requested page size",
-      );
-    }
-    const pageInfo = parsePageInfo(connection.pageInfo);
+    observedGraphqlVersion ??= response.observedGraphqlVersion;
     pagesScanned += 1;
 
-    for (const value of connection.nodes) {
-      if (!isRecord(value)) {
-        throw new JobberClientProviderError(
-          "malformed_response",
-          "Jobber property data was malformed",
-        );
-      }
-      const property = {
-        id: requiredString(value.id, "property id"),
-        jobberWebUri: requiredHttpsUri(
-          value.jobberWebUri,
-          "property web URI",
-        ),
-      };
+    for (const property of response.properties) {
       if (seenPropertyIds.has(property.id)) continue;
       seenPropertyIds.add(property.id);
       properties.push(property);
     }
 
-    if (!pageInfo.hasNextPage) break;
-    if (!pageInfo.endCursor || seenCursors.has(pageInfo.endCursor)) {
+    if (!response.hasNextPage) break;
+    if (!response.endCursor || seenCursors.has(response.endCursor)) {
       throw new JobberClientProviderError(
         "cursor_loop",
         "Jobber client-property pagination repeated a cursor",
@@ -612,7 +652,7 @@ export async function listJobberClientProperties(
       propertyCoverageLimitReached = true;
       break;
     }
-    cursor = pageInfo.endCursor;
+    cursor = response.endCursor;
   }
 
   return {
