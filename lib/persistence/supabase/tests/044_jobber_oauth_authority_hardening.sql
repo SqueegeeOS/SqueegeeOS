@@ -78,7 +78,7 @@ begin
   raise exception '% unexpectedly succeeded', test_label;
 exception
   when others then
-    if pg_catalog.position(expected_message in sqlerrm) = 0 then
+    if position(expected_message in sqlerrm) = 0 then
       raise exception '% failed with unexpected message: %', test_label, sqlerrm;
     end if;
 end;
@@ -297,7 +297,7 @@ begin
 
   if event_details <> pg_catalog.jsonb_build_object(
     'payload_sha256', pg_catalog.encode(expected_digest, 'hex')
-  ) or pg_catalog.jsonb_object_length(event_details) <> 1 then
+  ) then
     raise exception 'Immutable replay evidence is not the DB canonical digest only';
   end if;
 
