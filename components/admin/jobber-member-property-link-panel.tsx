@@ -1,7 +1,13 @@
 "use client";
 
-import { FormEvent, useMemo, useState } from "react";
-import { memberPropertyFilterChange } from "./jobber-member-property-link-state";
+import { FormEvent, useMemo, useRef, useState } from "react";
+import {
+  advanceJobberPaginationCursor,
+  appendUniqueJobberRecords,
+  createJobberRequestGenerationGuard,
+  hasCompleteJobberPropertyOwnershipEvidence,
+  memberPropertyFilterChange,
+} from "./jobber-member-property-link-state";
 
 interface JobberClient {
   id: string;
@@ -23,14 +29,16 @@ interface MemberProperty {
 
 interface SearchResponse {
   clients?: JobberClient[];
-  resultLimitReached?: boolean;
-  clientCoverageLimitReached?: boolean;
+  endCursor?: unknown;
+  hasNextPage?: unknown;
   error?: string;
 }
 
 interface PropertiesResponse {
   properties?: JobberProperty[];
-  propertyCoverageLimitReached?: boolean;
+  endCursor?: unknown;
+  hasNextPage?: unknown;
+  ownershipProofPageLimit?: number;
   activeMemberProperties?: MemberProperty[];
   candidateLimitReached?: boolean;
   error?: string;
@@ -45,6 +53,10 @@ function normalized(value: string): string {
 }
 
 export function JobberMemberPropertyLinkPanel() {
+  const clientRequestGuard = useRef(createJobberRequestGenerationGuard()).current;
+  const propertyRequestGuard = useRef(
+    createJobberRequestGenerationGuard(),
+  ).current;
   const [query, setQuery] = useState("");
   const [clients, setClients] = useState<JobberClient[]>([]);
   const [selectedClient, setSelectedClient] = useState<JobberClient | null>(null);
@@ -54,11 +66,14 @@ export function JobberMemberPropertyLinkPanel() {
   const [memberFilter, setMemberFilter] = useState("");
   const [selectedMembershipId, setSelectedMembershipId] = useState("");
   const [samePropertyConfirmed, setSamePropertyConfirmed] = useState(false);
-  const [resultLimitReached, setResultLimitReached] = useState(false);
-  const [clientCoverageLimitReached, setClientCoverageLimitReached] =
-    useState(false);
-  const [propertyCoverageLimitReached, setPropertyCoverageLimitReached] =
-    useState(false);
+  const [clientAfter, setClientAfter] = useState<string | null>(null);
+  const [clientHasNextPage, setClientHasNextPage] = useState(false);
+  const [clientSeenCursors, setClientSeenCursors] = useState<string[]>([]);
+  const [propertyAfter, setPropertyAfter] = useState<string | null>(null);
+  const [propertyHasNextPage, setPropertyHasNextPage] = useState(false);
+  const [propertySeenCursors, setPropertySeenCursors] = useState<string[]>([]);
+  const [propertyPagesLoaded, setPropertyPagesLoaded] = useState(0);
+  const [ownershipProofPageLimit, setOwnershipProofPageLimit] = useState(0);
   const [candidateLimitReached, setCandidateLimitReached] = useState(false);
   const [searching, setSearching] = useState(false);
   const [loadingProperties, setLoadingProperties] = useState(false);
@@ -76,54 +91,109 @@ export function JobberMemberPropertyLinkPanel() {
     );
   }, [memberFilter, memberProperties]);
 
-  const searchClients = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSearching(true);
-    setError(null);
-    setSuccess(null);
-    setSelectedClient(null);
-    setProperties([]);
-    try {
-      const response = await fetch(
-        "/api/admin/care-operations/jobber/clients/search",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
-          cache: "no-store",
-        },
-      );
-      const body = (await response.json().catch(() => null)) as
-        | SearchResponse
-        | null;
-      if (!response.ok || !body?.clients) {
-        throw new Error(body?.error ?? "Could not search Jobber customers.");
-      }
-      setClients(body.clients);
-      setResultLimitReached(body.resultLimitReached === true);
-      setClientCoverageLimitReached(
-        body.clientCoverageLimitReached === true,
-      );
-    } catch (searchError) {
-      setClients([]);
-      setError(
-        searchError instanceof Error
-          ? searchError.message
-          : "Could not search Jobber customers.",
-      );
-    } finally {
-      setSearching(false);
-    }
-  };
+  const ownershipEvidenceComplete = hasCompleteJobberPropertyOwnershipEvidence({
+    pagesLoaded: propertyPagesLoaded,
+    hasNextPage: propertyHasNextPage,
+    ownershipProofPageLimit,
+  });
 
-  const selectClient = async (client: JobberClient) => {
-    setSelectedClient(client);
+  const resetPropertyBrowsing = () => {
+    propertyRequestGuard.invalidate();
+    setLoadingProperties(false);
     setProperties([]);
     setMemberProperties([]);
     setSelectedPropertyId("");
     setSelectedMembershipId("");
     setMemberFilter("");
     setSamePropertyConfirmed(false);
+    setPropertyAfter(null);
+    setPropertyHasNextPage(false);
+    setPropertySeenCursors([]);
+    setPropertyPagesLoaded(0);
+    setOwnershipProofPageLimit(0);
+    setCandidateLimitReached(false);
+  };
+
+  const resetClientBrowsing = () => {
+    clientRequestGuard.invalidate();
+    setSearching(false);
+    setClients([]);
+    setClientAfter(null);
+    setClientHasNextPage(false);
+    setClientSeenCursors([]);
+    setSelectedClient(null);
+    resetPropertyBrowsing();
+  };
+
+  const loadClientPage = async (
+    requestedAfter: string | null,
+    append: boolean,
+    seenCursors: readonly string[],
+  ) => {
+    const requestGeneration = clientRequestGuard.begin();
+    setSearching(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch(
+        "/api/admin/care-operations/jobber/clients/search",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query, after: requestedAfter }),
+          cache: "no-store",
+        },
+      );
+      const body = (await response.json().catch(() => null)) as
+        | SearchResponse
+        | null;
+      if (!clientRequestGuard.isCurrent(requestGeneration)) return;
+      if (!response.ok || !body?.clients) {
+        throw new Error(body?.error ?? "Could not search Jobber customers.");
+      }
+      const cursor = advanceJobberPaginationCursor({
+        requestedAfter,
+        endCursor: body.endCursor,
+        hasNextPage: body.hasNextPage,
+        seenCursors,
+      });
+      setClients((current) =>
+        append
+          ? appendUniqueJobberRecords(current, body.clients ?? [])
+          : appendUniqueJobberRecords([], body.clients ?? []),
+      );
+      setClientAfter(cursor.after);
+      setClientHasNextPage(cursor.hasNextPage);
+      setClientSeenCursors([...cursor.seenCursors]);
+    } catch (searchError) {
+      if (!clientRequestGuard.isCurrent(requestGeneration)) return;
+      if (!append) resetClientBrowsing();
+      setError(
+        searchError instanceof Error
+          ? searchError.message
+          : "Could not search Jobber customers.",
+      );
+    } finally {
+      if (clientRequestGuard.isCurrent(requestGeneration)) {
+        setSearching(false);
+      }
+    }
+  };
+
+  const searchClients = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    resetClientBrowsing();
+    await loadClientPage(null, false, []);
+  };
+
+  const loadPropertyPage = async (
+    client: JobberClient,
+    requestedAfter: string | null,
+    append: boolean,
+    seenCursors: readonly string[],
+    pagesLoaded: number,
+  ) => {
+    const requestGeneration = propertyRequestGuard.begin();
     setLoadingProperties(true);
     setError(null);
     setSuccess(null);
@@ -133,35 +203,59 @@ export function JobberMemberPropertyLinkPanel() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ clientId: client.id }),
+          body: JSON.stringify({ clientId: client.id, after: requestedAfter }),
           cache: "no-store",
         },
       );
       const body = (await response.json().catch(() => null)) as
         | PropertiesResponse
         | null;
+      if (!propertyRequestGuard.isCurrent(requestGeneration)) return;
       if (
         !response.ok ||
         !body?.properties ||
-        !body.activeMemberProperties
+        !body.activeMemberProperties ||
+        !Number.isInteger(body.ownershipProofPageLimit) ||
+        (body.ownershipProofPageLimit ?? 0) < 1
       ) {
         throw new Error(body?.error ?? "Could not load Jobber properties.");
       }
-      setProperties(body.properties);
-      setMemberProperties(body.activeMemberProperties);
-      setPropertyCoverageLimitReached(
-        body.propertyCoverageLimitReached === true,
+      const cursor = advanceJobberPaginationCursor({
+        requestedAfter,
+        endCursor: body.endCursor,
+        hasNextPage: body.hasNextPage,
+        seenCursors,
+      });
+      setProperties((current) =>
+        append
+          ? appendUniqueJobberRecords(current, body.properties ?? [])
+          : appendUniqueJobberRecords([], body.properties ?? []),
       );
+      if (!append) setMemberProperties(body.activeMemberProperties);
+      setPropertyAfter(cursor.after);
+      setPropertyHasNextPage(cursor.hasNextPage);
+      setPropertySeenCursors([...cursor.seenCursors]);
+      setPropertyPagesLoaded(pagesLoaded + 1);
+      setOwnershipProofPageLimit(body.ownershipProofPageLimit ?? 0);
       setCandidateLimitReached(body.candidateLimitReached === true);
     } catch (propertiesError) {
+      if (!propertyRequestGuard.isCurrent(requestGeneration)) return;
       setError(
         propertiesError instanceof Error
           ? propertiesError.message
           : "Could not load Jobber properties.",
       );
     } finally {
-      setLoadingProperties(false);
+      if (propertyRequestGuard.isCurrent(requestGeneration)) {
+        setLoadingProperties(false);
+      }
     }
+  };
+
+  const selectClient = async (client: JobberClient) => {
+    setSelectedClient(client);
+    resetPropertyBrowsing();
+    await loadPropertyPage(client, null, false, [], 0);
   };
 
   const confirmLink = async () => {
@@ -232,7 +326,12 @@ export function JobberMemberPropertyLinkPanel() {
             minLength={2}
             maxLength={100}
             required
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              resetClientBrowsing();
+              setError(null);
+              setSuccess(null);
+            }}
             placeholder="Customer name"
             autoComplete="off"
             className="min-h-11 w-full rounded-xl border border-border bg-background px-4 text-sm text-foreground placeholder:text-muted/70"
@@ -253,18 +352,6 @@ export function JobberMemberPropertyLinkPanel() {
           <p className="mt-4 text-sm text-emerald-300">{success}</p>
         ) : null}
       </div>
-      {resultLimitReached ? (
-        <p className="mt-4 text-xs text-amber-300">
-          More than 20 customers matched. Refine the name to narrow the results.
-        </p>
-      ) : null}
-      {clientCoverageLimitReached ? (
-        <p className="mt-4 text-xs text-amber-300">
-          Customer review reached its 1,000-record safety bound. These results
-          do not represent full Jobber coverage.
-        </p>
-      ) : null}
-
       {clients.length > 0 ? (
         <ul className="mt-4 grid gap-2 sm:grid-cols-2">
           {clients.map((client) => (
@@ -281,11 +368,23 @@ export function JobberMemberPropertyLinkPanel() {
           ))}
         </ul>
       ) : null}
+      {clientHasNextPage ? (
+        <button
+          type="button"
+          onClick={() =>
+            void loadClientPage(clientAfter, true, clientSeenCursors)
+          }
+          disabled={searching || !clientAfter}
+          className="mt-4 rounded-full border border-border px-4 py-2 text-xs text-muted transition hover:border-accent/40 hover:text-foreground disabled:opacity-40"
+        >
+          {searching ? "Loading customers…" : "Search next 100 Jobber customers"}
+        </button>
+      ) : null}
 
       {selectedClient ? (
         <div className="mt-6 rounded-2xl border border-border/70 p-4 sm:p-5">
           <p className="text-sm text-foreground">{selectedClient.name}</p>
-          {loadingProperties ? (
+          {loadingProperties && properties.length === 0 ? (
             <p className="mt-3 text-xs text-muted">Loading exact properties…</p>
           ) : properties.length === 0 ? (
             <p className="mt-3 text-xs text-muted">
@@ -331,10 +430,29 @@ export function JobberMemberPropertyLinkPanel() {
             </fieldset>
           )}
 
-          {propertyCoverageLimitReached ? (
+          {propertyHasNextPage ? (
+            <button
+              type="button"
+              onClick={() =>
+                void loadPropertyPage(
+                  selectedClient,
+                  propertyAfter,
+                  true,
+                  propertySeenCursors,
+                  propertyPagesLoaded,
+                )
+              }
+              disabled={loadingProperties || !propertyAfter}
+              className="mt-4 rounded-full border border-border px-4 py-2 text-xs text-muted transition hover:border-accent/40 hover:text-foreground disabled:opacity-40"
+            >
+              {loadingProperties ? "Loading properties…" : "Load more properties"}
+            </button>
+          ) : null}
+          {propertyPagesLoaded > 0 && !ownershipEvidenceComplete ? (
             <p className="mt-4 text-xs text-amber-300">
-              Property review reached its 500-record safety bound. The visible
-              properties are not a full-coverage claim.
+              {propertyHasNextPage
+                ? "Load every Jobber property page before confirming a link."
+                : "The current ownership proof cannot cover this many Jobber properties, so linking remains unavailable."}
             </p>
           ) : null}
           {candidateLimitReached ? (
@@ -404,7 +522,12 @@ export function JobberMemberPropertyLinkPanel() {
                   onChange={(event) =>
                     setSamePropertyConfirmed(event.target.checked)
                   }
-                  disabled={!selectedMembershipId || candidateLimitReached || saving}
+                  disabled={
+                    !selectedMembershipId ||
+                    candidateLimitReached ||
+                    !ownershipEvidenceComplete ||
+                    saving
+                  }
                   className="mt-0.5 size-4 accent-[var(--accent)]"
                 />
                 I opened the Jobber property and confirmed it is the same
@@ -415,6 +538,7 @@ export function JobberMemberPropertyLinkPanel() {
                 onClick={() => void confirmLink()}
                 disabled={
                   candidateLimitReached ||
+                  !ownershipEvidenceComplete ||
                   !selectedMembershipId ||
                   !samePropertyConfirmed ||
                   saving

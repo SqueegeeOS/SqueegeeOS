@@ -4,6 +4,7 @@ import {
   JOBBER_CLIENT_PROPERTIES_QUERY,
   JOBBER_CLIENT_SEARCH_QUERY,
   listJobberClientProperties,
+  listJobberClientPropertiesPage,
   proveJobberClientPropertyOwnership,
   searchJobberClients,
 } from "./jobber-client-search-provider";
@@ -89,34 +90,26 @@ describe("Jobber member-search provider", () => {
     vi.unstubAllEnvs();
   });
 
-  it("paginates beyond 200 clients, removes replayed IDs, and stays read-only", async () => {
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(
-        clientResponse(
-          Array.from({ length: 100 }, (_, index) => client(index)),
-          { endCursor: "cursor-1", hasNextPage: true },
-        ),
-      )
-      .mockResolvedValueOnce(
-        clientResponse(
-          [client(99), ...Array.from({ length: 99 }, (_, index) => client(index + 100))],
-          { endCursor: "cursor-2", hasNextPage: true },
-        ),
-      )
-      .mockResolvedValueOnce(
-        clientResponse(
-          [client(198), client(199), client(200, "Target household")],
-        ),
-      );
+  it("returns one bounded client page with continuation and stays read-only", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      clientResponse(
+        [client(100, "Target household"), client(100, "Target household")],
+        { endCursor: "cursor-2", hasNextPage: true },
+      ),
+    );
 
     const result = await searchJobberClients("access-token", "target", {
       fetcher,
+      after: "cursor-1",
     });
-    expect(result.clients).toEqual([client(200, "Target household")]);
-    expect(result.clientsScanned).toBe(201);
-    expect(result.pagesScanned).toBe(3);
-    expect(fetcher).toHaveBeenCalledTimes(3);
+    expect(result.clients).toEqual([client(100, "Target household")]);
+    expect(result).toMatchObject({
+      endCursor: "cursor-2",
+      hasNextPage: true,
+      clientsScanned: 1,
+      pagesScanned: 1,
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
     expect(JOBBER_CLIENT_SEARCH_QUERY).toContain(
       "clients(first: 100, after: $after)",
     );
@@ -127,6 +120,9 @@ describe("Jobber member-search provider", () => {
     expect(init.headers).toMatchObject({
       Authorization: "Bearer access-token",
       "X-JOBBER-GRAPHQL-VERSION": "2025-04-16",
+    });
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      variables: { after: "cursor-1" },
     });
   });
 
@@ -150,7 +146,7 @@ describe("Jobber member-search provider", () => {
     },
   );
 
-  it("caps returned matches at 20 and reports additional matches", async () => {
+  it("returns every matching client from the bounded page", async () => {
     const result = await searchJobberClients("token", "member", {
       fetcher: vi.fn().mockResolvedValue(
         clientResponse(
@@ -160,38 +156,29 @@ describe("Jobber member-search provider", () => {
         ),
       ),
     });
-    expect(result.clients).toHaveLength(20);
-    expect(result.resultLimitReached).toBe(true);
+    expect(result.clients).toHaveLength(21);
   });
 
-  it("detects a repeated pagination cursor", async () => {
-    const fetcher = vi
-      .fn()
-      .mockResolvedValueOnce(
-        clientResponse([], { endCursor: "same", hasNextPage: true }),
-      )
-      .mockResolvedValueOnce(
-        clientResponse([], { endCursor: "same", hasNextPage: true }),
-      );
+  it("detects a repeated client pagination cursor", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      clientResponse([], { endCursor: "same", hasNextPage: true }),
+    );
     await expect(
-      searchJobberClients("token", "member", { fetcher }),
+      searchJobberClients("token", "member", { fetcher, after: "same" }),
     ).rejects.toMatchObject({ code: "cursor_loop" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
-  it("stops at ten client pages and reports incomplete coverage", async () => {
-    const fetcher = vi.fn();
-    for (let page = 0; page < 10; page += 1) {
-      fetcher.mockResolvedValueOnce(
-        clientResponse([client(page)], {
-          endCursor: `cursor-${page}`,
-          hasNextPage: true,
-        }),
-      );
-    }
-    const result = await searchJobberClients("token", "client", { fetcher });
-    expect(fetcher).toHaveBeenCalledTimes(10);
-    expect(result.clientCoverageLimitReached).toBe(true);
-  });
+  it.each(["", "x".repeat(2_049)])(
+    "rejects invalid opaque cursor input without a request",
+    async (after) => {
+      const fetcher = vi.fn();
+      await expect(
+        searchJobberClients("token", "member", { fetcher, after }),
+      ).rejects.toMatchObject({ code: "invalid_cursor" });
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
 
   it("detects 429 responses", async () => {
     await expect(
@@ -301,8 +288,9 @@ describe("Jobber member-search provider", () => {
       )
       .mockResolvedValueOnce(clientResponse([], { extensions: {} }));
 
+    await searchJobberClients("token", "member", { fetcher });
     await expect(
-      searchJobberClients("token", "member", { fetcher }),
+      searchJobberClients("token", "member", { fetcher, after: "next" }),
     ).rejects.toMatchObject({ code: "version_unverified" });
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
@@ -317,10 +305,58 @@ describe("Jobber member-search provider", () => {
         clientResponse([], { extensions: warningVersioning }),
       );
 
+    await searchJobberClients("token", "member", { fetcher });
     await expect(
-      searchJobberClients("token", "member", { fetcher }),
+      searchJobberClients("token", "member", { fetcher, after: "next" }),
     ).rejects.toMatchObject({ code: "version_warning" });
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns one selected-client property page with continuation", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      propertyResponse(
+        [
+          {
+            id: "property-2",
+            jobberWebUri: "https://secure.getjobber.com/properties/2",
+          },
+        ],
+        { endCursor: "property-cursor-2", hasNextPage: true },
+      ),
+    );
+    const result = await listJobberClientPropertiesPage(
+      "token",
+      "client-1",
+      { fetcher, after: "property-cursor-1" },
+    );
+    expect(result).toMatchObject({
+      properties: [{ id: "property-2" }],
+      endCursor: "property-cursor-2",
+      hasNextPage: true,
+      propertyCoverageComplete: false,
+      ownershipProofPageLimit: 10,
+      pagesScanned: 1,
+      observedGraphqlVersion: "2025-04-16",
+    });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    const requestBody = JSON.parse(
+      String((fetcher.mock.calls[0]?.[1] as RequestInit).body),
+    ) as { variables: Record<string, unknown> };
+    expect(requestBody.variables).toEqual({
+      clientId: "client-1",
+      after: "property-cursor-1",
+    });
+  });
+
+  it("detects a repeated selected-client property cursor", async () => {
+    await expect(
+      listJobberClientPropertiesPage("token", "client-1", {
+        after: "same",
+        fetcher: vi.fn().mockResolvedValue(
+          propertyResponse([], { endCursor: "same", hasNextPage: true }),
+        ),
+      }),
+    ).rejects.toMatchObject({ code: "cursor_loop" });
   });
 
   it("paginates only the selected client's property IDs and URIs", async () => {

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 function providerErrorResponse(error: JobberClientProviderError) {
   const status =
-    error.code === "invalid_query"
+    error.code === "invalid_query" || error.code === "invalid_cursor"
       ? 400
       : error.code === "http_429"
         ? 429
@@ -20,6 +20,8 @@ function providerErrorResponse(error: JobberClientProviderError) {
   const message =
     error.code === "invalid_query"
       ? "Enter 2 to 100 search characters."
+      : error.code === "invalid_cursor"
+        ? "Refresh the Jobber customer search before continuing."
       : error.code === "http_429"
         ? "Jobber is limiting requests. Wait a moment and try again."
         : "Jobber customer search is temporarily unavailable.";
@@ -49,7 +51,10 @@ export async function POST(request: Request) {
     typeof body !== "object" ||
     body === null ||
     Array.isArray(body) ||
-    typeof (body as { query?: unknown }).query !== "string"
+    typeof (body as { query?: unknown }).query !== "string" ||
+    ((body as { after?: unknown }).after !== undefined &&
+      (body as { after?: unknown }).after !== null &&
+      typeof (body as { after?: unknown }).after !== "string")
   ) {
     return NextResponse.json(
       { error: "Enter a customer name to search." },
@@ -63,6 +68,7 @@ export async function POST(request: Request) {
       await searchJobberClients(
         accessToken,
         (body as { query: string }).query,
+        { after: (body as { after?: string | null }).after ?? null },
       ),
       { headers: HQ_AUTH_RESPONSE_HEADERS },
     );
