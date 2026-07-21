@@ -67,9 +67,11 @@ describe("PR1a authorization scope", () => {
   });
 
   it("keeps automatic signup disabled without source-level approval disclosure", () => {
-    const requestRoute = read("../../app/auth/hq/request/route.ts");
-    expect(requestRoute).toContain("shouldCreateUser: false");
-    expect(requestRoute).not.toMatch(/not approved|unknown email|user not found/i);
+    const magicLinkRoute = read("./hq-magic-link-route.ts");
+    expect(magicLinkRoute).toContain("shouldCreateUser: false");
+    expect(magicLinkRoute).not.toMatch(
+      /not approved|unknown email|user not found/i,
+    );
   });
 });
 

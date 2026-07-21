@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { handleHqMagicLinkRequest } from "../../app/auth/hq/request/route";
+import { handleHqMagicLinkRequest } from "./hq-magic-link-route";
 
 const URL = "https://homeatlas.example/auth/hq/request";
 const TRUSTED_IP = "203.0.113.8";

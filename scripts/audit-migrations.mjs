@@ -75,6 +75,13 @@ const migration044Source = readFileSync(
   ),
   "utf8",
 );
+const migration045Source = readFileSync(
+  resolve(
+    process.cwd(),
+    "lib/persistence/supabase/migrations/045_jobber_coverage_resume.sql",
+  ),
+  "utf8",
+);
 
 const dbUrl = process.env.SUPABASE_DB_URL ?? process.env.DATABASE_URL;
 const isDirectExecution =
@@ -220,6 +227,318 @@ function expectedMigration032FunctionBody(name) {
 
 function expectedMigration044FunctionBody(name) {
   return expectedFunctionBodyFrom(migration044Source, "044", name);
+}
+
+export function assertMigration045RequiredClauses(source = migration045Source) {
+  const required = [
+    "status in ('running', 'awaiting_continuation', 'complete', 'partial')",
+    "create table if not exists public.jobber_schedule_sync_work_items",
+    "create table if not exists public.jobber_schedule_sync_request_attempts",
+    "alter table public.jobber_schedule_sync_work_items enable row level security",
+    "alter table public.jobber_schedule_sync_request_attempts enable row level security",
+    "from public, anon, authenticated, service_role",
+    "grant select on table public.jobber_schedule_sync_work_items",
+    "start_or_resume_jobber_schedule_coverage_sync",
+    "reserve_jobber_schedule_coverage_attempt",
+    "requested_acquisition_generation bigint",
+    "requested_owner_token uuid",
+    "assert_resumable_jobber_schedule_sync_owner",
+    "invalidate_jobber_visit_classification_on_manifest_omission",
+    "classification.scheduled_start >= new.window_start",
+    "classification.scheduled_start < new.window_end",
+    "manifest_omission_binding_conflict: expected exactly one bound authoritative appointment",
+    "mark_resumable_jobber_schedule_coverage_sync_partial",
+    "pause_jobber_schedule_coverage_sync",
+    "finalize_resumable_jobber_schedule_coverage_sync",
+    "revoke execute on function public.mark_jobber_schedule_coverage_sync_partial",
+  ];
+  if (required.some((clause) => !source.includes(clause))) {
+    throw new Error("Migration 045 required resumable coverage clause is missing");
+  }
+  return true;
+}
+
+assertMigration045RequiredClauses();
+
+const jobberCoverageResumeServiceFunctions = new Set([
+  "start_or_resume_jobber_schedule_coverage_sync",
+  "renew_resumable_jobber_schedule_coverage_sync_lease",
+  "reserve_jobber_schedule_coverage_attempt",
+  "record_jobber_schedule_coverage_overflow",
+  "record_jobber_schedule_coverage_leaf",
+  "complete_resumable_jobber_schedule_coverage_pass",
+  "pause_jobber_schedule_coverage_sync",
+  "mark_resumable_jobber_schedule_coverage_sync_partial",
+  "finalize_resumable_jobber_schedule_coverage_sync",
+]);
+
+const jobberCoverageResumeFunctions = [
+  {
+    proname: "assert_resumable_jobber_schedule_sync_owner",
+    argument_types: "uuid, uuid, bigint, uuid",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token"],
+    result_type: "text",
+    security_definer: true,
+  },
+  {
+    proname: "complete_resumable_jobber_schedule_coverage_pass",
+    argument_types: "uuid, uuid, bigint, uuid, smallint, text, text, integer, integer, integer",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token", "requested_pass", "requested_manifest_sha256", "requested_leaf_coverage_sha256", "requested_leaf_count", "requested_visit_count", "requested_request_count"],
+    result_type: "text",
+    security_definer: true,
+  },
+  {
+    proname: "finalize_resumable_jobber_schedule_coverage_sync",
+    argument_types: "uuid, uuid, bigint, uuid, bigint",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token", "requested_expected_watermark_generation"],
+    result_type: "text",
+    security_definer: true,
+  },
+  {
+    proname: "invalidate_jobber_visit_classification_on_manifest_omission",
+    argument_types: "",
+    argument_names: null,
+    result_type: "trigger",
+    security_definer: true,
+  },
+  {
+    proname: "mark_resumable_jobber_schedule_coverage_sync_partial",
+    argument_types: "uuid, uuid, bigint, uuid, text, integer",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token", "requested_failure_code", "requested_request_count"],
+    result_type: "void",
+    security_definer: true,
+  },
+  {
+    proname: "pause_jobber_schedule_coverage_sync",
+    argument_types: "uuid, uuid, bigint, uuid",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token"],
+    result_type: "void",
+    security_definer: true,
+  },
+  {
+    proname: "record_jobber_schedule_coverage_leaf",
+    argument_types: "uuid, uuid, bigint, uuid, uuid, text, jsonb",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token", "requested_attempt_id", "requested_manifest_sha256", "requested_observations"],
+    result_type: "jsonb",
+    security_definer: true,
+  },
+  {
+    proname: "record_jobber_schedule_coverage_overflow",
+    argument_types: "uuid, uuid, bigint, uuid, uuid, timestamp with time zone, timestamp with time zone, timestamp with time zone, timestamp with time zone",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token", "requested_attempt_id", "requested_left_start", "requested_left_end", "requested_right_start", "requested_right_end"],
+    result_type: "void",
+    security_definer: true,
+  },
+  {
+    proname: "reject_jobber_schedule_sync_attempt_change",
+    argument_types: "",
+    argument_names: null,
+    result_type: "trigger",
+    security_definer: false,
+  },
+  {
+    proname: "reject_jobber_schedule_sync_work_item_delete",
+    argument_types: "",
+    argument_names: null,
+    result_type: "trigger",
+    security_definer: false,
+  },
+  {
+    proname: "renew_resumable_jobber_schedule_coverage_sync_lease",
+    argument_types: "uuid, uuid, bigint, uuid",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token"],
+    result_type: "void",
+    security_definer: true,
+  },
+  {
+    proname: "reserve_jobber_schedule_coverage_attempt",
+    argument_types: "uuid, uuid, bigint, uuid, uuid",
+    argument_names: ["requested_run_id", "requested_actor_id", "requested_acquisition_generation", "requested_owner_token", "requested_attempt_id"],
+    result_type: "jsonb",
+    security_definer: true,
+  },
+  {
+    proname: "start_or_resume_jobber_schedule_coverage_sync",
+    argument_types: "uuid, text, uuid, timestamp with time zone, timestamp with time zone, text",
+    argument_names: ["requested_proposed_run_id", "requested_connection_id", "requested_actor_id", "requested_window_start", "requested_window_end", "requested_graphql_version"],
+    result_type: "jsonb",
+    security_definer: true,
+  },
+];
+
+export function expectedJobberCoverageResumeFunctionDefinitions() {
+  return jobberCoverageResumeFunctions.map((expected) => ({
+    function_schema: "public",
+    proname: expected.proname,
+    argument_types: expected.argument_types,
+    argument_names: expected.argument_names,
+    argument_defaults: null,
+    result_type: expected.result_type,
+    language_name: "plpgsql",
+    security_definer: expected.security_definer,
+    is_strict: false,
+    volatility: "v",
+    parallel_mode: "u",
+    config: "search_path=pg_catalog",
+    body: expectedFunctionBodyFrom(
+      migration045Source,
+      "045",
+      expected.proname,
+    ),
+  }));
+}
+
+export function hasExactJobberCoverageResumeFunctionDefinitions(rows) {
+  const actual = rows.map((row) => ({
+    function_schema: row.function_schema,
+    proname: row.proname,
+    argument_types: String(row.argument_types),
+    argument_names: row.argument_names ?? null,
+    argument_defaults:
+      row.argument_defaults === null ? null : normalizeSql(row.argument_defaults),
+    result_type: String(row.result_type),
+    language_name: String(row.language_name),
+    security_definer: row.security_definer === true,
+    is_strict: row.is_strict === true,
+    volatility: String(row.volatility),
+    parallel_mode: String(row.parallel_mode),
+    config: String(row.config),
+    body: normalizeFunctionBody(row.body),
+  }));
+  return exactJson(actual, expectedJobberCoverageResumeFunctionDefinitions());
+}
+
+export function hasExactJobberCoverageResumeFunctionAcl(rows) {
+  const expectedNames = new Set(jobberCoverageResumeFunctions.map((item) => item.proname));
+  const inventory = new Map();
+  for (const row of rows) {
+    const name = String(row.routine_name);
+    if (!expectedNames.has(name)) return false;
+    const entry = inventory.get(name) ?? {
+      functionOids: new Set(), ownerOids: new Set(), ownerRows: 0, serviceRows: 0,
+    };
+    entry.functionOids.add(String(row.function_oid));
+    entry.ownerOids.add(String(row.owner_oid));
+    if (row.is_owner === true) {
+      if (
+        String(row.grantee_oid) !== String(row.owner_oid) ||
+        row.privilege_type !== "EXECUTE" || row.is_grantable !== false
+      ) return false;
+      entry.ownerRows += 1;
+    } else {
+      if (
+        !jobberCoverageResumeServiceFunctions.has(name) ||
+        row.grantee_name !== "service_role" ||
+        row.privilege_type !== "EXECUTE" || row.is_grantable !== false
+      ) return false;
+      entry.serviceRows += 1;
+    }
+    inventory.set(name, entry);
+  }
+  return inventory.size === expectedNames.size && [...expectedNames].every((name) => {
+    const entry = inventory.get(name);
+    return Boolean(entry && entry.functionOids.size === 1 && entry.ownerOids.size === 1 &&
+      entry.ownerRows === 1 && entry.serviceRows === (jobberCoverageResumeServiceFunctions.has(name) ? 1 : 0));
+  });
+}
+
+export function hasExactJobberCoverageResumeTableAcl(rows) {
+  return exactJson(rows.map((row) => ({
+    table_name: row.table_name,
+    grantee: row.grantee,
+    privilege_type: row.privilege_type,
+    is_grantable: row.is_grantable === true,
+  })), [
+    { table_name: "jobber_schedule_sync_request_attempts", grantee: "service_role", privilege_type: "SELECT", is_grantable: false },
+    { table_name: "jobber_schedule_sync_work_items", grantee: "service_role", privilege_type: "SELECT", is_grantable: false },
+  ]);
+}
+
+export function isExactJobberCoverageResumeTriggerSet(rows, functionOids) {
+  return exactJson(rows.map((row) => ({
+    table_name: row.table_name,
+    trigger_name: row.trigger_name,
+    trigger_type: Number(row.trigger_type),
+    enabled_state: row.enabled_state,
+    function_oid: String(row.function_oid),
+  })), [
+    {
+      table_name: "jobber_schedule_sync_request_attempts",
+      trigger_name: "jobber_schedule_sync_request_attempts_immutable",
+      trigger_type: 27,
+      enabled_state: "O",
+      function_oid: String(functionOids.get("reject_jobber_schedule_sync_attempt_change")),
+    },
+    {
+      table_name: "jobber_schedule_sync_runs",
+      trigger_name: "jobber_visit_classifications_manifest_fence",
+      trigger_type: 17,
+      enabled_state: "O",
+      function_oid: String(functionOids.get("invalidate_jobber_visit_classification_on_manifest_omission")),
+    },
+    {
+      table_name: "jobber_schedule_sync_work_items",
+      trigger_name: "jobber_schedule_sync_work_items_no_delete",
+      trigger_type: 11,
+      enabled_state: "O",
+      function_oid: String(functionOids.get("reject_jobber_schedule_sync_work_item_delete")),
+    },
+  ]);
+}
+
+export function expectedJobberCoverageResumeConstraintInventory() {
+  const relation = (table_name, constraint_name, constraint_type, definition) => ({
+    table_name,
+    constraint_name,
+    constraint_type,
+    definition,
+    validated: true,
+    deferrable: false,
+    deferred: false,
+  });
+  return [
+    relation("jobber_schedule_sync_locks", "jobber_schedule_sync_locks_045_owner_check", "c", "check(((acquisition_generation>=0)and(((acquisition_generation=0)and(owner_tokenisnull))or((acquisition_generation>0)and(owner_tokenisnotnull)))and(((active_run_idisnull)and(acquired_atisnull)and(lease_expires_atisnull))or((active_run_idisnotnull)and(acquired_atisnotnull)and(lease_expires_atisnotnull)and(acquisition_generation>0)and(owner_tokenisnotnull))))"),
+    relation("jobber_schedule_sync_request_attempts", "jobber_schedule_sync_request_attempts_actor_fk", "f", "foreignkey(actor_id)referenceshq_admin_users(user_id)ondeleterestrict"),
+    relation("jobber_schedule_sync_request_attempts", "jobber_schedule_sync_request_attempts_generation_check", "c", "check((acquisition_generation>0))"),
+    relation("jobber_schedule_sync_request_attempts", "jobber_schedule_sync_request_attempts_pkey", "p", "primarykey(id)"),
+    relation("jobber_schedule_sync_request_attempts", "jobber_schedule_sync_request_attempts_window_check", "c", "check((window_start<window_end))"),
+    relation("jobber_schedule_sync_request_attempts", "jobber_schedule_sync_request_attempts_work_fk", "f", "foreignkey(run_id,pass_number,partition_path)referencesjobber_schedule_sync_work_items(run_id,pass_number,partition_path)ondeleterestrict"),
+    relation("jobber_schedule_sync_runs", "jobber_schedule_sync_runs_045_lifecycle_check", "c", "check(((((status=any(array['running'::text,'awaiting_continuation'::text]))and(completed_atisnull)and(failure_codeisnull))or((status='complete'::text)and(completed_atisnotnull)and(failure_codeisnull))or((status='partial'::text)and(completed_atisnotnull)and(failure_codeisnotnull)))))"),
+    relation("jobber_schedule_sync_runs", "jobber_schedule_sync_runs_045_status_check", "c", "check((status=any(array['running'::text,'awaiting_continuation'::text,'complete'::text,'partial'::text])))"),
+    relation("jobber_schedule_sync_work_items", "jobber_schedule_sync_work_items_attempt_check", "c", "check((((work_state='pending'::text)and(attempt_idisnull))or((work_state<>'pending'::text)and(attempt_idisnotnull))))"),
+    relation("jobber_schedule_sync_work_items", "jobber_schedule_sync_work_items_pass_check", "c", "check((pass_number=any(array[1,2])))"),
+    relation("jobber_schedule_sync_work_items", "jobber_schedule_sync_work_items_path_check", "c", "check(((partition_path~'^r[01]*$'::text)and(char_length(partition_path)<=128)))"),
+    relation("jobber_schedule_sync_work_items", "jobber_schedule_sync_work_items_pkey", "p", "primarykey(run_id,pass_number,partition_path)"),
+    relation("jobber_schedule_sync_work_items", "jobber_schedule_sync_work_items_run_fk", "f", "foreignkey(run_id)referencesjobber_schedule_sync_runs(id)ondeleterestrict"),
+    relation("jobber_schedule_sync_work_items", "jobber_schedule_sync_work_items_state_check", "c", "check((work_state=any(array['pending'::text,'in_progress'::text,'overflow'::text,'complete'::text])))"),
+    relation("jobber_schedule_sync_work_items", "jobber_schedule_sync_work_items_window_check", "c", "check((window_start<window_end))"),
+    relation("jobber_schedule_sync_work_items", "jobber_schedule_sync_work_items_window_key", "u", "unique(run_id,pass_number,window_start,window_end)"),
+  ];
+}
+
+export function hasExactJobberCoverageResumeConstraints(rows) {
+  const shape = (row) => ({
+    table_name: row.table_name,
+    constraint_name: row.constraint_name,
+    constraint_type: row.constraint_type,
+    definition: normalizeConstraintDefinition(row.definition),
+    validated: row.validated === true,
+    deferrable: row.deferrable === true,
+    deferred: row.deferred === true,
+  });
+  const key = (row) => JSON.stringify(shape(row));
+  return exactJson(
+    rows.map(key).sort(),
+    expectedJobberCoverageResumeConstraintInventory().map(key).sort(),
+  );
+}
+
+export function hasNoJobberCoverageResumeBrowserPolicies(rows) {
+  return rows.length === 1 && Number(rows[0]?.count) === 0;
+}
+
+export function hasNoLegacyJobberCoverageEffectiveMutatorPrivileges(rows) {
+  return rows.length === 0;
 }
 
 function expectedMigration036FunctionBody(name) {
@@ -764,6 +1083,7 @@ const checks = [
   ["042", "atomic membership activation completion", (s) => ["obligations", "obligation_events", "website_membership_sales"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && s.atomicActivationIndexExact && s.atomicCompletionTableAclExact && s.atomicCompletionFunctionAclExact && s.atomicCompletionFunctionDefinitionsExact && s.atomicCompletionTriggersExact && s.atomicCompletionBrowserPolicies === 0],
   ["043", "authoritative visit completion and evidence", (s) => ["jobber_visit_completion_events", "visit_text_evidence"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && hasColumn(s, "member_appointments", "jobber_authority_state") && s.visitCompletionTableAclExact && s.visitCompletionFunctionAclExact && s.visitCompletionFunctionDefinitionsExact && s.visitCompletionTriggersExact && s.visitCompletionConstraintsExact && s.visitCompletionBrowserPolicies === 0],
   ["044", "Jobber OAuth authority hardening", (s) => ["jobber_connections", "jobber_connection_events"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && s.jobberOauthOperationColumnExact && s.jobberOauthOperationIndexExact && s.jobberOauthFunctionDefinitionExact && s.jobberOauthFunctionAclExact && s.jobberConnectionEventTriggerExact && s.jobberOauthBrowserGrants === 0 && s.jobberOauthBrowserPolicies === 0],
+  ["045", "resumable Jobber schedule coverage", (s) => ["jobber_schedule_sync_work_items", "jobber_schedule_sync_request_attempts"].every((table) => hasTable(s, table) && s.rlsTables.has(table)) && hasColumn(s, "jobber_schedule_sync_runs", "continuation_paused_at") && hasColumn(s, "jobber_schedule_sync_locks", "acquisition_generation") && hasColumn(s, "jobber_schedule_sync_locks", "owner_token") && hasColumn(s, "jobber_schedule_sync_request_attempts", "acquisition_generation") && hasColumn(s, "jobber_schedule_sync_request_attempts", "owner_token") && s.jobberCoverageResumeTableAclExact && s.jobberCoverageResumeFunctionAclExact && s.jobberCoverageResumeFunctionDefinitionsExact && s.jobberCoverageResumeTriggersExact && s.jobberCoverageResumeBrowserPolicies === 0 && s.jobberCoverageResumeConstraintsExact && s.legacyJobberCoverageEffectiveMutatorPrivilegesAbsent],
 ];
 
 if (isDirectExecution && !dbUrl) {
@@ -777,7 +1097,7 @@ await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers, atomicActivationIndex, atomicCompletionTableAcls, atomicCompletionFunctionAcls, atomicCompletionFunctionDetails, atomicCompletionTriggers, atomicCompletionBrowserPolicies, visitCompletionTableAcls, visitCompletionFunctionAcls, visitCompletionFunctionDetails, visitCompletionTriggers, visitCompletionBrowserPolicies, visitCompletionConstraints, jobberOauthColumn, jobberOauthIndex, jobberOauthFunctionDetails, jobberOauthFunctionAcls, jobberConnectionEventTrigger, jobberOauthBrowserGrants, jobberOauthBrowserPolicies] = await Promise.all([
+  const [tables, columns, constraints, enums, rls, referralPolicies, hqAuthPolicies, authorityPolicies, authorityGrants, sensitiveReadPolicies, sensitiveReadGrants, homeCarePlanReadPolicies, presentationPolicies, functions, triggers, updatedAt, signingIndex, propertyAddressIndex, storageTable, authorityTableAcls, authorityFunctionAcls, authorityFunctionDetails, authorityTriggers, stripeSetupIndex, stripeCustomerIndex, stripeSetupColumns, stripeSetupEvidenceAcls, stripeSetupFunctionAcls, stripeSetupFunctionDetails, stripeSetupTriggers, atomicActivationIndex, atomicCompletionTableAcls, atomicCompletionFunctionAcls, atomicCompletionFunctionDetails, atomicCompletionTriggers, atomicCompletionBrowserPolicies, visitCompletionTableAcls, visitCompletionFunctionAcls, visitCompletionFunctionDetails, visitCompletionTriggers, visitCompletionBrowserPolicies, visitCompletionConstraints, jobberOauthColumn, jobberOauthIndex, jobberOauthFunctionDetails, jobberOauthFunctionAcls, jobberConnectionEventTrigger, jobberOauthBrowserGrants, jobberOauthBrowserPolicies, jobberCoverageResumeTableAcls, jobberCoverageResumeFunctionAcls, jobberCoverageResumeFunctionDetails, jobberCoverageResumeTriggers, jobberCoverageResumeBrowserPolicies, jobberCoverageResumeConstraints, legacyJobberCoverageEffectiveMutatorPrivileges] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, k.conname as constraint_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -827,6 +1147,32 @@ try {
     client.query("select table_namespace.nspname as table_schema, relation.relname as table_name, trigger_info.tgname as trigger_name, trigger_info.tgisinternal as is_internal, trigger_info.tgtype::integer as trigger_type, trigger_info.tgenabled as enabled_state, function_namespace.nspname as function_schema, trigger_function.proname as function_name, language.lanname as language_name, trigger_function.prosecdef as security_definer, trigger_function.proisstrict as is_strict, trigger_function.provolatile as volatility, trigger_function.proparallel as parallel_mode, coalesce(array_to_string(trigger_function.proconfig, ','), '') as config, trigger_function.prosrc as body from pg_catalog.pg_trigger trigger_info join pg_catalog.pg_class relation on relation.oid = trigger_info.tgrelid join pg_catalog.pg_namespace table_namespace on table_namespace.oid = relation.relnamespace join pg_catalog.pg_proc trigger_function on trigger_function.oid = trigger_info.tgfoid join pg_catalog.pg_namespace function_namespace on function_namespace.oid = trigger_function.pronamespace join pg_catalog.pg_language language on language.oid = trigger_function.prolang where trigger_info.tgname = 'jobber_connection_events_immutable' order by table_schema, table_name, trigger_name"),
     client.query("select count(*)::integer as count from pg_catalog.pg_class relation join pg_catalog.pg_namespace relation_namespace on relation_namespace.oid = relation.relnamespace cross join lateral pg_catalog.aclexplode(coalesce(relation.relacl, pg_catalog.acldefault('r', relation.relowner))) acl where relation_namespace.nspname = 'public' and relation.relname in ('jobber_connections', 'jobber_connection_events') and (acl.grantee = 0 or pg_catalog.pg_has_role('anon', acl.grantee, 'MEMBER') or pg_catalog.pg_has_role('authenticated', acl.grantee, 'MEMBER'))"),
     client.query("select count(*)::integer as count from pg_catalog.pg_policy policy join pg_catalog.pg_class relation on relation.oid = policy.polrelid join pg_catalog.pg_namespace relation_namespace on relation_namespace.oid = relation.relnamespace where relation_namespace.nspname = 'public' and relation.relname in ('jobber_connections', 'jobber_connection_events') and exists (select 1 from pg_catalog.unnest(policy.polroles) policy_role(role_oid) where policy_role.role_oid = 0 or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER') or pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER'))"),
+    client.query("select relation.relname as table_name, case when acl.grantee = 0 then 'PUBLIC' else grantee_role.rolname end as grantee, acl.privilege_type, acl.is_grantable from pg_catalog.pg_class relation join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace cross join lateral pg_catalog.aclexplode(coalesce(relation.relacl, pg_catalog.acldefault('r', relation.relowner))) acl left join pg_catalog.pg_roles grantee_role on grantee_role.oid = acl.grantee where namespace.nspname = 'public' and relation.relname in ('jobber_schedule_sync_work_items', 'jobber_schedule_sync_request_attempts') and acl.grantee <> relation.relowner order by relation.relname, grantee, acl.privilege_type"),
+    client.query("select routine.oid::text as function_oid, routine.proname as routine_name, routine.proowner::text as owner_oid, owner_role.rolname as owner_name, acl.grantee::text as grantee_oid, case when acl.grantee = 0 then 'PUBLIC' else grantee_role.rolname end as grantee_name, acl.grantee = routine.proowner as is_owner, acl.privilege_type, acl.is_grantable from pg_catalog.pg_proc routine join pg_catalog.pg_namespace namespace on namespace.oid = routine.pronamespace join pg_catalog.pg_roles owner_role on owner_role.oid = routine.proowner cross join lateral pg_catalog.aclexplode(coalesce(routine.proacl, pg_catalog.acldefault('f', routine.proowner))) acl left join pg_catalog.pg_roles grantee_role on grantee_role.oid = acl.grantee where namespace.nspname = 'public' and routine.proname in ('assert_resumable_jobber_schedule_sync_owner', 'start_or_resume_jobber_schedule_coverage_sync', 'renew_resumable_jobber_schedule_coverage_sync_lease', 'reserve_jobber_schedule_coverage_attempt', 'record_jobber_schedule_coverage_overflow', 'record_jobber_schedule_coverage_leaf', 'complete_resumable_jobber_schedule_coverage_pass', 'pause_jobber_schedule_coverage_sync', 'mark_resumable_jobber_schedule_coverage_sync_partial', 'finalize_resumable_jobber_schedule_coverage_sync', 'invalidate_jobber_visit_classification_on_manifest_omission', 'reject_jobber_schedule_sync_attempt_change', 'reject_jobber_schedule_sync_work_item_delete') order by routine.proname, routine.oid, acl.grantee, acl.privilege_type"),
+    client.query("select namespace.nspname as function_schema, routine.proname, pg_catalog.oidvectortypes(routine.proargtypes) as argument_types, routine.proargnames as argument_names, pg_catalog.pg_get_expr(routine.proargdefaults, 0) as argument_defaults, pg_catalog.pg_get_function_result(routine.oid) as result_type, language.lanname as language_name, routine.prosecdef as security_definer, routine.proisstrict as is_strict, routine.provolatile as volatility, routine.proparallel as parallel_mode, coalesce(pg_catalog.array_to_string(routine.proconfig, ','), '') as config, routine.prosrc as body from pg_catalog.pg_proc routine join pg_catalog.pg_namespace namespace on namespace.oid = routine.pronamespace join pg_catalog.pg_language language on language.oid = routine.prolang where namespace.nspname = 'public' and routine.proname in ('assert_resumable_jobber_schedule_sync_owner', 'start_or_resume_jobber_schedule_coverage_sync', 'renew_resumable_jobber_schedule_coverage_sync_lease', 'reserve_jobber_schedule_coverage_attempt', 'record_jobber_schedule_coverage_overflow', 'record_jobber_schedule_coverage_leaf', 'complete_resumable_jobber_schedule_coverage_pass', 'pause_jobber_schedule_coverage_sync', 'mark_resumable_jobber_schedule_coverage_sync_partial', 'finalize_resumable_jobber_schedule_coverage_sync', 'invalidate_jobber_visit_classification_on_manifest_omission', 'reject_jobber_schedule_sync_attempt_change', 'reject_jobber_schedule_sync_work_item_delete') order by routine.proname, argument_types"),
+    client.query("select relation.relname as table_name, trigger_row.tgname as trigger_name, trigger_row.tgtype::integer as trigger_type, trigger_row.tgenabled as enabled_state, trigger_row.tgfoid::text as function_oid from pg_catalog.pg_trigger trigger_row join pg_catalog.pg_class relation on relation.oid = trigger_row.tgrelid join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace where namespace.nspname = 'public' and relation.relname in ('jobber_schedule_sync_work_items', 'jobber_schedule_sync_request_attempts', 'jobber_schedule_sync_runs') and not trigger_row.tgisinternal and trigger_row.tgname in ('jobber_schedule_sync_request_attempts_immutable', 'jobber_schedule_sync_work_items_no_delete', 'jobber_visit_classifications_manifest_fence') order by relation.relname, trigger_row.tgname"),
+    client.query("select count(*)::integer as count from pg_catalog.pg_policy policy join pg_catalog.pg_class relation on relation.oid = policy.polrelid join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace where namespace.nspname = 'public' and relation.relname in ('jobber_schedule_sync_work_items', 'jobber_schedule_sync_request_attempts') and exists (select 1 from pg_catalog.unnest(policy.polroles) policy_role(role_oid) where policy_role.role_oid = 0 or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER') or pg_catalog.pg_has_role('authenticated', policy_role.role_oid, 'MEMBER'))"),
+    client.query("select relation.relname as table_name, constraint_row.conname as constraint_name, constraint_row.contype::text as constraint_type, pg_catalog.pg_get_constraintdef(constraint_row.oid) as definition, constraint_row.convalidated as validated, constraint_row.condeferrable as deferrable, constraint_row.condeferred as deferred from pg_catalog.pg_constraint constraint_row join pg_catalog.pg_class relation on relation.oid = constraint_row.conrelid join pg_catalog.pg_namespace namespace on namespace.oid = relation.relnamespace where namespace.nspname = 'public' and (relation.relname in ('jobber_schedule_sync_work_items', 'jobber_schedule_sync_request_attempts') or (relation.relname = 'jobber_schedule_sync_runs' and constraint_row.conname in ('jobber_schedule_sync_runs_045_status_check', 'jobber_schedule_sync_runs_045_lifecycle_check')) or (relation.relname = 'jobber_schedule_sync_locks' and constraint_row.conname = 'jobber_schedule_sync_locks_045_owner_check')) order by relation.relname, constraint_row.conname"),
+    client.query(`with legacy(signature) as (values
+      ('public.begin_jobber_schedule_coverage_sync(uuid,text,uuid,timestamp with time zone,timestamp with time zone,text)'),
+      ('public.renew_jobber_schedule_coverage_sync_lease(uuid)'),
+      ('public.append_jobber_schedule_coverage_leaf(uuid,smallint,integer,timestamp with time zone,timestamp with time zone,text,jsonb)'),
+      ('public.complete_jobber_schedule_coverage_pass(uuid,smallint,text,text,integer,integer,integer)'),
+      ('public.finalize_jobber_schedule_coverage_sync(uuid,bigint)'),
+      ('public.mark_jobber_schedule_coverage_sync_partial(uuid,text,integer)')
+    ), checked_roles(role_name) as (values ('anon'), ('authenticated'), ('service_role'))
+    select legacy.signature, checked_roles.role_name as grantee, 'effective'::text as privilege_source
+    from legacy cross join checked_roles
+    where pg_catalog.has_function_privilege(checked_roles.role_name, legacy.signature, 'EXECUTE')
+    union all
+    select legacy.signature, 'PUBLIC'::text as grantee, 'PUBLIC'::text as privilege_source
+    from legacy
+    join pg_catalog.pg_proc routine on routine.oid = pg_catalog.to_regprocedure(legacy.signature)
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(routine.proacl, pg_catalog.acldefault('f', routine.proowner))
+    ) acl
+    where acl.grantee = 0 and acl.privilege_type = 'EXECUTE'
+    order by signature, grantee, privilege_source`),
   ]);
 
   let agreementBucket = null;
@@ -1251,6 +1597,12 @@ try {
     trigger_name: row.trigger_name,
     definition: normalizeSql(row.definition),
   }));
+  const jobberCoverageResumeFunctionOids = new Map(
+    jobberCoverageResumeFunctionAcls.rows.map((row) => [
+      row.routine_name,
+      String(row.function_oid),
+    ]),
+  );
   const snapshot = {
     tables: new Set(tables.rows.map((row) => row.table_name)),
     columns: new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`)),
@@ -1416,6 +1768,27 @@ try {
       jobberOauthBrowserGrants.rows[0]?.count ?? 0,
     jobberOauthBrowserPolicies:
       jobberOauthBrowserPolicies.rows[0]?.count ?? 0,
+    jobberCoverageResumeTableAclExact:
+      hasExactJobberCoverageResumeTableAcl(jobberCoverageResumeTableAcls.rows),
+    jobberCoverageResumeFunctionAclExact:
+      hasExactJobberCoverageResumeFunctionAcl(jobberCoverageResumeFunctionAcls.rows),
+    jobberCoverageResumeFunctionDefinitionsExact:
+      hasExactJobberCoverageResumeFunctionDefinitions(
+        jobberCoverageResumeFunctionDetails.rows,
+      ),
+    jobberCoverageResumeTriggersExact:
+      isExactJobberCoverageResumeTriggerSet(
+        jobberCoverageResumeTriggers.rows,
+        jobberCoverageResumeFunctionOids,
+      ),
+    jobberCoverageResumeBrowserPolicies:
+      jobberCoverageResumeBrowserPolicies.rows[0]?.count ?? 0,
+    jobberCoverageResumeConstraintsExact:
+      hasExactJobberCoverageResumeConstraints(jobberCoverageResumeConstraints.rows),
+    legacyJobberCoverageEffectiveMutatorPrivilegesAbsent:
+      hasNoLegacyJobberCoverageEffectiveMutatorPrivileges(
+        legacyJobberCoverageEffectiveMutatorPrivileges.rows,
+      ),
     agreementBucket,
   };
 

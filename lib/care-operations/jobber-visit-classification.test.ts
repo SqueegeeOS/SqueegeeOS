@@ -254,6 +254,7 @@ describe("supervised Jobber visit classification", () => {
       leaf_count: 2,
       visit_count: 7,
       started_at: "2026-07-16T19:00:00.000Z",
+      continuation_paused_at: null,
       completed_at: "2026-07-16T19:10:00.000Z",
     };
     const unfinishedRun: StoredCoverageRun = {

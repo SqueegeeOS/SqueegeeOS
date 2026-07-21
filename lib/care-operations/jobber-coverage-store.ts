@@ -2,18 +2,27 @@ import "server-only";
 
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
-  type BeginJobberCoverageRunResult,
+  buildJobberCoveragePassManifest,
   type JobberCoverageFailureCode,
   type JobberCoverageLeaf,
+  type JobberCoverageObservation,
   type JobberCoveragePersistence,
+  type JobberCoverageReservedWork,
+  type StartOrResumeJobberCoverageRunResult,
 } from "./jobber-coverage-sync";
+import { parseJobberCoverageVisit } from "./jobber-coverage-provider";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 
 const JOBBER_COVERAGE_FRESHNESS_MS = 30 * 60_000;
 
 export function deriveJobberCoverageState(input: {
   latestRunId: string | null;
-  latestRunStatus: "running" | "complete" | "partial" | null;
+  latestRunStatus:
+    | "running"
+    | "awaiting_continuation"
+    | "complete"
+    | "partial"
+    | null;
   watermarkRunId: string | null;
   coveredAt: string | null;
   now: Date;
@@ -58,6 +67,22 @@ function assertRecord(value: unknown, message: string): Record<string, unknown> 
   return value as Record<string, unknown>;
 }
 
+function requiredString(value: unknown, message: string): string {
+  if (typeof value !== "string" || value.trim() === "") throw new Error(message);
+  return value;
+}
+
+function requiredInteger(value: unknown, message: string): number {
+  if (!Number.isInteger(value) || (value as number) < 0) throw new Error(message);
+  return value as number;
+}
+
+function requiredPositiveInteger(value: unknown, message: string): number {
+  const result = requiredInteger(value, message);
+  if (result < 1) throw new Error(message);
+  return result;
+}
+
 function leafRows(leaf: JobberCoverageLeaf) {
   return leaf.observations.map((observation) => {
     const visit = observation.visit;
@@ -84,53 +109,253 @@ function leafRows(leaf: JobberCoverageLeaf) {
 }
 
 export const jobberCoveragePersistence: JobberCoveragePersistence = {
-  async beginRun(input): Promise<BeginJobberCoverageRunResult> {
+  async startOrResumeRun(input): Promise<StartOrResumeJobberCoverageRunResult> {
     const { data, error } = await rpcClient().rpc(
-      "begin_jobber_schedule_coverage_sync",
+      "start_or_resume_jobber_schedule_coverage_sync",
       {
-        requested_run_id: input.runId,
+        requested_proposed_run_id: input.proposedRunId,
         requested_connection_id: JOBBER_CONNECTION_ID,
         requested_actor_id: input.actorId,
-        requested_window_start: input.window.startAt,
-        requested_window_end: input.window.endAt,
+        requested_window_start: input.proposedWindow.startAt,
+        requested_window_end: input.proposedWindow.endAt,
         requested_graphql_version: input.graphqlVersion,
       },
     );
     if (error) throw new Error(error.message);
     const result = assertRecord(data, "Jobber sync reservation was malformed");
-    if (result.outcome !== "acquired" && result.outcome !== "locked") {
+    if (
+      result.outcome !== "started" &&
+      result.outcome !== "resumed" &&
+      result.outcome !== "locked"
+    ) {
       throw new Error("Jobber sync reservation returned an unknown outcome");
     }
-    if (!Number.isInteger(result.watermark_generation)) {
-      throw new Error("Jobber sync reservation omitted its watermark generation");
+    if (result.current_pass !== 1 && result.current_pass !== 2) {
+      throw new Error("Jobber sync reservation omitted its current pass");
+    }
+    if (typeof result.pass_ready_to_complete !== "boolean") {
+      throw new Error("Jobber sync reservation omitted its frontier state");
     }
     return {
       outcome: result.outcome,
-      watermarkGeneration: result.watermark_generation as number,
+      runId: requiredString(result.run_id, "Jobber sync reservation omitted its run"),
+      acquisitionGeneration:
+        result.outcome === "locked"
+          ? null
+          : requiredPositiveInteger(
+              result.acquisition_generation,
+              "Jobber sync reservation omitted its acquisition generation",
+            ),
+      ownerToken:
+        result.outcome === "locked"
+          ? null
+          : requiredString(
+              result.owner_token,
+              "Jobber sync reservation omitted its owner token",
+            ),
+      watermarkGeneration: requiredInteger(
+        result.watermark_generation,
+        "Jobber sync reservation omitted its watermark generation",
+      ),
+      window: {
+        startAt: requiredString(
+          result.window_start,
+          "Jobber sync reservation omitted its window",
+        ),
+        endAt: requiredString(
+          result.window_end,
+          "Jobber sync reservation omitted its window",
+        ),
+      },
+      currentPass: result.current_pass,
+      passReadyToComplete: result.pass_ready_to_complete,
+      requestCount: requiredInteger(
+        result.request_count,
+        "Jobber sync reservation omitted its request count",
+      ),
+      leafCount: requiredInteger(
+        result.leaf_count,
+        "Jobber sync reservation omitted its leaf count",
+      ),
+      visitCount: requiredInteger(
+        result.visit_count,
+        "Jobber sync reservation omitted its visit count",
+      ),
     };
   },
 
-  async appendLeaf({ runId, leaf }): Promise<void> {
+  async reserveNextWork(input): Promise<JobberCoverageReservedWork> {
+    const { data, error } = await rpcClient().rpc(
+      "reserve_jobber_schedule_coverage_attempt",
+      {
+        requested_run_id: input.runId,
+        requested_actor_id: input.actorId,
+        requested_acquisition_generation: input.ownership.acquisitionGeneration,
+        requested_owner_token: input.ownership.ownerToken,
+        requested_attempt_id: input.attemptId,
+      },
+    );
+    if (error) throw new Error(error.message);
+    const result = assertRecord(data, "Jobber sync attempt reservation was malformed");
+    if (result.outcome !== "reserved" || (result.pass_number !== 1 && result.pass_number !== 2)) {
+      throw new Error("Jobber sync attempt reservation returned an unknown outcome");
+    }
+    return {
+      outcome: "reserved",
+      attemptId: requiredString(
+        result.attempt_id,
+        "Jobber sync attempt reservation omitted its id",
+      ),
+      pass: result.pass_number,
+      partitionPath: requiredString(
+        result.partition_path,
+        "Jobber sync attempt reservation omitted its path",
+      ),
+      window: {
+        startAt: requiredString(
+          result.window_start,
+          "Jobber sync attempt reservation omitted its window",
+        ),
+        endAt: requiredString(
+          result.window_end,
+          "Jobber sync attempt reservation omitted its window",
+        ),
+      },
+    };
+  },
+
+  async recordOverflow({ runId, actorId, ownership, work, children }): Promise<void> {
     const { error } = await rpcClient().rpc(
-      "append_jobber_schedule_coverage_leaf",
+      "record_jobber_schedule_coverage_overflow",
       {
         requested_run_id: runId,
-        requested_pass: leaf.pass,
-        requested_leaf_index: leaf.leafIndex,
-        requested_window_start: leaf.window.startAt,
-        requested_window_end: leaf.window.endAt,
-        requested_manifest_sha256: leaf.manifestSha256,
-        requested_observations: leafRows(leaf),
+        requested_actor_id: actorId,
+        requested_acquisition_generation: ownership.acquisitionGeneration,
+        requested_owner_token: ownership.ownerToken,
+        requested_attempt_id: work.attemptId,
+        requested_left_start: children[0].startAt,
+        requested_left_end: children[0].endAt,
+        requested_right_start: children[1].startAt,
+        requested_right_end: children[1].endAt,
       },
     );
     if (error) throw new Error(error.message);
   },
 
-  async completePass({ runId, manifest }): Promise<void> {
-    const { error } = await rpcClient().rpc(
-      "complete_jobber_schedule_coverage_pass",
+  async recordLeaf({ runId, actorId, ownership, work, observations, manifestSha256 }) {
+    const leaf: JobberCoverageLeaf = {
+      pass: work.pass,
+      leafIndex: 0,
+      window: work.window,
+      observations,
+      manifestSha256,
+    };
+    const { data, error } = await rpcClient().rpc(
+      "record_jobber_schedule_coverage_leaf",
       {
         requested_run_id: runId,
+        requested_actor_id: actorId,
+        requested_acquisition_generation: ownership.acquisitionGeneration,
+        requested_owner_token: ownership.ownerToken,
+        requested_attempt_id: work.attemptId,
+        requested_manifest_sha256: manifestSha256,
+        requested_observations: leafRows(leaf),
+      },
+    );
+    if (error) throw new Error(error.message);
+    const result = assertRecord(data, "Jobber sync leaf checkpoint was malformed");
+    if (typeof result.pass_ready_to_complete !== "boolean") {
+      throw new Error("Jobber sync leaf checkpoint omitted its frontier state");
+    }
+    return { passReadyToComplete: result.pass_ready_to_complete };
+  },
+
+  async loadPass({ runId, pass }) {
+    const supabase = createServiceRoleSupabaseClient();
+    const [partitionResult, observationResult, attemptResult] = await Promise.all([
+      supabase
+        .from("jobber_schedule_sync_partitions")
+        .select("id, leaf_index, window_start, window_end, manifest_sha256")
+        .eq("run_id", runId)
+        .eq("pass_number", pass)
+        .order("leaf_index", { ascending: true }),
+      supabase
+        .from("jobber_visit_source_observations")
+        .select(
+          "partition_id, external_visit_id, source_payload_hash, source_observed_at, source_payload",
+        )
+        .eq("run_id", runId)
+        .eq("pass_number", pass),
+      supabase
+        .from("jobber_schedule_sync_request_attempts")
+        .select("id")
+        .eq("run_id", runId)
+        .eq("pass_number", pass),
+    ]);
+    for (const result of [partitionResult, observationResult, attemptResult]) {
+      if (result.error) throw new Error(result.error.message);
+    }
+
+    const observationRows = (observationResult.data ?? []) as Array<{
+      partition_id: string;
+      external_visit_id: string;
+      source_payload_hash: string;
+      source_observed_at: string;
+      source_payload: unknown;
+    }>;
+    const observationsByPartition = new Map<string, JobberCoverageObservation[]>();
+    for (const row of observationRows) {
+      const payload = assertRecord(
+        row.source_payload,
+        "Stored Jobber coverage observation was malformed",
+      );
+      const observations = observationsByPartition.get(row.partition_id) ?? [];
+      observations.push({
+        externalVisitId: requiredString(
+          row.external_visit_id,
+          "Stored Jobber coverage observation omitted its visit",
+        ),
+        sourcePayloadHash: requiredString(
+          row.source_payload_hash,
+          "Stored Jobber coverage observation omitted its hash",
+        ),
+        sourceObservedAt: requiredString(
+          row.source_observed_at,
+          "Stored Jobber coverage observation omitted its timestamp",
+        ),
+        visit: parseJobberCoverageVisit(payload.raw_payload),
+      });
+      observationsByPartition.set(row.partition_id, observations);
+    }
+
+    const leaves = ((partitionResult.data ?? []) as Array<{
+      id: string;
+      leaf_index: number;
+      window_start: string;
+      window_end: string;
+      manifest_sha256: string;
+    }>).map((row) => ({
+      pass,
+      leafIndex: row.leaf_index,
+      window: { startAt: row.window_start, endAt: row.window_end },
+      observations: observationsByPartition.get(row.id) ?? [],
+      manifestSha256: row.manifest_sha256,
+    }));
+    return buildJobberCoveragePassManifest(
+      pass,
+      leaves,
+      (attemptResult.data ?? []).length,
+    );
+  },
+
+  async completePass({ runId, actorId, ownership, manifest }) {
+    const { data, error } = await rpcClient().rpc(
+      "complete_resumable_jobber_schedule_coverage_pass",
+      {
+        requested_run_id: runId,
+        requested_actor_id: actorId,
+        requested_acquisition_generation: ownership.acquisitionGeneration,
+        requested_owner_token: ownership.ownerToken,
         requested_pass: manifest.pass,
         requested_manifest_sha256: manifest.manifestSha256,
         requested_leaf_coverage_sha256: manifest.leafCoverageSha256,
@@ -140,24 +365,51 @@ export const jobberCoveragePersistence: JobberCoveragePersistence = {
       },
     );
     if (error) throw new Error(error.message);
+    if (data !== "pass_two_ready" && data !== "ready_to_finalize" && data !== "replay") {
+      throw new Error("Jobber sync pass completion returned an unknown outcome");
+    }
+    return data;
   },
 
-  async renewLease({ runId }): Promise<void> {
+  async pauseRun({ runId, actorId, ownership }): Promise<void> {
     const { error } = await rpcClient().rpc(
-      "renew_jobber_schedule_coverage_sync_lease",
-      { requested_run_id: runId },
+      "pause_jobber_schedule_coverage_sync",
+      {
+        requested_run_id: runId,
+        requested_actor_id: actorId,
+        requested_acquisition_generation: ownership.acquisitionGeneration,
+        requested_owner_token: ownership.ownerToken,
+      },
+    );
+    if (error) throw new Error(error.message);
+  },
+
+  async renewLease({ runId, actorId, ownership }): Promise<void> {
+    const { error } = await rpcClient().rpc(
+      "renew_resumable_jobber_schedule_coverage_sync_lease",
+      {
+        requested_run_id: runId,
+        requested_actor_id: actorId,
+        requested_acquisition_generation: ownership.acquisitionGeneration,
+        requested_owner_token: ownership.ownerToken,
+      },
     );
     if (error) throw new Error(error.message);
   },
 
   async finalizeRun({
     runId,
+    actorId,
+    ownership,
     expectedWatermarkGeneration,
   }): Promise<"completed" | "replay" | "unstable" | "watermark_conflict"> {
     const { data, error } = await rpcClient().rpc(
-      "finalize_jobber_schedule_coverage_sync",
+      "finalize_resumable_jobber_schedule_coverage_sync",
       {
         requested_run_id: runId,
+        requested_actor_id: actorId,
+        requested_acquisition_generation: ownership.acquisitionGeneration,
+        requested_owner_token: ownership.ownerToken,
         requested_expected_watermark_generation: expectedWatermarkGeneration,
       },
     );
@@ -187,11 +439,20 @@ export const jobberCoveragePersistence: JobberCoveragePersistence = {
     return data;
   },
 
-  async markPartial({ runId, failureCode, requestCount }): Promise<void> {
+  async markPartial({
+    runId,
+    actorId,
+    ownership,
+    failureCode,
+    requestCount,
+  }): Promise<void> {
     const { error } = await rpcClient().rpc(
-      "mark_jobber_schedule_coverage_sync_partial",
+      "mark_resumable_jobber_schedule_coverage_sync_partial",
       {
         requested_run_id: runId,
+        requested_actor_id: actorId,
+        requested_acquisition_generation: ownership.acquisitionGeneration,
+        requested_owner_token: ownership.ownerToken,
         requested_failure_code: failureCode,
         requested_request_count: requestCount,
       },
@@ -203,7 +464,7 @@ export const jobberCoveragePersistence: JobberCoveragePersistence = {
 export interface StoredCoverageRun {
   id: string;
   reservation_sequence: number;
-  status: "running" | "complete" | "partial";
+  status: "running" | "awaiting_continuation" | "complete" | "partial";
   actor_id: string;
   graphql_version: string;
   window_start: string;
@@ -213,6 +474,7 @@ export interface StoredCoverageRun {
   leaf_count: number;
   visit_count: number;
   started_at: string;
+  continuation_paused_at: string | null;
   completed_at: string | null;
 }
 
@@ -234,6 +496,7 @@ export interface JobberCoverageSyncStatus {
   freshnessThresholdMinutes: 30;
   fresh: boolean;
   syncInProgress: boolean;
+  awaitingContinuation: boolean;
   latestRun: {
     runId: string;
     status: StoredCoverageRun["status"];
@@ -257,6 +520,17 @@ export interface JobberCoverageSyncStatus {
     leafCount: number;
     visitCount: number;
     startedAt: string;
+  } | null;
+  continuationRun: {
+    runId: string;
+    actorId: string;
+    windowStart: string;
+    windowEnd: string;
+    requestCount: number;
+    leafCount: number;
+    visitCount: number;
+    startedAt: string;
+    pausedAt: string;
   } | null;
   watermark: {
     runId: string;
@@ -282,6 +556,7 @@ function presentRun(run: StoredCoverageRun) {
     leafCount: run.leaf_count,
     visitCount: run.visit_count,
     startedAt: run.started_at,
+    pausedAt: run.continuation_paused_at,
     completedAt: run.completed_at,
   };
 }
@@ -329,6 +604,7 @@ export function buildJobberCoverageSyncStatus(input: {
     freshnessThresholdMinutes: 30,
     fresh: derivedState.fresh,
     syncInProgress: lockIsCurrent,
+    awaitingContinuation: latestRun?.status === "awaiting_continuation",
     latestRun: latestRun ? presentRun(latestRun) : null,
     inProgressRun: lockIsCurrent && activeRun
       ? {
@@ -342,6 +618,21 @@ export function buildJobberCoverageSyncStatus(input: {
           startedAt: activeRun.started_at,
         }
       : null,
+    continuationRun:
+      latestRun?.status === "awaiting_continuation" &&
+      latestRun.continuation_paused_at
+        ? {
+            runId: latestRun.id,
+            actorId: latestRun.actor_id,
+            windowStart: latestRun.window_start,
+            windowEnd: latestRun.window_end,
+            requestCount: latestRun.request_count,
+            leafCount: latestRun.leaf_count,
+            visitCount: latestRun.visit_count,
+            startedAt: latestRun.started_at,
+            pausedAt: latestRun.continuation_paused_at,
+          }
+        : null,
     watermark: watermark && watermarkRun
       ? {
           runId: watermark.run_id,
@@ -361,7 +652,7 @@ export async function readJobberCoverageSyncStatus(
 ): Promise<JobberCoverageSyncStatus> {
   const supabase = createServiceRoleSupabaseClient();
   const runColumns =
-    "id, reservation_sequence, status, actor_id, graphql_version, window_start, window_end, failure_code, request_count, leaf_count, visit_count, started_at, completed_at";
+    "id, reservation_sequence, status, actor_id, graphql_version, window_start, window_end, failure_code, request_count, leaf_count, visit_count, started_at, continuation_paused_at, completed_at";
   const [runResult, watermarkResult, lockResult] = await Promise.all([
     supabase
       .from("jobber_schedule_sync_runs")
