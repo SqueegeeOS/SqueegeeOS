@@ -34,6 +34,7 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+  AUTHORITATIVE_COMPLETED_JOBBER_AUTHORITY_STATE,
   AUTHORITATIVE_JOBBER_AUTHORITY_STATE,
 } from "@/lib/care-operations/model";
 import type { PortalAccessContext } from "@/lib/persistence/queries/portal-access";
@@ -178,6 +179,38 @@ interface AppointmentRow {
   technician_name: string | null;
   notes: string | null;
   completed_at: string | null;
+  provider: string | null;
+  external_id: string | null;
+  source_payload_hash: string | null;
+  source_observed_at: string | null;
+  jobber_visit_classification_id: string | null;
+  jobber_projection_id: string | null;
+  jobber_connection_id: string | null;
+  jobber_property_link_id: string | null;
+  jobber_property_link_updated_at: string | null;
+  jobber_membership_id: string | null;
+  jobber_authority_state: string | null;
+  completion_evidence:
+    | JobberVisitCompletionEventRow
+    | JobberVisitCompletionEventRow[]
+    | null;
+}
+
+interface JobberVisitCompletionEventRow {
+  appointment_id: string;
+  classification_id: string;
+  projection_id: string;
+  connection_id: string;
+  external_visit_id: string;
+  source_payload_hash: string;
+  source_observed_at: string;
+  property_link_id: string;
+  property_link_updated_at: string;
+  membership_id: string;
+  property_id: string;
+  provider_visit_status: string;
+  provider_is_complete: boolean;
+  provider_completed_at: string;
 }
 
 interface SavingsRow {
@@ -206,7 +239,10 @@ function centsToDollars(cents: number): number {
   return Math.round(cents) / 100;
 }
 
-function mapAppointment(row: AppointmentRow): MemberAppointmentSummary {
+function mapAppointment(
+  row: AppointmentRow,
+  options?: { countsTowardMembershipSavings?: boolean },
+): MemberAppointmentSummary {
   return {
     id: row.id,
     date: row.scheduled_at,
@@ -214,7 +250,71 @@ function mapAppointment(row: AppointmentRow): MemberAppointmentSummary {
     technician: row.technician_name,
     notes: row.notes,
     status: row.status,
+    ...(options?.countsTowardMembershipSavings === false
+      ? { countsTowardMembershipSavings: false }
+      : {}),
   };
+}
+
+function getSingleCompletionEvidence(
+  row: AppointmentRow,
+): JobberVisitCompletionEventRow | null {
+  const evidence = row.completion_evidence;
+  if (Array.isArray(evidence)) {
+    return evidence.length === 1 ? evidence[0] : null;
+  }
+  return evidence ?? null;
+}
+
+function isApprovedScheduledAppointment(row: AppointmentRow): boolean {
+  return (
+    row.jobber_authority_state === AUTHORITATIVE_JOBBER_AUTHORITY_STATE &&
+    row.status === "scheduled" &&
+    row.completed_at === null &&
+    getSingleCompletionEvidence(row) === null
+  );
+}
+
+function hasExactCompletionEvidence(
+  row: AppointmentRow,
+  membershipId: string,
+  propertyId: string,
+): boolean {
+  const evidence = getSingleCompletionEvidence(row);
+  if (!evidence) return false;
+
+  return Boolean(
+    row.jobber_authority_state ===
+      AUTHORITATIVE_COMPLETED_JOBBER_AUTHORITY_STATE &&
+      row.status === "completed" &&
+      row.completed_at &&
+      row.provider === AUTHORITATIVE_APPOINTMENT_PROVIDER &&
+      row.external_id &&
+      row.source_payload_hash &&
+      row.source_observed_at &&
+      row.jobber_visit_classification_id &&
+      row.jobber_projection_id &&
+      row.jobber_connection_id &&
+      row.jobber_property_link_id &&
+      row.jobber_property_link_updated_at &&
+      row.jobber_membership_id === membershipId &&
+      row.property_id === propertyId &&
+      evidence.appointment_id === row.id &&
+      evidence.membership_id === row.jobber_membership_id &&
+      evidence.property_id === row.property_id &&
+      evidence.external_visit_id === row.external_id &&
+      evidence.source_payload_hash === row.source_payload_hash &&
+      evidence.source_observed_at === row.source_observed_at &&
+      evidence.classification_id === row.jobber_visit_classification_id &&
+      evidence.projection_id === row.jobber_projection_id &&
+      evidence.connection_id === row.jobber_connection_id &&
+      evidence.property_link_id === row.jobber_property_link_id &&
+      evidence.property_link_updated_at ===
+        row.jobber_property_link_updated_at &&
+      evidence.provider_visit_status === "COMPLETED" &&
+      evidence.provider_is_complete === true &&
+      evidence.provider_completed_at === row.completed_at
+  );
 }
 
 function mapSavingsRow(row: SavingsRow): MemberSavingsEntry {
@@ -458,10 +558,19 @@ export async function getMemberPortalDataByAccess(
     return null;
   }
 
-  const { data: appointmentRows, error: appointmentError } = await supabase
+  // Keep the established approved-schedule query independent from migration
+  // 043. If the completion table or PostgREST relationship is unavailable,
+  // valid scheduled visits must remain visible.
+  const { data: scheduledAppointmentRows, error: scheduledAppointmentError } =
+    await supabase
     .from("member_appointments")
     .select(
-      "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
+      `id, member_profile_id, property_id, service_type, scheduled_at, status,
+       technician_name, notes, completed_at, provider, external_id,
+       source_payload_hash, source_observed_at, jobber_visit_classification_id,
+       jobber_projection_id, jobber_connection_id, jobber_property_link_id,
+       jobber_property_link_updated_at, jobber_membership_id,
+       jobber_authority_state`,
     )
     .eq("property_id", access.propertyId)
     .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
@@ -473,7 +582,37 @@ export async function getMemberPortalDataByAccess(
     .eq("jobber_membership_id", access.membershipId)
     .order("scheduled_at", { ascending: true });
 
-  if (appointmentError) {
+  const { data: completedAppointmentRows, error: completedAppointmentError } =
+    await supabase
+      .from("member_appointments")
+      .select(
+        `id, member_profile_id, property_id, service_type, scheduled_at, status,
+       technician_name, notes, completed_at, provider, external_id,
+       source_payload_hash, source_observed_at, jobber_visit_classification_id,
+       jobber_projection_id, jobber_connection_id, jobber_property_link_id,
+       jobber_property_link_updated_at, jobber_membership_id,
+       jobber_authority_state,
+       completion_evidence:jobber_visit_completion_events(
+         appointment_id, classification_id, projection_id, connection_id,
+         external_visit_id, source_payload_hash, source_observed_at,
+         property_link_id, property_link_updated_at, membership_id, property_id,
+         provider_visit_status, provider_is_complete, provider_completed_at
+       )`,
+      )
+      .eq("property_id", access.propertyId)
+      .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
+      .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
+      .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
+      .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+      .eq(
+        "jobber_authority_state",
+        AUTHORITATIVE_COMPLETED_JOBBER_AUTHORITY_STATE,
+      )
+      .not("jobber_visit_classification_id", "is", null)
+      .eq("jobber_membership_id", access.membershipId)
+      .order("scheduled_at", { ascending: true });
+
+  if (scheduledAppointmentError || completedAppointmentError) {
     logProtectedQueryResult(
       {
         surface: "member-portal.appointments",
@@ -481,7 +620,10 @@ export async function getMemberPortalDataByAccess(
         propertyId: propertyRow.id,
         membershipId: membershipRow?.id ?? null,
       },
-      { count: 0, error: appointmentError },
+      {
+        count: scheduledAppointmentRows?.length ?? 0,
+        error: scheduledAppointmentError ?? completedAppointmentError,
+      },
     );
   } else {
     logProtectedQueryResult(
@@ -491,12 +633,40 @@ export async function getMemberPortalDataByAccess(
         propertyId: propertyRow.id,
         membershipId: membershipRow?.id ?? null,
       },
-      { count: appointmentRows?.length ?? 0 },
+      {
+        count:
+          (scheduledAppointmentRows?.length ?? 0) +
+          (completedAppointmentRows?.length ?? 0),
+      },
     );
   }
 
-  const appointments = ((appointmentRows ?? []) as AppointmentRow[]).map(
-    mapAppointment,
+  const approvedScheduledRows = (
+    (scheduledAppointmentRows ?? []) as AppointmentRow[]
+  ).filter(isApprovedScheduledAppointment);
+  const evidencedCompletedRows = (
+    (completedAppointmentRows ?? []) as AppointmentRow[]
+  ).filter((row) =>
+    hasExactCompletionEvidence(row, access.membershipId, access.propertyId),
+  );
+  const evidencedCompletedIds = new Set(
+    evidencedCompletedRows.map((row) => row.id),
+  );
+  // The two reads are intentionally independent for pre-043 continuity. If a
+  // visit completes between them, exact immutable evidence wins over the
+  // earlier scheduled snapshot. Malformed or missing evidence never displaces
+  // a valid scheduled visit.
+  const currentApprovedScheduledRows = approvedScheduledRows.filter(
+    (row) => !evidencedCompletedIds.has(row.id),
+  );
+  const appointments = [
+    ...currentApprovedScheduledRows.map((row) => mapAppointment(row)),
+    ...evidencedCompletedRows.map((row) =>
+      mapAppointment(row, { countsTowardMembershipSavings: false }),
+    ),
+  ].sort((a, b) => a.date.localeCompare(b.date));
+  const approvedScheduledAppointments = currentApprovedScheduledRows.map(
+    (row) => mapAppointment(row),
   );
 
   const today = new Date().toISOString();
@@ -638,7 +808,9 @@ export async function getMemberPortalDataByAccess(
           membershipRow.membership_enrollment_savings != null
             ? Number(membershipRow.membership_enrollment_savings)
             : null,
-        appointments,
+        // Completion evidence grants history visibility only. It does not infer
+        // a savings-ledger entry, obligation outcome, price, or billing state.
+        appointments: approvedScheduledAppointments,
         careAddons,
       })
     : null;

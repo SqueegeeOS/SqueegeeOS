@@ -48,6 +48,12 @@ export interface MemberAppointmentSummary {
   technician?: string | null;
   notes?: string | null;
   status: "scheduled" | "completed" | "cancelled" | "no_show";
+  /**
+   * False when completion is visible as provider history but has not been
+   * recognized as a HomeAtlas savings event. Omitted preserves legacy
+   * behavior for already-recognized HomeAtlas appointments.
+   */
+  countsTowardMembershipSavings?: boolean;
 }
 
 /** Property intelligence view — assembled from properties + photos */

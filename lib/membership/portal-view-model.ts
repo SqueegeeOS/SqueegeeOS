@@ -230,6 +230,9 @@ export function buildPortalCareRecordView(
   const completedVisits = (portalData?.appointments ?? []).filter(
     (a) => a.status === "completed",
   );
+  const savingsRecognizedCompletedVisits = completedVisits.filter(
+    (appointment) => appointment.countsTowardMembershipSavings !== false,
+  );
   const hasVisitHistory = completedVisits.length > 0;
 
   const nextCareVisit = buildPortalNextCareVisit({
@@ -299,7 +302,7 @@ export function buildPortalCareRecordView(
     membershipEnrollmentSavings != null
       ? cumulativeMembershipEnrollmentSavings(
           membershipEnrollmentSavings,
-          completedVisits.length,
+          savingsRecognizedCompletedVisits.length,
         )
       : null;
 
