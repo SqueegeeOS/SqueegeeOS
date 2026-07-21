@@ -33,6 +33,12 @@ export async function POST() {
       headers: HQ_AUTH_RESPONSE_HEADERS,
     });
   }
+  if (result.outcome === "awaiting_continuation") {
+    return NextResponse.json(result, {
+      status: 202,
+      headers: HQ_AUTH_RESPONSE_HEADERS,
+    });
+  }
   if (result.outcome === "partial") {
     console.error("[jobber-coverage-sync] partial run", {
       runId: result.runId,

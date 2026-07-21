@@ -1,44 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import {
+  jobberCoverageActionLabel,
+  jobberCoverageResultError,
+  type JobberCoverageStatusView,
+  type JobberCoverageSyncResultView,
+} from "./jobber-schedule-sync-state";
 
-interface CoverageStatus {
-  coverageState: "complete" | "partial" | "stale";
-  freshnessThresholdMinutes: 30;
-  fresh: boolean;
-  syncInProgress: boolean;
-  latestRun: {
-    status: "running" | "complete" | "partial";
-    failureCode: string | null;
-    visitCount: number;
-    completedAt: string | null;
-  } | null;
-  inProgressRun: {
-    runId: string;
-    startedAt: string;
-  } | null;
-  watermark: {
-    windowStart: string;
-    windowEnd: string;
-    coveredAt: string;
-    visitCount: number;
-  } | null;
-}
-
-interface SyncResult {
-  outcome: "complete" | "partial" | "concurrent" | "indeterminate";
-  failureCode: string | null;
-  visitCount: number;
-  error?: string;
-}
-
-async function requestCoverageStatus(): Promise<CoverageStatus> {
+async function requestCoverageStatus(): Promise<JobberCoverageStatusView> {
   const response = await fetch(
     "/api/admin/care-operations/jobber/sync/status",
     { cache: "no-store" },
   );
   const body = (await response.json().catch(() => null)) as
-    | (CoverageStatus & { error?: string })
+    | (JobberCoverageStatusView & { error?: string })
     | null;
   if (!response.ok || !body) {
     throw new Error(body?.error ?? "Schedule coverage status is unavailable");
@@ -71,7 +47,7 @@ const statePresentation = {
 } as const;
 
 export function JobberScheduleSyncPanel() {
-  const [status, setStatus] = useState<CoverageStatus | null>(null);
+  const [status, setStatus] = useState<JobberCoverageStatusView | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -126,21 +102,20 @@ export function JobberScheduleSyncPanel() {
         "/api/admin/care-operations/jobber/sync",
         { method: "POST" },
       );
-      const body = (await response.json().catch(() => null)) as SyncResult | null;
-      if (!response.ok || body?.outcome !== "complete") {
-        if (response.status === 409 || body?.outcome === "concurrent") {
-          throw new Error("A Jobber schedule refresh is already in progress.");
-        }
-        if (body?.outcome === "indeterminate") {
-          throw new Error(
-            "The refresh result is not yet known. Check status before assuming either the prior or refreshed schedule is current.",
-          );
-        }
-        throw new Error(
-          "Coverage could not be proven. The previous complete schedule was left unchanged.",
-        );
+      const body = (await response.json().catch(() => null)) as
+        | JobberCoverageSyncResultView
+        | null;
+      const resultError = jobberCoverageResultError({
+        httpStatus: response.status,
+        result: body,
+      });
+      if (!response.ok && body?.outcome !== "awaiting_continuation") {
+        throw new Error(resultError ?? "Jobber schedule refresh did not complete");
       }
-      window.dispatchEvent(new Event("jobber-schedule-refreshed"));
+      if (resultError) throw new Error(resultError);
+      if (body?.outcome === "complete") {
+        window.dispatchEvent(new Event("jobber-schedule-refreshed"));
+      }
     } catch (refreshError) {
       setError(
         refreshError instanceof Error
@@ -153,7 +128,12 @@ export function JobberScheduleSyncPanel() {
     }
   };
 
-  const presentation = statePresentation[status?.coverageState ?? "stale"];
+  const presentation = status?.awaitingContinuation
+    ? {
+        label: "Awaiting continuation",
+        className: "border-sky-500/30 bg-sky-500/10 text-sky-300",
+      }
+    : statePresentation[status?.coverageState ?? "stale"];
   return (
     <div className="mt-8 rounded-2xl border border-border/70 bg-foreground/[0.025] p-5">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
@@ -179,7 +159,9 @@ export function JobberScheduleSyncPanel() {
 
       <div className="mt-5 grid gap-3 text-xs text-muted sm:grid-cols-2">
         <p>
-          {status?.coverageState === "complete" && status.watermark
+          {status?.awaitingContinuation && status.continuationRun
+            ? `Checkpointed after ${status.continuationRun.requestCount} provider requests. Continue to resume the same proof without re-reading completed leaves.`
+            : status?.coverageState === "complete" && status.watermark
             ? `Verified ${formatCoveredAt(status.watermark.coveredAt)} · ${status.watermark.visitCount} visits observed`
             : status?.coverageState === "partial"
               ? "The latest pass was incomplete. Its observations did not advance coverage."
@@ -204,7 +186,10 @@ export function JobberScheduleSyncPanel() {
           disabled={loading || refreshing || status?.syncInProgress === true}
           className="min-h-13 rounded-full border border-accent/40 bg-accent/10 px-5 py-3 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-50"
         >
-          {refreshing ? "Verifying schedule…" : "Refresh Jobber schedule"}
+          {jobberCoverageActionLabel({
+            refreshing,
+            awaitingContinuation: status?.awaitingContinuation === true,
+          })}
         </button>
         <button
           type="button"

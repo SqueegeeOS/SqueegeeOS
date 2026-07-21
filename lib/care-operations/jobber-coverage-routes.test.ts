@@ -111,6 +111,30 @@ describe("Jobber coverage routes", () => {
     });
   });
 
+  it("returns a recoverable accepted checkpoint at the per-invocation budget", async () => {
+    mocks.authorize.mockResolvedValue({ actor });
+    mocks.runSync.mockResolvedValue({
+      outcome: "awaiting_continuation",
+      runId: "00000000-0000-0000-0000-000000001045",
+      failureCode: null,
+      requestCount: 14,
+      leafCount: 3,
+      visitCount: 0,
+      window: {
+        startAt: "2026-04-17T07:00:00.000Z",
+        endAt: "2027-07-17T07:00:00.000Z",
+      },
+    });
+    const response = await POST();
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({
+      outcome: "awaiting_continuation",
+      runId: "00000000-0000-0000-0000-000000001045",
+      failureCode: null,
+    });
+    expect(response.headers.get("cache-control")).toContain("no-store");
+  });
+
   it("returns an explicitly uncached truthful status", async () => {
     mocks.authorize.mockResolvedValue({ actor });
     mocks.readStatus.mockResolvedValue({

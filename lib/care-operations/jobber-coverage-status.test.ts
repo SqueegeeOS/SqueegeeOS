@@ -23,7 +23,14 @@ function run(
     leaf_count: 2,
     visit_count: visitCount,
     started_at: "2026-07-16T18:20:00.000Z",
-    completed_at: status === "running" ? null : "2026-07-16T18:25:00.000Z",
+    continuation_paused_at:
+      status === "awaiting_continuation"
+        ? "2026-07-16T18:24:00.000Z"
+        : null,
+    completed_at:
+      status === "running" || status === "awaiting_continuation"
+        ? null
+        : "2026-07-16T18:25:00.000Z",
   };
 }
 
@@ -146,6 +153,41 @@ describe("Jobber coverage status", () => {
     });
     expect(status.inProgressRun).toBeNull();
     expect(status.watermark).toMatchObject({ runId: verified.id });
+  });
+
+  it("exposes a recoverable continuation without advancing the prior watermark", () => {
+    const verified = run("00000000-0000-0000-0000-000000001138", "complete", 7);
+    const paused = run(
+      "00000000-0000-0000-0000-000000001238",
+      "awaiting_continuation",
+      41,
+    );
+    const status = buildJobberCoverageSyncStatus({
+      latestRun: paused,
+      watermark: {
+        run_id: verified.id,
+        window_start: verified.window_start,
+        window_end: verified.window_end,
+        covered_at: "2026-07-16T18:25:00.000Z",
+        generation: 10,
+      },
+      watermarkRun: verified,
+      lock: { active_run_id: null, lease_expires_at: null },
+      activeRun: null,
+      now,
+    });
+
+    expect(status).toMatchObject({
+      coverageState: "stale",
+      fresh: true,
+      syncInProgress: false,
+      awaitingContinuation: true,
+      continuationRun: {
+        runId: paused.id,
+        requestCount: paused.request_count,
+      },
+      watermark: { runId: verified.id, visitCount: 7 },
+    });
   });
 
   it("uses causal reservation order even when a later run has an earlier transaction timestamp", () => {

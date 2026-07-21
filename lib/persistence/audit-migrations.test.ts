@@ -2,9 +2,18 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   assertMigration043RequiredClauses,
+  assertMigration045RequiredClauses,
+  expectedJobberCoverageResumeConstraintInventory,
+  expectedJobberCoverageResumeFunctionDefinitions,
   hasExactAtomicCompletionNonOwnerAcl,
   hasExactAtomicCompletionTableAcl,
   hasExactAuthorityFunctionAcl,
+  hasExactJobberCoverageResumeConstraints,
+  hasExactJobberCoverageResumeFunctionAcl,
+  hasExactJobberCoverageResumeFunctionDefinitions,
+  hasExactJobberCoverageResumeTableAcl,
+  hasNoJobberCoverageResumeBrowserPolicies,
+  hasNoLegacyJobberCoverageEffectiveMutatorPrivileges,
   hasExactVisitCompletionFunctionAcl,
   hasExactVisitCompletionConstraints,
   hasExactVisitCompletionTableAcl,
@@ -14,6 +23,7 @@ import {
   isExactJobberOauthFunctionDefinition,
   isExactJobberOauthOperationColumn,
   isExactJobberOauthOperationIndex,
+  isExactJobberCoverageResumeTriggerSet,
   isExactSignedAgreementImmutabilityTrigger,
   isExactVisitCompletionTriggerSet,
 } from "../../scripts/audit-migrations.mjs";
@@ -69,6 +79,158 @@ const exactTriggerRow = {
 };
 
 describe("migration audit catalog predicates", () => {
+  it("records migration 045 resumable coverage schema and guarded functions", () => {
+    const migration = readFileSync(
+      new URL(
+        "./supabase/migrations/045_jobber_coverage_resume.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(assertMigration045RequiredClauses(migration)).toBe(true);
+    expect(() => assertMigration045RequiredClauses(
+      migration.replace(
+        "alter table public.jobber_schedule_sync_request_attempts enable row level security",
+        "select true",
+      ),
+    )).toThrow("required resumable coverage clause");
+  });
+
+  it("requires the exact migration 045 table, function, trigger, constraint, policy, and legacy ACL catalogs", () => {
+    const functionDefinitions = expectedJobberCoverageResumeFunctionDefinitions();
+    expect(
+      hasExactJobberCoverageResumeFunctionDefinitions(functionDefinitions),
+    ).toBe(true);
+    expect(
+      hasExactJobberCoverageResumeFunctionDefinitions(
+        functionDefinitions.map((row) =>
+          row.proname === "pause_jobber_schedule_coverage_sync"
+            ? { ...row, body: `${row.body} perform unsafe_mutation();` }
+            : row,
+        ),
+      ),
+    ).toBe(false);
+
+    const serviceFunctions = new Set([
+      "start_or_resume_jobber_schedule_coverage_sync",
+      "renew_resumable_jobber_schedule_coverage_sync_lease",
+      "reserve_jobber_schedule_coverage_attempt",
+      "record_jobber_schedule_coverage_overflow",
+      "record_jobber_schedule_coverage_leaf",
+      "complete_resumable_jobber_schedule_coverage_pass",
+      "pause_jobber_schedule_coverage_sync",
+      "mark_resumable_jobber_schedule_coverage_sync_partial",
+      "finalize_resumable_jobber_schedule_coverage_sync",
+    ]);
+    const functionAcls = functionDefinitions.flatMap((definition, index) => {
+      const functionOid = String(5000 + index);
+      const owner = {
+        function_oid: functionOid,
+        routine_name: definition.proname,
+        owner_oid: "10",
+        grantee_oid: "10",
+        grantee_name: "postgres",
+        is_owner: true,
+        privilege_type: "EXECUTE",
+        is_grantable: false,
+      };
+      return serviceFunctions.has(definition.proname)
+        ? [owner, {
+            ...owner,
+            grantee_oid: "20",
+            grantee_name: "service_role",
+            is_owner: false,
+          }]
+        : [owner];
+    });
+    expect(hasExactJobberCoverageResumeFunctionAcl(functionAcls)).toBe(true);
+    expect(
+      hasExactJobberCoverageResumeFunctionAcl([
+        ...functionAcls,
+        { ...functionAcls[0], grantee_oid: "30", grantee_name: "anon", is_owner: false },
+      ]),
+    ).toBe(false);
+
+    const tableAcls = [
+      { table_name: "jobber_schedule_sync_request_attempts", grantee: "service_role", privilege_type: "SELECT", is_grantable: false },
+      { table_name: "jobber_schedule_sync_work_items", grantee: "service_role", privilege_type: "SELECT", is_grantable: false },
+    ];
+    expect(hasExactJobberCoverageResumeTableAcl(tableAcls)).toBe(true);
+    expect(
+      hasExactJobberCoverageResumeTableAcl([
+        ...tableAcls,
+        { table_name: "jobber_schedule_sync_work_items", grantee: "authenticated", privilege_type: "SELECT", is_grantable: false },
+      ]),
+    ).toBe(false);
+
+    const constraints = expectedJobberCoverageResumeConstraintInventory();
+    expect(hasExactJobberCoverageResumeConstraints(constraints)).toBe(true);
+    expect(
+      hasExactJobberCoverageResumeConstraints(constraints.slice(1)),
+    ).toBe(false);
+
+    const functionOids = new Map(functionDefinitions.map((definition, index) => [
+      definition.proname,
+      String(5000 + index),
+    ]));
+    const triggers = [
+      {
+        table_name: "jobber_schedule_sync_request_attempts",
+        trigger_name: "jobber_schedule_sync_request_attempts_immutable",
+        trigger_type: 27,
+        enabled_state: "O",
+        function_oid: functionOids.get("reject_jobber_schedule_sync_attempt_change"),
+      },
+      {
+        table_name: "jobber_schedule_sync_runs",
+        trigger_name: "jobber_visit_classifications_manifest_fence",
+        trigger_type: 17,
+        enabled_state: "O",
+        function_oid: functionOids.get(
+          "invalidate_jobber_visit_classification_on_manifest_omission",
+        ),
+      },
+      {
+        table_name: "jobber_schedule_sync_work_items",
+        trigger_name: "jobber_schedule_sync_work_items_no_delete",
+        trigger_type: 11,
+        enabled_state: "O",
+        function_oid: functionOids.get("reject_jobber_schedule_sync_work_item_delete"),
+      },
+    ];
+    expect(isExactJobberCoverageResumeTriggerSet(triggers, functionOids)).toBe(true);
+    expect(
+      isExactJobberCoverageResumeTriggerSet(
+        triggers.map((row, index) => index === 0 ? { ...row, enabled_state: "D" } : row),
+        functionOids,
+      ),
+    ).toBe(false);
+    expect(hasNoJobberCoverageResumeBrowserPolicies([{ count: 0 }])).toBe(true);
+    expect(hasNoJobberCoverageResumeBrowserPolicies([{ count: 1 }])).toBe(false);
+  });
+
+  it("rejects PUBLIC and inherited effective legacy mutator execution", () => {
+    expect(hasNoLegacyJobberCoverageEffectiveMutatorPrivileges([])).toBe(true);
+    expect(
+      hasNoLegacyJobberCoverageEffectiveMutatorPrivileges([
+        {
+          signature: "public.finalize_jobber_schedule_coverage_sync(uuid,bigint)",
+          grantee: "PUBLIC",
+          privilege_source: "PUBLIC",
+        },
+      ]),
+    ).toBe(false);
+    expect(
+      hasNoLegacyJobberCoverageEffectiveMutatorPrivileges([
+        {
+          signature: "public.renew_jobber_schedule_coverage_sync_lease(uuid)",
+          grantee: "service_role",
+          privilege_source: "effective/inherited",
+        },
+      ]),
+    ).toBe(false);
+  });
+
   it("accepts only the enabled BEFORE row UPDATE+DELETE immutability trigger", () => {
     expect(
       isExactSignedAgreementImmutabilityTrigger(

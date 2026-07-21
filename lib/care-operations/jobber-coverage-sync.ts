@@ -63,26 +63,85 @@ export interface JobberCoveragePassManifest {
   requestCount: number;
 }
 
-export interface BeginJobberCoverageRunResult {
-  outcome: "acquired" | "locked";
+export interface StartOrResumeJobberCoverageRunResult {
+  outcome: "started" | "resumed" | "locked";
+  runId: string;
+  acquisitionGeneration: number | null;
+  ownerToken: string | null;
   watermarkGeneration: number;
+  window: JobberCoverageWindow;
+  currentPass: 1 | 2;
+  passReadyToComplete: boolean;
+  requestCount: number;
+  leafCount: number;
+  visitCount: number;
+}
+
+export interface JobberCoverageOwnership {
+  acquisitionGeneration: number;
+  ownerToken: string;
+}
+
+export interface JobberCoverageReservedWork {
+  outcome: "reserved";
+  attemptId: string;
+  pass: 1 | 2;
+  partitionPath: string;
+  window: JobberCoverageWindow;
 }
 
 export interface JobberCoveragePersistence {
-  beginRun(input: {
+  startOrResumeRun(input: {
+    proposedRunId: string;
+    actorId: string;
+    proposedWindow: JobberCoverageWindow;
+    graphqlVersion: string;
+  }): Promise<StartOrResumeJobberCoverageRunResult>;
+  reserveNextWork(input: {
     runId: string;
     actorId: string;
-    window: JobberCoverageWindow;
-    graphqlVersion: string;
-  }): Promise<BeginJobberCoverageRunResult>;
-  appendLeaf(input: { runId: string; leaf: JobberCoverageLeaf }): Promise<void>;
+    ownership: JobberCoverageOwnership;
+    attemptId: string;
+  }): Promise<JobberCoverageReservedWork>;
+  recordOverflow(input: {
+    runId: string;
+    actorId: string;
+    ownership: JobberCoverageOwnership;
+    work: JobberCoverageReservedWork;
+    children: [JobberCoverageWindow, JobberCoverageWindow];
+  }): Promise<void>;
+  recordLeaf(input: {
+    runId: string;
+    actorId: string;
+    ownership: JobberCoverageOwnership;
+    work: JobberCoverageReservedWork;
+    observations: JobberCoverageObservation[];
+    manifestSha256: string;
+  }): Promise<{ passReadyToComplete: boolean }>;
+  loadPass(input: {
+    runId: string;
+    pass: 1 | 2;
+  }): Promise<JobberCoveragePassManifest>;
   completePass(input: {
     runId: string;
+    actorId: string;
+    ownership: JobberCoverageOwnership;
     manifest: JobberCoveragePassManifest;
+  }): Promise<"pass_two_ready" | "ready_to_finalize" | "replay">;
+  pauseRun(input: {
+    runId: string;
+    actorId: string;
+    ownership: JobberCoverageOwnership;
   }): Promise<void>;
-  renewLease(input: { runId: string }): Promise<void>;
+  renewLease(input: {
+    runId: string;
+    actorId: string;
+    ownership: JobberCoverageOwnership;
+  }): Promise<void>;
   finalizeRun(input: {
     runId: string;
+    actorId: string;
+    ownership: JobberCoverageOwnership;
     expectedWatermarkGeneration: number;
   }): Promise<"completed" | "replay" | "unstable" | "watermark_conflict">;
   reconcileFinalization(input: {
@@ -90,13 +149,20 @@ export interface JobberCoveragePersistence {
   }): Promise<"completed" | "not_completed">;
   markPartial(input: {
     runId: string;
+    actorId: string;
+    ownership: JobberCoverageOwnership;
     failureCode: JobberCoverageFailureCode;
     requestCount: number;
   }): Promise<void>;
 }
 
 export interface RunJobberCoverageSyncResult {
-  outcome: "complete" | "partial" | "concurrent" | "indeterminate";
+  outcome:
+    | "complete"
+    | "partial"
+    | "concurrent"
+    | "indeterminate"
+    | "awaiting_continuation";
   runId: string;
   failureCode: JobberCoverageFailureCode | "finalization_indeterminate" | null;
   requestCount: number;
@@ -232,7 +298,7 @@ function leafCoverageManifest(leaves: JobberCoverageLeaf[]): string {
   );
 }
 
-function buildPassManifest(
+export function buildJobberCoveragePassManifest(
   pass: 1 | 2,
   leaves: JobberCoverageLeaf[],
   requestCount: number,
@@ -335,7 +401,7 @@ export async function crawlJobberCoveragePass(input: {
     leaves.push(leaf);
   }
 
-  return buildPassManifest(
+  return buildJobberCoveragePassManifest(
     input.pass,
     leaves,
     input.requestBudget.count - initialRequestCount,
@@ -359,6 +425,7 @@ export async function runJobberCoverageSync(
   dependencies: {
     now?: () => Date;
     randomUuid?: () => string;
+    randomAttemptUuid?: () => string;
     getAccessToken?: (
       beforeProviderRequest: () => Promise<void>,
     ) => Promise<string>;
@@ -371,139 +438,276 @@ export async function runJobberCoverageSync(
   } = {},
 ): Promise<RunJobberCoverageSyncResult> {
   const now = dependencies.now ?? (() => new Date());
-  const runId = (dependencies.randomUuid ?? (() => crypto.randomUUID()))();
-  const window = fixedPacificCoverageWindow(now());
-  const requestBudget = {
-    count: 0,
-    maximum: dependencies.maximumRequests ?? JOBBER_COVERAGE_MAX_REQUESTS,
-  };
+  const proposedRunId = (dependencies.randomUuid ?? (() => crypto.randomUUID()))();
+  const proposedWindow = fixedPacificCoverageWindow(now());
+  const nextAttemptId = dependencies.randomAttemptUuid ?? (() => crypto.randomUUID());
+  const maximumRequests =
+    dependencies.maximumRequests ?? JOBBER_COVERAGE_MAX_REQUESTS;
+  let runId = proposedRunId;
+  let window = proposedWindow;
+  let requestCount = 0;
   let leafCount = 0;
   let visitCount = 0;
   const indeterminateFinalization = (): RunJobberCoverageSyncResult => ({
     outcome: "indeterminate",
     runId,
     failureCode: "finalization_indeterminate",
-    requestCount: requestBudget.count,
+    requestCount,
     leafCount,
     visitCount,
     window,
   });
 
-  let begin: BeginJobberCoverageRunResult;
+  let start: StartOrResumeJobberCoverageRunResult;
   try {
-    begin = await persistence.beginRun({
-      runId,
+    start = await persistence.startOrResumeRun({
+      proposedRunId,
       actorId: actor.id,
-      window,
+      proposedWindow,
       graphqlVersion: getJobberGraphqlVersion(),
     });
   } catch {
     return {
       outcome: "partial",
-      runId,
+      runId: proposedRunId,
       failureCode: "storage_failure",
       requestCount: 0,
       leafCount: 0,
       visitCount: 0,
-      window,
+      window: proposedWindow,
     };
   }
-  if (begin.outcome === "locked") {
+  runId = start.runId;
+  window = start.window;
+  requestCount = start.requestCount;
+  leafCount = start.leafCount;
+  visitCount = start.visitCount;
+  if (start.outcome === "locked") {
     return {
       outcome: "concurrent",
       runId,
       failureCode: "concurrent_sync",
-      requestCount: 0,
-      leafCount: 0,
-      visitCount: 0,
-      window,
-    };
-  }
-
-  try {
-    const accessToken = await (
-      dependencies.getAccessToken ??
-      ((beforeProviderRequest) =>
-        getFreshJobberAccessToken({ beforeProviderRequest }))
-    )(() => persistence.renewLease({ runId }));
-    const crawl = (pass: 1 | 2) =>
-      crawlJobberCoveragePass({
-        pass,
-        accessToken,
-        window,
-        requestBudget,
-        fetchWindow: dependencies.fetchWindow,
-        minimumWindowMs: dependencies.minimumWindowMs,
-        beforeRequest: () => persistence.renewLease({ runId }),
-        persistLeaf: async (leaf) => {
-          await persistence.appendLeaf({ runId, leaf });
-          leafCount += 1;
-          if (pass === 2) visitCount += leaf.observations.length;
-        },
-      });
-
-    const first = await crawl(1);
-    await persistence.completePass({ runId, manifest: first });
-    const second = await crawl(2);
-    await persistence.completePass({ runId, manifest: second });
-    if (!manifestsMatch(first, second)) {
-      throw new CoverageSyncFailure("manifest_mismatch");
-    }
-    let finalized: "completed" | "replay" | "unstable" | "watermark_conflict";
-    try {
-      finalized = await persistence.finalizeRun({
-        runId,
-        expectedWatermarkGeneration: begin.watermarkGeneration,
-      });
-    } catch {
-      // The transaction may have committed even if its transport response was
-      // lost. Resolve only from the exact durable run/current-watermark pair.
-      let reconciled: "completed" | "not_completed";
-      try {
-        reconciled = await persistence.reconcileFinalization({ runId });
-      } catch {
-        // Durable state is unknown: finalization may have committed, and the
-        // exact-run read also has no response. Never rewrite or characterize
-        // the run as partial from this worker.
-        return indeterminateFinalization();
-      }
-      if (reconciled !== "completed") {
-        // A not_completed read can race a transaction whose commit is not yet
-        // visible. It is evidence only for that snapshot, not proof of rollback.
-        // Status polling is the only later resolver of durable truth.
-        return indeterminateFinalization();
-      }
-      finalized = "replay";
-    }
-    if (finalized === "unstable") {
-      throw new CoverageSyncFailure("manifest_mismatch");
-    }
-    if (finalized === "watermark_conflict") {
-      throw new CoverageSyncFailure("watermark_conflict");
-    }
-    return {
-      outcome: "complete",
-      runId,
-      failureCode: null,
-      requestCount: requestBudget.count,
+      requestCount,
       leafCount,
       visitCount,
       window,
     };
+  }
+  if (
+    start.acquisitionGeneration === null ||
+    start.acquisitionGeneration < 1 ||
+    start.ownerToken === null
+  ) {
+    return {
+      outcome: "partial",
+      runId,
+      failureCode: "storage_failure",
+      requestCount,
+      leafCount,
+      visitCount,
+      window,
+    };
+  }
+  const ownership: JobberCoverageOwnership = {
+    acquisitionGeneration: start.acquisitionGeneration,
+    ownerToken: start.ownerToken,
+  };
+
+  let requestsThisInvocation = 0;
+  let currentPass = start.currentPass;
+  let passReadyToComplete = start.passReadyToComplete;
+  let accessToken: string | null = null;
+  let observedPass: 1 | 2 | null = null;
+  let observedIds = new Set<string>();
+
+  const loadObservedIds = async (pass: 1 | 2) => {
+    if (observedPass === pass) return;
+    const manifest = await persistence.loadPass({ runId, pass });
+    observedIds = new Set(
+      manifest.leaves.flatMap((leaf) =>
+        leaf.observations.map((observation) => observation.externalVisitId),
+      ),
+    );
+    observedPass = pass;
+  };
+
+  try {
+    while (true) {
+      if (passReadyToComplete) {
+        const completedManifest = await persistence.loadPass({
+          runId,
+          pass: currentPass,
+        });
+        await persistence.completePass({
+          runId,
+          actorId: actor.id,
+          ownership,
+          manifest: completedManifest,
+        });
+
+        if (currentPass === 1) {
+          currentPass = 2;
+          passReadyToComplete = false;
+          observedPass = null;
+          observedIds = new Set();
+          continue;
+        }
+
+        const firstManifest = await persistence.loadPass({ runId, pass: 1 });
+        if (!manifestsMatch(firstManifest, completedManifest)) {
+          throw new CoverageSyncFailure("manifest_mismatch");
+        }
+
+        let finalized: "completed" | "replay" | "unstable" | "watermark_conflict";
+        try {
+          finalized = await persistence.finalizeRun({
+            runId,
+            actorId: actor.id,
+            ownership,
+            expectedWatermarkGeneration: start.watermarkGeneration,
+          });
+        } catch {
+          // The transaction may have committed even if its transport response
+          // was lost. Resolve only from the exact durable run/watermark pair.
+          let reconciled: "completed" | "not_completed";
+          try {
+            reconciled = await persistence.reconcileFinalization({ runId });
+          } catch {
+            return indeterminateFinalization();
+          }
+          if (reconciled !== "completed") return indeterminateFinalization();
+          finalized = "replay";
+        }
+        if (finalized === "unstable") {
+          throw new CoverageSyncFailure("manifest_mismatch");
+        }
+        if (finalized === "watermark_conflict") {
+          throw new CoverageSyncFailure("watermark_conflict");
+        }
+        return {
+          outcome: "complete",
+          runId,
+          failureCode: null,
+          requestCount,
+          leafCount,
+          visitCount: completedManifest.visitCount,
+          window,
+        };
+      }
+
+      if (requestsThisInvocation >= maximumRequests) {
+        try {
+          await persistence.pauseRun({ runId, actorId: actor.id, ownership });
+        } catch {
+          // The pause transaction may have committed before its response was
+          // lost. One exact idempotent replay resolves that ambiguity.
+          await persistence.pauseRun({ runId, actorId: actor.id, ownership });
+        }
+        return {
+          outcome: "awaiting_continuation",
+          runId,
+          failureCode: null,
+          requestCount,
+          leafCount,
+          visitCount,
+          window,
+        };
+      }
+
+      if (accessToken === null) {
+        accessToken = await (
+          dependencies.getAccessToken ??
+          ((beforeProviderRequest) =>
+            getFreshJobberAccessToken({ beforeProviderRequest }))
+        )(() => persistence.renewLease({ runId, actorId: actor.id, ownership }));
+      }
+
+      const work = await persistence.reserveNextWork({
+        runId,
+        actorId: actor.id,
+        ownership,
+        attemptId: nextAttemptId(),
+      });
+      if (work.pass !== currentPass) {
+        throw new CoverageSyncFailure("storage_failure");
+      }
+      requestsThisInvocation += 1;
+      requestCount += 1;
+      const page = await (
+        dependencies.fetchWindow ?? fetchJobberCoverageWindow
+      )(accessToken, work.window);
+
+      if (page.hasNextPage) {
+        const children = splitCoverageWindow(
+          work.window,
+          dependencies.minimumWindowMs ?? JOBBER_COVERAGE_MIN_WINDOW_MS,
+        );
+        if (!children) {
+          throw new CoverageSyncFailure("unsplittable_saturation");
+        }
+        await persistence.recordOverflow({
+          runId,
+          actorId: actor.id,
+          ownership,
+          work,
+          children,
+        });
+        continue;
+      }
+
+      await loadObservedIds(currentPass);
+      const startAt = Date.parse(work.window.startAt);
+      const endAt = Date.parse(work.window.endAt);
+      const sourceObservedAt = now().toISOString();
+      const nextIds = new Set<string>();
+      const observations = page.nodes.map((visit) => {
+        const visitStart = Date.parse(visit.startAt ?? "");
+        if (!Number.isFinite(visitStart)) {
+          throw new CoverageSyncFailure("malformed_timestamp");
+        }
+        if (visitStart < startAt || visitStart >= endAt) {
+          throw new CoverageSyncFailure("window_violation");
+        }
+        if (observedIds.has(visit.id) || nextIds.has(visit.id)) {
+          throw new CoverageSyncFailure("duplicate_visit");
+        }
+        nextIds.add(visit.id);
+        return {
+          externalVisitId: visit.id,
+          sourcePayloadHash: hashCanonicalJobberVisit(visit),
+          sourceObservedAt,
+          visit,
+        };
+      });
+      const recorded = await persistence.recordLeaf({
+        runId,
+        actorId: actor.id,
+        ownership,
+        work,
+        observations,
+        manifestSha256: sha256(observationManifest(observations)),
+      });
+      for (const id of nextIds) observedIds.add(id);
+      leafCount += 1;
+      if (currentPass === 2) visitCount += observations.length;
+      passReadyToComplete = recorded.passReadyToComplete;
+    }
   } catch (error) {
     const failureCode = providerFailureCode(error);
     try {
       await persistence.markPartial({
         runId,
+        actorId: actor.id,
+        ownership,
         failureCode,
-        requestCount: requestBudget.count,
+        requestCount,
       });
     } catch {
       return {
         outcome: "partial",
         runId,
         failureCode: "storage_failure",
-        requestCount: requestBudget.count,
+        requestCount,
         leafCount,
         visitCount,
         window,
@@ -513,7 +717,7 @@ export async function runJobberCoverageSync(
       outcome: "partial",
       runId,
       failureCode,
-      requestCount: requestBudget.count,
+      requestCount,
       leafCount,
       visitCount,
       window,
