@@ -399,6 +399,15 @@ grant execute on function public.link_jobber_member_property_from_search(
 alter table public.jobber_property_links enable row level security;
 alter table public.jobber_property_link_events enable row level security;
 
+revoke all on table
+  public.jobber_property_links,
+  public.jobber_property_link_events
+from public, anon, authenticated, service_role;
+grant select on table
+  public.jobber_property_links,
+  public.jobber_property_link_events
+to service_role;
+
 comment on function public.link_jobber_member_property_from_search(
   uuid, text, text, text, text, text, timestamptz, integer, boolean, uuid, boolean
 ) is 'Atomically validates active HQ authority, complete provider ownership evidence, exact signed membership/property identity, and supervised Jobber property-link uniqueness.';

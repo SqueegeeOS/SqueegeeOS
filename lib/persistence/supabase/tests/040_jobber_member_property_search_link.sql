@@ -83,7 +83,7 @@ insert into public.signed_agreements (
   '00000000-0000-4000-8000-000000001440',
   'link-040-homeowner-b', 'link-040-property-b', 'Disposable Link B',
   'disposable-b', 'Disposable plan B', 'typed', 'Disposable Link B',
-  now(), 'complete', 'supabase'
+  now(), 'pending', 'supabase'
 );
 update public.memberships
 set agreement_id = case id
@@ -111,6 +111,8 @@ declare
     'public.link_jobber_member_property_from_search(uuid,text,text,text,text,text,timestamp with time zone,integer,boolean,uuid,boolean)'
   );
   rpc_owner oid;
+  relation_row record;
+  available_privilege text;
 begin
   if rpc is null then
     raise exception 'Migration 040 link RPC is missing';
@@ -126,7 +128,7 @@ begin
     select count(*)
     from pg_catalog.pg_proc function_row
     cross join lateral pg_catalog.aclexplode(
-      pg_catalog.coalesce(
+      coalesce(
         function_row.proacl,
         pg_catalog.acldefault('f', function_row.proowner)
       )
@@ -137,7 +139,7 @@ begin
     select 1
     from pg_catalog.pg_proc function_row
     cross join lateral pg_catalog.aclexplode(
-      pg_catalog.coalesce(
+      coalesce(
         function_row.proacl,
         pg_catalog.acldefault('f', function_row.proowner)
       )
@@ -163,15 +165,108 @@ begin
   ) <> 2 then
     raise exception 'Migration 040 authority tables must retain RLS';
   end if;
-  if exists (
-    select 1 from pg_catalog.pg_policies policy
-    where policy.schemaname = 'public'
-      and policy.tablename in (
+  for relation_row in
+    select relation.oid, relation.relacl, relation.relowner
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname in (
         'jobber_property_links', 'jobber_property_link_events'
       )
-      and ('anon' = any(policy.roles) or 'authenticated' = any(policy.roles))
+  loop
+    for available_privilege in
+      select distinct default_acl.privilege_type
+      from pg_catalog.aclexplode(
+        pg_catalog.acldefault('r', relation_row.relowner)
+      ) default_acl
+    loop
+      if pg_catalog.has_table_privilege(
+        'anon', relation_row.oid, available_privilege
+      ) or pg_catalog.has_table_privilege(
+        'authenticated', relation_row.oid, available_privilege
+      ) or pg_catalog.has_table_privilege(
+        'service_role', relation_row.oid, available_privilege
+      ) is distinct from (available_privilege = 'SELECT') then
+        raise exception 'Migration 040 authority table ACLs are not exact';
+      end if;
+    end loop;
+  end loop;
+  if exists (
+    select 1
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(
+        relation.relacl,
+        pg_catalog.acldefault('r', relation.relowner)
+      )
+    ) relation_acl
+    where namespace.nspname = 'public'
+      and relation.relname in (
+        'jobber_property_links', 'jobber_property_link_events'
+      )
+      and (
+        relation_acl.grantee = 0
+        or relation_acl.grantee in (
+          select oid from pg_catalog.pg_roles
+          where rolname in ('anon', 'authenticated')
+        )
+        or (
+          relation_acl.grantee = (
+            select oid from pg_catalog.pg_roles where rolname = 'service_role'
+          )
+          and (
+            relation_acl.privilege_type <> 'SELECT'
+            or relation_acl.is_grantable
+          )
+        )
+      )
+  ) or (
+    select count(*)
+    from pg_catalog.pg_class relation
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    cross join lateral pg_catalog.aclexplode(
+      coalesce(
+        relation.relacl,
+        pg_catalog.acldefault('r', relation.relowner)
+      )
+    ) relation_acl
+    where namespace.nspname = 'public'
+      and relation.relname in (
+        'jobber_property_links', 'jobber_property_link_events'
+      )
+      and relation_acl.grantee = (
+        select oid from pg_catalog.pg_roles where rolname = 'service_role'
+      )
+      and relation_acl.privilege_type = 'SELECT'
+      and not relation_acl.is_grantable
+  ) <> 2 then
+    raise exception 'Migration 040 authority table ACLs are not exact';
+  end if;
+  if exists (
+    select 1
+    from pg_catalog.pg_policy policy
+    join pg_catalog.pg_class relation on relation.oid = policy.polrelid
+    join pg_catalog.pg_namespace namespace
+      on namespace.oid = relation.relnamespace
+    where namespace.nspname = 'public'
+      and relation.relname in (
+        'jobber_property_links', 'jobber_property_link_events'
+      )
+      and exists (
+        select 1
+        from pg_catalog.unnest(policy.polroles) policy_role(role_oid)
+        where policy_role.role_oid = 0
+          or pg_catalog.pg_has_role('anon', policy_role.role_oid, 'MEMBER')
+          or pg_catalog.pg_has_role(
+            'authenticated', policy_role.role_oid, 'MEMBER'
+          )
+      )
   ) then
-    raise exception 'Migration 040 authority tables expose a browser policy';
+    raise exception 'Migration 040 authority tables expose a PUBLIC/browser policy';
   end if;
 end;
 $$;
@@ -299,8 +394,6 @@ begin
   end;
 
   begin
-    update public.signed_agreements set status = 'pending'
-    where id = '00000000-0000-4000-8000-000000001540';
     perform public.link_jobber_member_property_from_search(
       '00000000-0000-4000-8000-000000000140', 'squeegeeking',
       'jobber-client-040-b', 'jobber-property-040-b',

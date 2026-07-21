@@ -294,8 +294,28 @@ JOBBER_J1_TEST_DATABASE_URL='postgresql://DISPOSABLE-ONLY' \
 npm test -- lib/persistence/supabase/jobber-member-property-search-link.integration.test.ts
 ```
 
-It remains unexecuted until both exact values identify an approved disposable
-database with migrations 001–040 already applied.
+Disposable migration-040 evidence recorded July 20, 2026:
+
+- Disposable project: `care-operations-rehearsal`
+  (`zgpvucrrhjmzcgfgxrtn`).
+- Worktree HEAD: `f86c2ad246a200a58c2b1cfc4a3feb3edaef5104`.
+- Current `lib/persistence/supabase/tests/040_jobber_member_property_search_link.sql`
+  SHA-256:
+  `04224eacc0b5cf2e413f7311239b42297f566236f4cde9bfc350c4417207b4a1`.
+- The corrected migration 040 and expanded rollback-only harness ran together
+  inside one outer transaction and returned `Success` / `No rows`.
+- No migration persisted. Post-run residue counts were all `0` for
+  `auth.users`, `public.homeowners`, `public.properties`,
+  `public.memberships`, and `public.signed_agreements`.
+
+Migration-043 prerequisite evidence recorded July 20, 2026:
+
+- Migration 043 was not run. A read-only prerequisite check found
+  `jobber_visit_completion_events`, `visit_text_evidence`, and
+  `confirm_jobber_visit_completion` all absent.
+- No migration 043 was applied under this approval.
+- Migration-043 concurrency remains pending separate approval to install it on
+  a disposable database only.
 
 Migration-041 repository evidence recorded July 18, 2026:
 

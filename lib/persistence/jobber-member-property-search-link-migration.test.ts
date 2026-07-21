@@ -71,6 +71,42 @@ describe("migration 040 Jobber member-property search link", () => {
     );
   });
 
+  it("normalizes property-link table grants to service-role SELECT only", () => {
+    const tableGrants = migration
+      .split(";")
+      .map((statement) => statement.trim())
+      .filter(
+        (statement) =>
+          /^grant\b/i.test(statement) && /\bon table\b/i.test(statement),
+      );
+
+    expect(migration).toMatch(
+      /revoke all on table\s+public\.jobber_property_links,\s+public\.jobber_property_link_events\s+from public, anon, authenticated, service_role;/,
+    );
+    expect(tableGrants).toHaveLength(1);
+    expect(tableGrants[0]).toMatch(
+      /^grant select on table\s+public\.jobber_property_links,\s+public\.jobber_property_link_events\s+to service_role$/,
+    );
+
+    for (const fragment of [
+      "pg_catalog.acldefault('r', relation.relowner)",
+      "'anon', relation_row.oid, available_privilege",
+      "'authenticated', relation_row.oid, available_privilege",
+      "'service_role', relation_row.oid, available_privilege",
+      "available_privilege = 'SELECT'",
+      "relation_acl.grantee = 0",
+      "relation_acl.privilege_type <> 'SELECT'",
+      "and not relation_acl.is_grantable",
+      "policy_role.role_oid = 0",
+      "pg_catalog.pg_has_role('anon'",
+      "'authenticated', policy_role.role_oid, 'MEMBER'",
+      "Migration 040 authority table ACLs are not exact",
+      "Migration 040 authority tables expose a PUBLIC/browser policy",
+    ]) {
+      expect(rehearsal).toContain(fragment);
+    }
+  });
+
   it("locks and revalidates the active actor and exact signed membership property", () => {
     for (const fragment of [
       "actor.user_id = requested_actor_id",
@@ -224,6 +260,8 @@ describe("migration 040 Jobber member-property search link", () => {
       "Existing HomeAtlas property was linked to another Jobber property",
       "Migration 040 link RPC ACL is not exact",
       "Migration 040 authority tables must retain RLS",
+      "Migration 040 authority table ACLs are not exact",
+      "Migration 040 authority tables expose a PUBLIC/browser policy",
       "Immutable property-link evidence unexpectedly changed",
       "pg_temp.capture_forbidden_domain_content('before')",
       "pg_temp.assert_forbidden_domain_content_unchanged('before', 'after')",
