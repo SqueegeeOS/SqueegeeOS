@@ -1,8 +1,10 @@
 import "server-only";
 
+import { randomUUID } from "crypto";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
   JOBBER_CONNECTION_ID,
+  getExpectedJobberAccountId,
   getJobberGraphqlVersion,
 } from "./jobber-oauth-config";
 import {
@@ -51,6 +53,8 @@ interface JobberConnectionPersistenceClient {
   rpc(
     name: "save_jobber_connection_with_event",
     args: {
+      requested_operation_id: string;
+      requested_expected_account_id: string;
       requested_account_id: string;
       requested_account_name: string;
       requested_access_token_ciphertext: string;
@@ -59,7 +63,49 @@ interface JobberConnectionPersistenceClient {
       requested_graphql_version: string;
       requested_actor_id: string;
     },
-  ): PromiseLike<{ error: { message: string } | null }>;
+  ): PromiseLike<{
+    data: "connected" | "reauthorized" | "replay" | null;
+    error: { message: string; code?: string } | null;
+  }>;
+}
+
+interface JobberPersistenceFailure {
+  message: string;
+  code?: string;
+}
+
+function hasDatabaseErrorCode(error: unknown): boolean {
+  return Boolean(
+    error &&
+      typeof error === "object" &&
+      "code" in error &&
+      typeof error.code === "string" &&
+      error.code.trim(),
+  );
+}
+
+function isAmbiguousTransportFailure(error: unknown): boolean {
+  if (hasDatabaseErrorCode(error)) return false;
+  if (error instanceof TypeError) return true;
+  return (
+    error instanceof Error &&
+    ["AbortError", "FetchError", "NetworkError"].includes(error.name)
+  );
+}
+
+function jobberPersistenceError(
+  failure: JobberPersistenceFailure,
+  cause?: unknown,
+): Error {
+  const safeCause =
+    cause instanceof Error
+      ? cause
+      : new Error(
+          failure.code
+            ? `Database error ${failure.code}`
+            : "Code-less persistence result",
+        );
+  return new Error(failure.message, { cause: safeCause });
 }
 
 interface JobberRefreshPersistenceClient {
@@ -204,21 +250,77 @@ export async function saveJobberConnection(input: {
 }, overrides?: {
   client?: JobberConnectionPersistenceClient;
   encryptToken?: (plaintext: string) => string;
-}): Promise<void> {
+  operationId?: string;
+}): Promise<"connected" | "reauthorized" | "replay"> {
+  const expectedAccountId = getExpectedJobberAccountId();
+  if (input.account.id !== expectedAccountId) {
+    throw new Error("Jobber account identity did not match configured authority");
+  }
   const client =
     overrides?.client ??
     (createServiceRoleSupabaseClient() as unknown as JobberConnectionPersistenceClient);
   const encryptToken = overrides?.encryptToken ?? encryptJobberToken;
-  const { error } = await client.rpc("save_jobber_connection_with_event", {
+  const operationId = overrides?.operationId ?? randomUUID();
+  const accessTokenCiphertext = encryptToken(input.tokens.accessToken);
+  const refreshTokenCiphertext = encryptToken(input.tokens.refreshToken);
+  const graphqlVersion = getJobberGraphqlVersion();
+  const rpcArguments = {
+    requested_operation_id: operationId,
+    requested_expected_account_id: expectedAccountId,
     requested_account_id: input.account.id,
     requested_account_name: input.account.name,
-    requested_access_token_ciphertext: encryptToken(input.tokens.accessToken),
-    requested_refresh_token_ciphertext: encryptToken(input.tokens.refreshToken),
+    requested_access_token_ciphertext: accessTokenCiphertext,
+    requested_refresh_token_ciphertext: refreshTokenCiphertext,
     requested_access_token_expires_at: input.tokens.accessTokenExpiresAt,
-    requested_graphql_version: getJobberGraphqlVersion(),
+    requested_graphql_version: graphqlVersion,
     requested_actor_id: input.actorId,
-  });
-  if (error) throw new Error(error.message);
+  };
+
+  const persist = () => client.rpc("save_jobber_connection_with_event", rpcArguments);
+  let result: Awaited<ReturnType<typeof persist>>;
+  let ambiguousCause: unknown;
+  try {
+    result = await persist();
+  } catch (error) {
+    if (!isAmbiguousTransportFailure(error)) throw error;
+    ambiguousCause = error;
+    // A transport failure may hide a committed transaction. Retry once with
+    // the exact operation key and encrypted payload so DB evidence decides.
+    try {
+      result = await persist();
+    } catch (retryError) {
+      if (retryError instanceof Error) {
+        throw new Error(retryError.message, { cause: error });
+      }
+      throw new Error("Jobber connection persistence transport failed", {
+        cause: error,
+      });
+    }
+  }
+  if (result.error && !result.error.code) {
+    // Supabase can surface a lost fetch response as a code-less result instead
+    // of rejecting the promise. This is the same ambiguous commit case.
+    const firstFailure = result.error;
+    ambiguousCause = jobberPersistenceError(firstFailure, ambiguousCause);
+    try {
+      result = await persist();
+    } catch (retryError) {
+      if (retryError instanceof Error) {
+        throw new Error(retryError.message, {
+          cause: ambiguousCause,
+        });
+      }
+      throw jobberPersistenceError(firstFailure);
+    }
+  }
+  const { data, error } = result;
+  if (error) throw jobberPersistenceError(error, ambiguousCause);
+  if (data !== "connected" && data !== "reauthorized" && data !== "replay") {
+    throw new Error("Jobber connection persistence returned no durable outcome", {
+      cause: ambiguousCause,
+    });
+  }
+  return data;
 }
 
 export async function readJobberConnectionStatus(): Promise<JobberConnectionStatus> {

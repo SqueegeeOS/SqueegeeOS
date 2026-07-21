@@ -5,7 +5,10 @@ import {
   fetchJobberAccountIdentity,
 } from "@/lib/care-operations/jobber-api";
 import { saveJobberConnection } from "@/lib/care-operations/jobber-connection-store";
-import { resolveJobberOAuthRedirectUri } from "@/lib/care-operations/jobber-oauth-config";
+import {
+  getExpectedJobberAccountId,
+  resolveJobberOAuthRedirectUri,
+} from "@/lib/care-operations/jobber-oauth-config";
 import { consumeJobberOAuthState } from "@/lib/care-operations/jobber-oauth-state";
 import { ROUTES } from "@/lib/navigation/config";
 
@@ -43,9 +46,13 @@ export async function GET(request: Request) {
   }
 
   try {
+    const expectedAccountId = getExpectedJobberAccountId();
     const redirectUri = resolveJobberOAuthRedirectUri(request);
     const tokens = await exchangeJobberAuthorizationCode(code, redirectUri);
     const account = await fetchJobberAccountIdentity(tokens.accessToken);
+    if (account.id !== expectedAccountId) {
+      throw new Error("Jobber account identity did not match configured authority");
+    }
     await saveJobberConnection({
       account,
       tokens,

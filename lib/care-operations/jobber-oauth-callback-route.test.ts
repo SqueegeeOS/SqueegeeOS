@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   fetchAccount: vi.fn(),
   saveConnection: vi.fn(),
   resolveRedirect: vi.fn(),
+  getExpectedAccountId: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/hq-route-authorization", () => ({
@@ -24,6 +25,7 @@ vi.mock("@/lib/care-operations/jobber-connection-store", () => ({
   saveJobberConnection: mocks.saveConnection,
 }));
 vi.mock("@/lib/care-operations/jobber-oauth-config", () => ({
+  getExpectedJobberAccountId: mocks.getExpectedAccountId,
   resolveJobberOAuthRedirectUri: mocks.resolveRedirect,
 }));
 
@@ -48,6 +50,7 @@ describe("Jobber OAuth callback state consumption", () => {
     mocks.authorize.mockResolvedValue({
       actor: { id: ACTOR_ID, email: "operator@example.com", role: "operator" },
     });
+    mocks.getExpectedAccountId.mockReturnValue("jobber-account");
   });
 
   it("validates and consumes state before interpreting provider denial", async () => {
@@ -115,5 +118,40 @@ describe("Jobber OAuth callback state consumption", () => {
     });
     expect(new URL(response.headers.get("location")!).searchParams.get("jobber"))
       .toBe("connected");
+  });
+
+  it("fails closed before provider calls when expected account authority is absent", async () => {
+    mocks.consume.mockResolvedValue(true);
+    mocks.getExpectedAccountId.mockImplementation(() => {
+      throw new Error("JOBBER_EXPECTED_ACCOUNT_ID is not configured");
+    });
+
+    const response = await callback("code=valid-code&state=valid-state");
+
+    expect(redirectReason(response)).toBe("connection_failed");
+    expect(mocks.exchange).not.toHaveBeenCalled();
+    expect(mocks.fetchAccount).not.toHaveBeenCalled();
+    expect(mocks.saveConnection).not.toHaveBeenCalled();
+  });
+
+  it("rejects the wrong returned account before persistence", async () => {
+    mocks.consume.mockResolvedValue(true);
+    mocks.resolveRedirect.mockReturnValue(
+      "https://homeatlas.example/api/admin/care-operations/jobber/oauth/callback",
+    );
+    mocks.exchange.mockResolvedValue({
+      accessToken: "access-token",
+      refreshToken: "refresh-token",
+      accessTokenExpiresAt: "2026-07-15T00:00:00.000Z",
+    });
+    mocks.fetchAccount.mockResolvedValue({
+      id: "different-jobber-account",
+      name: "Different company",
+    });
+
+    const response = await callback("code=valid-code&state=valid-state");
+
+    expect(redirectReason(response)).toBe("connection_failed");
+    expect(mocks.saveConnection).not.toHaveBeenCalled();
   });
 });

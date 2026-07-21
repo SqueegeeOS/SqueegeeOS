@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildJobberAuthorizationUrl,
+  getExpectedJobberAccountId,
   getJobberConfigStatus,
   resolveJobberOAuthRedirectUri,
   suggestJobberOAuthRedirectUri,
@@ -36,11 +37,12 @@ describe("Jobber OAuth configuration", () => {
     expect(authorization.searchParams.has("scope")).toBe(false);
   });
 
-  it("requires an explicit production callback and all three secrets", () => {
+  it("requires an explicit production callback and expected account authority", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("JOBBER_CLIENT_ID", "client");
     vi.stubEnv("JOBBER_CLIENT_SECRET", "secret");
     vi.stubEnv("JOBBER_TOKEN_ENCRYPTION_KEY", Buffer.alloc(32, 7).toString("base64"));
+    vi.stubEnv("JOBBER_EXPECTED_ACCOUNT_ID", "jobber-account");
     vi.stubEnv("JOBBER_OAUTH_REDIRECT_URI", "");
 
     expect(getJobberConfigStatus().configured).toBe(false);
@@ -55,9 +57,25 @@ describe("Jobber OAuth configuration", () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("JOBBER_CLIENT_ID", "client");
     vi.stubEnv("JOBBER_CLIENT_SECRET", "secret");
+    vi.stubEnv("JOBBER_EXPECTED_ACCOUNT_ID", "jobber-account");
     vi.stubEnv("JOBBER_TOKEN_ENCRYPTION_KEY", "too-short");
     expect(getJobberConfigStatus().encryptionKeyConfigured).toBe(false);
     expect(getJobberConfigStatus().configured).toBe(false);
+  });
+
+  it("fails readiness and direct lookup closed without expected account authority", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("JOBBER_CLIENT_ID", "client");
+    vi.stubEnv("JOBBER_CLIENT_SECRET", "secret");
+    vi.stubEnv(
+      "JOBBER_TOKEN_ENCRYPTION_KEY",
+      Buffer.alloc(32, 9).toString("base64"),
+    );
+    vi.stubEnv("JOBBER_EXPECTED_ACCOUNT_ID", "   ");
+
+    expect(getJobberConfigStatus().expectedAccountIdConfigured).toBe(false);
+    expect(getJobberConfigStatus().configured).toBe(false);
+    expect(() => getExpectedJobberAccountId()).toThrow("not configured");
   });
 
   it("derives a callback from the request only outside production", () => {
