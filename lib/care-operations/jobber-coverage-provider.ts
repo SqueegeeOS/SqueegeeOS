@@ -62,6 +62,20 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function isValidJobberApiVersionDate(value: string): boolean {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (year < 1 || month < 1 || month > 12 || day < 1) return false;
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  let maximumDay = 31;
+  if (month === 2) maximumDay = leapYear ? 29 : 28;
+  else if ([4, 6, 9, 11].includes(month)) maximumDay = 30;
+  return day <= maximumDay;
+}
+
 function requiredString(
   value: unknown,
   field: string,
@@ -225,23 +239,57 @@ export function assertJobberCoverageVersion(
     "x-jobber-api-version-deprecation",
   ]);
   const standardWarning = headers.get("warning");
-  const extensions = isRecord(body) && isRecord(body.extensions)
-    ? body.extensions
-    : null;
-  const extensionWarning = extensions
-    ? Object.entries(extensions).find(
-        ([key, value]) =>
-          /version.*warning|warning.*version/i.test(key) &&
-          value !== null &&
-          value !== false &&
-          value !== "",
-      )
-    : undefined;
   if (
     warning ||
-    extensionWarning ||
     (standardWarning && /version|graphql|deprecat/i.test(standardWarning))
   ) {
+    throw new JobberCoverageError(
+      "version_warning",
+      "Jobber returned an API version warning",
+    );
+  }
+  if (!isRecord(body) || !isRecord(body.extensions)) {
+    throw new JobberCoverageError(
+      "malformed_response",
+      "Jobber response omitted API version evidence",
+    );
+  }
+  const extensions = body.extensions;
+  if (!isRecord(extensions.versioning)) {
+    throw new JobberCoverageError(
+      "malformed_response",
+      "Jobber response omitted API version evidence",
+    );
+  }
+  const nestedVersion = extensions.versioning.version;
+  const nestedWarning = extensions.versioning.warning;
+  if (
+    typeof nestedVersion !== "string" ||
+    !isValidJobberApiVersionDate(nestedVersion)
+  ) {
+    throw new JobberCoverageError(
+      "malformed_response",
+      "Jobber versioning version was malformed",
+    );
+  }
+  if (
+    nestedWarning !== undefined &&
+    nestedWarning !== null &&
+    (typeof nestedWarning !== "string" || nestedWarning.trim() === "")
+  ) {
+    throw new JobberCoverageError(
+      "malformed_response",
+      "Jobber versioning warning was malformed",
+    );
+  }
+  const extensionWarning = Object.entries(extensions).find(
+    ([key, value]) =>
+      /version.*warning|warning.*version/i.test(key) &&
+      value !== null &&
+      value !== false &&
+      value !== "",
+  );
+  if (typeof nestedWarning === "string" || extensionWarning) {
     throw new JobberCoverageError(
       "version_warning",
       "Jobber returned an API version warning",
@@ -252,7 +300,12 @@ export function assertJobberCoverageVersion(
     "x-jobber-graphql-version",
     "x-jobber-api-version",
   ]);
-  if (observedVersion && observedVersion !== expectedVersion) {
+  const observedNestedVersion = nestedVersion;
+  if (
+    observedNestedVersion !== expectedVersion ||
+    (observedVersion && observedVersion !== expectedVersion) ||
+    (observedVersion && observedVersion !== observedNestedVersion)
+  ) {
     throw new JobberCoverageError(
       "version_mismatch",
       "Jobber responded with a different API version",
