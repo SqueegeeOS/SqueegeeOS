@@ -71,7 +71,7 @@ async function acquire(
 ): Promise<Acquisition> {
   const result = await client.query<{ acquisition: Acquisition }>(
     `select public.start_or_resume_jobber_schedule_coverage_sync(
-       $1::uuid, 'squeegeeking-coverage-resume-045', $2::uuid,
+       $1::uuid, 'squeegeeking', $2::uuid,
        '2026-04-17T07:00:00Z'::timestamptz,
        '2027-07-17T07:00:00Z'::timestamptz,
        '2025-04-16'
@@ -92,31 +92,31 @@ async function cleanupTwoSessionFixture(client: PoolClient): Promise<void> {
       delete from public.jobber_visit_source_observations
       where run_id in (
         select id from public.jobber_schedule_sync_runs
-        where connection_id = 'squeegeeking-coverage-resume-045'
+        where connection_id = 'squeegeeking'
       );
       delete from public.jobber_schedule_sync_partitions
       where run_id in (
         select id from public.jobber_schedule_sync_runs
-        where connection_id = 'squeegeeking-coverage-resume-045'
+        where connection_id = 'squeegeeking'
       );
       delete from public.jobber_schedule_sync_request_attempts
       where run_id in (
         select id from public.jobber_schedule_sync_runs
-        where connection_id = 'squeegeeking-coverage-resume-045'
+        where connection_id = 'squeegeeking'
       );
       delete from public.jobber_schedule_sync_work_items
       where run_id in (
         select id from public.jobber_schedule_sync_runs
-        where connection_id = 'squeegeeking-coverage-resume-045'
+        where connection_id = 'squeegeeking'
       );
       delete from public.jobber_schedule_sync_watermarks
-      where connection_id = 'squeegeeking-coverage-resume-045';
+      where connection_id = 'squeegeeking';
       delete from public.jobber_schedule_sync_locks
-      where connection_id = 'squeegeeking-coverage-resume-045';
+      where connection_id = 'squeegeeking';
       delete from public.jobber_schedule_sync_runs
-      where connection_id = 'squeegeeking-coverage-resume-045';
+      where connection_id = 'squeegeeking';
       delete from public.jobber_connections
-      where id = 'squeegeeking-coverage-resume-045';
+      where id = 'squeegeeking';
       delete from public.hq_admin_users
       where user_id = '00000000-0000-4000-8000-000000004145';
       delete from auth.users
@@ -172,7 +172,7 @@ integration("migration 045 disposable resumable-coverage rehearsal", () => {
           id, status, account_id, account_name, access_token_ciphertext,
           refresh_token_ciphertext, access_token_expires_at, graphql_version
         ) values (
-          'squeegeeking-coverage-resume-045', 'connected',
+          'squeegeeking', 'connected',
           'disposable-account-two-session-045', 'Disposable Jobber',
           'not-a-real-token', 'not-a-real-token',
           pg_catalog.now() + interval '1 hour', '2025-04-16'
@@ -196,7 +196,7 @@ integration("migration 045 disposable resumable-coverage rehearsal", () => {
       await clientB.query("set local deadlock_timeout = '100ms'");
       await clientB.query(
         `select 1 from public.jobber_schedule_sync_locks
-         where connection_id = 'squeegeeking-coverage-resume-045'
+         where connection_id = 'squeegeeking'
          for update`,
       );
       const overlappingMutation = settle(
@@ -276,7 +276,7 @@ integration("migration 045 disposable resumable-coverage rehearsal", () => {
       await clientB.query(
         `update public.jobber_schedule_sync_locks
          set lease_expires_at = pg_catalog.clock_timestamp() - interval '1 second'
-         where connection_id = 'squeegeeking-coverage-resume-045'`,
+         where connection_id = 'squeegeeking'`,
       );
       const takeover = await acquire(
         clientB,

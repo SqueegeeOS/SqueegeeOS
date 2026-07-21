@@ -21,7 +21,7 @@ alter table public.jobber_schedule_sync_locks
 -- intentionally undisclosed; after lease expiry the resumable acquisition
 -- path replays its unfinished work under a new generation and token.
 update public.jobber_schedule_sync_locks
-set acquisition_generation = pg_catalog.greatest(acquisition_generation, 1),
+set acquisition_generation = greatest(acquisition_generation, 1::bigint),
     owner_token = coalesce(owner_token, pg_catalog.gen_random_uuid())
 where active_run_id is not null
   and (acquisition_generation = 0 or owner_token is null);
@@ -788,10 +788,10 @@ begin
   end if;
 
   start_ms := pg_catalog.floor(
-    pg_catalog.extract(epoch from work_row.window_start) * 1000
+    extract(epoch from work_row.window_start) * 1000
   )::bigint;
   end_ms := pg_catalog.floor(
-    pg_catalog.extract(epoch from work_row.window_end) * 1000
+    extract(epoch from work_row.window_end) * 1000
   )::bigint;
   if end_ms - start_ms <= 1 then
     raise exception 'Jobber coverage overflow was unsplittable';

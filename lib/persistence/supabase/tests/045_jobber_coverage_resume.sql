@@ -225,7 +225,7 @@ begin
         'mark_resumable_jobber_schedule_coverage_sync_partial',
         'finalize_resumable_jobber_schedule_coverage_sync'
       )
-      and pg_catalog.position(
+      and position(
         'assert_resumable_jobber_schedule_sync_owner' in routine.prosrc
       ) = 0
   ) or exists (
@@ -234,8 +234,8 @@ begin
     where namespace.nspname = 'public'
       and routine.proname = 'pause_jobber_schedule_coverage_sync'
       and (
-        pg_catalog.position('acquisition_generation' in routine.prosrc) = 0
-        or pg_catalog.position('owner_token' in routine.prosrc) = 0
+        position('acquisition_generation' in routine.prosrc) = 0
+        or position('owner_token' in routine.prosrc) = 0
       )
   ) then
     raise exception 'Migration 045 mutation body omitted an acquisition fence';
@@ -246,13 +246,13 @@ begin
     join pg_catalog.pg_namespace namespace on namespace.oid = routine.pronamespace
     where namespace.nspname = 'public'
       and routine.proname = 'invalidate_jobber_visit_classification_on_manifest_omission'
-      and pg_catalog.position(
+      and position(
         'classification.scheduled_start >= new.window_start' in routine.prosrc
       ) > 0
-      and pg_catalog.position(
+      and position(
         'classification.scheduled_start < new.window_end' in routine.prosrc
       ) > 0
-      and pg_catalog.position(
+      and position(
         'expected exactly one bound authoritative appointment' in routine.prosrc
       ) > 0
   ) then
@@ -986,7 +986,7 @@ begin
     (resumed_start->>'run_id')::uuid,
     '00000000-0000-4000-8000-000000000145',
     (resumed_start->>'acquisition_generation')::bigint,
-    (resumed_start->>'owner_token')::uuid, 1,
+    (resumed_start->>'owner_token')::uuid, 1::smallint,
     repeat('b', 64), repeat('c', 64), 1, 0, 2
   );
   if pass_result <> 'pass_two_ready' then
@@ -1011,7 +1011,7 @@ begin
     (resumed_start->>'run_id')::uuid,
     '00000000-0000-4000-8000-000000000145',
     (resumed_start->>'acquisition_generation')::bigint,
-    (resumed_start->>'owner_token')::uuid, 2,
+    (resumed_start->>'owner_token')::uuid, 2::smallint,
     repeat('b', 64), repeat('c', 64), 1, 0, 1
   );
   if pass_result <> 'ready_to_finalize' then
@@ -1068,12 +1068,12 @@ begin
     midpoint := pg_catalog.to_timestamp(
       (
         pg_catalog.floor(
-          pg_catalog.extract(epoch from (attempt->>'window_start')::timestamptz) * 1000
+          extract(epoch from (attempt->>'window_start')::timestamptz) * 1000
         )::bigint + (
           pg_catalog.floor(
-            pg_catalog.extract(epoch from (attempt->>'window_end')::timestamptz) * 1000
+            extract(epoch from (attempt->>'window_end')::timestamptz) * 1000
           )::bigint - pg_catalog.floor(
-            pg_catalog.extract(epoch from (attempt->>'window_start')::timestamptz) * 1000
+            extract(epoch from (attempt->>'window_start')::timestamptz) * 1000
           )::bigint
         ) / 2
       )::numeric / 1000
