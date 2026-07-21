@@ -1,0 +1,43 @@
+.viewport {
+  overflow: hidden;
+}
+.track {
+  display: flex;
+  width: max-content;
+  animation: utility-rail-loop 32s linear infinite;
+  will-change: transform;
+}
+
+.sequence {
+  display: flex;
+  flex: none;
+  min-width: min(100vw, 90rem);
+  border-right: 1px solid var(--editorial-rule);
+}
+
+.viewport:hover .track,
+.viewport:focus-within .track {
+  animation-play-state: paused;
+}
+
+@keyframes utility-rail-loop {
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .viewport {
+    overflow-x: auto;
+  }
+
+  .track {
+    animation: none;
+    transform: none;
+    will-change: auto;
+  }
+
+  .clone {
+    display: none;
+  }
+}
