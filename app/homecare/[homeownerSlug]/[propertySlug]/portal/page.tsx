@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import {
   MemberPortalNotFound,
   MemberPortalPageClient,
@@ -33,8 +32,6 @@ export default async function MemberPortalPage({ params }: MemberPortalPageProps
       portalData={model.portalData}
       homeownerSlug={model.homeownerSlug}
       propertySlug={model.propertySlug}
-      homeHealth={model.homeHealth}
-      homeHealthHref={model.homeHealthHref}
       portalBasePath={model.portalBasePath}
       customerPortalMode={model.customerPortalMode}
     />
