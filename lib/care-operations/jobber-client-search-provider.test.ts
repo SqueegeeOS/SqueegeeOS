@@ -215,7 +215,12 @@ describe("Jobber member-search provider", () => {
 
   it.each([
     new Response("not json"),
-    new Response(JSON.stringify({ data: { clients: { nodes: [] } } })),
+    new Response(
+      JSON.stringify({
+        data: { clients: { nodes: [] } },
+        extensions: observedVersioning,
+      }),
+    ),
   ])("rejects malformed provider data", async (response) => {
     await expect(
       searchJobberClients("token", "member", {
@@ -271,6 +276,51 @@ describe("Jobber member-search provider", () => {
         ),
       }),
     ).rejects.toMatchObject({ code: "version_mismatch" });
+  });
+
+  it.each(["2025-4-16", "2025-02-29", "2025-13-01"])(
+    "rejects malformed nested API version %s",
+    async (version) => {
+      await expect(
+        searchJobberClients("token", "member", {
+          fetcher: vi.fn().mockResolvedValue(
+            clientResponse([], {
+              extensions: { versioning: { version, warning: null } },
+            }),
+          ),
+        }),
+      ).rejects.toMatchObject({ code: "malformed_response" });
+    },
+  );
+
+  it("requires nested version evidence on every client-search page", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        clientResponse([], { endCursor: "next", hasNextPage: true }),
+      )
+      .mockResolvedValueOnce(clientResponse([], { extensions: {} }));
+
+    await expect(
+      searchJobberClients("token", "member", { fetcher }),
+    ).rejects.toMatchObject({ code: "version_unverified" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects an official version warning on a later client-search page", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        clientResponse([], { endCursor: "next", hasNextPage: true }),
+      )
+      .mockResolvedValueOnce(
+        clientResponse([], { extensions: warningVersioning }),
+      );
+
+    await expect(
+      searchJobberClients("token", "member", { fetcher }),
+    ).rejects.toMatchObject({ code: "version_warning" });
+    expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
   it("paginates only the selected client's property IDs and URIs", async () => {
@@ -329,6 +379,40 @@ describe("Jobber member-search provider", () => {
     expect(fetcher).toHaveBeenCalledTimes(10);
     expect(result.propertyCoverageLimitReached).toBe(true);
     expect(result.propertyCoverageComplete).toBe(false);
+  });
+
+  it("requires matching nested version evidence on every client-property page", async () => {
+    const missingFetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        propertyResponse([], { endCursor: "next", hasNextPage: true }),
+      )
+      .mockResolvedValueOnce(propertyResponse([], { extensions: {} }));
+    await expect(
+      listJobberClientProperties("token", "client-1", {
+        fetcher: missingFetcher,
+      }),
+    ).rejects.toMatchObject({ code: "version_unverified" });
+    expect(missingFetcher).toHaveBeenCalledTimes(2);
+
+    const mismatchedFetcher = vi
+      .fn()
+      .mockResolvedValueOnce(
+        propertyResponse([], { endCursor: "next", hasNextPage: true }),
+      )
+      .mockResolvedValueOnce(
+        propertyResponse([], {
+          extensions: {
+            versioning: { version: "2026-01-01", warning: null },
+          },
+        }),
+      );
+    await expect(
+      listJobberClientProperties("token", "client-1", {
+        fetcher: mismatchedFetcher,
+      }),
+    ).rejects.toMatchObject({ code: "version_mismatch" });
+    expect(mismatchedFetcher).toHaveBeenCalledTimes(2);
   });
 
   it("returns durable ownership evidence only after complete coverage", async () => {

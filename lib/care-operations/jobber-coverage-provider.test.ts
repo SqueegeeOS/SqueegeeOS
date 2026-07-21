@@ -8,6 +8,19 @@ import {
   JobberCoverageError,
 } from "./jobber-coverage-provider";
 
+const observedVersioning = JSON.parse(
+  readFileSync(
+    new URL("./fixtures/jobber-versioning-observed.json", import.meta.url),
+    "utf8",
+  ),
+) as Record<string, unknown>;
+const warningVersioning = JSON.parse(
+  readFileSync(
+    new URL("./fixtures/jobber-versioning-warning.json", import.meta.url),
+    "utf8",
+  ),
+) as Record<string, unknown>;
+
 const window = {
   startAt: "2026-07-01T07:00:00.000Z",
   endAt: "2026-07-02T07:00:00.000Z",
@@ -39,7 +52,12 @@ function visit(overrides: Partial<JobberVisitSampleNode> = {}): JobberVisitSampl
 
 function response(
   nodes: unknown[] = [visit()],
-  options: { hasNextPage?: boolean; headers?: HeadersInit; errors?: unknown } = {},
+  options: {
+    hasNextPage?: boolean;
+    headers?: HeadersInit;
+    errors?: unknown;
+    extensions?: Record<string, unknown>;
+  } = {},
 ) {
   return new Response(
     JSON.stringify({
@@ -50,6 +68,7 @@ function response(
         },
       },
       errors: options.errors,
+      extensions: options.extensions ?? observedVersioning,
     }),
     { status: 200, headers: options.headers },
   );
@@ -202,6 +221,55 @@ describe("Jobber coverage provider boundary", () => {
         ),
       }),
     ).rejects.toMatchObject({ code: "version_mismatch" });
+  });
+
+  it("rejects an official nested version warning", async () => {
+    await expect(
+      fetchJobberCoverageWindow("token", window, {
+        fetcher: vi.fn().mockResolvedValue(
+          response([], { extensions: warningVersioning }),
+        ),
+      }),
+    ).rejects.toMatchObject({ code: "version_warning" });
+  });
+
+  it("rejects an official nested version mismatch", async () => {
+    await expect(
+      fetchJobberCoverageWindow("token", window, {
+        fetcher: vi.fn().mockResolvedValue(
+          response([], {
+            extensions: {
+              versioning: { version: "2026-01-01", warning: null },
+            },
+          }),
+        ),
+      }),
+    ).rejects.toMatchObject({ code: "version_mismatch" });
+  });
+
+  it.each(["2025-4-16", "2025-02-29", "2025-13-01"])(
+    "rejects malformed nested API version %s",
+    async (version) => {
+      await expect(
+        fetchJobberCoverageWindow("token", window, {
+          fetcher: vi.fn().mockResolvedValue(
+            response([], {
+              extensions: { versioning: { version, warning: null } },
+            }),
+          ),
+        }),
+      ).rejects.toMatchObject({ code: "malformed_response" });
+    },
+  );
+
+  it("rejects missing official nested version evidence", async () => {
+    await expect(
+      fetchJobberCoverageWindow("token", window, {
+        fetcher: vi.fn().mockResolvedValue(
+          response([], { extensions: {} }),
+        ),
+      }),
+    ).rejects.toMatchObject({ code: "malformed_response" });
   });
 
   it("canonicalizes source hashes independent of object property order", () => {
