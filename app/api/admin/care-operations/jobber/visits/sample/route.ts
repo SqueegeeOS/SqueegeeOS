@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeHqApiRequest } from "@/lib/auth/hq-route-authorization";
 import {
   importJobberVisitSample,
   listJobberVisitSample,
@@ -7,14 +7,9 @@ import {
 
 export const runtime = "nodejs";
 
-function unauthorized() {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
-
-export async function GET(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
-    return unauthorized();
-  }
+export async function GET() {
+  const authorization = await authorizeHqApiRequest();
+  if (authorization.response) return authorization.response;
   try {
     return NextResponse.json({
       executionMode: "read_only",
@@ -28,9 +23,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
-    return unauthorized();
-  }
+  const authorization = await authorizeHqApiRequest();
+  if (authorization.response) return authorization.response;
   let limit = 5;
   try {
     const body = (await request.json()) as { limit?: number };
