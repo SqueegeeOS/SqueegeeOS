@@ -36,6 +36,13 @@ const concurrencyCleanup = readFileSync(
   ),
   "utf8",
 );
+const concurrencyFixture = readFileSync(
+  new URL(
+    "./supabase/tests/support/043_authoritative_visit_completion_concurrency_fixture.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("migration 043 authoritative visit completion and evidence", () => {
   it("creates RLS-protected immutable completion and text-only evidence ledgers", () => {
@@ -187,6 +194,41 @@ describe("migration 043 authoritative visit completion and evidence", () => {
     }
     expect(rehearsal).toContain("'squeegeeking', 'connected'");
     expect(rehearsal).not.toMatch(/'completion-043'\s*,\s*'connected'/);
+  });
+
+  it("seeds approved classifications only after their appointments exist", () => {
+    for (const fixture of [rehearsal, concurrencyFixture]) {
+      const classificationInsert = fixture.indexOf(
+        "insert into public.jobber_visit_classifications",
+      );
+      const appointmentInsert = fixture.indexOf(
+        "insert into public.member_appointments",
+        classificationInsert,
+      );
+      const approvalUpdate = fixture.indexOf(
+        "update public.jobber_visit_classifications",
+        appointmentInsert,
+      );
+      const initialClassification = fixture.slice(
+        classificationInsert,
+        appointmentInsert,
+      );
+      const approval = fixture.slice(
+        approvalUpdate,
+        fixture.indexOf(";", approvalUpdate),
+      );
+
+      expect(classificationInsert).toBeGreaterThan(-1);
+      expect(appointmentInsert).toBeGreaterThan(classificationInsert);
+      expect(approvalUpdate).toBeGreaterThan(appointmentInsert);
+      expect(initialClassification).toContain("'pending_review'");
+      expect(initialClassification).toMatch(
+        /scheduled_start, appointment_id, decided_at,\s+approved_at, updated_at[\s\S]*?now\(\) - interval '1 hour', null, now\(\) - interval '1 hour',\s+null, now\(\) - interval '1 hour'/,
+      );
+      expect(approval).toMatch(
+        /set classification_state = 'approved',\s+appointment_id = '[0-9a-f-]+',\s+approved_at = now\(\) - interval '1 hour'/,
+      );
+    }
   });
 
   it("fingerprints deterministic content for every present forbidden domain", () => {

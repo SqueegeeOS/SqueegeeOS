@@ -308,14 +308,16 @@ Disposable migration-040 evidence recorded July 20, 2026:
   `auth.users`, `public.homeowners`, `public.properties`,
   `public.memberships`, and `public.signed_agreements`.
 
-Migration-043 prerequisite evidence recorded July 20, 2026:
+Subsequent disposable migration evidence:
 
-- Migration 043 was not run. A read-only prerequisite check found
-  `jobber_visit_completion_events`, `visit_text_evidence`, and
-  `confirm_jobber_visit_completion` all absent.
-- No migration 043 was applied under this approval.
-- Migration-043 concurrency remains pending separate approval to install it on
-  a disposable database only.
+- Corrected migrations 040 and 043 later applied successfully only to
+  `zgpvucrrhjmzcgfgxrtn`; each catalog/security audit passed `9/9`.
+- The earlier `No migration persisted` statement remains the result of that
+  specific rollback-only outer transaction, not the disposable project's
+  current schema state.
+- Production remains unapplied and untouched. Detailed migration-043 rollback,
+  manual two-session, residue, blocked canonical Node-run, and artifact-hash
+  evidence is recorded in `JOBBER_VISIT_COMPLETION_PR4_RUNBOOK.md`.
 
 Migration-041 repository evidence recorded July 18, 2026:
 

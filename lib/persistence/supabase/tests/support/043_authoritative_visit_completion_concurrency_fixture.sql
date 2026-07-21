@@ -114,12 +114,12 @@ insert into public.jobber_visit_classifications (
   (select updated_at from public.jobber_property_links
    where id = '80000000-0000-4000-8000-000000000043'),
   '40000000-0000-4000-8000-000000000043',
-  '30000000-0000-4000-8000-000000000043', 'home_care_visit', 'approved',
+  '30000000-0000-4000-8000-000000000043', 'home_care_visit', 'pending_review',
   '10000000-0000-4000-8000-000000000043',
   'Disposable prior exact race approval',
   '{"visit_status":"UPCOMING","is_complete":false}'::jsonb,
   now() - interval '1 hour', null, now() - interval '1 hour',
-  now() - interval '1 hour', now() - interval '1 hour'
+  null, now() - interval '1 hour'
 );
 insert into public.member_appointments (
   id, member_profile_id, property_id, service_type, scheduled_at, status,
@@ -143,7 +143,9 @@ insert into public.member_appointments (
    where id = '80000000-0000-4000-8000-000000000043')
 );
 update public.jobber_visit_classifications
-set appointment_id = 'a0000000-0000-4000-8000-000000000043'
+set classification_state = 'approved',
+    appointment_id = 'a0000000-0000-4000-8000-000000000043',
+    approved_at = now() - interval '1 hour'
 where id = '90000000-0000-4000-8000-000000000043';
 insert into public.jobber_visit_classification_events (
   classification_id, event_type, actor_id, reason, projection_id,

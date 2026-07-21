@@ -1,6 +1,8 @@
 # Authoritative Jobber visit completion and evidence — PR4 runbook
 
-**Status:** Repository implementation only; migration 043 is not applied
+**Status:** Repository implementation; migration 043 is applied only to
+disposable project `zgpvucrrhjmzcgfgxrtn`; production remains unapplied and
+untouched
 **Scope:** Authenticated, supervised confirmation of one exact Jobber-completed member appointment and private immutable HQ text evidence
 **Authority:** Jobber remains appointment/dispatch/completion truth; HomeAtlas stores the exact reviewed completion projection and authenticated evidence
 **Non-goals:** Automatic completion, obligations, pricing, billing, Stripe, agreements, membership changes, Property Memory/customer publication, assets/images, customer communication, or AI/OpenAI calls
@@ -128,8 +130,66 @@ and exact-confirmation races. Because cross-session fixtures must be committed
 to become visible, its guarded cleanup uses transaction-local
 `session_replication_role=replica` only for reserved synthetic identities; the
 disposable database role must support that setting. It refuses to clean a
-non-harness `squeegeeking` connection. Both commands remain unexecuted in this
-implementation session because no acknowledged disposable URL was supplied.
+non-harness `squeegeeking` connection.
+
+The canonical Node rollback and concurrency integration commands are
+**UNEXECUTED / BLOCKED** solely because no disposable direct database URL and
+password are available. The manual SQL Editor evidence below is complementary;
+it is not a substitute for those canonical Node runs.
+
+### Disposable project evidence
+
+- The only disposable target was `zgpvucrrhjmzcgfgxrtn`.
+- Corrected migrations 040 and 043 applied successfully there. Production was
+  not contacted or changed.
+- Migration 040 catalog/security audit: `9/9` passed.
+- Migration 043 catalog/security audit: `9/9` passed.
+- The migration-043 rollback harness passed; its residue audit total was `0`.
+- A manual two-session SQL Editor matrix used distinct PostgreSQL backend PIDs
+  and passed all nine semantic cases:
+
+  1. completion-before-sync;
+  2. sync-first fail-closed;
+  3. property-link revocation fail-closed;
+  4. actor deactivation fail-closed;
+  5. membership pause fail-closed;
+  6. cancellation after completion;
+  7. finalize then completion;
+  8. reserved finalization fail-closed; and
+  9. duplicate completed/replay.
+
+- The final synthetic residue count was `0` across every listed fixture table:
+  `auth.users`, `public.hq_admin_users`, `public.hq_admin_user_events`,
+  `public.homeowners`, `public.properties`, `public.memberships`,
+  `public.signed_agreements`, `public.member_profiles`,
+  `public.jobber_connections`, `public.jobber_connection_events`,
+  `public.jobber_schedule_sync_runs`, `public.jobber_schedule_sync_locks`,
+  `public.jobber_schedule_sync_watermarks`,
+  `public.jobber_schedule_sync_partitions`,
+  `public.jobber_visit_source_observations`,
+  `public.jobber_visit_projections`, `public.jobber_visit_projection_events`,
+  `public.jobber_property_links`, `public.jobber_property_link_events`,
+  `public.jobber_visit_classifications`,
+  `public.jobber_visit_classification_events`, `public.member_appointments`,
+  `public.appointment_source_events`,
+  `public.jobber_visit_completion_events`, and `public.visit_text_evidence`.
+
+Current SHA-256 evidence manifest:
+
+```text
+58410663445c4f760c9fea57e871d26b0654f153da65a0d30695db99e3f1b50b  lib/persistence/supabase/migrations/040_jobber_member_property_search_link.sql
+04224eacc0b5cf2e413f7311239b42297f566236f4cde9bfc350c4417207b4a1  lib/persistence/supabase/tests/040_jobber_member_property_search_link.sql
+4a55a75838e52499d84e39255af07373c05d814127bbc79068e19b8c559b59f9  lib/persistence/jobber-member-property-search-link-migration.test.ts
+9ed3aa3ad70d4cbe49b361293812f85cd236d518c9a635eecc7e785aea7ab3f7  lib/persistence/supabase/jobber-member-property-search-link.integration.test.ts
+fdf1eb9a7312ee6b6e01ea8e0c632ec6b812dbab14791a9848278cac0129b2a6  lib/persistence/supabase/migrations/043_authoritative_visit_completion_evidence.sql
+f15c2af8fcd4d8401abee166b28a1369557dabd2101ac5bdaad6da628ff28c8f  lib/persistence/supabase/tests/043_authoritative_visit_completion_evidence.sql
+cc8264ea01ece00eb8394c1b78ed459738457d11d5485c186c355bcbbb0244e9  lib/persistence/supabase/tests/support/043_authoritative_visit_completion_concurrency_fixture.sql
+ed3e7a520670fc496c684a4e91ee790868cc95e319c22a8b50149523f5e73885  lib/persistence/supabase/tests/support/043_authoritative_visit_completion_concurrency_cleanup.sql
+514d795164e66c3e4496484563b12290ea8220a6febac762a0bbd6121c0f241d  lib/persistence/jobber-visit-completion-migration.test.ts
+eb26ada26e86b17b53b2dbb44a1e02384fb7b7954dc3ca94e0cf4891cedd7b12  lib/persistence/supabase/jobber-visit-completion.integration.test.ts
+69c2c135d65cde43f0c8fa92af5ee5a1602dc152414cc1f9407226a6183c25  lib/persistence/supabase/jobber-visit-completion-concurrency.integration.test.ts
+dcff9889ec9caa148f7dcdff9f3f38c6610fb9a9131e07e409ab003bff201e57  lib/persistence/supabase/tests/support/forbidden_domain_fingerprints.sql
+```
 
 Before any migration or deployment decision:
 
