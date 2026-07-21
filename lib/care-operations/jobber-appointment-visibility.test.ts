@@ -25,8 +25,15 @@ const sources = {
 };
 
 describe("current Jobber appointment visibility", () => {
-  it("requires the current approved classification flag on every HQ/portal schedule read", () => {
-    for (const source of Object.values(sources)) {
+  it("keeps every scheduling consumer limited to current approved authority", () => {
+    const scheduleSources = [
+      sources.today,
+      sources.memberships,
+      sources.commandCenter,
+      sources.customerWorkspace,
+    ];
+
+    for (const source of scheduleSources) {
       expect(source).toContain(
         '.eq("jobber_authority_state", AUTHORITATIVE_JOBBER_AUTHORITY_STATE)',
       );
@@ -34,6 +41,25 @@ describe("current Jobber appointment visibility", () => {
         '.not("jobber_visit_classification_id", "is", null)',
       );
     }
+  });
+
+  it("requires exact immutable completion evidence before portal history visibility", () => {
+    expect(sources.portal).toContain(
+      '.eq("jobber_authority_state", AUTHORITATIVE_JOBBER_AUTHORITY_STATE)',
+    );
+    expect(sources.portal).toContain(
+      '"jobber_authority_state",\n        AUTHORITATIVE_COMPLETED_JOBBER_AUTHORITY_STATE',
+    );
+    expect(sources.portal).toContain(
+      "AUTHORITATIVE_COMPLETED_JOBBER_AUTHORITY_STATE",
+    );
+    expect(sources.portal).toContain(
+      "completion_evidence:jobber_visit_completion_events",
+    );
+    expect(sources.portal).toContain("hasExactCompletionEvidence");
+    expect(sources.portal).toContain(
+      '.not("jobber_visit_classification_id", "is", null)',
+    );
   });
 
   it("binds Today and portal appointments to the exact membership identity", () => {

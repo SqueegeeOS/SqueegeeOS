@@ -47,7 +47,11 @@ function buildMembershipVisitLines(input: {
   if (input.enrollmentSavingsPerVisit <= 0) return [];
 
   return input.appointments
-    .filter((appointment) => appointment.status === "completed")
+    .filter(
+      (appointment) =>
+        appointment.status === "completed" &&
+        appointment.countsTowardMembershipSavings !== false,
+    )
     .sort((a, b) => b.date.localeCompare(a.date))
     .map((appointment) => ({
       id: `visit-${appointment.id}`,
