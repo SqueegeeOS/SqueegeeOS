@@ -35,8 +35,6 @@ export default async function TokenPortalPage({ params }: TokenPortalPageProps) 
       portalData={model.portalData}
       homeownerSlug={model.homeownerSlug}
       propertySlug={model.propertySlug}
-      homeHealth={model.homeHealth}
-      homeHealthHref={model.homeHealthHref}
       portalBasePath={model.portalBasePath}
       customerPortalMode={model.customerPortalMode}
     />
