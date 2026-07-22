@@ -12,6 +12,7 @@ const window = {
   startAt: "2026-07-01T07:00:00.000Z",
   endAt: "2026-07-02T07:00:00.000Z",
 };
+const jobberVersionHeaders = { "x-jobber-graphql-version": "2025-04-16" };
 
 function visit(overrides: Partial<JobberVisitSampleNode> = {}): JobberVisitSampleNode {
   return {
@@ -51,7 +52,7 @@ function response(
       },
       errors: options.errors,
     }),
-    { status: 200, headers: options.headers },
+    { status: 200, headers: options.headers ?? jobberVersionHeaders },
   );
 }
 
@@ -202,6 +203,33 @@ describe("Jobber coverage provider boundary", () => {
         ),
       }),
     ).rejects.toMatchObject({ code: "version_mismatch" });
+  });
+
+  it("fails closed when Jobber returns no observable API version evidence", async () => {
+    await expect(
+      fetchJobberCoverageWindow("token", window, {
+        fetcher: vi.fn().mockResolvedValue(response([], { headers: {} })),
+      }),
+    ).rejects.toMatchObject({ code: "version_unverified" });
+  });
+
+  it("accepts matching nested API version evidence when headers omit it", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          data: {
+            visits: {
+              nodes: [visit()],
+              pageInfo: { hasNextPage: false },
+            },
+          },
+          extensions: { versioning: { version: "2025-04-16" } },
+        }),
+        { status: 200 },
+      ),
+    );
+    const page = await fetchJobberCoverageWindow("token", window, { fetcher });
+    expect(page.nodes).toHaveLength(1);
   });
 
   it("canonicalizes source hashes independent of object property order", () => {
