@@ -194,23 +194,24 @@ begin
   end loop;
 end $$;
 
-revoke select, insert, update, delete on table public.homeowners
+-- Close every browser role privilege, not only ordinary DML. Some production
+-- tables carried legacy REFERENCES/TRIGGER/TRUNCATE grants; leaving them behind
+-- violates the exact authority ACL audit even though read/write access is gone.
+revoke all on table public.homeowners
   from public, anon, authenticated;
-revoke select, insert, update, delete on table public.properties
+revoke all on table public.properties
   from public, anon, authenticated;
-revoke insert, update, delete on table public.home_care_plans
+revoke all on table public.home_care_plans
   from public, anon, authenticated;
-revoke select on table public.home_care_plans
+revoke all on table public.memberships
   from public, anon, authenticated;
-revoke select, insert, update, delete on table public.memberships
+revoke all on table public.signed_agreements
   from public, anon, authenticated;
-revoke select, insert, update, delete on table public.signed_agreements
+revoke all on table public.property_assets
   from public, anon, authenticated;
-revoke select, insert, update, delete on table public.property_assets
+revoke all on table public.presentations
   from public, anon, authenticated;
-revoke select, insert, update, delete on table public.presentations
-  from public, anon, authenticated;
-revoke select, insert, update, delete on table public.pricing_settings
+revoke all on table public.pricing_settings
   from public, anon, authenticated;
 revoke all on table public.presentation_signing_attempts
   from public, anon, authenticated;
