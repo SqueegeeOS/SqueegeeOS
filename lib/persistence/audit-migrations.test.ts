@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-// @ts-expect-error The production audit is an ESM script without declarations.
 import {
   hasExactAuthorityFunctionAcl,
   isExactSignedAgreementImmutabilityTrigger,
