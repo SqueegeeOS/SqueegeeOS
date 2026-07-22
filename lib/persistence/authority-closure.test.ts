@@ -30,7 +30,10 @@ describe("migration 036 authority closure", () => {
     expect(migration).toContain("and cmd = 'SELECT'");
     expect(migration).not.toContain("home_care_plans_anon_read");
     expect(migration).toMatch(
-      /revoke select on table public\.home_care_plans\s+from public, anon, authenticated/,
+      /revoke all on table public\.home_care_plans\s+from public, anon, authenticated/,
+    );
+    expect(migration).toMatch(
+      /revoke all on table public\.pricing_settings\s+from public, anon, authenticated/,
     );
   });
 
