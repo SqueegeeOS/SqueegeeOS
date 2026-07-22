@@ -25,6 +25,8 @@ interface SearchResponse {
   clients?: JobberClient[];
   resultLimitReached?: boolean;
   clientCoverageLimitReached?: boolean;
+  clientsScanned?: number;
+  pagesScanned?: number;
   error?: string;
 }
 
@@ -44,6 +46,10 @@ function normalized(value: string): string {
     .toLocaleLowerCase("en-US");
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return `${count.toLocaleString("en-US")} ${count === 1 ? singular : plural}`;
+}
+
 export function JobberMemberPropertyLinkPanel() {
   const [query, setQuery] = useState("");
   const [clients, setClients] = useState<JobberClient[]>([]);
@@ -57,6 +63,8 @@ export function JobberMemberPropertyLinkPanel() {
   const [resultLimitReached, setResultLimitReached] = useState(false);
   const [clientCoverageLimitReached, setClientCoverageLimitReached] =
     useState(false);
+  const [clientsScanned, setClientsScanned] = useState<number | null>(null);
+  const [pagesScanned, setPagesScanned] = useState<number | null>(null);
   const [propertyCoverageLimitReached, setPropertyCoverageLimitReached] =
     useState(false);
   const [candidateLimitReached, setCandidateLimitReached] = useState(false);
@@ -83,6 +91,8 @@ export function JobberMemberPropertyLinkPanel() {
     setSuccess(null);
     setSelectedClient(null);
     setProperties([]);
+    setClientsScanned(null);
+    setPagesScanned(null);
     try {
       const response = await fetch(
         "/api/admin/care-operations/jobber/clients/search",
@@ -104,8 +114,16 @@ export function JobberMemberPropertyLinkPanel() {
       setClientCoverageLimitReached(
         body.clientCoverageLimitReached === true,
       );
+      setClientsScanned(
+        typeof body.clientsScanned === "number" ? body.clientsScanned : null,
+      );
+      setPagesScanned(
+        typeof body.pagesScanned === "number" ? body.pagesScanned : null,
+      );
     } catch (searchError) {
       setClients([]);
+      setClientsScanned(null);
+      setPagesScanned(null);
       setError(
         searchError instanceof Error
           ? searchError.message
@@ -262,6 +280,15 @@ export function JobberMemberPropertyLinkPanel() {
         <p className="mt-4 text-xs text-amber-300">
           Customer review reached its 1,000-record safety bound. These results
           do not represent full Jobber coverage.
+        </p>
+      ) : null}
+      {clientsScanned !== null && pagesScanned !== null ? (
+        <p className="mt-4 text-xs leading-relaxed text-muted">
+          Reviewed {pluralize(clientsScanned, "Jobber customer")} across{" "}
+          {pluralize(pagesScanned, "page")} for this search.{" "}
+          {clientCoverageLimitReached
+            ? "Refine the name before linking because the scan reached the safety bound."
+            : "If the person is not listed, search a more specific part of their Jobber name."}
         </p>
       ) : null}
 
