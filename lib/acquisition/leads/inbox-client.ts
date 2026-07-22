@@ -22,16 +22,28 @@ export async function updateLeadIntakeStatusClient(
 export async function schedulePresentationFromLead(
   lead: LeadIntakeRecord,
 ): Promise<string> {
+  if (!lead.squareFootage) {
+    throw new Error(
+      "Square footage is required before Atlas can author a presentation price",
+    );
+  }
   await updateLeadIntakeStatusClient(lead.id, "scheduled");
 
   const createResponse = await fetch("/api/presentations", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
+      authoringSource: "lead_request",
       clientName: lead.name,
-      createdBy: "HQ Request",
-      tier: lead.membershipTier ?? "quarterly",
-      homeSqft: lead.squareFootage ?? undefined,
+      pricing: {
+        squareFeet: lead.squareFootage,
+        frequency:
+          lead.membershipTier === "biannual" ? "bi_annual" : "quarterly",
+        includeInterior: false,
+        twoStory: false,
+        includeScreens: false,
+        exteriorAddOns: [],
+      },
     }),
   });
 

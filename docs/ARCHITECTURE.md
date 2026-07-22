@@ -279,6 +279,8 @@ Membership onboarding (`complete-sign-onboarding`, portal tokens, signed agreeme
 
 **Schema reference:** `lib/persistence/supabase/schema.sql`
 
+Browser roles have no direct `home_care_plans` SELECT authority after migration 036. A cloud customer presentation URL carries the plan row's UUID capability alongside both readable slugs. The server validates all three values, accepts only `generated` or `published` rows, and returns only the matching `presentation` document. The slug-only plan route can read only the originating browser's session copy when cloud persistence is disabled. Legacy cloud slug portal and home-health routes fail closed; the canonical member portal resolves its opaque portal token before any privileged plan, member, or health read.
+
 **Backward compatibility:** Legacy sessionStorage entries (raw `HomeCarePlanData` JSON) are auto-migrated on read. Storage key unchanged: `squeegeeos:hcp:{homeowner}:{property}`.
 
 **To enable Supabase:** Run schema + migrations → set env vars in `.env.local` / Vercel → set `NEXT_PUBLIC_SUPABASE_ENABLED=true`. See `lib/persistence/supabase/schema.sql` and `migrations/`.

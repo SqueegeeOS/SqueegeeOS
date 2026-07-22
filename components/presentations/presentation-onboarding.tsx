@@ -20,7 +20,6 @@ import {
   computePresentationRates,
   legacyOverrideFieldsForTier,
   normalizeVisitRateOverrides,
-  slugifyPresentation,
 } from "@/lib/presentations/calculations";
 import {
   clearOnboardingStep,
@@ -38,10 +37,8 @@ import {
 import {
   calculateAnnualFromVisits,
   formatTierPrice,
-  planNameForAgreement,
   SQUEEGEEKING_TIERS,
 } from "@/lib/membership/tier-config";
-import type { MembershipPlanId } from "@/lib/membership/types";
 
 type OnboardingStep = PersistedOnboardingStep;
 
@@ -51,10 +48,6 @@ const STEP_ORDER: Record<OnboardingStep, number> = {
   payment: 2,
   complete: 3,
 };
-
-function tierToPlanId(_tier: PresentationTier): MembershipPlanId {
-  return "preferred";
-}
 
 function resolveInitialStep(presentation: PresentationData): OnboardingStep {
   if (presentation.onboardingStatus === "complete") return "complete";
@@ -237,31 +230,14 @@ export function PresentationOnboarding({
 
     try {
       const signedAt = new Date().toISOString();
-      const homeownerSlug = slugifyPresentation(presentation.clientName) || "client";
-      const propertySlug =
-        slugifyPresentation(presentation.clientAddress) || "property";
 
       const signRes = await fetch("/api/sign-agreement", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          memberName: presentation.clientName,
-          memberEmail: presentation.clientEmail || undefined,
-          homeownerSlug,
-          propertySlug,
-          propertyName: presentation.clientAddress || presentation.clientName,
-          planId: tierToPlanId(tier),
-          planName: planNameForAgreement(tier),
           signatureDataUrl: signature,
-          signedAt,
-          monthlyPrice: visitPrice,
           presentationId: presentation.id,
           agreementTier: tier,
-          homeSqft: presentation.homeSqft,
-          twoStory: presentation.twoStory,
-          includeScreens: presentation.includeScreens,
-          includeInterior: presentation.quoteSnapshot?.includeInterior ?? false,
-          quoteSnapshot: presentation.quoteSnapshot ?? null,
         }),
       });
 
@@ -478,10 +454,7 @@ export function PresentationOnboarding({
 
             <div className="mt-6">
               <CardOnFileSetup
-                memberName={presentation.clientName}
-                memberEmail={presentation.clientEmail}
                 presentationId={presentation.id}
-                membershipId={membershipId ?? undefined}
                 theme="presentation"
                 onBack={() => goToStep("welcome")}
                 onSuccess={handlePaymentSuccess}

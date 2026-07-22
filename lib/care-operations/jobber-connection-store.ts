@@ -47,56 +47,178 @@ export interface JobberConnectionStatus {
   lastErrorCode: string | null;
 }
 
+interface JobberConnectionPersistenceClient {
+  rpc(
+    name: "save_jobber_connection_with_event",
+    args: {
+      requested_account_id: string;
+      requested_account_name: string;
+      requested_access_token_ciphertext: string;
+      requested_refresh_token_ciphertext: string;
+      requested_access_token_expires_at: string;
+      requested_graphql_version: string;
+      requested_actor_id: string;
+    },
+  ): PromiseLike<{ error: { message: string } | null }>;
+}
+
+interface JobberRefreshPersistenceClient {
+  rpc(
+    name:
+      | "acquire_jobber_refresh_lease_for_generation"
+      | "complete_jobber_refresh_with_event"
+      | "fail_jobber_refresh_with_event",
+    args: Record<string, string | number | boolean>,
+  ): PromiseLike<{
+    data: boolean | null;
+    error: { message: string } | null;
+  }>;
+}
+
+async function runJobberRefreshRpc(
+  client: JobberRefreshPersistenceClient,
+  name:
+    | "acquire_jobber_refresh_lease_for_generation"
+    | "complete_jobber_refresh_with_event"
+    | "fail_jobber_refresh_with_event",
+  args: Record<string, string | number | boolean>,
+): Promise<boolean> {
+  const { data, error } = await client.rpc(name, args);
+  if (error) throw new Error(error.message);
+  return data === true;
+}
+
+export function acquireJobberRefreshLease(
+  client: JobberRefreshPersistenceClient,
+  input: { leaseId: string; tokenGeneration: number },
+): Promise<boolean> {
+  return runJobberRefreshRpc(
+    client,
+    "acquire_jobber_refresh_lease_for_generation",
+    {
+      requested_lease_id: input.leaseId,
+      requested_token_generation: input.tokenGeneration,
+      lease_seconds: 30,
+    },
+  );
+}
+
+export function persistJobberRefreshSuccess(
+  client: JobberRefreshPersistenceClient,
+  input: {
+    leaseId: string;
+    tokenGeneration: number;
+    accessTokenCiphertext: string;
+    refreshTokenCiphertext: string;
+    accessTokenExpiresAt: string;
+  },
+): Promise<boolean> {
+  return runJobberRefreshRpc(client, "complete_jobber_refresh_with_event", {
+    requested_lease_id: input.leaseId,
+    requested_token_generation: input.tokenGeneration,
+    requested_access_token_ciphertext: input.accessTokenCiphertext,
+    requested_refresh_token_ciphertext: input.refreshTokenCiphertext,
+    requested_access_token_expires_at: input.accessTokenExpiresAt,
+  });
+}
+
+export function persistJobberRefreshFailure(
+  client: JobberRefreshPersistenceClient,
+  input: {
+    leaseId: string;
+    tokenGeneration: number;
+    reauthorizationRequired: boolean;
+  },
+): Promise<boolean> {
+  return runJobberRefreshRpc(client, "fail_jobber_refresh_with_event", {
+    requested_lease_id: input.leaseId,
+    requested_token_generation: input.tokenGeneration,
+    requested_reauthorization_required: input.reauthorizationRequired,
+  });
+}
+
+export async function refreshLeasedJobberConnection(
+  input: {
+    client: JobberRefreshPersistenceClient;
+    leaseId: string;
+    tokenGeneration: number;
+    refreshTokenCiphertext: string;
+  },
+  dependencies: {
+    refreshTokens?: typeof refreshJobberTokens;
+    decryptToken?: typeof decryptJobberToken;
+    encryptToken?: typeof encryptJobberToken;
+    persistSuccess?: typeof persistJobberRefreshSuccess;
+    persistFailure?: typeof persistJobberRefreshFailure;
+    beforeProviderRequest?: () => Promise<void>;
+  } = {},
+): Promise<string> {
+  const refreshTokens = dependencies.refreshTokens ?? refreshJobberTokens;
+  const decryptToken = dependencies.decryptToken ?? decryptJobberToken;
+  const encryptToken = dependencies.encryptToken ?? encryptJobberToken;
+  const persistSuccess =
+    dependencies.persistSuccess ?? persistJobberRefreshSuccess;
+  const persistFailure =
+    dependencies.persistFailure ?? persistJobberRefreshFailure;
+
+  await dependencies.beforeProviderRequest?.();
+  let tokens: JobberOAuthTokens;
+  try {
+    tokens = await refreshTokens(decryptToken(input.refreshTokenCiphertext));
+  } catch (refreshError) {
+    const invalidRefreshToken =
+      refreshError instanceof JobberApiError &&
+      (refreshError.status === 400 || refreshError.status === 401);
+    const recorded = await persistFailure(input.client, {
+      leaseId: input.leaseId,
+      tokenGeneration: input.tokenGeneration,
+      reauthorizationRequired: invalidRefreshToken,
+    });
+    if (!recorded) {
+      throw new Error(
+        "Jobber token refresh lost its lease to newer connection state",
+      );
+    }
+    throw refreshError;
+  }
+
+  const updated = await persistSuccess(input.client, {
+    leaseId: input.leaseId,
+    tokenGeneration: input.tokenGeneration,
+    accessTokenCiphertext: encryptToken(tokens.accessToken),
+    refreshTokenCiphertext: encryptToken(tokens.refreshToken),
+    accessTokenExpiresAt: tokens.accessTokenExpiresAt,
+  });
+  if (!updated) {
+    throw new Error(
+      "Jobber token refresh lost its lease to newer connection state",
+    );
+  }
+  return tokens.accessToken;
+}
+
 export async function saveJobberConnection(input: {
   account: JobberAccountIdentity;
   tokens: JobberOAuthTokens;
+  actorId: string;
+}, overrides?: {
+  client?: JobberConnectionPersistenceClient;
+  encryptToken?: (plaintext: string) => string;
 }): Promise<void> {
-  const supabase = createServiceRoleSupabaseClient();
-  const now = new Date().toISOString();
-  const { data: existing, error: existingError } = await supabase
-    .from("jobber_connections")
-    .select("account_id, token_generation")
-    .eq("id", JOBBER_CONNECTION_ID)
-    .maybeSingle();
-  if (existingError) throw new Error(existingError.message);
-  if (existing?.account_id && existing.account_id !== input.account.id) {
-    throw new Error("A different Jobber account is already connected");
-  }
-
-  const eventType = existing ? "reauthorized" : "connected";
-  const { error: saveError } = await supabase.from("jobber_connections").upsert({
-    id: JOBBER_CONNECTION_ID,
-    status: "connected",
-    account_id: input.account.id,
-    account_name: input.account.name,
-    access_token_ciphertext: encryptJobberToken(input.tokens.accessToken),
-    refresh_token_ciphertext: encryptJobberToken(input.tokens.refreshToken),
-    access_token_expires_at: input.tokens.accessTokenExpiresAt,
-    token_generation: existing ? Number(existing.token_generation) + 1 : 1,
-    graphql_version: getJobberGraphqlVersion(),
-    ...(!existing ? { connected_at: now } : {}),
-    last_verified_at: now,
-    last_error_code: null,
-    refresh_lease_id: null,
-    refresh_lease_expires_at: null,
+  const client =
+    overrides?.client ??
+    (createServiceRoleSupabaseClient() as unknown as JobberConnectionPersistenceClient);
+  const encryptToken = overrides?.encryptToken ?? encryptJobberToken;
+  const { error } = await client.rpc("save_jobber_connection_with_event", {
+    requested_account_id: input.account.id,
+    requested_account_name: input.account.name,
+    requested_access_token_ciphertext: encryptToken(input.tokens.accessToken),
+    requested_refresh_token_ciphertext: encryptToken(input.tokens.refreshToken),
+    requested_access_token_expires_at: input.tokens.accessTokenExpiresAt,
+    requested_graphql_version: getJobberGraphqlVersion(),
+    requested_actor_id: input.actorId,
   });
-  if (saveError) throw new Error(saveError.message);
-
-  const { error: eventError } = await supabase
-    .from("jobber_connection_events")
-    .insert({
-      connection_id: JOBBER_CONNECTION_ID,
-      event_type: eventType,
-      actor: "hq_oauth_callback",
-      safe_details: {
-        account_id: input.account.id,
-        account_name: input.account.name,
-        graphql_version: getJobberGraphqlVersion(),
-      },
-    });
-  if (eventError) {
-    console.error("[jobber-oauth] connection event write failed");
-  }
+  if (error) throw new Error(error.message);
 }
 
 export async function readJobberConnectionStatus(): Promise<JobberConnectionStatus> {
@@ -143,7 +265,9 @@ export async function readJobberConnectionStatus(): Promise<JobberConnectionStat
  * rotation is serialized in Supabase so two workers cannot redeem the same
  * rotating token concurrently.
  */
-export async function getFreshJobberAccessToken(): Promise<string> {
+export async function getFreshJobberAccessToken(
+  options: { beforeProviderRequest?: () => Promise<void> } = {},
+): Promise<string> {
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("jobber_connections")
@@ -162,78 +286,24 @@ export async function getFreshJobberAccessToken(): Promise<string> {
   }
 
   const leaseId = crypto.randomUUID();
-  const { data: acquired, error: leaseError } = await supabase.rpc(
-    "acquire_jobber_refresh_lease",
-    { requested_lease_id: leaseId, lease_seconds: 30 },
-  );
-  if (leaseError) throw new Error(leaseError.message);
+  const refreshPersistence =
+    supabase as unknown as JobberRefreshPersistenceClient;
+  const acquired = await acquireJobberRefreshLease(refreshPersistence, {
+    leaseId,
+    tokenGeneration: row.token_generation,
+  });
   if (!acquired) {
-    throw new Error("Jobber token refresh is already in progress");
-  }
-
-  try {
-    const tokens = await refreshJobberTokens(
-      decryptJobberToken(row.refresh_token_ciphertext),
+    throw new Error(
+      "Jobber token refresh lease was unavailable or connection state changed",
     );
-    const refreshedAt = new Date().toISOString();
-    const { data: updated, error: updateError } = await supabase
-      .from("jobber_connections")
-      .update({
-        access_token_ciphertext: encryptJobberToken(tokens.accessToken),
-        refresh_token_ciphertext: encryptJobberToken(tokens.refreshToken),
-        access_token_expires_at: tokens.accessTokenExpiresAt,
-        token_generation: row.token_generation + 1,
-        last_refreshed_at: refreshedAt,
-        last_error_code: null,
-        refresh_lease_id: null,
-        refresh_lease_expires_at: null,
-      })
-      .eq("id", JOBBER_CONNECTION_ID)
-      .eq("refresh_lease_id", leaseId)
-      .eq("token_generation", row.token_generation)
-      .select("id")
-      .maybeSingle();
-    if (updateError) throw new Error(updateError.message);
-    if (!updated) throw new Error("Jobber token refresh lost its lease");
-
-    const { error: eventError } = await supabase
-      .from("jobber_connection_events")
-      .insert({
-        connection_id: JOBBER_CONNECTION_ID,
-        event_type: "refreshed",
-        actor: "homeatlas_token_manager",
-        safe_details: { token_generation: row.token_generation + 1 },
-      });
-    if (eventError) {
-      console.error("[jobber-oauth] refresh event write failed");
-    }
-    return tokens.accessToken;
-  } catch (refreshError) {
-    const invalidRefreshToken =
-      refreshError instanceof JobberApiError &&
-      (refreshError.status === 400 || refreshError.status === 401);
-    await supabase
-      .from("jobber_connections")
-      .update({
-        status: invalidRefreshToken ? "refresh_required" : "connected",
-        last_error_code: invalidRefreshToken
-          ? "jobber_reauthorization_required"
-          : "jobber_refresh_failed",
-        refresh_lease_id: null,
-        refresh_lease_expires_at: null,
-      })
-      .eq("id", JOBBER_CONNECTION_ID)
-      .eq("refresh_lease_id", leaseId);
-    await supabase.from("jobber_connection_events").insert({
-      connection_id: JOBBER_CONNECTION_ID,
-      event_type: "refresh_failed",
-      actor: "homeatlas_token_manager",
-      safe_details: {
-        reason: invalidRefreshToken
-          ? "reauthorization_required"
-          : "transient_refresh_failure",
-      },
-    });
-    throw refreshError;
   }
+
+  return refreshLeasedJobberConnection({
+    client: refreshPersistence,
+    leaseId,
+    tokenGeneration: row.token_generation,
+    refreshTokenCiphertext: row.refresh_token_ciphertext,
+  }, {
+    beforeProviderRequest: options.beforeProviderRequest,
+  });
 }

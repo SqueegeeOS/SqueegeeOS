@@ -1,7 +1,7 @@
 # HomeAtlas Current State
 
 **Status:** Operational index
-**Last verified:** July 10, 2026
+**Last verified:** July 18, 2026
 **Authority:** This document records what the repository can prove today. Product law remains in the Engineering Bible; membership truth remains in `operations/MEMBERSHIP_SOURCE_OF_TRUTH.md`; execution remains in `wargames/014-stabilization-master-plan.md`.
 
 ## One operating objective
@@ -16,12 +16,12 @@ New surfaces, themes, and speculative platform work stay behind reliability work
 
 | Gate | Result | Evidence |
 |---|---:|---|
-| Unit tests | **Pass** | 53 files, 235 tests |
+| Unit tests | **Pass locally** | 112 files passed and 5 credential-gated files skipped; 672 tests passed and 14 skipped |
 | Production build | **Pass** | Next.js 16.2.10; 74 static pages generated plus dynamic routes |
-| TypeScript | **Pass** | Production build typecheck completed |
-| ESLint blocking errors | **Pass** | Zero blocking errors |
+| TypeScript | **Inherited failures** | PR3-local files have no diagnostics; full `tsc --noEmit` reports 24 diagnostics in six unchanged test-fixture files |
+| ESLint blocking errors | **Pass** | Zero blocking errors; full lint reports 103 inherited warnings |
 | React 19 effect migration | **Open** | Existing `set-state-in-effect` findings are warnings and must be reduced by domain |
-| Production database state | **Unverified locally** | Repository contains migrations 002–030; applied-production ledger is not yet proven |
+| Production database state | **Unverified locally** | Repository contains migrations 002–042; applied-production ledger is not yet proven |
 | Production secrets | **Not inferred** | Local build warns when the Supabase service-role credential is absent |
 
 The React effect rule is temporarily warning-level so the inherited migration backlog cannot hide unrelated blocking failures. New occurrences are not acceptable; existing occurrences should be removed as each domain is touched.
@@ -50,7 +50,7 @@ No UI component should create a second lifecycle, pricing, revenue, or persisten
 
 | Surface | Canonical purpose | Current disposition |
 |---|---|---|
-| `/hq/*` | Founder operations and diagnostics | **Keep; reliability priority** |
+| `/hq/*` | Founder operations and diagnostics | **Keep; Supabase Auth outer boundary implemented, production rollout unverified** |
 | `/portal/[token]/*` | Production member experience | **Keep; customer canonical** |
 | `/homecare/[homeownerSlug]/[propertySlug]/portal` | Internal/demo portal | **Keep clearly non-production; never email** |
 | `/presentations/*` | Sales presentation and enrollment | **Keep; money-path critical** |
@@ -70,27 +70,35 @@ No UI component should create a second lifecycle, pricing, revenue, or persisten
 
 ## Security and production boundaries
 
-- Admin APIs are expected to use the shared PIN authorization boundary. OAuth start/callback routes are exceptions that require state/cookie validation rather than an `x-admin-pin` header.
+- `/hq/*` has a server-side Supabase Auth plus active `hq_admin_users` boundary in repository code. Scoped Proxy refresh/no-cache handling also covers every Care Operations route. Care Operations and Jobber OAuth require that session and no longer accept the shared PIN. An emergency environment switch fails all PR1a paths closed; other legacy Headquarters APIs retain the inner PIN flow until `operations/RETIRE_LEGACY_HQ_PIN.md` is implemented.
 - Service-role Supabase access is server-only and must never enter client bundles.
 - Portal tokens are credentials. Do not log, expose in screenshots, or substitute enumerable membership IDs.
 - Agreement PDFs belong in the private signed-agreements bucket and are served with short-lived signed URLs.
 - Production migration state is unknown until a read-only ledger proves which migrations are applied.
 - Referral RLS and portal referral authorization remain release-blocking items until verified against production.
+- Migration 036 closes direct `anon` and `authenticated` reads and mutations on customer authority tables. Cloud Home Care Plan presentation links require the existing plan UUID plus both slugs and return only `generated` or `published` presentation JSON; slug-only cloud plan, portal, and home-health routes fail closed while the opaque-token portal remains authorized. Migration 036 has not been applied or rehearsed against a disposable Supabase project yet.
+- **RED release gate — PR1c Stripe activation identity authorization:** PR1c has capability-bound, server-authoritative setup in migration 037 and database-side atomic completion in migration 042. Migration 042 keeps activation pending until immutable Stripe evidence, the exact year-one obligations/activation events, and one immutable website sale exist in the same transaction. The setup-payment route requires the complete durable RPC result before portal lookup, success, or welcome email and performs no post-RPC obligation or sale writes. Its disposable rehearsal is authored but has not run against an acknowledged test database; Stripe test proof, migration, merge, deployment, and production proof remain open. Those gates must pass before migrations 036/037/042 or any production presentation-to-payment activation.
 
 ## Execution queue
 
 ### Newly implemented — verify before production use
 
+- Headquarters authenticated access (PR1a) adds migration 035, cookie-aware Supabase sessions, a durable database-backed and allowlist-gated magic-link flow, truthful accepted/rejected/unknown provider evidence, immutable authorization-change evidence, atomic Jobber connection and refresh transition events, `/hq` server-layout authorization, and authenticated Care Operations/Jobber routes. It has no automatic users or approvals and has not been migrated, deployed, or production-proven. Edge abuse control, disposable-database SQL rehearsals, and rollback rehearsal remain explicit release prerequisites. See `operations/HQ_AUTH_PR1A_RUNBOOK.md`.
+- Headquarters authority-input closure (PR1b) adds migration 036, removes browser writes to homeowners, properties, Home Care Plans, memberships, signed agreements, and property assets, protects presentation authoring with the PR1a HQ actor, and binds public signing to the existing non-enumerable presentation UUID. The signing route reloads customer identity, source links, tier pricing, quote snapshot, and plan terms server-side; the client can provide only the capability, allowed tier, and PNG signature evidence. The real anon-key/disposable-database rehearsal remains an external release gate. See `operations/HQ_AUTHORITY_INPUT_PR1B_RUNBOOK.md`.
+- Stripe setup authorization closure (PR1c) adds migrations 037 and 042. Migration 037 rejects browser identity authority, binds Stripe identity, and preserves locked signed Atlas authority. Migration 042 replaces only the activation RPC so immutable payment evidence, the exact year-one obligation/event set, and one immutable website sale are created before membership `active` and presentation onboarding `complete`. Its annualized sale value is reporting-only `locked visit_price × locked visits_per_year`; it introduces no pricing authority. The runtime route rejects missing or malformed durable completion, performs no post-RPC obligation or sale writes, and sends welcome email only for a complete first activation. Focused migration/audit and route tests pass locally; the opt-in disposable SQL rehearsal remains unexecuted without `PR1C_TEST_DATABASE_URL`. See `operations/STRIPE_AUTHORIZATION_PR1C_RUNBOOK.md`.
+- Jobber schedule coverage sync (PR2) adds migration 038 and an authenticated manual read-only refresh. It proves a fixed Pacific 90-day-back/365-day-forward window twice through recursively partitioned `first:50` queries without cursor traversal, stores immutable pass evidence, updates only Jobber projections in one CAS finalization, and never infers cancellation from absence. After migration 039 only, a successful COMPLETE finalization may indirectly demote omitted approved Jobber appointment authority to `pending_review`; it appends evidence and never creates, promotes, completes, cancels, or bills. It is not migrated, deployed, or production-proven. See `operations/JOBBER_COVERAGE_SYNC_PR2_RUNBOOK.md`.
+- Supervised Jobber visit classification (PR3) adds migration 039, authenticated per-visit approve/reject/revoke transactions, immutable decision and binding-detachment evidence, one globally serialized Jobber appointment identity, and fail-closed source/property-link/current-complete-manifest invalidation. Only an exact future `UPCOMING` projection in the causally latest complete manifest, fresh within 30 minutes with no reserved or unfinished newer sync, can be approved; causal order comes from a post-lock monotonic reservation sequence rather than transaction timestamps. Decisions and revocations row-lock active actor authority against concurrent deactivation. Same-ID cross-home or cross-connection rebinding conflicts; a different-home rejection transactionally detaches both directions of the live appointment/classification relationship while preserving immutable historical evidence and unrelated appointment fields. Today and the portal additionally require current approved authority, a classification binding, and exact membership identity. Completed visits, automatic matching, obligations, pricing, billing execution, Stripe, Property Memory, and add-ons remain outside PR3. It is not migrated, deployed, disposable-database rehearsed, or production-proven. See `operations/JOBBER_VISIT_CLASSIFICATION_PR3_RUNBOOK.md`.
 - Headquarters Billing now contains a reviewed **Complete & Charge Visit** flow connecting scheduled appointments, itemized Stripe invoices, payment outcomes, add-on records, and the savings ledger.
 - Stable operation and Stripe idempotency keys prevent duplicate invoices and payments during retries.
 - This code has unit/build verification but still requires a Stripe test-mode lifecycle pass before production activation. See `operations/COMPLETE_CHARGE_VISIT.md`.
 
 ### Now — reliability gate
 
-1. Build a read-only migration ledger and compare migrations 002–030 with production.
-2. Verify referral-table RLS and change portal referral reads from membership ID to portal-token authorization if still required.
-3. Audit Supabase client boundaries: public anon reads only where RLS is proven; service role for protected server work.
-4. Run the Sylvia golden-case audit read-only and record discrepancies without automatic repairs.
+1. Independently review and rehearse PR1c migrations 037 and 042 plus the Stripe test-mode failure matrix. This remains a RED gate before any PR1b/PR1c migration or deployment.
+2. Run the read-only migration ledger and compare migrations 002–042 with production; do not apply 036–042 until their disposable rehearsals and named prerequisites pass.
+3. Verify referral-table RLS and change portal referral reads from membership ID to portal-token authorization if still required.
+4. Audit Supabase client boundaries: public anon reads only where RLS is proven; service role for protected server work.
+5. Run the Sylvia golden-case audit read-only and record discrepancies without automatic repairs.
 5. Run a fresh test customer through the complete lifecycle twice and prove idempotency.
 
 ### Next — one operational truth

@@ -8,9 +8,17 @@ export function createJobberOAuthState(): string {
   return randomBytes(32).toString("base64url");
 }
 
-export async function writeJobberOAuthState(state: string): Promise<void> {
+interface JobberOAuthStateCookieJar {
+  get(name: string): { value: string } | undefined;
+  delete(name: string): void;
+}
+
+export async function writeJobberOAuthState(
+  state: string,
+  actorId: string,
+): Promise<void> {
   const jar = await cookies();
-  jar.set(JOBBER_OAUTH_STATE_COOKIE, state, {
+  jar.set(JOBBER_OAUTH_STATE_COOKIE, JSON.stringify({ state, actorId }), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -21,10 +29,25 @@ export async function writeJobberOAuthState(state: string): Promise<void> {
 
 export async function consumeJobberOAuthState(
   returnedState: string,
+  actorId: string,
+  cookieJarOverride?: JobberOAuthStateCookieJar,
 ): Promise<boolean> {
-  const jar = await cookies();
-  const expected = jar.get(JOBBER_OAUTH_STATE_COOKIE)?.value ?? "";
+  const jar = cookieJarOverride ?? (await cookies());
+  const serialized = jar.get(JOBBER_OAUTH_STATE_COOKIE)?.value ?? "";
   jar.delete(JOBBER_OAUTH_STATE_COOKIE);
+  let expected = "";
+  try {
+    const stored = JSON.parse(serialized) as {
+      state?: unknown;
+      actorId?: unknown;
+    };
+    if (stored.actorId !== actorId || typeof stored.state !== "string") {
+      return false;
+    }
+    expected = stored.state;
+  } catch {
+    return false;
+  }
   if (!expected || !returnedState) return false;
   const expectedBytes = Buffer.from(expected);
   const returnedBytes = Buffer.from(returnedState);

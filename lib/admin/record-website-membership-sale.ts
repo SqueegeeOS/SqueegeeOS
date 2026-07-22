@@ -12,9 +12,17 @@ import {
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface RecordWebsiteMembershipSaleInput {
-  membershipId: string;
-  paymentSetupCompletedAt: string;
-  soldAt?: string;
+  activation: {
+    membership_id: string;
+    presentation_id: string;
+    agreement_id: string;
+    homeowner_id: string;
+    property_id: string;
+    sales_tier: "biannual" | "quarterly";
+    visit_price: number;
+    visits_per_year: number;
+    payment_setup_completed_at: string;
+  };
   activationMode: WebsiteMembershipSaleActivationMode;
 }
 
@@ -22,19 +30,6 @@ export interface RecordWebsiteMembershipSaleResult {
   recorded: boolean;
   saleId?: string;
   skippedReason?: string;
-}
-
-interface MembershipSaleContextRow {
-  id: string;
-  homeowner_id: string;
-  property_id: string;
-  presentation_id: string | null;
-  agreement_id: string | null;
-  sales_tier: string | null;
-  visit_price: number | null;
-  visits_per_year: number | null;
-  payment_setup_completed_at: string | null;
-  stripe_payment_method_id: string | null;
 }
 
 export async function recordWebsiteMembershipSale(
@@ -48,31 +43,7 @@ export async function recordWebsiteMembershipSale(
     };
   }
 
-  const { data: membership, error } = await supabase
-    .from("memberships")
-    .select(
-      "id, homeowner_id, property_id, presentation_id, agreement_id, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, stripe_payment_method_id",
-    )
-    .eq("id", input.membershipId)
-    .maybeSingle();
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  if (!membership) {
-    return { recorded: false, skippedReason: "membership_not_found" };
-  }
-
-  const row = membership as MembershipSaleContextRow;
-
-  if (!row.presentation_id) {
-    return { recorded: false, skippedReason: "missing_presentation" };
-  }
-
-  if (!row.agreement_id) {
-    return { recorded: false, skippedReason: "missing_agreement" };
-  }
+  const row = input.activation;
 
   if (!isWebsiteMembershipSaleTier(row.sales_tier)) {
     return { recorded: false, skippedReason: "invalid_tier" };
@@ -82,21 +53,7 @@ export async function recordWebsiteMembershipSale(
     return { recorded: false, skippedReason: "missing_pricing" };
   }
 
-  const paymentSetupCompletedAt =
-    input.paymentSetupCompletedAt ||
-    row.payment_setup_completed_at ||
-    input.soldAt;
-
-  if (!paymentSetupCompletedAt) {
-    return { recorded: false, skippedReason: "missing_payment_setup" };
-  }
-
-  if (
-    input.activationMode === "stripe" &&
-    !row.stripe_payment_method_id
-  ) {
-    return { recorded: false, skippedReason: "missing_stripe_payment_method" };
-  }
+  const paymentSetupCompletedAt = row.payment_setup_completed_at;
 
   const [{ data: homeowner }, { data: property }, { data: presentation }] =
     await Promise.all([
@@ -110,13 +67,11 @@ export async function recordWebsiteMembershipSale(
         .select("address, city, state, zip")
         .eq("id", row.property_id)
         .maybeSingle(),
-      row.presentation_id
-        ? supabase
-            .from("presentations")
-            .select("client_email, client_name")
-            .eq("id", row.presentation_id)
-            .maybeSingle()
-        : Promise.resolve({ data: null }),
+      supabase
+        .from("presentations")
+        .select("client_email, client_name")
+        .eq("id", row.presentation_id)
+        .maybeSingle(),
     ]);
 
   if (!homeowner || !property) {
@@ -132,7 +87,7 @@ export async function recordWebsiteMembershipSale(
     (homeowner.full_name as string | null | undefined)?.trim() ||
     "Member";
 
-  const soldAt = input.soldAt ?? paymentSetupCompletedAt;
+  const soldAt = paymentSetupCompletedAt;
   const annualizedValue = computeAnnualizedMembershipValue(
     row.visit_price,
     row.visits_per_year,
@@ -141,7 +96,7 @@ export async function recordWebsiteMembershipSale(
   const { data: inserted, error: insertError } = await supabase
     .from("website_membership_sales")
     .insert({
-      membership_id: row.id,
+      membership_id: row.membership_id,
       homeowner_id: row.homeowner_id,
       property_id: row.property_id,
       presentation_id: row.presentation_id,
@@ -170,7 +125,7 @@ export async function recordWebsiteMembershipSale(
       const { data: existing } = await supabase
         .from("website_membership_sales")
         .select("id")
-        .eq("membership_id", row.id)
+        .eq("membership_id", row.membership_id)
         .maybeSingle();
 
       return {

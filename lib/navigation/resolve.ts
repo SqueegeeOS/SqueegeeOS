@@ -29,6 +29,10 @@ function isPresentationPresentMode(pathname: string): boolean {
   return /^\/presentations\/[^/]+\/present$/.test(pathname);
 }
 
+function isHomeCarePlanPath(pathname: string): boolean {
+  return /^\/homecare\/[^/]+\/[^/]+\/plan(?:\/[^/]+)?$/.test(pathname);
+}
+
 export function getNavigationMode(pathname: string): NavigationMode {
   if (HIDDEN_PREFIXES.some((prefix) => matchesPathPrefix(pathname, prefix))) {
     return "hidden";
@@ -51,7 +55,7 @@ export function shouldUseOverlayNav(pathname: string): boolean {
   if (pathname.startsWith("/homecare/") && pathname.endsWith("/portal")) {
     return true;
   }
-  if (pathname.startsWith("/homecare/") && pathname.endsWith("/plan")) {
+  if (isHomeCarePlanPath(pathname)) {
     return true;
   }
   return false;
@@ -143,7 +147,9 @@ function getPropertyBreadcrumbs(pathname: string): Breadcrumb[] {
 }
 
 function getHomecareBreadcrumbs(pathname: string): Breadcrumb[] {
-  const match = pathname.match(/^\/homecare\/([^/]+)\/([^/]+)\/(plan|portal)$/);
+  const match = pathname.match(
+    /^\/homecare\/([^/]+)\/([^/]+)\/(plan|portal)(?:\/[^/]+)?$/,
+  );
   if (!match) return [];
 
   const [, homeownerSlug, propertySlug, page] = match;
@@ -213,12 +219,14 @@ export function getFloatingBack(pathname: string): FloatingBackConfig | null {
 
   if (
     pathname.startsWith("/homecare/") &&
-    (pathname.endsWith("/plan") || pathname.endsWith("/portal"))
+    (isHomeCarePlanPath(pathname) || pathname.endsWith("/portal"))
   ) {
     return {
       href: ROUTES.home,
       label: "Back to Home",
-      bottomClass: pathname.endsWith("/plan") ? "bottom-24 md:bottom-6" : undefined,
+      bottomClass: isHomeCarePlanPath(pathname)
+        ? "bottom-24 md:bottom-6"
+        : undefined,
     };
   }
 

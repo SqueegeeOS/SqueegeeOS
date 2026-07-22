@@ -13,30 +13,40 @@ interface ExistingProjection {
 
 interface StoredProjectionPreviewRow {
   id: string;
+  connection_id: string;
   external_visit_id: string;
   external_property_id: string;
   jobber_property_web_uri: string | null;
   title: string | null;
   client_name: string;
   visit_status: string;
+  job_status: string | null;
   scheduled_start: string | null;
+  completed_at: string | null;
   is_complete: boolean;
+  source_payload_hash: string;
+  source_observed_at: string;
   match_state: "manual_review" | "matched" | "ignored";
 }
 
 const PROJECTION_PREVIEW_SELECT =
-  "id, external_visit_id, external_property_id, jobber_property_web_uri, title, client_name, visit_status, scheduled_start, is_complete, match_state";
+  "id, connection_id, external_visit_id, external_property_id, jobber_property_web_uri, title, client_name, visit_status, job_status, scheduled_start, completed_at, is_complete, source_payload_hash, source_observed_at, match_state";
 
 export interface JobberVisitProjectionPreview {
   projectionId: string;
+  connectionId: string;
   externalVisitId: string;
   externalPropertyId: string;
   jobberPropertyWebUri: string | null;
   title: string | null;
   clientName: string;
   visitStatus: string;
+  jobStatus: string | null;
   scheduledStart: string | null;
+  completedAt: string | null;
   isComplete: boolean;
+  sourcePayloadHash: string;
+  sourceObservedAt: string;
   matchState: "manual_review" | "matched" | "ignored";
 }
 
@@ -89,14 +99,19 @@ function toProjectionPreview(
 ): JobberVisitProjectionPreview {
   return {
     projectionId: row.id,
+    connectionId: row.connection_id,
     externalVisitId: row.external_visit_id,
     externalPropertyId: row.external_property_id,
     jobberPropertyWebUri: row.jobber_property_web_uri,
     title: row.title,
     clientName: row.client_name,
     visitStatus: row.visit_status,
+    jobStatus: row.job_status,
     scheduledStart: row.scheduled_start,
+    completedAt: row.completed_at,
     isComplete: row.is_complete,
+    sourcePayloadHash: row.source_payload_hash,
+    sourceObservedAt: row.source_observed_at,
     matchState: row.match_state,
   };
 }
@@ -168,16 +183,62 @@ export async function importJobberVisitSample(
   };
 }
 
-export async function listJobberVisitSample(): Promise<JobberVisitProjectionPreview[]> {
+export async function listJobberVisitSample(
+  limit = 10,
+  ascending = false,
+): Promise<JobberVisitProjectionPreview[]> {
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase
     .from("jobber_visit_projections")
     .select(PROJECTION_PREVIEW_SELECT)
     .eq("connection_id", JOBBER_CONNECTION_ID)
-    .order("scheduled_start", { ascending: false })
-    .limit(10);
+    .order("scheduled_start", { ascending })
+    .limit(limit);
   if (error) throw new Error(error.message);
   return ((data ?? []) as StoredProjectionPreviewRow[]).map(
     toProjectionPreview,
   );
+}
+
+export async function listJobberVisitReviewSample(
+  limit: number,
+  now = new Date(),
+): Promise<JobberVisitProjectionPreview[]> {
+  const supabase = createServiceRoleSupabaseClient();
+  const futureResult = await supabase
+    .from("jobber_visit_projections")
+    .select(PROJECTION_PREVIEW_SELECT)
+    .eq("connection_id", JOBBER_CONNECTION_ID)
+    .eq("visit_status", "UPCOMING")
+    .eq("is_complete", false)
+    .is("completed_at", null)
+    .gt("scheduled_start", now.toISOString())
+    .order("scheduled_start", { ascending: true })
+    .limit(limit);
+  if (futureResult.error) throw new Error(futureResult.error.message);
+
+  const futureRows = (futureResult.data ?? []) as StoredProjectionPreviewRow[];
+  if (futureRows.length >= limit) {
+    return futureRows.map(toProjectionPreview);
+  }
+
+  // Fill any remaining review capacity with the newest non-priority evidence.
+  // Deduplication keeps the nearest future UPCOMING rows first even though the
+  // fallback query may also return them.
+  const fallbackResult = await supabase
+    .from("jobber_visit_projections")
+    .select(PROJECTION_PREVIEW_SELECT)
+    .eq("connection_id", JOBBER_CONNECTION_ID)
+    .order("scheduled_start", { ascending: false })
+    .limit(limit);
+  if (fallbackResult.error) throw new Error(fallbackResult.error.message);
+
+  const rowsById = new Map(
+    futureRows.map((row) => [row.id, row] as const),
+  );
+  for (const row of (fallbackResult.data ?? []) as StoredProjectionPreviewRow[]) {
+    if (rowsById.size >= limit) break;
+    rowsById.set(row.id, row);
+  }
+  return [...rowsById.values()].map(toProjectionPreview);
 }

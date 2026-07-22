@@ -175,10 +175,10 @@ export function MemberPortalExperience({
           >
             {view.pendingPayment && view.membershipId ? (
               <CardOnFileSetup
-                memberName={data.homeowner.fullName}
-                memberEmail={portalData?.profile.email}
-                presentationId={view.presentationId ?? undefined}
-                membershipId={view.membershipId}
+                presentationId={
+                  resolvedPortalToken ? undefined : view.presentationId ?? undefined
+                }
+                portalToken={resolvedPortalToken}
                 theme="presentation"
                 onSuccess={handlePaymentSuccess}
               />
@@ -353,10 +353,12 @@ export function MemberPortalExperience({
                     </button>
                     {updatePaymentOpen && (
                       <CardOnFileSetup
-                        memberName={data.homeowner.fullName}
-                        memberEmail={portalData?.profile.email}
-                        presentationId={view.presentationId ?? undefined}
-                        membershipId={view.membershipId}
+                        presentationId={
+                          resolvedPortalToken
+                            ? undefined
+                            : view.presentationId ?? undefined
+                        }
+                        portalToken={resolvedPortalToken}
                         theme="presentation"
                         onSuccess={handlePaymentSuccess}
                       />
@@ -372,10 +374,10 @@ export function MemberPortalExperience({
               </PortalCard>
             ) : view.membershipId ? (
               <CardOnFileSetup
-                memberName={data.homeowner.fullName}
-                memberEmail={portalData?.profile.email}
-                presentationId={view.presentationId ?? undefined}
-                membershipId={view.membershipId}
+                presentationId={
+                  resolvedPortalToken ? undefined : view.presentationId ?? undefined
+                }
+                portalToken={resolvedPortalToken}
                 theme="presentation"
                 onSuccess={handlePaymentSuccess}
               />

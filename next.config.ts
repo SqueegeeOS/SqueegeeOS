@@ -1,6 +1,17 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async headers() {
+    return [
+      {
+        source: "/homecare/:homeownerSlug/:propertySlug/plan/:planId",
+        headers: [
+          { key: "X-Robots-Tag", value: "noindex, nofollow" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       { source: "/admin", destination: "/hq", permanent: true },

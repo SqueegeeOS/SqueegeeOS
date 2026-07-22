@@ -34,28 +34,7 @@ const PRE_0951_CLASSES_BY_FILE: Record<
   ReadonlyArray<readonly [originalClasses: string, semanticHook: string]>
 > = {
   "components/membership/card-on-file-setup.tsx": [
-    [
-      "w-full rounded-lg border border-border bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-white/25 outline-none focus:border-accent/40",
-      "portal-payment-input",
-    ],
-    [
-      "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-foreground/45",
-      "portal-payment-label",
-    ],
     ["mt-1 text-sm text-foreground/50", "portal-payment-copy"],
-    [
-      "space-y-4 rounded-lg border border-border bg-white/[0.02] p-5",
-      "portal-payment-demo-panel",
-    ],
-    [
-      "text-[10px] uppercase tracking-[0.16em] text-foreground/40",
-      "portal-payment-demo-label",
-    ],
-    ["text-xs text-white/30", "portal-payment-demo-note"],
-    [
-      "rounded-lg border border-border px-5 py-3.5 text-sm text-foreground/60 transition hover:border-white/30 hover:text-foreground/80 disabled:opacity-40",
-      "portal-payment-back-button",
-    ],
   ],
   "components/membership/homeatlas-journey-section.tsx": [
     ["border-y border-white/[0.06] py-12 sm:py-14", "portal-journey-ledger"],

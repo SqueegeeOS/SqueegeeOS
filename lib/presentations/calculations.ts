@@ -16,6 +16,10 @@ import type {
 } from "./types";
 import { resolveEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import { tierCertaintyCopy } from "./tier-benefits";
+import {
+  isAuthoritativePresentationQuoteSnapshot,
+  type PresentationQuoteSnapshot,
+} from "./quote-snapshot";
 
 export type PresentationPricingInput = Pick<
   PresentationData,
@@ -29,6 +33,7 @@ export type PresentationPricingInput = Pick<
   retailValue?: number;
   twoStory?: boolean;
   includeScreens?: boolean;
+  quoteSnapshot?: PresentationQuoteSnapshot | null;
 };
 
 /** `monthlyRate` > 0 means a legacy manual override on `overrideTier`. */
@@ -121,6 +126,9 @@ export function tierVisitPriceForPresentation(
   data: PresentationPricingInput,
   targetTier: SqueegeeKingTierId,
 ): number {
+  if (isAuthoritativePresentationQuoteSnapshot(data.quoteSnapshot)) {
+    return data.quoteSnapshot.tierVisitPrices[targetTier];
+  }
   const rates = computePresentationRates(data);
   return targetTier === "biannual" ? rates.biannualVisit : rates.quarterlyVisit;
 }
@@ -130,6 +138,9 @@ export function enrollmentSavingsForPresentation(
   targetTier?: SqueegeeKingTierId,
 ): number {
   const tier = targetTier ?? normalizeToSqueegeeKingTier(data.tier);
+  if (isAuthoritativePresentationQuoteSnapshot(data.quoteSnapshot)) {
+    return data.quoteSnapshot.tierEnrollmentSavings[tier];
+  }
   return resolveEnrollmentSavings(data.enrollmentSavings, tier);
 }
 

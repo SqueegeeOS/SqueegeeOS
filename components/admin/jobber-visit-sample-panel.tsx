@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 interface ActiveMemberPropertyCandidate {
   membershipId: string;
@@ -48,16 +47,9 @@ interface MatchingWorkspace {
   obligationMatching: false;
   billingEnabled: false;
   candidateLimitReached: boolean;
+  visitLimitReached: boolean;
   activeMemberProperties: ActiveMemberPropertyCandidate[];
   visits: VisitPreview[];
-}
-
-interface ImportResponse {
-  observed?: number;
-  inserted?: number;
-  changed?: number;
-  unchanged?: number;
-  error?: string;
 }
 
 interface MatchResponse {
@@ -69,7 +61,7 @@ interface MatchResponse {
 async function requestMatchingWorkspace(): Promise<MatchingWorkspace> {
   const response = await fetch(
     "/api/admin/care-operations/jobber/property-links",
-    { headers: getAdminRequestHeaders(), cache: "no-store" },
+    { cache: "no-store" },
   );
   const body = (await response.json().catch(() => null)) as
     | (MatchingWorkspace & { error?: string })
@@ -92,7 +84,6 @@ function formatVisitTime(value: string | null): string {
 
 export function JobberVisitSamplePanel() {
   const [workspace, setWorkspace] = useState<MatchingWorkspace | null>(null);
-  const [importSummary, setImportSummary] = useState<ImportResponse | null>(null);
   const [selectedMemberships, setSelectedMemberships] = useState<
     Record<string, string>
   >({});
@@ -100,7 +91,6 @@ export function JobberVisitSamplePanel() {
     Record<string, boolean>
   >({});
   const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
   const [savingProjectionId, setSavingProjectionId] = useState<string | null>(
     null,
   );
@@ -129,36 +119,19 @@ export function JobberVisitSamplePanel() {
     };
   }, []);
 
-  const importSample = async () => {
-    setImporting(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        "/api/admin/care-operations/jobber/visits/sample",
-        {
-          method: "POST",
-          headers: getAdminRequestHeaders(),
-          body: JSON.stringify({ limit: 5 }),
-        },
-      );
-      const body = (await response.json().catch(() => null)) as
-        | ImportResponse
-        | null;
-      if (!response.ok || !body) {
-        throw new Error(body?.error ?? "Jobber sample import failed");
-      }
-      setImportSummary(body);
-      setWorkspace(await requestMatchingWorkspace());
-    } catch (importError) {
-      setError(
-        importError instanceof Error
-          ? importError.message
-          : "Jobber sample import failed",
-      );
-    } finally {
-      setImporting(false);
-    }
-  };
+  useEffect(() => {
+    const refreshWorkspace = () => {
+      void requestMatchingWorkspace()
+        .then(setWorkspace)
+        .catch(() => {
+          setError("Schedule refreshed, but property review could not reload.");
+        });
+    };
+    window.addEventListener("jobber-schedule-refreshed", refreshWorkspace);
+    return () => {
+      window.removeEventListener("jobber-schedule-refreshed", refreshWorkspace);
+    };
+  }, []);
 
   const writePropertyLink = async (
     visit: VisitPreview,
@@ -182,10 +155,11 @@ export function JobberVisitSamplePanel() {
         "/api/admin/care-operations/jobber/property-links",
         {
           method: "POST",
-          headers: getAdminRequestHeaders(),
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action,
             projectionId: visit.projectionId,
+            linkId: action === "revoke" ? visit.propertyLink?.linkId : undefined,
             membershipId: action === "link" ? membershipId : undefined,
             samePhysicalPropertyConfirmed:
               action === "link"
@@ -202,6 +176,7 @@ export function JobberVisitSamplePanel() {
         throw new Error(body?.error ?? "The property link was not changed");
       }
       setWorkspace(body.workspace);
+      window.dispatchEvent(new Event("jobber-property-link-changed"));
       setSelectedMemberships((current) => ({
         ...current,
         [visit.projectionId]: "",
@@ -223,41 +198,29 @@ export function JobberVisitSamplePanel() {
 
   return (
     <div className="mt-8 border-t border-border/70 pt-7">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
-            Supervised property classification
-          </p>
-          <h3 className="mt-2 font-serif text-xl font-light text-foreground">
-            Separate Jobber work from HomeAtlas
-          </h3>
-          <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted">
-            No property link means Jobber-only. A confirmed link identifies a
-            member property, but the visit still cannot fulfill a promise,
-            appear in the portal, or become billable.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void importSample()}
-          disabled={loading || importing || savingProjectionId !== null}
-          className="rounded-full border border-accent/40 bg-accent/10 px-5 py-3 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-50"
-        >
-          {importing ? "Reading Jobber…" : "Refresh five read-only visits"}
-        </button>
-      </div>
-
-      {importSummary?.observed !== undefined ? (
-        <p className="mt-4 text-xs text-accent">
-          Observed {importSummary.observed} · New {importSummary.inserted ?? 0} ·
-          Changed {importSummary.changed ?? 0} · Unchanged{" "}
-          {importSummary.unchanged ?? 0}
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
+          Supervised property classification
         </p>
-      ) : null}
+        <h3 className="mt-2 font-serif text-xl font-light text-foreground">
+          Separate Jobber work from HomeAtlas
+        </h3>
+        <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted">
+          No property link means Jobber-only. A confirmed link identifies a
+          member property. It does not classify any visit, fulfill a promise,
+          or enable billing.
+        </p>
+      </div>
       {workspace?.candidateLimitReached ? (
         <p className="mt-4 text-xs text-amber-400">
           The active-member list reached its supervised review limit. Stop and
           narrow the member list before linking.
+        </p>
+      ) : null}
+      {workspace?.visitLimitReached ? (
+        <p className="mt-4 text-xs text-amber-400">
+          The visit review list reached its 100-row safety bound. It is not a
+          complete-route claim.
         </p>
       ) : null}
       {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
@@ -337,8 +300,8 @@ export function JobberVisitSamplePanel() {
                     </p>
                     <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs text-muted">
-                        Property identity only. This visit is not HomeAtlas Care
-                        until an obligation is confirmed later.
+                        Property identity only. A separate per-visit decision is
+                        required before this schedule can appear in HomeAtlas.
                       </p>
                       <button
                         type="button"

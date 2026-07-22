@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  appointmentBusinessCalendarDate,
   COMPANY_BUSINESS_TIMEZONE,
   getBusinessCalendarDayUtcBounds,
   isInstantOnBusinessCalendarDay,
@@ -79,5 +80,14 @@ describe("company business timezone (America/Los_Angeles)", () => {
     expect(startUtc.toISOString()).toBe("2026-07-09T07:00:00.000Z");
     expect(endUtc.toISOString()).toBe("2026-07-10T07:00:00.000Z");
     expect(COMPANY_BUSINESS_TIMEZONE).toBe("America/Los_Angeles");
+  });
+
+  it("groups a UTC-next-day appointment on its Pacific calendar day", () => {
+    expect(
+      appointmentBusinessCalendarDate("2026-07-10T01:30:00.000Z"),
+    ).toBe("2026-07-09");
+    expect(
+      appointmentBusinessCalendarDate("2026-01-10T07:30:00.000Z"),
+    ).toBe("2026-01-09");
   });
 });
