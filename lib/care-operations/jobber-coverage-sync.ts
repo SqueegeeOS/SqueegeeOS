@@ -35,6 +35,7 @@ export type JobberCoverageFailureCode =
   | "timeout"
   | "unsplittable_saturation"
   | "version_mismatch"
+  | "version_unverified"
   | "version_warning"
   | "watermark_conflict"
   | "window_violation";
