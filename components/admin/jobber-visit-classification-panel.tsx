@@ -8,6 +8,9 @@ interface ClassificationPreview {
   state: "pending_review" | "approved" | "rejected" | "revoked";
   serviceType: string;
   appointmentId: string | null;
+  reviewedSourcePayloadHash: string;
+  reviewedPropertyLinkId: string;
+  reviewedPropertyLinkUpdatedAt: string;
   updatedAt: string;
 }
 
@@ -29,12 +32,30 @@ interface VisitPreview {
     linkState: "active" | "revoked";
   } | null;
   classification: ClassificationPreview | null;
+  appointment: {
+    appointmentId: string;
+    status: "scheduled" | "completed" | "cancelled" | "no_show";
+    completedAt: string | null;
+    authorityState: string | null;
+  } | null;
+  completion: {
+    completionEventId: string;
+    completedAt: string;
+  } | null;
   promotionReadiness:
     | "ready_for_review"
     | "coverage_not_ready"
     | "property_link_required"
     | "provider_state_not_promotable";
   promotionBlockReason: string | null;
+  completionReadiness:
+    | "ready_for_confirmation"
+    | "already_completed"
+    | "coverage_not_ready"
+    | "prior_approval_required"
+    | "property_link_required"
+    | "provider_state_not_complete";
+  completionBlockReason: string | null;
 }
 
 interface ClassificationWorkspace {
@@ -53,6 +74,8 @@ interface ClassificationWorkspace {
 interface DecisionDraft {
   serviceType: string;
   reason: string;
+  evidenceText: string;
+  evidenceId: string | null;
 }
 
 async function loadWorkspace(): Promise<ClassificationWorkspace> {
@@ -173,7 +196,12 @@ export function JobberVisitClassificationPanel() {
       }
       setDrafts((current) => ({
         ...current,
-        [visit.projectionId]: { serviceType: "", reason: "" },
+        [visit.projectionId]: {
+          serviceType: "",
+          reason: "",
+          evidenceText: "",
+          evidenceId: null,
+        },
       }));
       await refresh();
     } catch (writeError) {
@@ -181,6 +209,97 @@ export function JobberVisitClassificationPanel() {
         writeError instanceof Error
           ? writeError.message
           : "The visit decision was not recorded",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const confirmCompletion = async (visit: VisitPreview) => {
+    const classification = visit.classification;
+    const appointment = visit.appointment;
+    const reason = drafts[visit.projectionId]?.reason.trim();
+    if (!classification || !appointment || !visit.propertyLink || !reason) return;
+    setSavingId(visit.projectionId);
+    setError(null);
+    try {
+      const response = await fetch(
+        "/api/admin/care-operations/jobber/visit-completions",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            appointmentId: appointment.appointmentId,
+            projectionId: visit.projectionId,
+            sourcePayloadHash: visit.sourcePayloadHash,
+            classificationId: classification.classificationId,
+            classificationUpdatedAt: classification.updatedAt,
+            propertyLinkUpdatedAt: visit.propertyLink.updatedAt,
+            reason,
+          }),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "The completion was not confirmed");
+      }
+      await refresh();
+    } catch (writeError) {
+      setError(
+        writeError instanceof Error
+          ? writeError.message
+          : "The completion was not confirmed",
+      );
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const recordEvidence = async (visit: VisitPreview) => {
+    const appointment = visit.appointment;
+    const draft = drafts[visit.projectionId];
+    if (!appointment || !draft?.evidenceText.trim()) return;
+    const evidenceId = draft.evidenceId ?? crypto.randomUUID();
+    setDrafts((current) => ({
+      ...current,
+      [visit.projectionId]: { ...draft, evidenceId },
+    }));
+    setSavingId(visit.projectionId);
+    setError(null);
+    try {
+      const response = await fetch(
+        "/api/admin/care-operations/jobber/visit-completions/evidence",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            evidenceId,
+            appointmentId: appointment.appointmentId,
+            evidenceText: draft.evidenceText,
+          }),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "The visit evidence was not recorded");
+      }
+      setDrafts((current) => ({
+        ...current,
+        [visit.projectionId]: {
+          ...draft,
+          evidenceText: "",
+          evidenceId: null,
+        },
+      }));
+    } catch (writeError) {
+      setError(
+        writeError instanceof Error
+          ? writeError.message
+          : "The visit evidence was not recorded",
       );
     } finally {
       setSavingId(null);
@@ -260,10 +379,15 @@ export function JobberVisitClassificationPanel() {
           const draft = drafts[visit.projectionId] ?? {
             serviceType: visit.classification?.serviceType ?? "",
             reason: "",
+            evidenceText: "",
+            evidenceId: null,
           };
           const approved = visit.classification?.state === "approved";
+          const authoritativeCompleted =
+            visit.completionReadiness === "already_completed";
           const decisionInputsDisabled =
             savingId !== null ||
+            authoritativeCompleted ||
             (!approved && !workspace?.coverage.decisionsEnabled);
           const canRecordDecision =
             Boolean(workspace?.coverage.decisionsEnabled) &&
@@ -290,7 +414,9 @@ export function JobberVisitClassificationPanel() {
                 </div>
                 <span className="self-start rounded-full border border-border px-3 py-1 text-[10px] uppercase tracking-[0.12em] text-muted">
                   {visit.classification
-                    ? stateLabel(visit.classification.state)
+                    ? authoritativeCompleted
+                      ? "Completed"
+                      : stateLabel(visit.classification.state)
                     : "Unclassified"}
                 </span>
               </div>
@@ -303,6 +429,11 @@ export function JobberVisitClassificationPanel() {
               {visit.promotionBlockReason ? (
                 <p className="mt-3 text-xs text-amber-300">
                   {visit.promotionBlockReason}
+                </p>
+              ) : null}
+              {visit.completionBlockReason && visit.visitStatus === "COMPLETED" ? (
+                <p className="mt-3 text-xs text-amber-300">
+                  Completion held: {visit.completionBlockReason}
                 </p>
               ) : null}
 
@@ -357,7 +488,7 @@ export function JobberVisitClassificationPanel() {
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {approved ? (
+                {authoritativeCompleted ? null : approved ? (
                   <button
                     type="button"
                     onClick={() => void revoke(visit)}
@@ -386,7 +517,58 @@ export function JobberVisitClassificationPanel() {
                     </button>
                   </>
                 )}
+                {visit.completionReadiness === "ready_for_confirmation" ? (
+                  <button
+                    type="button"
+                    onClick={() => void confirmCompletion(visit)}
+                    disabled={!draft.reason.trim() || savingId !== null}
+                    className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-5 py-2.5 text-sm text-emerald-300 transition hover:bg-emerald-500/15 disabled:opacity-40"
+                  >
+                    {savingId === visit.projectionId
+                      ? "Confirming…"
+                      : "Confirm Jobber completion"}
+                  </button>
+                ) : null}
               </div>
+
+              {visit.completionReadiness === "already_completed" ? (
+                <div className="mt-5 border-t border-border/70 pt-4">
+                  <p className="text-xs text-emerald-300">
+                    Authoritatively completed {formatVisitTime(visit.completion?.completedAt ?? null)}
+                  </p>
+                  <label className="mt-3 block">
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-muted">
+                      Immutable visit evidence · text only
+                    </span>
+                    <textarea
+                      maxLength={4000}
+                      rows={3}
+                      value={draft.evidenceText}
+                      onChange={(event) =>
+                        setDrafts((current) => ({
+                          ...current,
+                          [visit.projectionId]: {
+                            ...draft,
+                            evidenceText: event.target.value,
+                            evidenceId: draft.evidenceId,
+                          },
+                        }))
+                      }
+                      placeholder="Record only what was directly verified. This is private HQ evidence and is not published to the customer."
+                      disabled={savingId !== null}
+                      className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-3 text-sm text-foreground placeholder:text-muted/60 disabled:opacity-50"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => void recordEvidence(visit)}
+                    disabled={!draft.evidenceText.trim() || savingId !== null}
+                    className="mt-3 rounded-full border border-border px-4 py-2 text-xs text-muted transition hover:text-foreground disabled:opacity-40"
+                  >
+                    {savingId === visit.projectionId ? "Recording…" : "Record immutable evidence"}
+                  </button>
+                </div>
+              ) : null}
             </article>
           );
         })}

@@ -28,8 +28,40 @@
     "uniqueSortOrTieBreakGuaranteed": false,
     "visitStatus": {
       "transport": "opaque provider string",
-      "enumValuesVerified": false,
-      "reason": "The temporary GraphiQL token expired before enum evidence was captured."
+      "enumValuesVerified": true,
+      "capturedReadOnlyVia": "Jobber GraphiQL introspection",
+      "capturedAt": "2026-07-19T19:06:45.496Z",
+      "requestedApiVersion": "2025-04-16",
+      "normalization": "JSON.stringify(values in provider-returned order with keys name,isDeprecated,deprecationReason)",
+      "normalizedResultSha256": "15ac8d0817c3389023b52c8f3230278ee901d86a759d22444c54ffd73494221c",
+      "values": [
+        {
+          "name": "ACTIVE",
+          "isDeprecated": false,
+          "deprecationReason": null
+        },
+        {
+          "name": "COMPLETED",
+          "isDeprecated": false,
+          "deprecationReason": null
+        },
+        {
+          "name": "LATE",
+          "isDeprecated": false,
+          "deprecationReason": null
+        },
+        {
+          "name": "TODAY",
+          "isDeprecated": false,
+          "deprecationReason": null
+        },
+        {
+          "name": "UNSCHEDULED",
+          "isDeprecated": false,
+          "deprecationReason": null
+        }
+      ],
+      "containsTokenOrCustomerData": false
     }
   }
 }

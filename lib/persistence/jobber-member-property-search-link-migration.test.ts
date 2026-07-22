@@ -22,6 +22,20 @@ const classificationMigration = readFileSync(
   ),
   "utf8",
 );
+const rehearsal = readFileSync(
+  new URL(
+    "./supabase/tests/040_jobber_member_property_search_link.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const fingerprintUtility = readFileSync(
+  new URL(
+    "./supabase/tests/support/forbidden_domain_fingerprints.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const linkRpc =
   migration.match(
     /create or replace function public\.link_jobber_member_property_from_search[\s\S]*?\n\$\$;/,
@@ -55,6 +69,42 @@ describe("migration 040 Jobber member-property search link", () => {
     expect(migration).not.toMatch(
       /grant execute on function public\.link_jobber_member_property_from_search\([\s\S]*?\) to (?:public|anon|authenticated);/,
     );
+  });
+
+  it("normalizes property-link table grants to service-role SELECT only", () => {
+    const tableGrants = migration
+      .split(";")
+      .map((statement) => statement.trim())
+      .filter(
+        (statement) =>
+          /^grant\b/i.test(statement) && /\bon table\b/i.test(statement),
+      );
+
+    expect(migration).toMatch(
+      /revoke all on table\s+public\.jobber_property_links,\s+public\.jobber_property_link_events\s+from public, anon, authenticated, service_role;/,
+    );
+    expect(tableGrants).toHaveLength(1);
+    expect(tableGrants[0]).toMatch(
+      /^grant select on table\s+public\.jobber_property_links,\s+public\.jobber_property_link_events\s+to service_role$/,
+    );
+
+    for (const fragment of [
+      "pg_catalog.acldefault('r', relation.relowner)",
+      "'anon', relation_row.oid, available_privilege",
+      "'authenticated', relation_row.oid, available_privilege",
+      "'service_role', relation_row.oid, available_privilege",
+      "available_privilege = 'SELECT'",
+      "relation_acl.grantee = 0",
+      "relation_acl.privilege_type <> 'SELECT'",
+      "and not relation_acl.is_grantable",
+      "policy_role.role_oid = 0",
+      "pg_catalog.pg_has_role('anon'",
+      "'authenticated', policy_role.role_oid, 'MEMBER'",
+      "Migration 040 authority table ACLs are not exact",
+      "Migration 040 authority tables expose a PUBLIC/browser policy",
+    ]) {
+      expect(rehearsal).toContain(fragment);
+    }
   });
 
   it("locks and revalidates the active actor and exact signed membership property", () => {
@@ -192,6 +242,52 @@ describe("migration 040 Jobber member-property search link", () => {
       /property[_\s-]?memory/i,
     ]) {
       expect(migration).not.toMatch(forbidden);
+    }
+  });
+
+  it("ships executable rollback coverage for replay, fail-closed, security, immutability, and forbidden domains", () => {
+    for (const fragment of [
+      "begin;",
+      "link_jobber_member_property_from_search(",
+      "Migration 040 exact replay did not converge and refresh proof",
+      "Migration 040 stale replay regressed current proof or lost evidence",
+      "Inactive Headquarters actor was accepted",
+      "Incomplete provider property coverage was accepted",
+      "Changed Jobber GraphQL version was accepted",
+      "Paused membership was accepted",
+      "Incomplete signed agreement was accepted",
+      "Existing Jobber property was rebound to another home",
+      "Existing HomeAtlas property was linked to another Jobber property",
+      "Migration 040 link RPC ACL is not exact",
+      "Migration 040 authority tables must retain RLS",
+      "Migration 040 authority table ACLs are not exact",
+      "Migration 040 authority tables expose a PUBLIC/browser policy",
+      "Immutable property-link evidence unexpectedly changed",
+      "pg_temp.capture_forbidden_domain_content('before')",
+      "pg_temp.assert_forbidden_domain_content_unchanged('before', 'after')",
+      "rollback;",
+    ]) {
+      expect(rehearsal).toContain(fragment);
+    }
+    expect(rehearsal).toContain(
+      "\\ir support/forbidden_domain_fingerprints.sql",
+    );
+  });
+
+  it("uses deterministic whole-row forbidden-domain fingerprints", () => {
+    for (const fragment of [
+      "pg_catalog.to_regclass(relation_name)",
+      "pg_catalog.to_jsonb(source_row)",
+      "pg_catalog.string_agg(row_data::text",
+      "extension.extname = 'pgcrypto'",
+      "%I.digest",
+      "'sha256'",
+      "full join",
+      "relation_present is distinct from",
+      "row_count is distinct from",
+      "content_sha256 is distinct from",
+    ]) {
+      expect(fingerprintUtility).toContain(fragment);
     }
   });
 });

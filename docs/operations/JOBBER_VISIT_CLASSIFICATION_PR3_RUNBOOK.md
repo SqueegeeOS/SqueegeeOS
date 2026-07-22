@@ -200,6 +200,7 @@ migration, deployment, real sync, or customer-data write.
 
    ```bash
    psql --set ON_ERROR_STOP=1 --file lib/persistence/supabase/tests/039_jobber_visit_classification.sql
+   psql --set ON_ERROR_STOP=1 --file lib/persistence/supabase/tests/040_jobber_member_property_search_link.sql
    psql --set ON_ERROR_STOP=1 --file lib/persistence/supabase/tests/041_jobber_property_link_revocation.sql
    ```
 
@@ -282,6 +283,41 @@ Migration 041 has an opt-in disposable integration wrapper. It runs only when
 `I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_DATABASE` and
 `JOBBER_J1_TEST_DATABASE_URL` is set. Without that configured target it is
 skipped and the two-session concurrency rehearsal remains unproven.
+
+Migration 040 now has the same opt-in boundary and actually invokes
+`link_jobber_member_property_from_search` through its rollback-only SQL
+rehearsal. The exact isolated command is:
+
+```bash
+JOBBER_J1_DISPOSABLE_DB_ACK=I_ACKNOWLEDGE_THIS_IS_A_DISPOSABLE_DATABASE \
+JOBBER_J1_TEST_DATABASE_URL='postgresql://DISPOSABLE-ONLY' \
+npm test -- lib/persistence/supabase/jobber-member-property-search-link.integration.test.ts
+```
+
+Disposable migration-040 evidence recorded July 20, 2026:
+
+- Disposable project: `care-operations-rehearsal`
+  (`zgpvucrrhjmzcgfgxrtn`).
+- Worktree HEAD: `f86c2ad246a200a58c2b1cfc4a3feb3edaef5104`.
+- Current `lib/persistence/supabase/tests/040_jobber_member_property_search_link.sql`
+  SHA-256:
+  `04224eacc0b5cf2e413f7311239b42297f566236f4cde9bfc350c4417207b4a1`.
+- The corrected migration 040 and expanded rollback-only harness ran together
+  inside one outer transaction and returned `Success` / `No rows`.
+- No migration persisted. Post-run residue counts were all `0` for
+  `auth.users`, `public.homeowners`, `public.properties`,
+  `public.memberships`, and `public.signed_agreements`.
+
+Subsequent disposable migration evidence:
+
+- Corrected migrations 040 and 043 later applied successfully only to
+  `zgpvucrrhjmzcgfgxrtn`; each catalog/security audit passed `9/9`.
+- The earlier `No migration persisted` statement remains the result of that
+  specific rollback-only outer transaction, not the disposable project's
+  current schema state.
+- Production remains unapplied and untouched. Detailed migration-043 rollback,
+  manual two-session, residue, blocked canonical Node-run, and artifact-hash
+  evidence is recorded in `JOBBER_VISIT_COMPLETION_PR4_RUNBOOK.md`.
 
 Migration-041 repository evidence recorded July 18, 2026:
 
