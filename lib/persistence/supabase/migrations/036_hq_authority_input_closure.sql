@@ -11,6 +11,7 @@ alter table if exists public.memberships enable row level security;
 alter table if exists public.signed_agreements enable row level security;
 alter table if exists public.property_assets enable row level security;
 alter table if exists public.presentations enable row level security;
+alter table if exists public.pricing_settings enable row level security;
 
 -- Presentation-derived customer rows use the presentation as their immutable
 -- source identity. Name/address slugs remain readable labels, never merge keys.
@@ -144,7 +145,8 @@ begin
         'memberships',
         'signed_agreements',
         'property_assets',
-        'presentations'
+        'presentations',
+        'pricing_settings'
       ])
       and cmd in ('ALL', 'INSERT', 'UPDATE', 'DELETE')
       and roles::text[] && array['public', 'anon', 'authenticated']::text[]
@@ -177,7 +179,8 @@ begin
         'memberships',
         'signed_agreements',
         'property_assets',
-        'presentations'
+        'presentations',
+        'pricing_settings'
       ])
       and cmd = 'SELECT'
       and roles::text[] && array['public', 'anon', 'authenticated']::text[]
@@ -207,6 +210,8 @@ revoke select, insert, update, delete on table public.property_assets
   from public, anon, authenticated;
 revoke select, insert, update, delete on table public.presentations
   from public, anon, authenticated;
+revoke select, insert, update, delete on table public.pricing_settings
+  from public, anon, authenticated;
 revoke all on table public.presentation_signing_attempts
   from public, anon, authenticated;
 
@@ -217,6 +222,7 @@ revoke all on table public.memberships from service_role;
 revoke all on table public.signed_agreements from service_role;
 revoke all on table public.property_assets from service_role;
 revoke all on table public.presentations from service_role;
+revoke all on table public.pricing_settings from service_role;
 revoke all on table public.presentation_signing_attempts from service_role;
 grant select, insert, update, delete on table public.homeowners to service_role;
 grant select, insert, update, delete on table public.properties to service_role;
@@ -225,6 +231,7 @@ grant select, insert, update, delete on table public.memberships to service_role
 grant select, insert, update, delete on table public.signed_agreements to service_role;
 grant select, insert, update, delete on table public.property_assets to service_role;
 grant select, insert, update, delete on table public.presentations to service_role;
+grant select, insert, update, delete on table public.pricing_settings to service_role;
 grant select, insert, update, delete on table public.presentation_signing_attempts
   to service_role;
 

@@ -188,3 +188,22 @@ describe("migration 035", () => {
     expect(rehearsal).toMatch(/begin;[\s\S]*rollback;/i);
   });
 });
+
+describe("migration 036", () => {
+  const migration = read(
+    "../persistence/supabase/migrations/036_hq_authority_input_closure.sql",
+  );
+
+  it("closes browser authority over pricing settings with the customer authority tables", () => {
+    expect(migration).toContain(
+      "alter table if exists public.pricing_settings enable row level security",
+    );
+    expect(migration).toContain(
+      "revoke select, insert, update, delete on table public.pricing_settings",
+    );
+    expect(migration).toContain(
+      "grant select, insert, update, delete on table public.pricing_settings to service_role",
+    );
+    expect(migration).not.toMatch(/pricing_settings_anon_all/i);
+  });
+});
