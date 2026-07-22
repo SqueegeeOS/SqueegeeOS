@@ -119,6 +119,29 @@ describe("migration 038 Jobber schedule coverage", () => {
     );
   });
 
+  it("allows every application Jobber coverage failure code in durable run evidence", () => {
+    for (const failureCode of [
+      "duplicate_visit",
+      "graphql_partial_errors",
+      "http_429",
+      "http_error",
+      "malformed_response",
+      "malformed_timestamp",
+      "manifest_mismatch",
+      "query_cap_reached",
+      "storage_failure",
+      "timeout",
+      "unsplittable_saturation",
+      "version_mismatch",
+      "version_unverified",
+      "version_warning",
+      "watermark_conflict",
+      "window_violation",
+    ]) {
+      expect(migration).toContain(`'${failureCode}'`);
+    }
+  });
+
   it("has no writes or calls to forbidden HomeAtlas and provider domains", () => {
     for (const table of [
       "member_appointments",

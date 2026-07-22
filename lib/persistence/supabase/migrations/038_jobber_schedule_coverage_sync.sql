@@ -26,8 +26,8 @@ create table if not exists public.jobber_schedule_sync_runs (
     'duplicate_visit', 'graphql_partial_errors', 'http_429', 'http_error',
     'malformed_response', 'malformed_timestamp', 'manifest_mismatch',
     'query_cap_reached', 'storage_failure', 'timeout',
-    'unsplittable_saturation', 'version_mismatch', 'version_warning',
-    'watermark_conflict', 'window_violation'
+    'unsplittable_saturation', 'version_mismatch', 'version_unverified',
+    'version_warning', 'watermark_conflict', 'window_violation'
   )),
   started_at timestamptz not null default now(),
   completed_at timestamptz,
