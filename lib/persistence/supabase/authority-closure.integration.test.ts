@@ -233,6 +233,7 @@ integration("migration 036 disposable Supabase authority rehearsal", () => {
         properties: first.propertyId,
         memberships: first.membershipId,
         signed_agreements: first.agreementId,
+        pricing_settings: "default",
       });
 
       const { data: completedAgreementBefore, error: completedReadError } =
@@ -401,6 +402,10 @@ integration("migration 036 disposable Supabase authority rehearsal", () => {
           home_sqft: 2500,
           tier: "quarterly",
         }),
+        roleClient.from("pricing_settings").insert({
+          id: `denied-${suffix}`,
+          settings: {},
+        }),
       ];
       for (const roleClient of [anon, authenticated]) {
         for (const attempt of insertAttempts(roleClient)) {
@@ -416,8 +421,12 @@ integration("migration 036 disposable Supabase authority rehearsal", () => {
         signed_agreements: { status: "voided" },
         property_assets: { title: "Denied update" },
         presentations: { status: "draft" },
+        pricing_settings: { settings: { denied: true } },
       };
       for (const roleClient of [anon, authenticated]) {
+        await expectDenied(
+          roleClient.from("pricing_settings").select("id, settings"),
+        );
         for (const [table, id] of Object.entries(createdIds)) {
           await expectDenied(
             roleClient.from(table).update(updateFields[table]).eq("id", id),

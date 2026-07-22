@@ -20,6 +20,7 @@ describe("migration 036 authority closure", () => {
       "signed_agreements",
       "property_assets",
       "presentations",
+      "pricing_settings",
     ]) {
       expect(migration).toContain(`public.${table}`);
     }
@@ -126,6 +127,7 @@ describe("migration 036 authority closure", () => {
     expect(harness).toContain("PR1B_TEST_SIGNING_FAULT_STAGE");
     expect(harness).toContain("conflictingSignature");
     expect(harness).toContain('from("presentations")');
+    expect(harness).toContain('from("pricing_settings")');
     expect(harness).toContain('select("id, homeowner_slug")');
     expect(harness).toContain("Denied service-role mutation");
     expect(harness).toContain("Updated incomplete workflow");
