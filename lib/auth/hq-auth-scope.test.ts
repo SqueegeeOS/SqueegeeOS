@@ -199,7 +199,7 @@ describe("migration 036", () => {
       "alter table if exists public.pricing_settings enable row level security",
     );
     expect(migration).toContain(
-      "revoke select, insert, update, delete on table public.pricing_settings",
+      "revoke all on table public.pricing_settings",
     );
     expect(migration).toContain(
       "grant select, insert, update, delete on table public.pricing_settings to service_role",
