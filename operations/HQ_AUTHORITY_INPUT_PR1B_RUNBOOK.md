@@ -1,7 +1,7 @@
 # PR1b — Headquarters authority-input closure
 
-**Status:** RED release gate; implementation is not authorized for production  
-**Scope:** Migration 036 and presentation/Home Care Plan/signing authority only  
+**Status:** RED release gate; implementation is not authorized for production
+**Scope:** Migration 036 and presentation/Home Care Plan/signing authority only
 **Non-goals:** Jobber, appointments, obligations, Stripe behavior, cancellation policy, portal UI, Property Memory, pricing policy, and customer communication
 
 ## Authority contract
