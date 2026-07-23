@@ -236,7 +236,8 @@ create trigger property_assets_updated_at before update on property_assets
   for each row execute function set_updated_at();
 
 -- Row Level Security
--- Server routes use service role (bypasses RLS). Anon key: customer persistence only.
+-- Server routes use service role (bypasses RLS). Browser read and mutation
+-- authority over customer persistence is closed by migration 036.
 -- HQ / billing / ledger tables have RLS enabled with no anon policies (migration 030).
 alter table homeowners enable row level security;
 alter table properties enable row level security;
@@ -245,24 +246,14 @@ alter table memberships enable row level security;
 alter table signed_agreements enable row level security;
 alter table property_assets enable row level security;
 
-create policy "homeowners_anon_read" on homeowners for select to anon, authenticated using (true);
-create policy "homeowners_anon_insert" on homeowners for insert to anon, authenticated with check (true);
-create policy "homeowners_anon_update" on homeowners for update to anon, authenticated using (true) with check (true);
-create policy "properties_anon_read" on properties for select to anon, authenticated using (true);
-create policy "properties_anon_insert" on properties for insert to anon, authenticated with check (true);
-create policy "properties_anon_update" on properties for update to anon, authenticated using (true) with check (true);
-create policy "home_care_plans_anon_read" on home_care_plans for select to anon, authenticated using (true);
-create policy "home_care_plans_anon_insert" on home_care_plans for insert to anon, authenticated with check (true);
-create policy "home_care_plans_anon_update" on home_care_plans for update to anon, authenticated using (true) with check (true);
-create policy "memberships_anon_read" on memberships for select to anon, authenticated using (true);
-create policy "memberships_anon_insert" on memberships for insert to anon, authenticated with check (true);
-create policy "memberships_anon_update" on memberships for update to anon, authenticated using (true) with check (true);
-create policy "signed_agreements_anon_read" on signed_agreements for select to anon, authenticated using (true);
-create policy "signed_agreements_anon_insert" on signed_agreements for insert to anon, authenticated with check (true);
-create policy "signed_agreements_anon_update" on signed_agreements for update to anon, authenticated using (true) with check (true);
-create policy "property_assets_anon_read" on property_assets for select to anon, authenticated using (true);
-create policy "property_assets_anon_insert" on property_assets for insert to anon, authenticated with check (true);
-create policy "property_assets_anon_update" on property_assets for update to anon, authenticated using (true) with check (true);
+drop policy if exists "home_care_plans_anon_read" on home_care_plans;
+
+revoke select, insert, update, delete on homeowners from public, anon, authenticated;
+revoke select, insert, update, delete on properties from public, anon, authenticated;
+revoke select, insert, update, delete on home_care_plans from public, anon, authenticated;
+revoke select, insert, update, delete on memberships from public, anon, authenticated;
+revoke select, insert, update, delete on signed_agreements from public, anon, authenticated;
+revoke select, insert, update, delete on property_assets from public, anon, authenticated;
 
 alter table closed_jobs enable row level security;
 
@@ -287,6 +278,253 @@ alter table property_assets add column if not exists external_url text;
 
 alter table presentations add column if not exists enrollment_savings numeric(10, 2);
 alter table memberships add column if not exists membership_enrollment_savings numeric(10, 2);
+alter table memberships add column if not exists stripe_setup_intent_id text;
+
+create unique index if not exists memberships_stripe_setup_intent_uidx
+  on memberships(stripe_setup_intent_id)
+  where stripe_setup_intent_id is not null;
+create unique index if not exists memberships_stripe_customer_uidx
+  on memberships(stripe_customer_id)
+  where stripe_customer_id is not null;
+
+create table if not exists membership_stripe_setup_reconciliation_attempts (
+  id uuid primary key default gen_random_uuid(),
+  membership_id uuid not null unique references memberships(id) on delete restrict,
+  presentation_id uuid not null references presentations(id) on delete restrict,
+  agreement_id uuid not null references signed_agreements(id) on delete restrict,
+  homeowner_id uuid not null references homeowners(id) on delete restrict,
+  property_id uuid not null references properties(id) on delete restrict,
+  capability_kind text not null check (capability_kind in ('presentation', 'portal')),
+  sales_tier text not null check (sales_tier in ('biannual', 'quarterly')),
+  visit_price numeric(10, 2) not null check (visit_price > 0),
+  visits_per_year smallint not null check (
+    (sales_tier = 'biannual' and visits_per_year = 2)
+    or (sales_tier = 'quarterly' and visits_per_year = 4)
+  ),
+  enrollment_savings numeric(10, 2) not null check (enrollment_savings >= 0),
+  presentation_authority_sha256 text not null
+    check (presentation_authority_sha256 ~ '^[0-9a-f]{64}$'),
+  customer_idempotency_key text not null unique,
+  setup_intent_idempotency_key text not null unique,
+  operation_phase text not null default 'before_provider'
+    check (operation_phase = 'before_provider'),
+  operation_status text not null default 'reserved'
+    check (operation_status = 'reserved'),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists membership_stripe_setup_reconciliation_events (
+  id uuid primary key default gen_random_uuid(),
+  attempt_id uuid not null
+    references membership_stripe_setup_reconciliation_attempts(id)
+    on delete restrict,
+  event_key text not null,
+  operation_phase text not null,
+  operation_status text not null,
+  stripe_customer_id text,
+  stripe_setup_intent_id text,
+  outcome text,
+  error_code text,
+  occurred_at timestamptz not null default now(),
+  unique (attempt_id, event_key)
+);
+
+create table if not exists membership_payment_setup_events (
+  id uuid primary key default gen_random_uuid(),
+  reconciliation_attempt_id uuid not null unique
+    references membership_stripe_setup_reconciliation_attempts(id)
+    on delete restrict,
+  membership_id uuid not null unique
+    references memberships(id) on delete restrict,
+  presentation_id uuid not null references presentations(id) on delete restrict,
+  agreement_id uuid not null references signed_agreements(id) on delete restrict,
+  homeowner_id uuid not null references homeowners(id) on delete restrict,
+  property_id uuid not null references properties(id) on delete restrict,
+  sales_tier text not null constraint membership_payment_setup_events_sales_tier_check
+    check (sales_tier in ('biannual', 'quarterly')),
+  visit_price numeric(10, 2) not null constraint membership_payment_setup_events_visit_price_check
+    check (visit_price > 0),
+  visits_per_year smallint not null constraint membership_payment_setup_events_visits_per_year_check
+    check (
+      (sales_tier = 'biannual' and visits_per_year = 2)
+      or (sales_tier = 'quarterly' and visits_per_year = 4)
+    ),
+  presentation_authority_sha256 text not null constraint membership_payment_setup_events_authority_sha256_check
+    check (presentation_authority_sha256 ~ '^[0-9a-f]{64}$'),
+  enrollment_savings numeric(10, 2) not null constraint membership_payment_setup_events_enrollment_savings_check
+    check (enrollment_savings >= 0),
+  stripe_customer_id text not null unique,
+  stripe_setup_intent_id text not null unique,
+  stripe_payment_method_id text not null,
+  stripe_livemode boolean not null,
+  stripe_setup_intent_status text not null
+    check (stripe_setup_intent_status = 'succeeded'),
+  stripe_metadata jsonb not null,
+  payment_setup_completed_at timestamptz not null,
+  occurred_at timestamptz not null default now()
+);
+
+create or replace function reject_membership_payment_setup_event_change()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  raise exception 'Stripe setup evidence is append-only and immutable';
+end;
+$$;
+
+drop trigger if exists membership_stripe_setup_reconciliation_attempts_immutable
+  on membership_stripe_setup_reconciliation_attempts;
+create trigger membership_stripe_setup_reconciliation_attempts_immutable
+  before update or delete on membership_stripe_setup_reconciliation_attempts
+  for each row execute function reject_membership_payment_setup_event_change();
+
+drop trigger if exists membership_stripe_setup_reconciliation_events_immutable
+  on membership_stripe_setup_reconciliation_events;
+create trigger membership_stripe_setup_reconciliation_events_immutable
+  before update or delete on membership_stripe_setup_reconciliation_events
+  for each row execute function reject_membership_payment_setup_event_change();
+
+drop trigger if exists membership_payment_setup_events_immutable
+  on membership_payment_setup_events;
+create trigger membership_payment_setup_events_immutable
+  before update or delete on membership_payment_setup_events
+  for each row execute function reject_membership_payment_setup_event_change();
+
+alter table membership_payment_setup_events enable row level security;
+alter table membership_stripe_setup_reconciliation_attempts enable row level security;
+alter table membership_stripe_setup_reconciliation_events enable row level security;
+revoke all on membership_payment_setup_events,
+  membership_stripe_setup_reconciliation_attempts,
+  membership_stripe_setup_reconciliation_events
+  from public, anon, authenticated, service_role;
+grant select on membership_payment_setup_events,
+  membership_stripe_setup_reconciliation_attempts,
+  membership_stripe_setup_reconciliation_events to service_role;
+revoke all on function reject_membership_payment_setup_event_change()
+  from public, anon, authenticated;
+grant execute on function reject_membership_payment_setup_event_change()
+  to service_role;
+
+-- PR1b authority-input closure reference (migration 036 remains the rollout
+-- artifact and must be applied in numbered order).
+alter table homeowners add column if not exists source_presentation_id uuid
+  references presentations(id) on delete set null;
+alter table properties add column if not exists source_presentation_id uuid
+  references presentations(id) on delete set null;
+alter table properties
+  add column if not exists authority_address_key text generated always as (
+    lower(btrim(regexp_replace(address, '[[:space:]]+', ' ', 'g'))) || '|' ||
+    lower(btrim(regexp_replace(city, '[[:space:]]+', ' ', 'g'))) || '|' ||
+    lower(btrim(regexp_replace(state, '[[:space:]]+', ' ', 'g'))) || '|' ||
+    lower(btrim(regexp_replace(zip, '[[:space:]]+', ' ', 'g')))
+  ) stored;
+alter table presentations add column if not exists authority_sha256 text;
+alter table signed_agreements add column if not exists presentation_id uuid
+  references presentations(id) on delete set null;
+alter table signed_agreements add column if not exists signing_attempt_id uuid;
+alter table signed_agreements add column if not exists signing_evidence_sha256 text;
+alter table signed_agreements add column if not exists agreement_tier text;
+
+create unique index if not exists homeowners_source_presentation_uidx
+  on homeowners(source_presentation_id) where source_presentation_id is not null;
+create unique index if not exists properties_source_presentation_uidx
+  on properties(source_presentation_id) where source_presentation_id is not null;
+create unique index if not exists properties_authority_address_uidx
+  on properties(authority_address_key);
+create unique index if not exists signed_agreements_complete_presentation_uidx
+  on signed_agreements(presentation_id)
+  where presentation_id is not null and status = 'complete';
+
+create or replace function reject_completed_signed_agreement_mutation()
+returns trigger
+language plpgsql
+security invoker
+set search_path = pg_catalog
+as $$
+begin
+  if old.status = 'complete' then
+    raise exception using
+      errcode = '23514',
+      message = 'Completed signed agreements are immutable';
+  end if;
+
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists signed_agreements_complete_immutable
+  on signed_agreements;
+create trigger signed_agreements_complete_immutable
+  before update or delete on signed_agreements
+  for each row execute function reject_completed_signed_agreement_mutation();
+
+revoke all on function reject_completed_signed_agreement_mutation()
+  from public, anon, authenticated, service_role;
+grant execute on function reject_completed_signed_agreement_mutation()
+  to service_role;
+
+create table if not exists presentation_signing_attempts (
+  presentation_id uuid primary key references presentations(id) on delete restrict,
+  attempt_id uuid not null unique,
+  agreement_tier text not null check (agreement_tier in ('biannual', 'quarterly')),
+  signature_sha256 text not null check (signature_sha256 ~ '^[0-9a-f]{64}$'),
+  presentation_authority_sha256 text not null
+    check (presentation_authority_sha256 ~ '^[0-9a-f]{64}$'),
+  signed_at timestamptz not null default now(),
+  status text not null default 'pending' check (status in ('pending', 'complete', 'held')),
+  agreement_id uuid references signed_agreements(id) on delete restrict,
+  conflict_count integer not null default 0 check (conflict_count >= 0),
+  last_conflict_at timestamptz,
+  last_conflict_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'signed_agreements_signing_attempt_fk'
+      and conrelid = 'signed_agreements'::regclass
+  ) then
+    alter table signed_agreements
+      add constraint signed_agreements_signing_attempt_fk
+      foreign key (signing_attempt_id) references presentation_signing_attempts(attempt_id)
+      on delete restrict;
+  end if;
+end $$;
+alter table presentation_signing_attempts enable row level security;
+revoke all on presentation_signing_attempts from public, anon, authenticated;
+revoke select, insert, update, delete on presentations
+  from public, anon, authenticated;
 
 -- member_profiles, member_savings_transactions, member_appointments,
 -- service_observations, ai_quotes — see 005_member_intelligence.sql
+
+-- Jobber authority tables/functions are introduced by numbered migrations
+-- 032-041. Mirror migration 041's additive replay-evidence columns when this
+-- reference schema is applied over an existing migrated database; fresh
+-- databases receive them from migration 041 in order.
+do $$
+begin
+  if to_regclass('public.jobber_property_links') is not null then
+    alter table public.jobber_property_links
+      add column if not exists revocation_projection_id uuid
+        references public.jobber_visit_projections(id) on delete restrict,
+      add column if not exists revocation_expected_link_updated_at timestamptz;
+    alter table public.jobber_property_links enable row level security;
+  end if;
+  if to_regclass('public.jobber_property_link_events') is not null then
+    alter table public.jobber_property_link_events
+      add column if not exists revocation_projection_id uuid
+        references public.jobber_visit_projections(id) on delete restrict,
+      add column if not exists revocation_expected_link_updated_at timestamptz;
+    alter table public.jobber_property_link_events enable row level security;
+  end if;
+end;
+$$;

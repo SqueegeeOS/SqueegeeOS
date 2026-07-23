@@ -46,6 +46,22 @@ describe("generateSignedPDF", () => {
     expect(await embeddedImageCount(bytes)).toBeGreaterThanOrEqual(1);
   });
 
+  it("generates identical evidence bytes for the same canonical attempt", async () => {
+    const input = {
+      memberName: "Retry Test",
+      signedAt: "2026-07-07T01:00:00.000Z",
+      signatureDataUrl: signature,
+      tier: "SqueegeeKing Quarterly Home Care Membership",
+      agreementTier: "quarterly" as const,
+      propertyName: "123 Main St",
+      monthlyPrice: 249,
+      homeSqft: 2500,
+    };
+    const first = await generateSignedPDF(input);
+    const retry = await generateSignedPDF(input);
+    expect(Buffer.from(retry)).toEqual(Buffer.from(first));
+  });
+
   it("writes review PDFs when SAMPLE_PDF=1", async () => {
     if (process.env.SAMPLE_PDF !== "1") return;
 

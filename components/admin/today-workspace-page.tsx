@@ -10,7 +10,10 @@ import type {
   BillingRegisterRow,
   BillingWorkspaceData,
 } from "@/lib/admin/billing-workspace-types";
-import { businessTodayIsoDate } from "@/lib/admin/company-business-timezone";
+import {
+  appointmentBusinessCalendarDate,
+  businessTodayIsoDate,
+} from "@/lib/admin/company-business-timezone";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
 import { isAdminUnlocked } from "@/lib/admin/pin";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
@@ -19,7 +22,7 @@ import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 type JobGroup = "overdue" | "today" | "upcoming";
 
 function jobDate(row: BillingRegisterRow): string | null {
-  return row.nextAppointmentDate?.slice(0, 10) ?? null;
+  return appointmentBusinessCalendarDate(row.nextAppointmentDate);
 }
 
 function groupFor(row: BillingRegisterRow, today: string): JobGroup {

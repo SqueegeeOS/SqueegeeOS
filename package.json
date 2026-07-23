@@ -16,6 +16,7 @@
   "dependencies": {
     "@stripe/react-stripe-js": "^6.7.0",
     "@stripe/stripe-js": "^9.9.0",
+    "@supabase/ssr": "^0.12.1",
     "@supabase/supabase-js": "^2.110.0",
     "@vercel/speed-insights": "^2.0.0",
     "framer-motion": "^12.42.2",

@@ -32,6 +32,7 @@ describe("member vs one-time savings", () => {
     const rates = computePresentationRates({
       tier: "quarterly",
       homeSqft: 2800,
+      monthlyRate: 0,
       visitRateOverrides: { quarterly: 300 },
     });
     expect(rates.quarterlyYearlyWindowSavings).toBe(600);

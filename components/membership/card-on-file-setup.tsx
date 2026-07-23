@@ -1,7 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { saveCardOnFile } from "@/lib/membership/card-on-file";
 import { StripePaymentSetup } from "@/components/membership/stripe-payment-setup";
 import {
   MEMBERSHIP_BILLING_PHILOSOPHY,
@@ -11,73 +9,25 @@ import {
 import { STRIPE_CHECKOUT_ENABLED } from "@/lib/stripe/client";
 
 export function CardOnFileSetup({
-  memberName,
-  memberEmail,
   presentationId,
-  membershipId,
+  portalToken,
   theme = "presentation",
   onSuccess,
   onBack,
 }: {
-  memberName: string;
-  memberEmail?: string | null;
   presentationId?: string;
-  membershipId?: string;
+  portalToken?: string | null;
   theme?: "presentation" | "portal";
   onSuccess: () => void;
   onBack?: () => void;
 }) {
-  const [cardholderName, setCardholderName] = useState(memberName);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setCardholderName(memberName);
-    setError(null);
-  }, [memberName, memberEmail, membershipId, presentationId]);
-
   const isPresentation = theme === "presentation";
-  const inputClass = isPresentation
-    ? "w-full rounded-lg border border-border bg-white/5 px-4 py-3 text-sm text-foreground placeholder:text-white/25 outline-none focus:border-accent/40 portal-payment-input"
-    : "w-full rounded-2xl border border-border bg-surface px-4 py-3 text-sm text-foreground outline-none focus:border-accent/40";
-  const labelClass = isPresentation
-    ? "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-foreground/45 portal-payment-label"
-    : "mb-1.5 block text-[10px] uppercase tracking-[0.14em] text-muted";
   const pointCardClass = isPresentation
     ? "rounded-lg border border-border bg-foreground/[0.03] p-4"
     : "rounded-2xl border border-border bg-surface/50 p-4";
-  const pointTitleClass = isPresentation
-    ? "text-sm font-medium text-foreground"
-    : "text-sm font-medium text-foreground";
   const pointBodyClass = isPresentation
     ? "mt-1 text-sm text-foreground/50 portal-payment-copy"
     : "mt-1 text-sm text-muted";
-
-  const handleMockSubmit = async () => {
-    if (!cardholderName.trim()) {
-      setError("Enter the cardholder name to continue.");
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    try {
-      await saveCardOnFile({
-        memberName: cardholderName.trim(),
-        memberEmail,
-        presentationId,
-        membershipId,
-      });
-      onSuccess();
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Could not save payment method.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="space-y-5">
@@ -94,7 +44,7 @@ export function CardOnFileSetup({
       <div className="space-y-3">
         {MEMBERSHIP_ONBOARDING_PAYMENT_POINTS.map((item) => (
           <div key={item.title} className={pointCardClass}>
-            <p className={pointTitleClass}>{item.title}</p>
+            <p className="text-sm font-medium text-foreground">{item.title}</p>
             <p className={pointBodyClass}>{item.description}</p>
           </div>
         ))}
@@ -102,42 +52,17 @@ export function CardOnFileSetup({
 
       {STRIPE_CHECKOUT_ENABLED ? (
         <StripePaymentSetup
-          memberName={cardholderName.trim() || memberName}
-          memberEmail={memberEmail}
           presentationId={presentationId}
-          membershipId={membershipId}
+          portalToken={portalToken}
           theme={theme}
           onBack={onBack}
           onSuccess={onSuccess}
         />
       ) : (
-        <div className="space-y-4 rounded-lg border border-border bg-white/[0.02] p-5 portal-payment-demo-panel">
-          <p
-            className={
-              isPresentation
-                ? "text-[10px] uppercase tracking-[0.16em] text-foreground/40 portal-payment-demo-label"
-                : "text-[10px] uppercase tracking-[0.16em] text-muted"
-            }
-          >
-            Payment method (demo)
-          </p>
-          <div>
-            <label className={labelClass} htmlFor="cardholder-name">
-              Name on card
-            </label>
-            <input
-              id="cardholder-name"
-              className={inputClass}
-              value={cardholderName}
-              onChange={(e) => setCardholderName(e.target.value)}
-              autoComplete="cc-name"
-            />
-          </div>
-          <p className="text-xs text-white/30 portal-payment-demo-note">
-            Demo mode — confirms membership without charging. Add Stripe keys in
-            Vercel for live card-on-file.
-          </p>
-        </div>
+        <p className="rounded-lg border border-red-400/20 bg-red-400/5 p-4 text-sm text-red-300">
+          Secure card setup is unavailable. Your membership has not been
+          activated.
+        </p>
       )}
 
       <div
@@ -160,39 +85,6 @@ export function CardOnFileSetup({
           {MEMBERSHIP_BILLING_REMINDER}
         </p>
       </div>
-
-      {error ? <p className="text-sm text-red-400">{error}</p> : null}
-
-      {!STRIPE_CHECKOUT_ENABLED ? (
-        <div className="flex flex-col gap-2 sm:flex-row">
-          {onBack ? (
-            <button
-              type="button"
-              onClick={onBack}
-              disabled={loading}
-              className={
-                isPresentation
-                  ? "rounded-lg border border-border px-5 py-3.5 text-sm text-foreground/60 transition hover:border-white/30 hover:text-foreground/80 disabled:opacity-40 portal-payment-back-button"
-                  : "rounded-full border border-border px-5 py-3.5 text-sm text-muted"
-              }
-            >
-              Back
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => void handleMockSubmit()}
-            disabled={loading}
-            className={
-              isPresentation
-                ? "flex-1 rounded-lg bg-gradient-to-br from-accent to-[#e8d5a3] py-3.5 text-sm font-bold text-[#060606] transition disabled:opacity-40"
-                : "flex-1 rounded-full bg-accent py-3.5 text-sm font-medium text-background disabled:opacity-40"
-            }
-          >
-            {loading ? "Saving…" : "Save payment method"}
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

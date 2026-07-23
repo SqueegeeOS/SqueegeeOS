@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeHqApiRequest } from "@/lib/auth/hq-route-authorization";
 import {
   buildJobberAuthorizationUrl,
   getJobberClientId,
@@ -14,9 +14,8 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authorization = await authorizeHqApiRequest();
+  if (authorization.response) return authorization.response;
   if (!getJobberConfigStatus().configured) {
     return NextResponse.json(
       { error: "Jobber OAuth is not fully configured." },
@@ -26,7 +25,7 @@ export async function POST(request: Request) {
 
   try {
     const state = createJobberOAuthState();
-    await writeJobberOAuthState(state);
+    await writeJobberOAuthState(state, authorization.actor.id);
     const redirectUri = resolveJobberOAuthRedirectUri(request);
     return NextResponse.json({
       authorizationUrl: buildJobberAuthorizationUrl({

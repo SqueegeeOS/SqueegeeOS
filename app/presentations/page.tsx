@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PresentationCard } from "@/components/presentations/presentation-card";
 import { listPresentations } from "@/lib/presentations/repository";
 import { platformPageTitle } from "@/lib/brand/platform";
+import { requireHqPage } from "@/lib/auth/require-hq-page";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = {
 };
 
 export default async function PresentationsPage() {
+  await requireHqPage("/presentations");
   const presentations = await listPresentations();
 
   return (

@@ -34,7 +34,9 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES,
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
+  AUTHORITATIVE_JOBBER_AUTHORITY_STATE,
 } from "@/lib/care-operations/model";
+import type { PortalAccessContext } from "@/lib/persistence/queries/portal-access";
 
 export interface ServiceObservationView {
   id: string;
@@ -121,6 +123,8 @@ interface PropertyRow {
 
 interface MembershipRow {
   id: string;
+  homeowner_id: string;
+  property_id: string;
   plan_name: string;
   price_display: string;
   started_at: string | null;
@@ -146,6 +150,9 @@ function membershipTierFromSalesTier(
 }
 
 interface SignedAgreementRow {
+  homeowner_id: string;
+  property_id: string;
+  membership_id: string;
   plan_name: string;
   signed_at: string;
   agreement_pdf_url: string | null;
@@ -299,7 +306,7 @@ function buildMemberProfile(
       sales_tier: membership?.sales_tier ?? undefined,
       visit_price: membership?.visit_price ?? undefined,
     }),
-    totalSaved: centsToDollars(profileRow.total_saved_cents),
+    totalSaved: savingsHistory.reduce((sum, row) => sum + row.saved, 0),
     savingsHistory,
     nextAppointment,
     appointmentHistory: appointments,
@@ -324,9 +331,8 @@ function buildPropertyRecord(row: PropertyRow, memberProfileId: string): Propert
   };
 }
 
-export async function getMemberPortalDataBySlugs(
-  homeownerSlug: string,
-  propertySlug: string,
+export async function getMemberPortalDataByAccess(
+  access: PortalAccessContext,
 ): Promise<MemberPortalData | null> {
   if (!isSupabaseConfigured()) {
     return null;
@@ -337,10 +343,16 @@ export async function getMemberPortalDataBySlugs(
   const { data: homeowner, error: homeownerError } = await supabase
     .from("homeowners")
     .select("id, slug, full_name, first_name, email, phone")
-    .eq("slug", homeownerSlug)
+    .eq("id", access.homeownerId)
+    .eq("slug", access.homeownerSlug)
     .maybeSingle();
 
-  if (homeownerError || !homeowner) {
+  if (
+    homeownerError ||
+    !homeowner ||
+    homeowner.id !== access.homeownerId ||
+    homeowner.slug !== access.homeownerSlug
+  ) {
     return null;
   }
 
@@ -351,17 +363,37 @@ export async function getMemberPortalDataBySlugs(
     .select(
       "id, homeowner_id, slug, name, address, city, state, zip, square_feet, zillow_url, property_details",
     )
-    .eq("homeowner_id", homeownerRow.id)
-    .eq("slug", propertySlug)
+    .eq("id", access.propertyId)
+    .eq("homeowner_id", access.homeownerId)
+    .eq("slug", access.propertySlug)
     .maybeSingle();
 
-  if (propertyError || !property) {
+  if (
+    propertyError ||
+    !property ||
+    property.id !== access.propertyId ||
+    property.homeowner_id !== access.homeownerId ||
+    property.slug !== access.propertySlug
+  ) {
     return null;
   }
 
   const propertyRow = property as PropertyRow;
 
-  const membershipRow = await loadMembershipPortalRow(supabase, propertyRow.id);
+  const membershipRow = await loadMembershipPortalRow(
+    supabase,
+    access.membershipId,
+    access.homeownerId,
+    access.propertyId,
+  );
+  if (
+    !membershipRow ||
+    membershipRow.id !== access.membershipId ||
+    membershipRow.homeowner_id !== access.homeownerId ||
+    membershipRow.property_id !== access.propertyId
+  ) {
+    return null;
+  }
 
   const { data: profileRow, error: profileError } = await supabase
     .from("member_profiles")
@@ -383,6 +415,9 @@ export async function getMemberPortalDataBySlugs(
   }
 
   const profile = profileRow as MemberProfileRow | null;
+  if (profile && profile.homeowner_id !== access.homeownerId) {
+    return null;
+  }
   logProtectedQueryResult(
     {
       surface: "member-portal.member_profiles",
@@ -399,25 +434,43 @@ export async function getMemberPortalDataBySlugs(
       )
     : null;
 
-  const { data: agreementRow } = await supabase
+  const { data: agreementRow, error: agreementError } = await supabase
     .from("signed_agreements")
-    .select("plan_name, signed_at, agreement_pdf_url, status")
-    .eq("property_id", propertyRow.id)
+    .select(
+      "homeowner_id, property_id, membership_id, plan_name, signed_at, agreement_pdf_url, status",
+    )
+    .eq("homeowner_id", access.homeownerId)
+    .eq("property_id", access.propertyId)
+    .eq("membership_id", access.membershipId)
     .eq("status", "complete")
     .order("signed_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  const agreement = agreementRow as SignedAgreementRow | null;
+  if (
+    agreementError ||
+    (agreement &&
+      (agreement.homeowner_id !== access.homeownerId ||
+        agreement.property_id !== access.propertyId ||
+        agreement.membership_id !== access.membershipId))
+  ) {
+    return null;
+  }
 
   const { data: appointmentRows, error: appointmentError } = await supabase
     .from("member_appointments")
     .select(
       "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
     )
-    .eq("property_id", propertyRow.id)
+    .eq("property_id", access.propertyId)
     .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
     .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
     .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
     .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+    .eq("jobber_authority_state", AUTHORITATIVE_JOBBER_AUTHORITY_STATE)
+    .not("jobber_visit_classification_id", "is", null)
+    .eq("jobber_membership_id", access.membershipId)
     .order("scheduled_at", { ascending: true });
 
   if (appointmentError) {
@@ -463,6 +516,7 @@ export async function getMemberPortalDataBySlugs(
           "saved_cents, regular_price_cents, member_price_cents, service_type, occurred_at",
         )
         .eq("member_profile_id", profile.id)
+        .eq("property_id", access.propertyId)
         .order("occurred_at", { ascending: false })
     : { data: [] };
 
@@ -493,7 +547,7 @@ export async function getMemberPortalDataBySlugs(
   const { data: observationRows } = await supabase
     .from("service_observations")
     .select("id, observed_by, notes, observation_flags, observed_at")
-    .eq("property_id", propertyRow.id)
+    .eq("property_id", access.propertyId)
     .order("observed_at", { ascending: false })
     .limit(5);
 
@@ -520,9 +574,9 @@ export async function getMemberPortalDataBySlugs(
         propertyRow.id,
       );
 
-  const agreementPdfUrl = agreementRow
+  const agreementPdfUrl = agreement
     ? await resolveAgreementPdfAccessUrl(
-        (agreementRow as SignedAgreementRow).agreement_pdf_url,
+        agreement.agreement_pdf_url,
       )
     : null;
 
@@ -533,7 +587,8 @@ export async function getMemberPortalDataBySlugs(
       .select(
         "id, service_name, service_date, amount_charged_cents, saved_cents, status",
       )
-      .eq("membership_id", membershipRow.id)
+      .eq("membership_id", access.membershipId)
+      .eq("property_id", access.propertyId)
       .order("service_date", { ascending: false });
 
     if (addonError) {
@@ -623,10 +678,10 @@ export async function getMemberPortalDataBySlugs(
       membershipRow?.membership_enrollment_savings != null
         ? Number(membershipRow.membership_enrollment_savings)
         : null,
-    agreement: agreementRow
+    agreement: agreement
       ? {
-          planName: (agreementRow as SignedAgreementRow).plan_name,
-          signedAt: (agreementRow as SignedAgreementRow).signed_at,
+          planName: agreement.plan_name,
+          signedAt: agreement.signed_at,
           pdfUrl: agreementPdfUrl,
         }
       : null,

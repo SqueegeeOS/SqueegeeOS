@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { JobberScheduleSyncPanel } from "@/components/admin/jobber-schedule-sync-panel";
+import { JobberMemberPropertyLinkPanel } from "@/components/admin/jobber-member-property-link-panel";
 import { JobberVisitSamplePanel } from "@/components/admin/jobber-visit-sample-panel";
+import { JobberVisitClassificationPanel } from "@/components/admin/jobber-visit-classification-panel";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
 
 interface JobberConnectionResponse {
@@ -28,7 +30,7 @@ interface JobberConnectionResponse {
 async function requestJobberConnectionStatus(): Promise<JobberConnectionResponse> {
   const response = await fetch(
     "/api/admin/care-operations/jobber/oauth/status",
-    { headers: getAdminRequestHeaders(), cache: "no-store" },
+    { cache: "no-store" },
   );
   const body = (await response.json().catch(() => null)) as
     | JobberConnectionResponse
@@ -102,7 +104,7 @@ export function JobberConnectionPanel() {
     try {
       const response = await fetch(
         "/api/admin/care-operations/jobber/oauth/start",
-        { method: "POST", headers: getAdminRequestHeaders() },
+        { method: "POST" },
       );
       const body = (await response.json().catch(() => null)) as
         | { authorizationUrl?: string; error?: string }
@@ -138,8 +140,8 @@ export function JobberConnectionPanel() {
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
             This authorizes HomeAtlas to identify the SqueegeeKing Jobber
-            account. It does not import visits, change appointments, or enable
-            billing.
+            account and read its schedule. It never changes Jobber
+            appointments, classifies a visit automatically, or enables billing.
           </p>
         </div>
         <span
@@ -238,7 +240,14 @@ export function JobberConnectionPanel() {
         </button>
       </div>
 
-      {status?.connection?.connected ? <JobberVisitSamplePanel /> : null}
+      {status?.connection?.connected ? (
+        <>
+          <JobberMemberPropertyLinkPanel />
+          <JobberScheduleSyncPanel />
+          <JobberVisitSamplePanel />
+          <JobberVisitClassificationPanel />
+        </>
+      ) : null}
     </section>
   );
 }

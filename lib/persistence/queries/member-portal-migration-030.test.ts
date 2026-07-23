@@ -15,10 +15,21 @@ const EXISTING_APPOINTMENT = {
   provenance_state: "provider_imported",
   verification_state: "verified",
   match_state: "matched",
+  jobber_authority_state: "approved",
+  jobber_membership_id: "membership-1",
 };
 
 const insertSpy = vi.fn();
 const upsertSpy = vi.fn();
+const ACCESS = {
+  membershipId: "membership-1",
+  homeownerId: "homeowner-1",
+  propertyId: "property-1",
+  memberName: "Sylvia Siegel",
+  homeownerSlug: "sylvia-siegel",
+  propertySlug: "chico-estate",
+  portalAccessToken: "opaque-token",
+};
 
 function chain(result: { data?: unknown; error?: unknown; count?: number }) {
   const promise = Promise.resolve(result);
@@ -28,6 +39,7 @@ function chain(result: { data?: unknown; error?: unknown; count?: number }) {
     "eq",
     "in",
     "gte",
+    "not",
     "order",
     "limit",
     "update",
@@ -131,6 +143,8 @@ vi.mock("@/lib/persistence/supabase/client", () => ({
 vi.mock("@/lib/persistence/queries/load-membership-portal-row", () => ({
   loadMembershipPortalRow: vi.fn(async () => ({
     id: "membership-1",
+    homeowner_id: "homeowner-1",
+    property_id: "property-1",
     plan_name: "Bi-Annual Preferred Care",
     price_display: "$450",
     started_at: "2026-01-01T00:00:00Z",
@@ -169,22 +183,31 @@ describe("migration 030 portal appointment regression", () => {
 
   it("uses the privileged server client for portal loads", async () => {
     const clientModule = await import("@/lib/persistence/supabase/client");
-    const { getMemberPortalDataBySlugs } = await import(
+    const membershipModule = await import(
+      "@/lib/persistence/queries/load-membership-portal-row"
+    );
+    const { getMemberPortalDataByAccess } = await import(
       "@/lib/persistence/queries/member-portal"
     );
 
-    await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+    await getMemberPortalDataByAccess(ACCESS);
 
     expect(clientModule.createPrivilegedServerSupabaseClient).toHaveBeenCalled();
+    expect(membershipModule.loadMembershipPortalRow).toHaveBeenCalledWith(
+      mockPrivilegedClient,
+      ACCESS.membershipId,
+      ACCESS.homeownerId,
+      ACCESS.propertyId,
+    );
     expect(mockPrivilegedClient.from).toHaveBeenCalledWith("member_appointments");
   });
 
   it("loads existing appointments by property_id when member_profiles is unreadable", async () => {
-    const { getMemberPortalDataBySlugs } = await import(
+    const { getMemberPortalDataByAccess } = await import(
       "@/lib/persistence/queries/member-portal"
     );
 
-    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+    const data = await getMemberPortalDataByAccess(ACCESS);
 
     expect(data).not.toBeNull();
     expect(data?.appointments).toHaveLength(1);
@@ -193,11 +216,11 @@ describe("migration 030 portal appointment regression", () => {
   });
 
   it("does not insert or upsert appointments while loading portal data", async () => {
-    const { getMemberPortalDataBySlugs } = await import(
+    const { getMemberPortalDataByAccess } = await import(
       "@/lib/persistence/queries/member-portal"
     );
 
-    await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+    await getMemberPortalDataByAccess(ACCESS);
 
     expect(insertSpy).not.toHaveBeenCalled();
     expect(upsertSpy).not.toHaveBeenCalled();

@@ -1,10 +1,25 @@
 import { describe, expect, it } from "vitest";
 import { canyonOaksHomeCarePlan } from "@/lib/home-care-plan/canyon-oaks";
+import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import { buildPortalCareRecordView } from "./portal-view-model";
+
+const emptyPortalDataFields = {
+  membershipEnrollmentSavings: null,
+  portalTheme: null,
+  careAddons: [],
+  savingsLedger: null,
+} satisfies Pick<
+  MemberPortalData,
+  | "membershipEnrollmentSavings"
+  | "portalTheme"
+  | "careAddons"
+  | "savingsLedger"
+>;
 
 describe("buildPortalCareRecordView", () => {
   it("uses Quarterly/Bi-Annual tier labels, not legacy Premium/Essential", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Larry",
@@ -65,6 +80,7 @@ describe("buildPortalCareRecordView", () => {
 
   it("never fabricates visit history when appointments are empty", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Larry",
@@ -118,6 +134,7 @@ describe("buildPortalCareRecordView", () => {
 
   it("shows Next Care Visit when a real appointment is scheduled", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Larry",
@@ -182,6 +199,7 @@ describe("buildPortalCareRecordView", () => {
 
   it("hides TBD from the customer-facing property address", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Sylvia",
@@ -232,6 +250,7 @@ describe("buildPortalCareRecordView", () => {
 
   it("strips TBD when it is embedded in the street address field", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Sylvia",
@@ -281,6 +300,7 @@ describe("buildPortalCareRecordView", () => {
 
   it("formats visit price with unit inline (no-narration rule)", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Larry",
@@ -325,6 +345,7 @@ describe("buildPortalCareRecordView", () => {
 
   it("multiplies locked enrollment savings by completed visits only", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Larry",
@@ -387,6 +408,7 @@ describe("buildPortalCareRecordView", () => {
 
   it("uses agreement plan name when sales tier is unavailable", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Sylvia",
@@ -437,6 +459,7 @@ describe("buildPortalCareRecordView", () => {
 
   it("builds savingsLedger from care add-ons and completed visits", () => {
     const view = buildPortalCareRecordView(canyonOaksHomeCarePlan, {
+      ...emptyPortalDataFields,
       profile: {
         id: "p1",
         firstName: "Sylvia",
