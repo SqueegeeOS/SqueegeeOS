@@ -100,8 +100,6 @@ export async function loadMemberReferralRewards(
   membershipId: string,
   convertedCount: number,
 ): Promise<MemberReferralRewardsView> {
-  await syncReferralMilestoneRewards(membershipId, convertedCount);
-
   const empty: MemberReferralRewardsView = {
     convertedCount,
     nextMilestone: nextReferralMilestone(convertedCount),

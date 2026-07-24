@@ -3,7 +3,6 @@ import "server-only";
 import type { MemberAppointmentSummary } from "@/lib/member-intelligence/types";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createPrivilegedServerSupabaseClient } from "@/lib/persistence/supabase/client";
-import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
 import {
   buildMemberSavingsLedgerView,
   type MemberSavingsLedgerView,
@@ -11,7 +10,6 @@ import {
 } from "./member-savings-ledger";
 import type { MemberCareAddonRecord } from "./portal-care-addons";
 import type { SqueegeeKingTierId } from "./tier-config";
-import { squeegeeKingTierLabel } from "./tier-config";
 
 interface LedgerRow {
   id: string;
@@ -106,46 +104,6 @@ export async function upsertMembershipVisitLedgerEntry(input: {
   }
 }
 
-export async function syncMembershipVisitLedgerEntries(input: {
-  membershipId: string;
-  memberProfileId: string | null;
-  tierId: SqueegeeKingTierId;
-  enrollmentSavingsPerVisit: number;
-  appointments: MemberAppointmentSummary[];
-}): Promise<void> {
-  if (!isCloudPersistenceConnected() || input.enrollmentSavingsPerVisit <= 0) {
-    return;
-  }
-
-  const supabase = createPrivilegedServerSupabaseClient();
-  const completed = input.appointments.filter(
-    (appointment) => appointment.status === "completed",
-  );
-
-  for (const appointment of completed) {
-    const savingsCents = Math.round(input.enrollmentSavingsPerVisit * 100);
-    const { error } = await supabase.from("member_savings_ledger_entries").upsert(
-      {
-        membership_id: input.membershipId,
-        member_profile_id: input.memberProfileId,
-        entry_type: "membership_visit",
-        source_id: appointment.id,
-        label: `${squeegeeKingTierLabel(input.tierId)} membership visit`,
-        amount_cents: savingsCents,
-        occurred_at: appointment.date,
-        metadata: {
-          detail: `Saved $${input.enrollmentSavingsPerVisit} vs one-time pricing`,
-        },
-      },
-      { onConflict: "entry_type,source_id" },
-    );
-
-    if (error && !isMissingTableError(error.message, "member_savings_ledger_entries")) {
-      throw new Error(error.message);
-    }
-  }
-}
-
 export async function loadMemberSavingsLedgerView(input: {
   membershipId: string | null;
   memberProfileId: string | null;
@@ -155,35 +113,6 @@ export async function loadMemberSavingsLedgerView(input: {
   appointments: MemberAppointmentSummary[];
   careAddons: MemberCareAddonRecord[];
 }): Promise<MemberSavingsLedgerView> {
-  if (input.membershipId) {
-    await syncMembershipVisitLedgerEntries({
-      membershipId: input.membershipId,
-      memberProfileId: input.memberProfileId,
-      tierId: input.tierId,
-      enrollmentSavingsPerVisit: input.enrollmentSavingsPerVisit ?? 0,
-      appointments: input.appointments,
-    });
-
-    for (const addon of input.careAddons) {
-      if (
-        !MEMBER_ADDON_REVENUE_STATUSES.includes(addon.status) ||
-        addon.saved <= 0 ||
-        !input.memberProfileId
-      ) {
-        continue;
-      }
-      await upsertAddonLedgerEntry({
-        membershipId: input.membershipId,
-        memberProfileId: input.memberProfileId,
-        addonId: addon.id,
-        serviceName: addon.serviceName,
-        savedCents: Math.round(addon.saved * 100),
-        amountChargedCents: Math.round(addon.amountCharged * 100),
-        serviceDate: addon.serviceDate,
-      });
-    }
-  }
-
   let persistedLines: SavingsLedgerLine[] | undefined;
   if (input.membershipId && isCloudPersistenceConnected()) {
     const supabase = createPrivilegedServerSupabaseClient();

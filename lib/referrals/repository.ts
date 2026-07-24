@@ -9,7 +9,10 @@ import type {
 } from "./types";
 import { referralPath } from "./types";
 import { nextReferralMilestone } from "./milestones";
-import { loadMemberReferralRewards } from "./rewards";
+import {
+  loadMemberReferralRewards,
+  syncReferralMilestoneRewards,
+} from "./rewards";
 
 /* Unambiguous alphabet: no 0/O/1/I/L. */
 const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ";
@@ -63,6 +66,22 @@ export async function getOrCreateReferralCode(
     if (reread.data?.code) return reread.data.code as string;
   }
   return null;
+}
+
+/** Read the member's existing referral code without issuing one. */
+export async function getReferralCode(
+  membershipId: string,
+): Promise<string | null> {
+  const supabase = supabaseOrNull();
+  if (!supabase) return null;
+
+  const existing = await supabase
+    .from("referral_codes")
+    .select("code")
+    .eq("membership_id", membershipId)
+    .maybeSingle();
+
+  return (existing.data?.code as string | undefined) ?? null;
 }
 
 /** Log a landing on /r/[code]. Returns false for unknown/inactive codes. */
@@ -122,7 +141,7 @@ export async function markReferralConverted(input: {
   const supabase = supabaseOrNull();
   if (!supabase) return;
 
-  await supabase
+  const converted = await supabase
     .from("referrals")
     .update({
       status: "converted",
@@ -130,7 +149,43 @@ export async function markReferralConverted(input: {
       converted_at: new Date().toISOString(),
     })
     .eq("lead_email", input.email.trim().toLowerCase())
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .select("referral_code_id");
+
+  if (converted.error) {
+    throw new Error(converted.error.message);
+  }
+
+  const referralCodeIds = [
+    ...new Set(
+      (converted.data ?? []).map((row) => row.referral_code_id as string),
+    ),
+  ].filter(Boolean);
+
+  for (const referralCodeId of referralCodeIds) {
+    const [codeRow, referralCount] = await Promise.all([
+      supabase
+        .from("referral_codes")
+        .select("membership_id")
+        .eq("id", referralCodeId)
+        .maybeSingle(),
+      supabase
+        .from("referrals")
+        .select("id", { count: "exact", head: true })
+        .eq("referral_code_id", referralCodeId)
+        .in("status", ["converted", "rewarded"]),
+    ]);
+
+    const referringMembershipId = codeRow.data?.membership_id as
+      | string
+      | undefined;
+    if (referringMembershipId && !referralCount.error) {
+      await syncReferralMilestoneRewards(
+        referringMembershipId,
+        referralCount.count ?? 0,
+      );
+    }
+  }
 }
 
 interface ReferralRow {
@@ -145,13 +200,13 @@ interface ReferralRow {
 /** Portal summary for one member. Null when cloud persistence is off. */
 export async function getMemberReferralSummary(
   membershipId: string,
-  memberName: string,
+  _memberName: string,
   origin: string | null,
 ): Promise<MemberReferralSummary | null> {
   const supabase = supabaseOrNull();
   if (!supabase) return null;
 
-  const code = await getOrCreateReferralCode(membershipId, memberName);
+  const code = await getReferralCode(membershipId);
   if (!code) return null;
 
   const codeRow = await supabase

@@ -173,22 +173,6 @@ interface AppointmentRow {
   completed_at: string | null;
 }
 
-interface SavingsRow {
-  saved_cents: number;
-  regular_price_cents: number;
-  member_price_cents: number;
-  service_type: string;
-  occurred_at: string;
-}
-
-interface ObservationRow {
-  id: string;
-  observed_by: string | null;
-  notes: string;
-  observation_flags: Array<{ category?: string; severity?: string }> | null;
-  observed_at: string;
-}
-
 function parsePriceDisplay(priceDisplay: string): number {
   const digits = priceDisplay.replace(/[^\d.]/g, "");
   const value = Number.parseFloat(digits);
@@ -207,28 +191,6 @@ function mapAppointment(row: AppointmentRow): MemberAppointmentSummary {
     technician: row.technician_name,
     notes: row.notes,
     status: row.status,
-  };
-}
-
-function mapSavingsRow(row: SavingsRow): MemberSavingsEntry {
-  return {
-    date: row.occurred_at,
-    serviceType: row.service_type,
-    regularPrice: centsToDollars(row.regular_price_cents),
-    memberPrice: centsToDollars(row.member_price_cents),
-    saved: centsToDollars(row.saved_cents),
-  };
-}
-
-function mapObservation(row: ObservationRow): ServiceObservationView {
-  const flag = row.observation_flags?.[0];
-  return {
-    id: row.id,
-    observedAt: row.observed_at,
-    observedBy: row.observed_by,
-    notes: row.notes,
-    category: flag?.category ?? null,
-    severity: flag?.severity ?? null,
   };
 }
 
@@ -261,7 +223,7 @@ function buildMemberProfileFromHomeowner(
       sales_tier: membership?.sales_tier ?? undefined,
       visit_price: membership?.visit_price ?? undefined,
     }),
-    totalSaved: savingsHistory.reduce((sum, row) => sum + row.saved, 0),
+    totalSaved: 0,
     savingsHistory,
     nextAppointment,
     appointmentHistory: appointments,
@@ -361,13 +323,45 @@ export async function getMemberPortalDataBySlugs(
 
   const propertyRow = property as PropertyRow;
 
-  const membershipRow = await loadMembershipPortalRow(supabase, propertyRow.id);
-
-  const { data: profileRow, error: profileError } = await supabase
+  const membershipPromise = loadMembershipPortalRow(supabase, propertyRow.id);
+  const profilePromise = supabase
     .from("member_profiles")
-    .select("id, homeowner_id, membership_tier, total_saved_cents, preferred_services, created_at")
+    .select(
+      "id, homeowner_id, membership_tier, total_saved_cents, preferred_services, created_at",
+    )
     .eq("homeowner_id", homeownerRow.id)
     .maybeSingle();
+  const agreementPromise = supabase
+    .from("signed_agreements")
+    .select("plan_name, signed_at, agreement_pdf_url, status")
+    .eq("property_id", propertyRow.id)
+    .eq("status", "complete")
+    .order("signed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const appointmentsPromise = supabase
+    .from("member_appointments")
+    .select(
+      "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
+    )
+    .eq("property_id", propertyRow.id)
+    .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
+    .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
+    .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
+    .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+    .order("scheduled_at", { ascending: true });
+
+  const [
+    membershipRow,
+    { data: profileRow, error: profileError },
+    { data: agreementData },
+    { data: appointmentRows, error: appointmentError },
+  ] = await Promise.all([
+    membershipPromise,
+    profilePromise,
+    agreementPromise,
+    appointmentsPromise,
+  ]);
 
   if (profileError) {
     logProtectedQueryResult(
@@ -392,33 +386,6 @@ export async function getMemberPortalDataBySlugs(
     },
     { count: profile ? 1 : 0 },
   );
-
-  const paymentMethodLabel = membershipRow?.payment_setup_completed_at
-    ? await resolvePortalPaymentMethodLabel(
-        membershipRow.stripe_payment_method_id,
-      )
-    : null;
-
-  const { data: agreementRow } = await supabase
-    .from("signed_agreements")
-    .select("plan_name, signed_at, agreement_pdf_url, status")
-    .eq("property_id", propertyRow.id)
-    .eq("status", "complete")
-    .order("signed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: appointmentRows, error: appointmentError } = await supabase
-    .from("member_appointments")
-    .select(
-      "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
-    )
-    .eq("property_id", propertyRow.id)
-    .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
-    .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
-    .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
-    .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
-    .order("scheduled_at", { ascending: true });
 
   if (appointmentError) {
     logProtectedQueryResult(
@@ -454,59 +421,18 @@ export async function getMemberPortalDataBySlugs(
     appointments.find((a) => a.status === "scheduled") ??
     null;
 
-  const yearStart = `${new Date().getFullYear()}-01-01T00:00:00Z`;
-
-  const { data: allSavingsRows } = profile
-    ? await supabase
-        .from("member_savings_transactions")
-        .select(
-          "saved_cents, regular_price_cents, member_price_cents, service_type, occurred_at",
-        )
-        .eq("member_profile_id", profile.id)
-        .order("occurred_at", { ascending: false })
-    : { data: [] };
-
-  const allSavingsEntries = ((allSavingsRows ?? []) as SavingsRow[]).map(
-    mapSavingsRow,
-  );
-
-  const lifetimeSavings = allSavingsEntries.reduce<MemberPortalLifetimeSavings>(
-    (acc, row) => ({
-      savings: acc.savings + row.saved,
-      retail: acc.retail + row.regularPrice,
-      paid: acc.paid + row.memberPrice,
-      entries: acc.entries,
-    }),
-    { savings: 0, retail: 0, paid: 0, entries: allSavingsEntries },
-  );
-
-  const ytdEntries = allSavingsEntries.filter((row) => row.date >= yearStart);
-  const ytdSavings = ytdEntries.reduce<MemberPortalYTDSavings>(
-    (acc, row) => ({
-      savings: acc.savings + row.saved,
-      retail: acc.retail + row.regularPrice,
-      paid: acc.paid + row.memberPrice,
-    }),
-    { savings: 0, retail: 0, paid: 0 },
-  );
-
-  const { data: observationRows } = await supabase
-    .from("service_observations")
-    .select("id, observed_by, notes, observation_flags, observed_at")
-    .eq("property_id", propertyRow.id)
-    .order("observed_at", { ascending: false })
-    .limit(5);
-
-  const observations = ((observationRows ?? []) as ObservationRow[]).map(
-    mapObservation,
-  );
+  // These fields remain in the public portal type for legacy callers, but the
+  // live portal now derives savings from the immutable savings ledger and does
+  // not render legacy service observations.
+  const legacySavingsEntries: MemberSavingsEntry[] = [];
+  const observations: ServiceObservationView[] = [];
 
   const memberProfile = profile
     ? buildMemberProfile(
         homeownerRow,
         profile,
         membershipRow,
-        allSavingsEntries,
+        legacySavingsEntries,
         appointments,
         nextAppointment,
         propertyRow.id,
@@ -514,28 +440,41 @@ export async function getMemberPortalDataBySlugs(
     : buildMemberProfileFromHomeowner(
         homeownerRow,
         membershipRow,
-        allSavingsEntries,
+        legacySavingsEntries,
         appointments,
         nextAppointment,
         propertyRow.id,
       );
 
-  const agreementPdfUrl = agreementRow
-    ? await resolveAgreementPdfAccessUrl(
-        (agreementRow as SignedAgreementRow).agreement_pdf_url,
-      )
-    : null;
-
-  let careAddons: MemberCareAddonRecord[] = [];
-  if (membershipRow?.id) {
-    const { data: addonRows, error: addonError } = await supabase
+  const agreementRow = agreementData as SignedAgreementRow | null;
+  const paymentMethodLabelPromise = membershipRow?.payment_setup_completed_at
+    ? resolvePortalPaymentMethodLabel(membershipRow.stripe_payment_method_id)
+    : Promise.resolve(null);
+  const agreementPdfUrlPromise = agreementRow
+    ? resolveAgreementPdfAccessUrl(agreementRow.agreement_pdf_url)
+    : Promise.resolve(null);
+  const addonRowsPromise = membershipRow?.id
+    ? supabase
       .from("member_addon_transactions")
       .select(
         "id, service_name, service_date, amount_charged_cents, saved_cents, status",
       )
       .eq("membership_id", membershipRow.id)
-      .order("service_date", { ascending: false });
+      .order("service_date", { ascending: false })
+    : Promise.resolve({ data: [], error: null });
 
+  const [
+    paymentMethodLabel,
+    agreementPdfUrl,
+    { data: addonRows, error: addonError },
+  ] = await Promise.all([
+    paymentMethodLabelPromise,
+    agreementPdfUrlPromise,
+    addonRowsPromise,
+  ]);
+
+  let careAddons: MemberCareAddonRecord[] = [];
+  if (membershipRow?.id) {
     if (addonError) {
       logProtectedQueryResult(
         {
@@ -588,9 +527,50 @@ export async function getMemberPortalDataBySlugs(
       })
     : null;
 
+  const positiveLedgerTotal = Math.max(
+    0,
+    savingsLedger?.totalServiceSavings ?? 0,
+  );
+  const compatibilityLifetimeTotal = Math.max(
+    memberProfile.totalSaved,
+    positiveLedgerTotal,
+  );
+  const currentYearPrefix = `${new Date().getUTCFullYear()}-`;
+  const ledgerLines = savingsLedger
+    ? [
+        ...savingsLedger.membershipVisits.lines,
+        ...savingsLedger.addonServices.lines,
+      ]
+    : [];
+  const compatibilityYtdTotal =
+    Math.round(
+      ledgerLines.reduce(
+        (sum, line) =>
+          line.amount > 0 && line.occurredAt.startsWith(currentYearPrefix)
+            ? sum + line.amount
+            : sum,
+        0,
+      ) * 100,
+    ) / 100;
+  const compatibilityProfile: MemberProfile = {
+    ...memberProfile,
+    totalSaved: compatibilityLifetimeTotal,
+  };
+  const ytdSavings: MemberPortalYTDSavings = {
+    savings: compatibilityYtdTotal,
+    retail: 0,
+    paid: 0,
+  };
+  const lifetimeSavings: MemberPortalLifetimeSavings = {
+    savings: compatibilityLifetimeTotal,
+    retail: 0,
+    paid: 0,
+    entries: legacySavingsEntries,
+  };
+
   return {
-    profile: memberProfile,
-    property: buildPropertyRecord(propertyRow, memberProfile.id),
+    profile: compatibilityProfile,
+    property: buildPropertyRecord(propertyRow, compatibilityProfile.id),
     propertyName: propertyRow.name,
     appointments,
     nextAppointment,
@@ -625,8 +605,8 @@ export async function getMemberPortalDataBySlugs(
         : null,
     agreement: agreementRow
       ? {
-          planName: (agreementRow as SignedAgreementRow).plan_name,
-          signedAt: (agreementRow as SignedAgreementRow).signed_at,
+          planName: agreementRow.plan_name,
+          signedAt: agreementRow.signed_at,
           pdfUrl: agreementPdfUrl,
         }
       : null,

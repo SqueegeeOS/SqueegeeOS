@@ -10,7 +10,6 @@ import {
   MembershipUnlockProvider,
   UNLOCK_CEREMONY_REQUEST,
 } from "@/components/membership/unlock-provider";
-import type { CustomerHealthView } from "@/lib/health/types";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import {
@@ -24,8 +23,6 @@ interface MemberPortalPageClientProps {
   portalData: MemberPortalData | null;
   homeownerSlug: string;
   propertySlug: string;
-  homeHealth?: CustomerHealthView | null;
-  homeHealthHref?: string;
   portalBasePath?: string;
   customerPortalMode?: "token" | "slug";
 }
@@ -35,8 +32,6 @@ export function MemberPortalPageClient({
   portalData,
   homeownerSlug,
   propertySlug,
-  homeHealth = null,
-  homeHealthHref,
   portalBasePath,
   customerPortalMode = "slug",
 }: MemberPortalPageClientProps) {
@@ -47,8 +42,6 @@ export function MemberPortalPageClient({
         portalData={portalData}
         homeownerSlug={homeownerSlug}
         propertySlug={propertySlug}
-        homeHealth={homeHealth}
-        homeHealthHref={homeHealthHref}
         portalBasePath={portalBasePath}
         customerPortalMode={customerPortalMode}
       />
