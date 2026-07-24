@@ -14,7 +14,10 @@ import type {
 } from "../types";
 import type { PersistenceAdapter } from "../adapters/types";
 import { finalizeHomeCarePlanRecord } from "../mappers/home-care-plan";
-import { createBrowserSupabaseClient } from "../supabase/client";
+import {
+  createBrowserSupabaseClient,
+  createPrivilegedServerSupabaseClient,
+} from "../supabase/client";
 import {
   homeCarePlanFromRow,
   homeownerFromRow,
@@ -29,7 +32,14 @@ import {
 } from "../supabase/mappers";
 
 function getClient() {
-  return createBrowserSupabaseClient();
+  // This adapter is shared by browser presentation flows and Server Component
+  // portal reads. After migration 030, the anonymous browser client is
+  // intentionally denied access to authority tables such as home_care_plans.
+  // Server renders must therefore use the server-only privileged client while
+  // browser callers remain constrained by RLS.
+  return typeof window === "undefined"
+    ? createPrivilegedServerSupabaseClient()
+    : createBrowserSupabaseClient();
 }
 
 export const supabaseAdapter: PersistenceAdapter = {
