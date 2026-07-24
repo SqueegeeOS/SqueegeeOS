@@ -85,18 +85,26 @@ export function buildMemberSavingsLedgerView(input: {
   persistedLines?: SavingsLedgerLine[];
 }): MemberSavingsLedgerView {
   const enrollmentPerVisit = input.enrollmentSavingsPerVisit ?? 0;
+  const persistedMembershipLines = input.persistedLines?.filter(
+    (line) => line.entryType === "membership_visit",
+  );
+  const persistedAddonLines = input.persistedLines?.filter(
+    (line) => line.entryType === "addon_service",
+  );
 
   const membershipLines =
-    input.persistedLines?.filter((line) => line.entryType === "membership_visit") ??
-    buildMembershipVisitLines({
-      appointments: input.appointments,
-      enrollmentSavingsPerVisit: enrollmentPerVisit,
-      tierId: input.tierId,
-    });
+    persistedMembershipLines && persistedMembershipLines.length > 0
+      ? persistedMembershipLines
+      : buildMembershipVisitLines({
+          appointments: input.appointments,
+          enrollmentSavingsPerVisit: enrollmentPerVisit,
+          tierId: input.tierId,
+        });
 
   const addonLines =
-    input.persistedLines?.filter((line) => line.entryType === "addon_service") ??
-    buildAddonLines(input.careAddons);
+    persistedAddonLines && persistedAddonLines.length > 0
+      ? persistedAddonLines
+      : buildAddonLines(input.careAddons);
 
   const membershipTotal = membershipLines.reduce(
     (sum, line) => sum + line.amount,

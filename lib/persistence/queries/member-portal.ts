@@ -323,15 +323,45 @@ export async function getMemberPortalDataBySlugs(
 
   const propertyRow = property as PropertyRow;
 
-  const membershipRow = await loadMembershipPortalRow(supabase, propertyRow.id);
-
-  const { data: profileRow, error: profileError } = await supabase
+  const membershipPromise = loadMembershipPortalRow(supabase, propertyRow.id);
+  const profilePromise = supabase
     .from("member_profiles")
     .select(
       "id, homeowner_id, membership_tier, total_saved_cents, preferred_services, created_at",
     )
     .eq("homeowner_id", homeownerRow.id)
     .maybeSingle();
+  const agreementPromise = supabase
+    .from("signed_agreements")
+    .select("plan_name, signed_at, agreement_pdf_url, status")
+    .eq("property_id", propertyRow.id)
+    .eq("status", "complete")
+    .order("signed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const appointmentsPromise = supabase
+    .from("member_appointments")
+    .select(
+      "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
+    )
+    .eq("property_id", propertyRow.id)
+    .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
+    .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
+    .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
+    .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
+    .order("scheduled_at", { ascending: true });
+
+  const [
+    membershipRow,
+    { data: profileRow, error: profileError },
+    { data: agreementData },
+    { data: appointmentRows, error: appointmentError },
+  ] = await Promise.all([
+    membershipPromise,
+    profilePromise,
+    agreementPromise,
+    appointmentsPromise,
+  ]);
 
   if (profileError) {
     logProtectedQueryResult(
@@ -356,33 +386,6 @@ export async function getMemberPortalDataBySlugs(
     },
     { count: profile ? 1 : 0 },
   );
-
-  const paymentMethodLabel = membershipRow?.payment_setup_completed_at
-    ? await resolvePortalPaymentMethodLabel(
-        membershipRow.stripe_payment_method_id,
-      )
-    : null;
-
-  const { data: agreementRow } = await supabase
-    .from("signed_agreements")
-    .select("plan_name, signed_at, agreement_pdf_url, status")
-    .eq("property_id", propertyRow.id)
-    .eq("status", "complete")
-    .order("signed_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { data: appointmentRows, error: appointmentError } = await supabase
-    .from("member_appointments")
-    .select(
-      "id, member_profile_id, property_id, service_type, scheduled_at, status, technician_name, notes, completed_at",
-    )
-    .eq("property_id", propertyRow.id)
-    .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
-    .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
-    .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
-    .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
-    .order("scheduled_at", { ascending: true });
 
   if (appointmentError) {
     logProtectedQueryResult(
@@ -443,22 +446,35 @@ export async function getMemberPortalDataBySlugs(
         propertyRow.id,
       );
 
-  const agreementPdfUrl = agreementRow
-    ? await resolveAgreementPdfAccessUrl(
-        (agreementRow as SignedAgreementRow).agreement_pdf_url,
-      )
-    : null;
-
-  let careAddons: MemberCareAddonRecord[] = [];
-  if (membershipRow?.id) {
-    const { data: addonRows, error: addonError } = await supabase
+  const agreementRow = agreementData as SignedAgreementRow | null;
+  const paymentMethodLabelPromise = membershipRow?.payment_setup_completed_at
+    ? resolvePortalPaymentMethodLabel(membershipRow.stripe_payment_method_id)
+    : Promise.resolve(null);
+  const agreementPdfUrlPromise = agreementRow
+    ? resolveAgreementPdfAccessUrl(agreementRow.agreement_pdf_url)
+    : Promise.resolve(null);
+  const addonRowsPromise = membershipRow?.id
+    ? supabase
       .from("member_addon_transactions")
       .select(
         "id, service_name, service_date, amount_charged_cents, saved_cents, status",
       )
       .eq("membership_id", membershipRow.id)
-      .order("service_date", { ascending: false });
+      .order("service_date", { ascending: false })
+    : Promise.resolve({ data: [], error: null });
 
+  const [
+    paymentMethodLabel,
+    agreementPdfUrl,
+    { data: addonRows, error: addonError },
+  ] = await Promise.all([
+    paymentMethodLabelPromise,
+    agreementPdfUrlPromise,
+    addonRowsPromise,
+  ]);
+
+  let careAddons: MemberCareAddonRecord[] = [];
+  if (membershipRow?.id) {
     if (addonError) {
       logProtectedQueryResult(
         {
@@ -589,8 +605,8 @@ export async function getMemberPortalDataBySlugs(
         : null,
     agreement: agreementRow
       ? {
-          planName: (agreementRow as SignedAgreementRow).plan_name,
-          signedAt: (agreementRow as SignedAgreementRow).signed_at,
+          planName: agreementRow.plan_name,
+          signedAt: agreementRow.signed_at,
           pdfUrl: agreementPdfUrl,
         }
       : null,

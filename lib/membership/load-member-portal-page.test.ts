@@ -50,4 +50,27 @@ describe("member portal page loader", () => {
     expect(mocks.getPropertyIdBySlugs).not.toHaveBeenCalled();
     expect(mocks.getLatestCustomerHealthUnified).not.toHaveBeenCalled();
   });
+
+  it("starts independent plan and portal reads concurrently", async () => {
+    let releasePlan: ((value: { id: string }) => void) | undefined;
+    mocks.loadPortalHomeCarePlan.mockReturnValue(
+      new Promise((resolve) => {
+        releasePlan = resolve;
+      }),
+    );
+
+    const result = loadMemberPortalPageBySlugs("member", "property");
+    await vi.waitFor(() => {
+      expect(mocks.getMemberPortalDataBySlugs).toHaveBeenCalledWith(
+        "member",
+        "property",
+      );
+    });
+
+    releasePlan?.({ id: "plan" });
+    await expect(result).resolves.toMatchObject({
+      planData: { id: "plan" },
+      portalData: { id: "portal-data" },
+    });
+  });
 });

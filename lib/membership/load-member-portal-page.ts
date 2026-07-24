@@ -24,8 +24,14 @@ async function loadMemberPortalPageBySlugsInternal(
   propertySlug: string,
   options?: MemberPortalPageOptions,
 ): Promise<MemberPortalPageModel | null> {
-  const planData =
-    (await loadPortalHomeCarePlan(homeownerSlug, propertySlug)) ?? null;
+  const planPromise = loadPortalHomeCarePlan(homeownerSlug, propertySlug);
+  const portalDataPromise = isCloudPersistenceConnected()
+    ? getMemberPortalDataBySlugs(homeownerSlug, propertySlug)
+    : Promise.resolve(null);
+  const [planData, portalData] = await Promise.all([
+    planPromise,
+    portalDataPromise,
+  ]);
 
   if (!planData) {
     return null;
@@ -35,10 +41,6 @@ async function loadMemberPortalPageBySlugsInternal(
     options?.portalBasePath ??
     `/homecare/${homeownerSlug}/${propertySlug}/portal`;
   const customerPortalMode = options?.customerPortalMode ?? "slug";
-
-  const portalData = isCloudPersistenceConnected()
-    ? await getMemberPortalDataBySlugs(homeownerSlug, propertySlug)
-    : null;
 
   return {
     planData,

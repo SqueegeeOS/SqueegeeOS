@@ -65,6 +65,37 @@ describe("buildMemberSavingsLedgerView", () => {
     expect(ledger.totalServiceSavings).toBe(30);
   });
 
+  it("fills a missing ledger category from authoritative completed records", () => {
+    const ledger = buildMemberSavingsLedgerView({
+      tierId: "biannual",
+      addonDiscountPercent: 20,
+      enrollmentSavingsPerVisit: 40,
+      appointments: [
+        {
+          id: "visit-1",
+          date: "2026-07-24T17:00:00.000Z",
+          status: "completed",
+          serviceType: "home_care_visit",
+        },
+      ],
+      careAddons: [],
+      persistedLines: [
+        {
+          id: "addon-1",
+          entryType: "addon_service",
+          label: "Screen cleaning",
+          amount: 30,
+          occurredAt: "2026-07-01T12:00:00.000Z",
+          detail: null,
+        },
+      ],
+    });
+
+    expect(ledger.membershipVisits.total).toBe(40);
+    expect(ledger.addonServices.total).toBe(30);
+    expect(ledger.totalServiceSavings).toBe(70);
+  });
+
   it("returns zero savings when no completed visits or paid add-ons", () => {
     const ledger = buildMemberSavingsLedgerView({
       tierId: "biannual",

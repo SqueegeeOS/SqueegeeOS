@@ -269,7 +269,7 @@ async function fetchBackfillContext(
   };
 }
 
-async function backfillPortalHomeCarePlan(
+async function buildPortalHomeCarePlanFallback(
   homeownerSlug: string,
   propertySlug: string,
 ): Promise<HomeCarePlanData | null> {
@@ -369,18 +369,14 @@ async function backfillPortalHomeCarePlan(
     });
   }
 
-  await persistPortalHomeCarePlan(supabase, {
-    homeownerId: context.homeowner_id,
-    propertyId: context.property_id,
-    homeownerSlug,
-    propertySlug,
-    plan,
-  });
-
   return plan;
 }
 
-/** Loads portal plan data — existing row, or lazy backfill for legacy members. */
+/**
+ * Loads portal plan data without mutating customer state. Legacy members that
+ * predate persisted plans receive an honest in-memory fallback; activation and
+ * explicit recovery workflows remain responsible for persistence.
+ */
 export async function loadPortalHomeCarePlan(
   homeownerSlug: string,
   propertySlug: string,
@@ -390,7 +386,7 @@ export async function loadPortalHomeCarePlan(
 
   if (!isCloudPersistenceConnected()) return null;
 
-  return backfillPortalHomeCarePlan(homeownerSlug, propertySlug);
+  return buildPortalHomeCarePlanFallback(homeownerSlug, propertySlug);
 }
 
 /** Test helper — verifies persisted record round-trips. */

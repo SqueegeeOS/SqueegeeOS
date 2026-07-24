@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { resolvePortalAccessByToken } from "@/lib/persistence/queries/portal-access";
 import { getMemberReferralSummary } from "@/lib/referrals/repository";
 
-/** Member portal referral summary. Creates the member's code on first call. */
+/** Read-only member portal referral summary resolved from the opaque token. */
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as {

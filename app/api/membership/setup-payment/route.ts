@@ -83,6 +83,36 @@ async function lockEnrollmentSavings(
   }
 }
 
+async function ensureActivatedMemberReferralCode(
+  supabase: SupabaseClient,
+  membershipId: string,
+  homeownerId: string,
+) {
+  try {
+    const { data: homeowner } = await supabase
+      .from("homeowners")
+      .select("full_name")
+      .eq("id", homeownerId)
+      .maybeSingle();
+    const memberName =
+      (homeowner?.full_name as string | null | undefined)?.trim() || "Member";
+    const { getOrCreateReferralCode } = await import(
+      "@/lib/referrals/repository"
+    );
+    const code = await getOrCreateReferralCode(membershipId, memberName);
+    if (!code) {
+      console.warn("[setup-payment] referral code issuance needs reconciliation", {
+        membershipId,
+      });
+    }
+  } catch (error) {
+    console.warn("[setup-payment] referral code issuance needs reconciliation", {
+      membershipId,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+  }
+}
+
 /**
  * Activates membership after payment method is on file.
  * - Stripe mode: requires paymentMethodId + setupIntentId (verified server-side)
@@ -154,6 +184,11 @@ export async function POST(req: NextRequest) {
         supabase,
         membership.id,
         membership.presentation_id,
+      );
+      await ensureActivatedMemberReferralCode(
+        supabase,
+        membership.id,
+        membership.homeowner_id,
       );
       return NextResponse.json({
         membershipId: membership.id,
@@ -303,6 +338,11 @@ export async function POST(req: NextRequest) {
           reloaded.id,
           reloaded.presentation_id,
         );
+        await ensureActivatedMemberReferralCode(
+          supabase,
+          reloaded.id,
+          reloaded.homeowner_id,
+        );
         return NextResponse.json({
           membershipId: reloaded.id,
           presentationId: reloaded.presentation_id,
@@ -344,6 +384,11 @@ export async function POST(req: NextRequest) {
       supabase,
       membership.id,
       resolvedPresentationId,
+    );
+    await ensureActivatedMemberReferralCode(
+      supabase,
+      membership.id,
+      membership.homeowner_id,
     );
 
     const portalUrl = await getPortalAccessUrlForMembership(
