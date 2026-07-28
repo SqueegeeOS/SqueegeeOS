@@ -1,5 +1,7 @@
 import { randomBytes } from "crypto";
 
+const CANONICAL_PUBLIC_ORIGIN = "https://www.squeegeeking.net";
+
 /** Cryptographically random, URL-safe portal token (~256 bits). */
 export function generatePortalAccessToken(): string {
   return randomBytes(32).toString("base64url");
@@ -15,7 +17,9 @@ export function buildPortalHomeHealthPath(token: string): string {
 
 /**
  * Absolute portal URL for emails and onboarding.
- * Set NEXT_PUBLIC_APP_URL in production (e.g. https://app.squeegeeking.net).
+ * NEXT_PUBLIC_APP_URL is the preferred source. Vercel deployment URLs are
+ * deliberately rejected because preview/deployment protection can turn a
+ * customer's private portal link into a Vercel login screen.
  */
 export function buildPortalAccessUrl(
   token: string,
@@ -28,14 +32,30 @@ export function buildPortalAccessUrl(
 }
 
 function resolveAppOrigin(explicit?: string | null): string | null {
-  const trimmed = explicit?.trim();
-  if (trimmed) return trimmed;
-
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  const configured = normalizePublicOrigin(process.env.NEXT_PUBLIC_APP_URL);
   if (configured) return configured;
 
-  const vercel = process.env.VERCEL_URL?.trim();
-  if (vercel) return `https://${vercel}`;
+  const requestOrigin = normalizePublicOrigin(explicit);
+  if (requestOrigin) return requestOrigin;
 
-  return null;
+  return CANONICAL_PUBLIC_ORIGIN;
+}
+
+function normalizePublicOrigin(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  try {
+    const url = new URL(trimmed);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+
+    const hostname = url.hostname.toLowerCase();
+    if (hostname === "vercel.app" || hostname.endsWith(".vercel.app")) {
+      return null;
+    }
+
+    return url.origin;
+  } catch {
+    return null;
+  }
 }
