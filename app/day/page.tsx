@@ -11,6 +11,7 @@ export const metadata: Metadata = {
       "A day at the house with SqueegeeKing, powered by HomeAtlas.",
     images: [{ url: "/day/morning.jpg", width: 1376, height: 768 }],
   },
+  alternates: { canonical: "/day" },
 };
 
 export default function DayPage() {

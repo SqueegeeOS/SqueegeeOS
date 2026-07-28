@@ -260,7 +260,7 @@ export function PresentationOnboarding({
           homeSqft: presentation.homeSqft,
           twoStory: presentation.twoStory,
           includeScreens: presentation.includeScreens,
-          includeInterior: presentation.quoteSnapshot?.includeInterior ?? false,
+          includeInterior: presentation.includeInterior,
           quoteSnapshot: presentation.quoteSnapshot ?? null,
         }),
       });

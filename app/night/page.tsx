@@ -11,6 +11,7 @@ export const metadata: Metadata = {
       "Every house sleeps. Yours is watched. Home care with a memory, by SqueegeeKing.",
     images: [{ url: "/night/house-lit.jpg", width: 1584, height: 672 }],
   },
+  alternates: { canonical: "/night" },
 };
 
 export default function NightPage() {

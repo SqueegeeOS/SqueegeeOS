@@ -225,3 +225,36 @@ describe("manual per-visit override precedence", () => {
     expect(quarterlyOverride.visitRateOverrides?.quarterly).toBe(249);
   });
 });
+
+describe("presentation visit options", () => {
+  it("adds the standard $100 interior cleaning option to every visit", () => {
+    for (const tier of ["biannual", "quarterly"] as const) {
+      const exteriorOnly = computePresentationRates({
+        tier,
+        homeSqft: SQFT,
+        includeInterior: false,
+      });
+      const withInterior = computePresentationRates({
+        tier,
+        homeSqft: SQFT,
+        includeInterior: true,
+      });
+
+      expect(withInterior.visitRate - exteriorOnly.visitRate).toBe(100);
+      expect(withInterior.annualRate - exteriorOnly.annualRate).toBe(
+        tier === "quarterly" ? 400 : 200,
+      );
+    }
+  });
+
+  it("keeps a manual visit override as the final quoted price", () => {
+    const rates = computePresentationRates({
+      tier: "quarterly",
+      homeSqft: SQFT,
+      includeInterior: true,
+      visitRateOverrides: { quarterly: 425 },
+    });
+
+    expect(rates.visitRate).toBe(425);
+  });
+});

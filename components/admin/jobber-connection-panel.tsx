@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
-import { JobberVisitSamplePanel } from "@/components/admin/jobber-visit-sample-panel";
+import { JobberCustomerPairingPanel } from "@/components/admin/jobber-customer-pairing-panel";
+import { JobberVisitWorkspacePanel } from "@/components/admin/jobber-visit-workspace-panel";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
 
 interface JobberConnectionResponse {
@@ -22,6 +23,21 @@ interface JobberConnectionResponse {
     connectedAt: string | null;
     lastVerifiedAt: string | null;
   } | null;
+  error?: string;
+}
+
+interface JobberSyncSection {
+  observed: number;
+  pagesRead: number;
+  inserted: number;
+  changed: number;
+  unchanged: number;
+}
+
+interface JobberSyncResponse {
+  clients: JobberSyncSection;
+  visits: JobberSyncSection;
+  completedAt: string;
   error?: string;
 }
 
@@ -54,6 +70,11 @@ export function JobberConnectionPanel() {
   const [status, setStatus] = useState<JobberConnectionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncSummary, setSyncSummary] = useState<JobberSyncResponse | null>(
+    null,
+  );
+  const [refreshKey, setRefreshKey] = useState(0);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -128,6 +149,36 @@ export function JobberConnectionPanel() {
     window.setTimeout(() => setCopied(false), 2000);
   };
 
+  const syncAll = async () => {
+    setSyncing(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        "/api/admin/care-operations/jobber/sync",
+        {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as
+        | JobberSyncResponse
+        | null;
+      if (!response.ok || !body?.clients || !body.visits) {
+        throw new Error(body?.error ?? "Jobber synchronization did not finish");
+      }
+      setSyncSummary(body);
+      setRefreshKey((value) => value + 1);
+    } catch (syncError) {
+      setError(
+        syncError instanceof Error
+          ? syncError.message
+          : "Jobber synchronization did not finish",
+      );
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <section className="mb-8 rounded-[2rem] border border-border/80 bg-background/65 p-5 sm:p-7">
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
@@ -137,9 +188,10 @@ export function JobberConnectionPanel() {
             Jobber connection
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
-            This authorizes HomeAtlas to identify the SqueegeeKing Jobber
-            account. It does not import visits, change appointments, or enable
-            billing.
+            Connect the SqueegeeKing Jobber account, synchronize its complete
+            read-only customer and visit index, then pair records under human
+            review. HomeAtlas never changes Jobber appointments or enables
+            billing from a pairing.
           </p>
         </div>
         <span
@@ -236,9 +288,48 @@ export function JobberConnectionPanel() {
         >
           Check again
         </button>
+        {status?.connection?.connected ? (
+          <button
+            type="button"
+            onClick={() => void syncAll()}
+            disabled={loading || syncing}
+            className="rounded-full border border-accent/40 bg-accent/10 px-5 py-3 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-50"
+          >
+            {syncing ? "Synchronizing all Jobber data..." : "Sync all Jobber data"}
+          </button>
+        ) : null}
       </div>
 
-      {status?.connection?.connected ? <JobberVisitSamplePanel /> : null}
+      {syncSummary ? (
+        <div
+          className="mt-5 rounded-2xl border border-accent/20 bg-accent/[0.05] p-4 text-xs leading-relaxed text-muted"
+          aria-live="polite"
+        >
+          <p className="text-sm text-foreground">Jobber sync complete</p>
+          <p className="mt-1">
+            {syncSummary.clients.observed.toLocaleString()} customers across{" "}
+            {syncSummary.clients.pagesRead.toLocaleString()} pages;{" "}
+            {syncSummary.visits.observed.toLocaleString()} visits across{" "}
+            {syncSummary.visits.pagesRead.toLocaleString()} pages.
+          </p>
+          <p className="mt-1">
+            New: {(
+              syncSummary.clients.inserted + syncSummary.visits.inserted
+            ).toLocaleString()} - Changed: {(
+              syncSummary.clients.changed + syncSummary.visits.changed
+            ).toLocaleString()} - Unchanged: {(
+              syncSummary.clients.unchanged + syncSummary.visits.unchanged
+            ).toLocaleString()}
+          </p>
+        </div>
+      ) : null}
+
+      {status?.connection?.connected ? (
+        <>
+          <JobberCustomerPairingPanel key={`customers-${refreshKey}`} />
+          <JobberVisitWorkspacePanel key={`visits-${refreshKey}`} />
+        </>
+      ) : null}
     </section>
   );
 }

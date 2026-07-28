@@ -5,6 +5,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-export default function PropertiesLayout({ children }: { children: ReactNode }) {
+export default function PresentationsLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return children;
 }

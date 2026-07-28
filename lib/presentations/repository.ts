@@ -51,6 +51,8 @@ function normalizePresentation(data: PresentationData): PresentationData {
   const twoStory = data.twoStory ?? data.quoteSnapshot?.twoStory ?? false;
   const includeScreens =
     data.includeScreens ?? data.quoteSnapshot?.includeScreens ?? false;
+  const includeInterior =
+    data.includeInterior ?? data.quoteSnapshot?.includeInterior ?? false;
   const computed = withComputedRates({
     tier: data.tier,
     homeSqft: data.homeSqft,
@@ -60,12 +62,14 @@ function normalizePresentation(data: PresentationData): PresentationData {
     retailValue: data.retailValue,
     twoStory,
     includeScreens,
+    includeInterior,
   });
 
   return {
     ...data,
     twoStory,
     includeScreens,
+    includeInterior,
     ...computed,
     quoteSnapshot: isCarePlanQuoteSnapshot(data.quoteSnapshot)
       ? data.quoteSnapshot
@@ -75,10 +79,11 @@ function normalizePresentation(data: PresentationData): PresentationData {
 
 function readPricingFlags(
   snapshot: PresentationQuoteSnapshot | null,
-): Pick<PresentationData, "twoStory" | "includeScreens"> {
+): Pick<PresentationData, "twoStory" | "includeScreens" | "includeInterior"> {
   return {
     twoStory: snapshot?.twoStory ?? false,
     includeScreens: snapshot?.includeScreens ?? false,
+    includeInterior: snapshot?.includeInterior ?? false,
   };
 }
 
@@ -86,17 +91,17 @@ function writeQuoteSnapshot(data: PresentationData): PresentationQuoteSnapshot |
   const flags = {
     twoStory: data.twoStory,
     includeScreens: data.includeScreens,
+    includeInterior: data.includeInterior,
   };
 
   if (isCarePlanQuoteSnapshot(data.quoteSnapshot)) {
     return { ...data.quoteSnapshot, ...flags };
   }
 
-  if (flags.twoStory || flags.includeScreens) {
+  if (flags.twoStory || flags.includeScreens || flags.includeInterior) {
     return {
       sqft: data.homeSqft,
       frequency: data.tier === "quarterly" ? "quarterly" : "bi_annual",
-      includeInterior: false,
       ...flags,
       windowCareVisitPrice: 0,
       frequencyLabel: "",
@@ -287,6 +292,7 @@ export function createDefaultPresentation(input?: {
     homeSqft,
     twoStory: input?.quoteSnapshot?.twoStory ?? false,
     includeScreens: input?.quoteSnapshot?.includeScreens ?? false,
+    includeInterior: input?.quoteSnapshot?.includeInterior ?? false,
     tier,
     ...rates,
     visitRateOverrides: {},

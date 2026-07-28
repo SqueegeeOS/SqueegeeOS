@@ -4,6 +4,19 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { ProductionCheckResult } from "@/lib/system/production-check";
 
+async function requestProductionCheck(): Promise<ProductionCheckResult> {
+  const response = await fetch("/api/system/production-check", {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new Error(body?.error ?? "Check failed");
+  }
+  return (await response.json()) as ProductionCheckResult;
+}
+
 function StatusRow({
   label,
   ok,
@@ -39,14 +52,7 @@ export default function ProductionCheckPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/system/production-check", {
-        cache: "no-store",
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string };
-        throw new Error(body?.error ?? "Check failed");
-      }
-      setResult((await res.json()) as ProductionCheckResult);
+      setResult(await requestProductionCheck());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Check failed");
     } finally {
@@ -55,8 +61,25 @@ export default function ProductionCheckPage() {
   }, []);
 
   useEffect(() => {
-    void runCheck();
-  }, [runCheck]);
+    let cancelled = false;
+    requestProductionCheck()
+      .then((nextResult) => {
+        if (!cancelled) setResult(nextResult);
+      })
+      .catch((loadError: unknown) => {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error ? loadError.message : "Check failed",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const modeLabel =
     result?.mode === "production"

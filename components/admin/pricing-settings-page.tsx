@@ -294,6 +294,24 @@ export function PricingSettingsPage() {
                   }
                 />
               </label>
+              <label className="block">
+                <span className={labelClass}>Interior cleaning add-on ($)</span>
+                <input
+                  type="number"
+                  step={5}
+                  min={0}
+                  className={`${inputClass} mt-2`}
+                  value={draft.interiorCleaningAddOn}
+                  onChange={(e) =>
+                    updateDraft({
+                      interiorCleaningAddOn: Number(e.target.value),
+                    })
+                  }
+                />
+                <p className="mt-1 text-xs text-muted">
+                  Flat per-visit add-on used by field presentations.
+                </p>
+              </label>
             </div>
           </section>
 

@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "How /day was made · SqueegeeKing",
   description:
     "The method behind the SqueegeeKing daylight page: a scroll-driven sun, five generated films, and zero animation libraries.",
+  robots: { index: false, follow: false },
 };
 
 const PAPER = "#f7f6f1";

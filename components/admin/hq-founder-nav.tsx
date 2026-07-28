@@ -123,6 +123,17 @@ export function HqFounderNav({ newCount: initialNewCount }: { newCount?: number 
         ) : null}
       </Link>
       <Link
+        href={ROUTES.hqJobber}
+        className={cn(
+          "inline-flex min-h-[44px] items-center rounded-full px-4 py-2.5 text-sm transition-colors",
+          pathname.startsWith(ROUTES.hqJobber)
+            ? "border border-accent/40 bg-accent/10 text-foreground"
+            : "text-muted hover:text-foreground",
+        )}
+      >
+        Jobber
+      </Link>
+      <Link
         href={ROUTES.hqProductionHealth}
         className={cn(
           "inline-flex min-h-[44px] items-center rounded-full px-4 py-2.5 text-sm transition-colors",

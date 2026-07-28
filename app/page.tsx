@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Day2Homepage } from "@/components/marketing/day2-homepage";
+import { PUBLIC_SITE_URL } from "@/lib/brand/urls";
 import { getGooglePlaceId } from "@/lib/reviews/config";
-
-const BASE = "https://www.squeegeeking.net";
 
 /** LocalBusiness structured data — real facts only; ratings arrive with the reviews connection. */
 function buildJsonLd() {
@@ -10,10 +9,10 @@ function buildJsonLd() {
   return {
     "@context": "https://schema.org",
     "@type": "LocalBusiness",
-    "@id": `${BASE}/#business`,
+    "@id": `${PUBLIC_SITE_URL}/#business`,
     name: "SqueegeeKing",
-    url: BASE,
-    image: `${BASE}/day/morning.jpg`,
+    url: PUBLIC_SITE_URL,
+    image: `${PUBLIC_SITE_URL}/day/morning.jpg`,
     description:
       "Premium window cleaning, pressure washing, solar panel cleaning, and recurring home maintenance memberships. Every membership includes HomeAtlas, a living record of your home's care.",
     slogan: "Done the right way. When you join, you are family.",

@@ -11,12 +11,11 @@ import {
 } from "@/lib/acquisition/request-params";
 import {
   contactMethods,
-  emptyLeadForm,
   preferredStartWindows,
   serviceOptions,
   type LeadIntakeFormData,
 } from "@/lib/acquisition/types";
-import { CUSTOMER_BRAND, CUSTOMER_CTAS } from "@/lib/brand/customer";
+import { CUSTOMER_CTAS } from "@/lib/brand/customer";
 import {
   buildSqueegeeKingTierQuote,
   formatTierPeriodPrice,
@@ -82,6 +81,7 @@ function MembershipTierPicker({
             key={tierId}
             type="button"
             onClick={() => onChange(tierId)}
+            aria-pressed={selected}
             className={`rounded-2xl border px-4 py-4 text-left transition-colors touch-manipulation ${
               selected
                 ? "border-accent/40 bg-accent/10"
@@ -231,12 +231,17 @@ function RequestFormFields() {
           <Reveal delay={0.1}>
             <form onSubmit={handleSubmit} className="mt-12 space-y-7 sm:mt-14">
               <div>
-                <label className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                <label
+                  htmlFor="request-name"
+                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                >
                   Name
                 </label>
                 <input
+                  id="request-name"
                   required
                   type="text"
+                  autoComplete="name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className={inputClassName}
@@ -246,12 +251,17 @@ function RequestFormFields() {
 
               <div className="grid gap-6 sm:grid-cols-2">
                 <div>
-                  <label className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                  <label
+                    htmlFor="request-phone"
+                    className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                  >
                     Phone
                   </label>
                   <input
+                    id="request-phone"
                     required
                     type="tel"
+                    autoComplete="tel"
                     value={form.phone}
                     onChange={(e) =>
                       setForm({ ...form, phone: e.target.value })
@@ -261,12 +271,17 @@ function RequestFormFields() {
                   />
                 </div>
                 <div>
-                  <label className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                  <label
+                    htmlFor="request-email"
+                    className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                  >
                     Email
                   </label>
                   <input
+                    id="request-email"
                     required
                     type="email"
+                    autoComplete="email"
                     value={form.email}
                     onChange={(e) =>
                       setForm({ ...form, email: e.target.value })
@@ -278,12 +293,17 @@ function RequestFormFields() {
               </div>
 
               <div>
-                <label className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                <label
+                  htmlFor="request-address"
+                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                >
                   Service Address
                 </label>
                 <input
+                  id="request-address"
                   required
                   type="text"
+                  autoComplete="street-address"
                   value={form.serviceAddress}
                   onChange={(e) =>
                     setForm({ ...form, serviceAddress: e.target.value })
@@ -293,15 +313,15 @@ function RequestFormFields() {
                 />
               </div>
 
-              <div>
-                <label className="mb-3 block text-[10px] uppercase tracking-[0.26em] text-muted">
+              <fieldset>
+                <legend className="mb-3 block text-[10px] uppercase tracking-[0.26em] text-muted">
                   Membership Interest
-                </label>
+                </legend>
                 <MembershipTierPicker
                   value={form.membershipTier}
                   onChange={setMembershipTier}
                 />
-              </div>
+              </fieldset>
 
               <div>
                 <label
@@ -334,10 +354,10 @@ function RequestFormFields() {
                 </div>
               </div>
 
-              <div>
-                <label className="mb-3 block text-[10px] uppercase tracking-[0.26em] text-muted">
+              <fieldset>
+                <legend className="mb-3 block text-[10px] uppercase tracking-[0.26em] text-muted">
                   Services Interested In
-                </label>
+                </legend>
                 <div className="flex flex-wrap gap-2">
                   {serviceOptions.map((service) => {
                     const selected = form.servicesInterested.includes(service);
@@ -346,6 +366,7 @@ function RequestFormFields() {
                         key={service}
                         type="button"
                         onClick={() => toggleService(service)}
+                        aria-pressed={selected}
                         className={`min-h-[44px] rounded-full border px-4 py-2 text-sm transition-colors touch-manipulation ${
                           selected
                             ? "border-accent/40 bg-accent/10 text-foreground"
@@ -357,13 +378,17 @@ function RequestFormFields() {
                     );
                   })}
                 </div>
-              </div>
+              </fieldset>
 
               <div>
-                <label className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                <label
+                  htmlFor="request-start-window"
+                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                >
                   Preferred Start Window
                 </label>
                 <select
+                  id="request-start-window"
                   value={form.preferredStartWindow}
                   onChange={(e) =>
                     setForm({
@@ -384,10 +409,14 @@ function RequestFormFields() {
               </div>
 
               <div>
-                <label className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                <label
+                  htmlFor="request-contact-method"
+                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                >
                   Preferred Contact Method
                 </label>
                 <select
+                  id="request-contact-method"
                   value={form.preferredContactMethod}
                   onChange={(e) =>
                     setForm({
@@ -407,10 +436,14 @@ function RequestFormFields() {
               </div>
 
               <div>
-                <label className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                <label
+                  htmlFor="request-notes"
+                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                >
                   Notes
                 </label>
                 <textarea
+                  id="request-notes"
                   rows={4}
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
@@ -419,11 +452,16 @@ function RequestFormFields() {
                 />
               </div>
 
-              {error && <p className="text-sm text-red-400">{error}</p>}
+              {error && (
+                <p className="text-sm text-red-400" role="alert">
+                  {error}
+                </p>
+              )}
 
               <motion.button
                 type="submit"
                 disabled={isSubmitting}
+                aria-busy={isSubmitting}
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.12, ease: easeLuxury }}
                 className="w-full min-h-[52px] rounded-full border border-accent/40 bg-accent text-sm font-medium tracking-[0.12em] text-background touch-manipulation transition-opacity hover:opacity-95 disabled:opacity-90 sm:text-base"

@@ -4,6 +4,7 @@ import { Cormorant_Garamond, Geist, Geist_Mono } from "next/font/google";
 import { SiteNavigation } from "@/components/navigation/site-navigation";
 import { AppPricingSettingsProvider } from "@/components/pricing/app-pricing-settings-provider";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
+import { PUBLIC_SITE_URL } from "@/lib/brand/urls";
 import { pwaConfig } from "@/lib/pwa/config";
 import "./globals.css";
 
@@ -23,24 +24,8 @@ const cormorant = Cormorant_Garamond({
   weight: ["300", "400", "500", "600"],
 });
 
-function resolveMetadataBase(): URL {
-  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (configured) {
-    try {
-      return new URL(configured);
-    } catch {
-      console.warn(
-        "[metadata] NEXT_PUBLIC_APP_URL is invalid; using the deployment URL",
-      );
-    }
-  }
-
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  return new URL(vercelUrl ? `https://${vercelUrl}` : "http://localhost:3000");
-}
-
 export const metadata: Metadata = {
-  metadataBase: resolveMetadataBase(),
+  metadataBase: new URL(PUBLIC_SITE_URL),
   title: CUSTOMER_BRAND.name,
   description: pwaConfig.description,
   applicationName: pwaConfig.name,
@@ -76,9 +61,17 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${cormorant.variable} h-full antialiased`}
     >
       <body className="min-h-full overflow-x-hidden">
+        <a
+          href="#main-content"
+          className="fixed left-4 top-4 z-[100] -translate-y-24 rounded-full bg-foreground px-5 py-3 text-sm font-medium text-background shadow-xl transition-transform focus:translate-y-0"
+        >
+          Skip to main content
+        </a>
         <AppPricingSettingsProvider>
           <SiteNavigation />
-          {children}
+          <div id="main-content" tabIndex={-1}>
+            {children}
+          </div>
         </AppPricingSettingsProvider>
         <SpeedInsights />
       </body>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 interface ActiveMemberPropertyCandidate {
@@ -24,11 +25,14 @@ interface PropertyLinkPreview {
 interface VisitPreview {
   projectionId: string;
   externalVisitId: string;
+  externalClientId: string;
   externalPropertyId: string;
   jobberPropertyWebUri: string | null;
+  jobNumber: number | null;
   title: string | null;
   clientName: string;
   visitStatus: string;
+  jobStatus: string | null;
   scheduledStart: string | null;
   isComplete: boolean;
   matchState: "manual_review" | "matched" | "ignored";
@@ -50,14 +54,11 @@ interface MatchingWorkspace {
   candidateLimitReached: boolean;
   activeMemberProperties: ActiveMemberPropertyCandidate[];
   visits: VisitPreview[];
-}
-
-interface ImportResponse {
-  observed?: number;
-  inserted?: number;
-  changed?: number;
-  unchanged?: number;
-  error?: string;
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  search: string;
 }
 
 interface MatchResponse {
@@ -66,16 +67,24 @@ interface MatchResponse {
   error?: string;
 }
 
-async function requestMatchingWorkspace(): Promise<MatchingWorkspace> {
+async function requestMatchingWorkspace(
+  search: string,
+  page: number,
+): Promise<MatchingWorkspace> {
+  const params = new URLSearchParams({
+    search,
+    page: String(page),
+    pageSize: "25",
+  });
   const response = await fetch(
-    "/api/admin/care-operations/jobber/property-links",
+    `/api/admin/care-operations/jobber/property-links?${params.toString()}`,
     { headers: getAdminRequestHeaders(), cache: "no-store" },
   );
   const body = (await response.json().catch(() => null)) as
     | (MatchingWorkspace & { error?: string })
     | null;
   if (!response.ok || !body) {
-    throw new Error(body?.error ?? "Could not load Jobber property review");
+    throw new Error(body?.error ?? "Could not load Jobber visit review");
   }
   return body;
 }
@@ -85,14 +94,15 @@ function formatVisitTime(value: string | null): string {
   return new Date(value).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
+    year: "numeric",
     hour: "numeric",
     minute: "2-digit",
   });
 }
 
-export function JobberVisitSamplePanel() {
+export function JobberVisitWorkspacePanel() {
   const [workspace, setWorkspace] = useState<MatchingWorkspace | null>(null);
-  const [importSummary, setImportSummary] = useState<ImportResponse | null>(null);
+  const [query, setQuery] = useState("");
   const [selectedMemberships, setSelectedMemberships] = useState<
     Record<string, string>
   >({});
@@ -100,15 +110,30 @@ export function JobberVisitSamplePanel() {
     Record<string, boolean>
   >({});
   const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
   const [savingProjectionId, setSavingProjectionId] = useState<string | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
 
+  const load = useCallback(async (search: string, page: number) => {
+    setLoading(true);
+    setError(null);
+    try {
+      setWorkspace(await requestMatchingWorkspace(search, page));
+    } catch (loadError) {
+      setError(
+        loadError instanceof Error
+          ? loadError.message
+          : "Could not load Jobber visit review",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
-    requestMatchingWorkspace()
+    requestMatchingWorkspace("", 1)
       .then((result) => {
         if (!cancelled) setWorkspace(result);
       })
@@ -117,7 +142,7 @@ export function JobberVisitSamplePanel() {
           setError(
             loadError instanceof Error
               ? loadError.message
-              : "Could not load Jobber property review",
+              : "Could not load Jobber visit review",
           );
         }
       })
@@ -129,35 +154,10 @@ export function JobberVisitSamplePanel() {
     };
   }, []);
 
-  const importSample = async () => {
-    setImporting(true);
-    setError(null);
-    try {
-      const response = await fetch(
-        "/api/admin/care-operations/jobber/visits/sample",
-        {
-          method: "POST",
-          headers: getAdminRequestHeaders(),
-          body: JSON.stringify({ limit: 5 }),
-        },
-      );
-      const body = (await response.json().catch(() => null)) as
-        | ImportResponse
-        | null;
-      if (!response.ok || !body) {
-        throw new Error(body?.error ?? "Jobber sample import failed");
-      }
-      setImportSummary(body);
-      setWorkspace(await requestMatchingWorkspace());
-    } catch (importError) {
-      setError(
-        importError instanceof Error
-          ? importError.message
-          : "Jobber sample import failed",
-      );
-    } finally {
-      setImporting(false);
-    }
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextQuery = query.trim();
+    void load(nextQuery, 1);
   };
 
   const writePropertyLink = async (
@@ -192,6 +192,8 @@ export function JobberVisitSamplePanel() {
                 ? confirmedProperties[visit.projectionId] === true
                 : undefined,
             expectedLinkUpdatedAt: visit.propertyLink?.updatedAt ?? null,
+            search: workspace?.search ?? "",
+            page: workspace?.page ?? 1,
           }),
         },
       );
@@ -223,41 +225,57 @@ export function JobberVisitSamplePanel() {
 
   return (
     <div className="mt-8 border-t border-border/70 pt-7">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
-            Supervised property classification
-          </p>
-          <h3 className="mt-2 font-serif text-xl font-light text-foreground">
-            Separate Jobber work from HomeAtlas
-          </h3>
-          <p className="mt-2 max-w-xl text-xs leading-relaxed text-muted">
-            No property link means Jobber-only. A confirmed link identifies a
-            member property, but the visit still cannot fulfill a promise,
-            appear in the portal, or become billable.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => void importSample()}
-          disabled={loading || importing || savingProjectionId !== null}
-          className="rounded-full border border-accent/40 bg-accent/10 px-5 py-3 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-50"
-        >
-          {importing ? "Reading Jobber…" : "Refresh five read-only visits"}
-        </button>
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
+          Complete visit browser
+        </p>
+        <h3 className="mt-2 font-serif text-xl font-light text-foreground">
+          Search every synchronized Jobber visit
+        </h3>
+        <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted">
+          Browse the full read-only visit projection by customer, job number,
+          title, or status. Property linking remains a separate supervised
+          classification and never makes a visit billable by itself.
+        </p>
       </div>
 
-      {importSummary?.observed !== undefined ? (
-        <p className="mt-4 text-xs text-accent">
-          Observed {importSummary.observed} · New {importSummary.inserted ?? 0} ·
-          Changed {importSummary.changed ?? 0} · Unchanged{" "}
-          {importSummary.unchanged ?? 0}
+      <form
+        onSubmit={submitSearch}
+        className="mt-5 flex flex-col gap-2 sm:flex-row"
+        role="search"
+      >
+        <label className="sr-only" htmlFor="jobber-visit-search">
+          Search Jobber visits
+        </label>
+        <input
+          id="jobber-visit-search"
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search customer, job number, title, or status"
+          className="min-h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm text-foreground outline-none placeholder:text-muted/70 focus:border-accent/50"
+        />
+        <button
+          type="submit"
+          disabled={loading}
+          className="min-h-11 rounded-full border border-accent/40 bg-accent/10 px-5 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-50"
+        >
+          Search visits
+        </button>
+      </form>
+
+      {workspace ? (
+        <p className="mt-3 text-xs text-muted" aria-live="polite">
+          {workspace.total.toLocaleString()} synchronized visit
+          {workspace.total === 1 ? "" : "s"}
+          {workspace.search ? ` matching "${workspace.search}"` : ""}
         </p>
       ) : null}
       {workspace?.candidateLimitReached ? (
         <p className="mt-4 text-xs text-amber-400">
-          The active-member list reached its supervised review limit. Stop and
-          narrow the member list before linking.
+          The active-member property list reached its supervised review limit.
+          Visits remain visible, but new property links are paused until the
+          candidate search is narrowed.
         </p>
       ) : null}
       {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
@@ -285,7 +303,11 @@ export function JobberVisitSamplePanel() {
                       {visit.title || "Untitled visit"}
                     </p>
                     <p className="mt-1 text-xs text-muted">
-                      {visit.clientName} · {formatVisitTime(visit.scheduledStart)}
+                      {visit.clientName} - {formatVisitTime(visit.scheduledStart)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {visit.jobNumber ? `Job #${visit.jobNumber} - ` : ""}
+                      {visit.jobStatus ?? "No job status"}
                     </p>
                     {visit.jobberPropertyWebUri ? (
                       <a
@@ -294,20 +316,13 @@ export function JobberVisitSamplePanel() {
                         rel="noreferrer"
                         className="mt-2 inline-flex text-xs text-accent underline decoration-accent/30 underline-offset-4"
                       >
-                        Open property in Jobber ↗
+                        Open property in Jobber
                       </a>
-                    ) : (
-                      <p className="mt-2 text-xs text-amber-400">
-                        Refresh visits before matching this property.
-                      </p>
-                    )}
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.12em]">
                     <span className="rounded-full border border-border px-2.5 py-1 text-muted">
                       {visit.visitStatus}
-                    </span>
-                    <span className="rounded-full border border-border px-2.5 py-1 text-muted">
-                      Visit review required
                     </span>
                     <span
                       className={`rounded-full border px-2.5 py-1 ${
@@ -346,7 +361,7 @@ export function JobberVisitSamplePanel() {
                         disabled={savingProjectionId !== null}
                         className="shrink-0 rounded-full border border-border px-4 py-2 text-xs text-muted transition hover:text-foreground disabled:opacity-50"
                       >
-                        {saving ? "Removing…" : "Remove property link"}
+                        {saving ? "Removing..." : "Remove property link"}
                       </button>
                     </div>
                   </div>
@@ -378,13 +393,13 @@ export function JobberVisitSamplePanel() {
                             }
                             className="mt-2 min-h-11 w-full rounded-xl border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"
                           >
-                            <option value="">Choose a member property…</option>
+                            <option value="">Choose a member property...</option>
                             {workspace.activeMemberProperties.map((candidate) => (
                               <option
                                 key={candidate.membershipId}
                                 value={candidate.membershipId}
                               >
-                                {candidate.homeownerName} — {candidate.propertyLabel}
+                                {candidate.homeownerName} - {candidate.propertyLabel}
                               </option>
                             ))}
                           </select>
@@ -424,7 +439,7 @@ export function JobberVisitSamplePanel() {
                           }
                           className="rounded-full border border-accent/40 bg-accent/10 px-5 py-2.5 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-40"
                         >
-                          {saving ? "Linking…" : "Confirm member property"}
+                          {saving ? "Linking..." : "Confirm member property"}
                         </button>
                       </div>
                     )}
@@ -435,10 +450,41 @@ export function JobberVisitSamplePanel() {
           })}
         </div>
       ) : loading ? (
-        <p className="mt-5 text-xs text-muted">Checking Jobber properties…</p>
+        <p className="mt-5 text-xs text-muted">Loading Jobber visits...</p>
       ) : (
-        <p className="mt-5 text-xs text-muted">No visits observed yet.</p>
+        <p className="mt-5 text-xs text-muted">
+          {workspace?.search
+            ? "No synchronized visits match this search."
+            : "No visits have been synchronized yet."}
+        </p>
       )}
+
+      {workspace && workspace.totalPages > 1 ? (
+        <nav
+          className="mt-5 flex items-center justify-between gap-4"
+          aria-label="Jobber visit pages"
+        >
+          <button
+            type="button"
+            onClick={() => void load(workspace.search, workspace.page - 1)}
+            disabled={loading || workspace.page <= 1}
+            className="rounded-full border border-border px-4 py-2 text-xs text-muted disabled:opacity-40"
+          >
+            Previous
+          </button>
+          <span className="text-xs text-muted">
+            Page {workspace.page} of {workspace.totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => void load(workspace.search, workspace.page + 1)}
+            disabled={loading || workspace.page >= workspace.totalPages}
+            className="rounded-full border border-border px-4 py-2 text-xs text-muted disabled:opacity-40"
+          >
+            Next
+          </button>
+        </nav>
+      ) : null}
     </div>
   );
 }

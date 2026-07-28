@@ -56,6 +56,9 @@ export function CoverSlide({ presentation, overrides }: SlideComponentProps) {
 
 export function IncludedSlide({ presentation, overrides }: SlideComponentProps) {
   const def = SQUEEGEEKING_TIERS[presentation.tier];
+  const scope = presentation.includeInterior
+    ? "Interior + exterior glass"
+    : "Exterior glass";
   return (
     <FullSlide>
       <div className="mx-auto max-w-4xl text-center">
@@ -63,6 +66,10 @@ export function IncludedSlide({ presentation, overrides }: SlideComponentProps) 
         <HeroText>{overrides?.highlight ?? "Complete care, every visit."}</HeroText>
         <p className="mt-4 text-sm tracking-wide text-white/55">
           {def.label} · {def.visitsPerYear} visits per year
+        </p>
+        <p className="mt-2 text-xs tracking-wide text-white/40">
+          {scope}
+          {presentation.includeScreens ? " · screens included" : ""}
         </p>
         <IncludedVisual tier={presentation.tier} />
       </div>
