@@ -7,6 +7,7 @@ import { MembershipHealthBadgeList } from "@/components/admin/membership-health-
 import type { MembershipMemberRow } from "@/lib/admin/membership-command-center-types";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
 import type { StripePaymentStatus } from "@/lib/admin/billing-workspace-types";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { craftEyebrow, craftTableHead } from "@/lib/craft/tokens";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 
@@ -97,6 +98,11 @@ function RowAction({
 
 function MemberRowActions({ row }: { row: MembershipMemberRow }) {
   const [copied, setCopied] = useState(false);
+  const [resendingWelcome, setResendingWelcome] = useState(false);
+  const [welcomeNotice, setWelcomeNotice] = useState<{
+    tone: "success" | "error";
+    message: string;
+  } | null>(null);
 
   const copyPortalLink = async () => {
     if (!row.portalUrl) return;
@@ -119,38 +125,94 @@ function MemberRowActions({ row }: { row: MembershipMemberRow }) {
       ? customerWorkspaceHref("presentation", row.presentationId)
       : null;
 
+  const resendWelcomeEmail = async () => {
+    if (!row.membershipId || resendingWelcome) return;
+    setResendingWelcome(true);
+    setWelcomeNotice(null);
+
+    try {
+      const response = await fetch(
+        `/api/admin/memberships/${encodeURIComponent(row.membershipId)}/resend-welcome`,
+        {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+      } | null;
+
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Welcome email could not be sent.");
+      }
+
+      setWelcomeNotice({
+        tone: "success",
+        message: body?.message ?? "Welcome email accepted for delivery.",
+      });
+    } catch (error) {
+      setWelcomeNotice({
+        tone: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Welcome email could not be sent.",
+      });
+    } finally {
+      setResendingWelcome(false);
+    }
+  };
+
   return (
-    <div className="flex flex-wrap gap-2">
-      <RowAction
-        label="Open portal"
-        href={row.portalUrl ?? undefined}
-        disabled={!row.portalUrl}
-        external={Boolean(row.portalUrl?.startsWith("http"))}
-      />
-      <RowAction
-        label="Open property"
-        href={workspaceHref ?? undefined}
-        disabled={!workspaceHref}
-      />
-      <RowAction
-        label="Member record"
-        href={workspaceHref ?? undefined}
-        disabled={!workspaceHref}
-      />
-      {row.agreementPdfUrl ? (
+    <div>
+      <div className="flex flex-wrap gap-2">
         <RowAction
-          label="View agreement"
-          href={row.agreementPdfUrl}
-          external
+          label="Open portal"
+          href={row.portalUrl ?? undefined}
+          disabled={!row.portalUrl}
+          external={Boolean(row.portalUrl?.startsWith("http"))}
         />
-      ) : (
-        <RowAction label="View agreement" disabled />
-      )}
-      <RowAction
-        label={copied ? "Copied" : "Copy portal link"}
-        onClick={() => void copyPortalLink()}
-        disabled={!row.portalUrl}
-      />
+        <RowAction
+          label="Open property"
+          href={workspaceHref ?? undefined}
+          disabled={!workspaceHref}
+        />
+        <RowAction
+          label="Member record"
+          href={workspaceHref ?? undefined}
+          disabled={!workspaceHref}
+        />
+        {row.agreementPdfUrl ? (
+          <RowAction
+            label="View agreement"
+            href={row.agreementPdfUrl}
+            external
+          />
+        ) : (
+          <RowAction label="View agreement" disabled />
+        )}
+        <RowAction
+          label={copied ? "Copied" : "Copy portal link"}
+          onClick={() => void copyPortalLink()}
+          disabled={!row.portalUrl}
+        />
+        <RowAction
+          label={resendingWelcome ? "Sending…" : "Resend welcome email"}
+          onClick={() => void resendWelcomeEmail()}
+          disabled={!row.isActive || !row.membershipId || resendingWelcome}
+        />
+      </div>
+      {welcomeNotice ? (
+        <p
+          className={`mt-2 max-w-xs text-xs ${
+            welcomeNotice.tone === "success" ? "text-emerald-300" : "text-red-300"
+          }`}
+          aria-live="polite"
+        >
+          {welcomeNotice.message}
+        </p>
+      ) : null}
     </div>
   );
 }

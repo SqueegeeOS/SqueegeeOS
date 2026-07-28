@@ -7,6 +7,39 @@ export interface SendWelcomeEmailInput {
   to: string;
   name: string;
   portalUrl: string;
+  /** Resend deduplicates matching requests with this key for 24 hours. */
+  idempotencyKey?: string;
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
+    return entities[character] ?? character;
+  });
+}
+
+function normalizePortalUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function normalizeIdempotencyKey(value?: string): string | null {
+  const normalized = value?.trim();
+  if (!normalized || normalized.length > 256 || /[\r\n]/.test(normalized)) {
+    return null;
+  }
+  return normalized;
 }
 
 function checklistItem(label: string): string {
@@ -47,10 +80,22 @@ export async function sendWelcomeEmail(
   }
 
   const from =
-    process.env.RESEND_AGREEMENT_FROM?.trim() ??
+    process.env.RESEND_AGREEMENT_FROM?.trim() ||
     `${CUSTOMER_BRAND.name} <onboarding@resend.dev>`;
 
-  const firstName = input.name.trim().split(/\s+/)[0] || input.name;
+  const portalUrl = normalizePortalUrl(input.portalUrl);
+  if (!portalUrl) {
+    return {
+      status: "failed",
+      reason: "invalid_portal_url",
+      recipient,
+    };
+  }
+
+  const firstName = escapeHtml(
+    input.name.trim().split(/\s+/)[0] || input.name,
+  );
+  const safePortalUrl = escapeHtml(portalUrl);
 
   const payload = {
     from,
@@ -75,7 +120,7 @@ export async function sendWelcomeEmail(
         </ul>
 
         <p style="margin: 0 0 28px;">
-          <a href="${input.portalUrl}" style="display: inline-block; padding: 16px 28px; background: #1a1a1a; color: #f5f2eb; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 500;">
+          <a href="${safePortalUrl}" style="display: inline-block; padding: 16px 28px; background: #1a1a1a; color: #f5f2eb; text-decoration: none; border-radius: 8px; font-size: 15px; font-weight: 500;">
             Open Your Home
           </a>
         </p>
@@ -94,14 +139,33 @@ export async function sendWelcomeEmail(
     `,
   };
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${apiKey}`,
+    "Content-Type": "application/json",
+  };
+  const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
+  if (idempotencyKey) {
+    headers["Idempotency-Key"] = idempotencyKey;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    console.error("[welcome-email] failed — Resend request unavailable", {
+      recipient,
+      error: error instanceof Error ? error.message : "unknown error",
+    });
+    return {
+      status: "failed",
+      reason: "resend_request_failed",
+      recipient,
+    };
+  }
 
   if (!response.ok) {
     const body = await response.text();
@@ -110,7 +174,7 @@ export async function sendWelcomeEmail(
     });
     return {
       status: "failed",
-      reason: `resend_error: ${body.slice(0, 200)}`,
+      reason: `resend_error_${response.status}`,
       recipient,
     };
   }

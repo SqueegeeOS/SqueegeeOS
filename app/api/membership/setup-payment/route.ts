@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
-import { sendWelcomeEmail } from "@/lib/agreement/send-welcome-email";
+import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
 import { loadMembershipForPayment } from "@/lib/membership/load-membership-for-payment";
 import type { MembershipRowForPayment } from "@/lib/membership/load-membership-for-payment";
 import { isMembershipActive } from "@/lib/membership/membership-status";
+import {
+  buildInitialWelcomeIdempotencyKey,
+  sendMembershipWelcomeEmail,
+} from "@/lib/membership/send-membership-welcome-email";
 import { ensureMembershipObligations } from "@/lib/obligations/ensure-membership-obligations";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import {
@@ -16,6 +19,45 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordWebsiteMembershipSale } from "@/lib/admin/record-website-membership-sale";
 import type { WebsiteMembershipSaleActivationMode } from "@/lib/admin/website-membership-sales-types";
 import { persistMembershipEnrollmentSavings } from "@/lib/membership/persist-membership-enrollment-savings";
+
+const WELCOME_RECOVERY_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function publicWelcomeResult(result: AgreementEmailResult) {
+  return {
+    status: result.status,
+    reason: result.status === "sent" ? null : (result.reason ?? "unknown"),
+  };
+}
+
+async function attemptInitialWelcomeEmail(
+  supabase: SupabaseClient,
+  membership: MembershipRowForPayment,
+  paymentSetupCompletedAt: string,
+  portalUrl: string | null,
+): Promise<AgreementEmailResult> {
+  const completedAtMs = Date.parse(paymentSetupCompletedAt);
+  if (
+    Number.isFinite(completedAtMs) &&
+    Date.now() - completedAtMs > WELCOME_RECOVERY_WINDOW_MS
+  ) {
+    return {
+      status: "skipped",
+      reason: "activation_not_recent",
+      recipient: null,
+    };
+  }
+
+  return sendMembershipWelcomeEmail(supabase, {
+    membershipId: membership.id,
+    homeownerId: membership.homeowner_id,
+    presentationId: membership.presentation_id,
+    portalUrl,
+    idempotencyKey: buildInitialWelcomeIdempotencyKey(
+      membership.id,
+      paymentSetupCompletedAt,
+    ),
+  });
+}
 
 async function recordMembershipObligations(
   supabase: SupabaseClient,
@@ -155,6 +197,12 @@ export async function POST(req: NextRequest) {
         membership.id,
         membership.presentation_id,
       );
+      const welcomeEmail = await attemptInitialWelcomeEmail(
+        supabase,
+        membership,
+        paymentCompletedAt,
+        portalUrl,
+      );
       return NextResponse.json({
         membershipId: membership.id,
         presentationId: membership.presentation_id,
@@ -163,6 +211,7 @@ export async function POST(req: NextRequest) {
         mode: isStripeServerEnabled() ? "stripe" : "mock",
         alreadyActive: true,
         portalUrl,
+        welcomeEmail: publicWelcomeResult(welcomeEmail),
       });
     }
 
@@ -303,6 +352,12 @@ export async function POST(req: NextRequest) {
           reloaded.id,
           reloaded.presentation_id,
         );
+        const welcomeEmail = await attemptInitialWelcomeEmail(
+          supabase,
+          reloaded,
+          reloaded.payment_setup_completed_at!,
+          portalUrl,
+        );
         return NextResponse.json({
           membershipId: reloaded.id,
           presentationId: reloaded.presentation_id,
@@ -311,6 +366,7 @@ export async function POST(req: NextRequest) {
           mode: stripeEnabled ? "stripe" : "mock",
           alreadyActive: true,
           portalUrl,
+          welcomeEmail: publicWelcomeResult(welcomeEmail),
         });
       }
     }
@@ -351,41 +407,18 @@ export async function POST(req: NextRequest) {
       req.nextUrl.origin,
     );
 
-    if (portalUrl) {
-      const [{ data: homeowner }, { data: presentation }] = await Promise.all([
-        supabase
-          .from("homeowners")
-          .select("full_name, email")
-          .eq("id", membership.homeowner_id)
-          .maybeSingle(),
-        resolvedPresentationId
-          ? supabase
-              .from("presentations")
-              .select("client_email, client_name")
-              .eq("id", resolvedPresentationId)
-              .maybeSingle()
-          : Promise.resolve({ data: null }),
-      ]);
-
-      const memberEmail = resolveMemberEmail(
-        presentation?.client_email as string | null | undefined,
-        homeowner?.email as string | null | undefined,
-      );
-      const memberName =
-        (presentation?.client_name as string | null | undefined)?.trim() ||
-        (homeowner?.full_name as string | null | undefined)?.trim() ||
-        "Member";
-
-      if (memberEmail) {
-        const welcomeEmail = await sendWelcomeEmail({
-          to: memberEmail,
-          name: memberName,
-          portalUrl,
-        });
-        if (welcomeEmail.status !== "sent") {
-          console.warn("[setup-payment] welcome email not sent", welcomeEmail);
-        }
-      }
+    const welcomeEmail = await attemptInitialWelcomeEmail(
+      supabase,
+      { ...membership, presentation_id: resolvedPresentationId },
+      paymentSetupCompletedAt,
+      portalUrl,
+    );
+    if (welcomeEmail.status !== "sent") {
+      console.warn("[setup-payment] welcome email not sent", {
+        membershipId: membership.id,
+        status: welcomeEmail.status,
+        reason: welcomeEmail.reason,
+      });
     }
 
     return NextResponse.json({
@@ -396,6 +429,7 @@ export async function POST(req: NextRequest) {
       paymentSetupCompletedAt,
       mode: stripeEnabled ? "stripe" : "mock",
       portalUrl,
+      welcomeEmail: publicWelcomeResult(welcomeEmail),
     });
   } catch (error) {
     const message =
