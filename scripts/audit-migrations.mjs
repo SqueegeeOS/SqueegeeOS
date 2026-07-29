@@ -86,6 +86,12 @@ const checks = [
   ["028", "savings and referral ledgers", (s) => hasTable(s, "member_savings_ledger_entries") && hasTable(s, "member_referral_rewards")],
   ["029", "portal theme preference", (s) => hasColumn(s, "memberships", "portal_theme"), "optional/parked"],
   ["030", "security hardening", (s) => ["referral_codes", "referral_visits", "referrals"].every((table) => s.rlsTables.has(table)) && s.referralAnonPolicies === 0 && s.secureUpdatedAt],
+  ["031", "care operations foundation", (s) => hasTable(s, "atlas_pricing_snapshots") && hasTable(s, "billing_orders") && hasColumn(s, "member_appointments", "provider")],
+  ["032", "Jobber OAuth connection", (s) => hasTable(s, "jobber_connections") && hasTable(s, "jobber_connection_events")],
+  ["033", "Jobber visit projection", (s) => hasTable(s, "jobber_visit_projections")],
+  ["034", "Jobber supervised property links", (s) => hasTable(s, "jobber_property_links")],
+  ["035", "Jobber full sync and customer links", (s) => hasTable(s, "jobber_client_projections") && hasTable(s, "jobber_customer_links")],
+  ["036", "Atlas Pulse delivery and webhooks", (s) => hasTable(s, "membership_communications") && hasTable(s, "resend_webhook_events") && hasTable(s, "jobber_webhook_events")],
 ];
 
 await client.connect();

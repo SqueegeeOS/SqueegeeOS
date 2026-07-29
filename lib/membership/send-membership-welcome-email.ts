@@ -20,6 +20,57 @@ export function buildInitialWelcomeIdempotencyKey(
   return `membership-welcome-${membershipId}-${paymentSetupCompletedAt.replace(/[^a-zA-Z0-9]/g, "")}`;
 }
 
+function maskRecipient(email: string | null | undefined): string | null {
+  const normalized = email?.trim();
+  if (!normalized) return null;
+  const [local, domain] = normalized.split("@");
+  if (!local || !domain) return null;
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
+async function recordWelcomeAttempt(
+  supabase: SupabaseClient,
+  input: SendMembershipWelcomeEmailInput,
+  result: AgreementEmailResult,
+): Promise<void> {
+  const idempotencyKey =
+    input.idempotencyKey ??
+    `membership-welcome-${input.membershipId}-${result.resendId ?? Date.now()}`;
+  const status =
+    result.status === "sent"
+      ? "accepted"
+      : result.status === "skipped"
+        ? "skipped"
+        : "failed";
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("membership_communications").upsert(
+    {
+      membership_id: input.membershipId,
+      communication_type: "welcome_email",
+      channel: "email",
+      provider: "resend",
+      provider_message_id: result.resendId ?? null,
+      idempotency_key: idempotencyKey,
+      destination_masked: maskRecipient(result.recipient),
+      status,
+      reason: result.reason ?? null,
+      sent_at: result.status === "sent" ? now : null,
+    },
+    { onConflict: "idempotency_key" },
+  );
+  if (error) {
+    const missingTable =
+      error.code === "42P01" ||
+      error.code === "PGRST205" ||
+      error.message.toLowerCase().includes("does not exist") ||
+      error.message.toLowerCase().includes("schema cache");
+    console.warn("[membership-welcome] delivery ledger write failed", {
+      membershipId: input.membershipId,
+      reason: missingTable ? "migration_036_required" : error.message,
+    });
+  }
+}
+
 export async function sendMembershipWelcomeEmail(
   supabase: SupabaseClient,
   input: SendMembershipWelcomeEmailInput,
@@ -29,11 +80,13 @@ export async function sendMembershipWelcomeEmail(
     (await getPortalAccessUrlForMembership(input.membershipId, input.origin));
 
   if (!portalUrl) {
-    return {
+    const result: AgreementEmailResult = {
       status: "skipped",
       reason: "missing_portal_access",
       recipient: null,
     };
+    await recordWelcomeAttempt(supabase, input, result);
+    return result;
   }
 
   const [{ data: homeowner, error: homeownerError }, presentationResult] =
@@ -58,11 +111,13 @@ export async function sendMembershipWelcomeEmail(
       homeownerError: homeownerError?.message,
       presentationError: presentationResult.error?.message,
     });
-    return {
+    const result: AgreementEmailResult = {
       status: "failed",
       reason: "recipient_lookup_failed",
       recipient: null,
     };
+    await recordWelcomeAttempt(supabase, input, result);
+    return result;
   }
 
   const presentation = presentationResult.data;
@@ -76,17 +131,21 @@ export async function sendMembershipWelcomeEmail(
     "Member";
 
   if (!memberEmail) {
-    return {
+    const result: AgreementEmailResult = {
       status: "skipped",
       reason: "no_valid_recipient_email",
       recipient: null,
     };
+    await recordWelcomeAttempt(supabase, input, result);
+    return result;
   }
 
-  return sendWelcomeEmail({
+  const result = await sendWelcomeEmail({
     to: memberEmail,
     name: memberName,
     portalUrl,
     idempotencyKey: input.idempotencyKey,
   });
+  await recordWelcomeAttempt(supabase, input, result);
+  return result;
 }
