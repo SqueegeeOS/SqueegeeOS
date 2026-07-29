@@ -20,6 +20,7 @@ export const ROUTES = {
   hqPricingSettings: "/hq/settings/pricing",
   hqProductionCheck: "/hq/production-check",
   hqProductionHealth: "/hq/production-health",
+  hqActivation: "/hq/activation",
   hqJobber: "/hq/jobber",
   hqPendingRequests: "/hq/requests",
   hqToday: "/hq/today",
