@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeHqApiRequest } from "@/lib/auth/hq-route-authorization";
 import { loadMonthlyBillingPreview } from "@/lib/care-operations/monthly-preview";
 
 export async function GET(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authorization = await authorizeHqApiRequest();
+  if (authorization.response) return authorization.response;
 
   const month = new URL(request.url).searchParams.get("month");
   if (!month) {

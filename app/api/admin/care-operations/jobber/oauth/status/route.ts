@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeHqApiRequest } from "@/lib/auth/hq-route-authorization";
 import { readJobberConnectionStatus } from "@/lib/care-operations/jobber-connection-store";
 import {
   getJobberConfigStatus,
@@ -10,9 +10,8 @@ import {
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authorization = await authorizeHqApiRequest();
+  if (authorization.response) return authorization.response;
 
   const configuration = getJobberConfigStatus();
   let redirectUri = suggestJobberOAuthRedirectUri(request);

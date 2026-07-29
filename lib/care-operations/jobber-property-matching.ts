@@ -9,7 +9,6 @@ import {
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 
 const MAX_ACTIVE_MEMBER_CANDIDATES = 250;
-const LINK_ACTOR = "hq_admin";
 const LINK_REASON =
   "Headquarters confirmed the same physical property in Jobber and HomeAtlas";
 const REVOKE_REASON =
@@ -367,6 +366,7 @@ export async function loadJobberPropertyMatchingWorkspace(): Promise<JobberPrope
 export async function linkJobberProperty(input: {
   projectionId: string;
   membershipId: string;
+  actorId: string;
   samePhysicalPropertyConfirmed: boolean;
   expectedLinkUpdatedAt?: string | null;
 }): Promise<"linked" | "already_linked"> {
@@ -427,7 +427,7 @@ export async function linkJobberProperty(input: {
       property_id: membership.property_id,
       membership_id: membership.id,
       link_state: "active",
-      linked_by: LINK_ACTOR,
+      linked_by: input.actorId,
       link_reason: LINK_REASON,
       linked_at: now,
     });
@@ -447,7 +447,7 @@ export async function linkJobberProperty(input: {
       property_id: membership.property_id,
       membership_id: membership.id,
       link_state: "active",
-      linked_by: LINK_ACTOR,
+      linked_by: input.actorId,
       link_reason: LINK_REASON,
       linked_at: now,
       revoked_by: null,
@@ -470,6 +470,7 @@ export async function linkJobberProperty(input: {
 
 export async function revokeJobberPropertyLink(input: {
   projectionId: string;
+  actorId: string;
   expectedLinkUpdatedAt: string;
 }): Promise<"revoked" | "already_jobber_only"> {
   const projection = await loadProjectionIdentity(input.projectionId);
@@ -497,7 +498,7 @@ export async function revokeJobberPropertyLink(input: {
     .from("jobber_property_links")
     .update({
       link_state: "revoked",
-      revoked_by: LINK_ACTOR,
+      revoked_by: input.actorId,
       revoke_reason: REVOKE_REASON,
       revoked_at: new Date().toISOString(),
     })

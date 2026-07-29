@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { JobberVisitSamplePanel } from "@/components/admin/jobber-visit-sample-panel";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
 
@@ -28,7 +27,7 @@ interface JobberConnectionResponse {
 async function requestJobberConnectionStatus(): Promise<JobberConnectionResponse> {
   const response = await fetch(
     "/api/admin/care-operations/jobber/oauth/status",
-    { headers: getAdminRequestHeaders(), cache: "no-store" },
+    { cache: "no-store" },
   );
   const body = (await response.json().catch(() => null)) as
     | JobberConnectionResponse
@@ -102,7 +101,7 @@ export function JobberConnectionPanel() {
     try {
       const response = await fetch(
         "/api/admin/care-operations/jobber/oauth/start",
-        { method: "POST", headers: getAdminRequestHeaders() },
+        { method: "POST" },
       );
       const body = (await response.json().catch(() => null)) as
         | { authorizationUrl?: string; error?: string }

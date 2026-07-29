@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { authorizeHqApiRequest } from "@/lib/auth/hq-route-authorization";
 import {
   exchangeJobberAuthorizationCode,
   fetchJobberAccountIdentity,
@@ -17,22 +18,39 @@ function resultRedirect(request: Request, status: "connected" | "error", reason?
   return NextResponse.redirect(url);
 }
 
+function isValidAuthorizationCode(code: string | null): code is string {
+  return Boolean(
+    code &&
+      code.length <= 2048 &&
+      !/[\u0000-\u0020\u007f]/.test(code),
+  );
+}
+
 export async function GET(request: Request) {
+  const authorization = await authorizeHqApiRequest();
+  if (authorization.response) return authorization.response;
+
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
+  const state = url.searchParams.get("state") ?? "";
   const oauthError = url.searchParams.get("error");
-  if (oauthError) return resultRedirect(request, "error", "authorization_denied");
-  if (!code || !state) return resultRedirect(request, "error", "missing_code");
-  if (!(await consumeJobberOAuthState(state))) {
+  if (!(await consumeJobberOAuthState(state, authorization.actor.id))) {
     return resultRedirect(request, "error", "invalid_state");
+  }
+  if (oauthError) return resultRedirect(request, "error", "authorization_denied");
+  if (!isValidAuthorizationCode(code)) {
+    return resultRedirect(request, "error", "missing_code");
   }
 
   try {
     const redirectUri = resolveJobberOAuthRedirectUri(request);
     const tokens = await exchangeJobberAuthorizationCode(code, redirectUri);
     const account = await fetchJobberAccountIdentity(tokens.accessToken);
-    await saveJobberConnection({ account, tokens });
+    await saveJobberConnection({
+      account,
+      tokens,
+      actorId: authorization.actor.id,
+    });
     return resultRedirect(request, "connected");
   } catch (error) {
     console.error(
