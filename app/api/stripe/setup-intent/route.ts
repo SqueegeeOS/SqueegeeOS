@@ -8,6 +8,7 @@ import {
 import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { getStripePublishableKey } from "@/lib/stripe/client";
 import { getStripe } from "@/lib/stripe/server";
+import { authorizeMembershipAction } from "@/lib/membership/authorize-membership-action";
 
 /**
  * Creates a Stripe SetupIntent for card-on-file collection.
@@ -63,6 +64,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!(await authorizeMembershipAction(req, membership.id))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const stripe = getStripe();
     let customerId = membership.stripe_customer_id;
 
@@ -78,16 +83,19 @@ export async function POST(req: NextRequest) {
     }
 
     if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: memberEmail ?? undefined,
-        name: memberName || undefined,
-        metadata: {
-          membership_id: membership.id,
-          presentation_id: membership.presentation_id ?? "",
-          homeowner_id: membership.homeowner_id,
-          property_id: membership.property_id,
+      const customer = await stripe.customers.create(
+        {
+          email: memberEmail ?? undefined,
+          name: memberName || undefined,
+          metadata: {
+            membership_id: membership.id,
+            presentation_id: membership.presentation_id ?? "",
+            homeowner_id: membership.homeowner_id,
+            property_id: membership.property_id,
+          },
         },
-      });
+        { idempotencyKey: `membership-customer-${membership.id}` },
+      );
       customerId = customer.id;
 
       const { error: customerSaveError } = await supabase

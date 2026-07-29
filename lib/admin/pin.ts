@@ -1,8 +1,6 @@
 import {
-  ADMIN_PIN_SESSION_KEY,
   ADMIN_SESSION_TTL_MS,
   ADMIN_UNLOCK_KEY,
-  isAdminPrivateBeta,
 } from "./config";
 import { clearHeadquartersBootFlag } from "@/lib/motion/boot-sequence";
 
@@ -11,13 +9,7 @@ interface AdminUnlockRecord {
   mode: "pin" | "beta";
 }
 
-export function verifyAdminPin(pin: string): boolean {
-  const configured = process.env.NEXT_PUBLIC_ADMIN_PIN?.trim();
-  if (!configured) return true;
-  return pin === configured;
-}
-
-export function markAdminUnlocked(mode: "pin" | "beta", pin?: string): void {
+export function markAdminUnlocked(mode: "pin" | "beta"): void {
   if (typeof window === "undefined") return;
 
   const record: AdminUnlockRecord = {
@@ -26,15 +18,14 @@ export function markAdminUnlocked(mode: "pin" | "beta", pin?: string): void {
   };
 
   sessionStorage.setItem(ADMIN_UNLOCK_KEY, JSON.stringify(record));
-  if (pin && mode === "pin") {
-    sessionStorage.setItem(ADMIN_PIN_SESSION_KEY, pin);
-  }
 }
 
 export function clearAdminSession(): void {
   if (typeof window === "undefined") return;
   sessionStorage.removeItem(ADMIN_UNLOCK_KEY);
-  sessionStorage.removeItem(ADMIN_PIN_SESSION_KEY);
+  void fetch("/api/admin/unlock", { method: "DELETE", keepalive: true }).catch(
+    () => {},
+  );
   clearHeadquartersBootFlag();
 }
 
@@ -55,16 +46,4 @@ export function isAdminUnlocked(): boolean {
     clearAdminSession();
     return false;
   }
-}
-
-export function getAdminPinForApi(): string | null {
-  if (typeof window === "undefined") return null;
-  if (isAdminPrivateBeta()) return null;
-  return sessionStorage.getItem(ADMIN_PIN_SESSION_KEY);
-}
-
-export function authorizeAdminRequest(pinHeader: string | null): boolean {
-  const configured = process.env.NEXT_PUBLIC_ADMIN_PIN?.trim();
-  if (!configured) return true;
-  return pinHeader === configured;
 }

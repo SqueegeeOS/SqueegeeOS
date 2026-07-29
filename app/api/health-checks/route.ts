@@ -6,8 +6,17 @@ import {
   validateHealthCheckForm,
 } from "@/lib/health/repository";
 import type { HealthCheckFormState } from "@/lib/health/types";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+
+function unauthorized() {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
 
 export async function POST(request: Request) {
+  if (!authorizeAdminRequest(request.headers)) {
+    return unauthorized();
+  }
+
   try {
     const body = (await request.json()) as Partial<HealthCheckFormState>;
 
@@ -32,6 +41,10 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  if (!authorizeAdminRequest(request.headers)) {
+    return unauthorized();
+  }
+
   try {
     const { searchParams } = new URL(request.url);
     const propertyId = searchParams.get("propertyId");

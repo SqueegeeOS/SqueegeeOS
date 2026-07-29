@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { runPlacesSearchDiagnostic } from "@/lib/reviews/places-search-debug";
 import { diagnoseGoogleBusinessLink } from "@/lib/reviews/resolve-url-debug";
 import { resolveSearchApiKey } from "@/lib/reviews/resolve-search-api-key";
@@ -9,8 +9,8 @@ function unauthorized() {
 }
 
 export async function POST(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) return unauthorized();
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) return unauthorized();
 
   const body = (await request.json()) as {
     url?: string;

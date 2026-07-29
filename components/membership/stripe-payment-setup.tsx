@@ -9,12 +9,14 @@ import {
 } from "@stripe/react-stripe-js";
 import { loadStripe, type StripeElementsOptions } from "@stripe/stripe-js";
 import { getStripePublishableKey } from "@/lib/stripe/client";
+import { getMembershipActionHeaders } from "@/lib/membership/action-client";
 
 interface StripePaymentSetupProps {
   memberName: string;
   memberEmail?: string | null;
   presentationId?: string;
   membershipId?: string;
+  portalToken?: string | null;
   theme?: "presentation" | "portal";
   onSuccess: () => void;
   onBack?: () => void;
@@ -28,6 +30,7 @@ function StripePaymentForm({
   onBack,
   presentationId,
   membershipId,
+  portalToken,
 }: {
   theme: "presentation" | "portal";
   memberName: string;
@@ -36,6 +39,7 @@ function StripePaymentForm({
   onBack?: () => void;
   presentationId?: string;
   membershipId?: string;
+  portalToken?: string | null;
 }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -78,7 +82,7 @@ function StripePaymentForm({
 
       const response = await fetch("/api/membership/setup-payment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getMembershipActionHeaders(portalToken),
         body: JSON.stringify({
           presentationId,
           membershipId,
@@ -184,7 +188,7 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
       try {
         const response = await fetch("/api/stripe/setup-intent", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getMembershipActionHeaders(props.portalToken),
           body: JSON.stringify({
             presentationId: props.presentationId,
             membershipId: props.membershipId,
@@ -225,6 +229,7 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
     props.memberName,
     props.membershipId,
     props.presentationId,
+    props.portalToken,
   ]);
 
   if (!publishableKey) {
@@ -267,6 +272,7 @@ export function StripePaymentSetup(props: StripePaymentSetupProps) {
         onBack={props.onBack}
         presentationId={props.presentationId}
         membershipId={props.membershipId}
+        portalToken={props.portalToken}
       />
     </Elements>
   );

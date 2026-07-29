@@ -43,12 +43,12 @@ No changes in this phase. Produce a written answer for each item and paste into 
 |------|--------|
 | 1.1 | Add server-only env `ADMIN_PIN` (no `NEXT_PUBLIC_` prefix) in Vercel. |
 | 1.2 | Change `authorizeAdminRequest` (`lib/admin/pin.ts:66`) to compare against `process.env.ADMIN_PIN` and **return `false` when unset**. Same for `verifyAdminPin` — but note it runs client-side today (called from the PIN gate component); the client can no longer verify locally. The PIN gate must verify by calling any admin API (e.g. `GET /api/admin/overview`) with the `x-admin-pin` header and treating 401 as "wrong PIN." |
-| 1.3 | Keep the UX unchanged: user types PIN → stored in `sessionStorage` (as now, `ADMIN_PIN_SESSION_KEY`) → sent as `x-admin-pin` header. The only thing that dies is the PIN living in the bundle. |
+| 1.3 | Keep the UX unchanged: the user submits the PIN once to `/api/admin/unlock`, which issues a signed HTTP-only cookie. Store only a non-secret UI marker in `sessionStorage`; never retain the PIN there. |
 | 1.4 | Sweep every route in `app/api/admin/**` and confirm each one calls `authorizeAdminRequest`. Known gap to check: `google-reviews` debug/status routes. |
 | 1.5 | Remove `NEXT_PUBLIC_ADMIN_PIN` from Vercel after deploy is verified. |
 
 ### Expected observation
-`/hq` prompts for PIN; wrong PIN shows rejection (via API 401); right PIN unlocks; all admin API calls without header return 401.
+`/hq` prompts for PIN; a wrong PIN returns 401; a right PIN creates a signed session; admin API calls without a valid session return 401.
 
 ### Likely failures & counters
 

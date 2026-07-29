@@ -1,7 +1,6 @@
 import { getLatestCustomerHealthUnified } from "@/lib/health/assessment-repository";
 import { getPropertyIdBySlugs } from "@/lib/health/repository";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
-import { buildPortalHomeHealthPath } from "@/lib/membership/portal-access";
 import { loadPortalHomeCarePlan } from "@/lib/membership/portal-home-care-plan";
 import { getMemberPortalDataBySlugs } from "@/lib/persistence/queries/member-portal";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";

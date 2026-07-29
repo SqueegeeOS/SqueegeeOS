@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { loadMembershipForPayment } from "@/lib/membership/load-membership-for-payment";
 import { isMembershipActive } from "@/lib/membership/membership-status";
 import { sendMembershipWelcomeEmail } from "@/lib/membership/send-membership-welcome-email";
@@ -17,7 +17,7 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
+  if (!authorizeAdminRequest(request.headers)) {
     return unauthorized();
   }
 

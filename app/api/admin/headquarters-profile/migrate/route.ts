@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import {
   ensureHeadquartersProfileSchema,
   HEADQUARTERS_PROFILE_MIGRATION_SQL,
@@ -11,8 +11,8 @@ function unauthorized() {
 }
 
 export async function GET(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) return unauthorized();
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) return unauthorized();
 
   const exists = await headquartersProfileTableExists();
 
@@ -23,8 +23,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) return unauthorized();
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) return unauthorized();
 
   const result = await ensureHeadquartersProfileSchema();
 

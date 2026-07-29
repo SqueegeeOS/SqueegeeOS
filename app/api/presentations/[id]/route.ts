@@ -4,11 +4,20 @@ import {
   patchPresentation,
 } from "@/lib/presentations/repository";
 import type { PresentationData } from "@/lib/presentations/types";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+
+function unauthorized() {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!authorizeAdminRequest(req.headers)) {
+    return unauthorized();
+  }
+
   try {
     const { id } = await params;
     const presentation = await getPresentation(id);
@@ -26,6 +35,10 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  if (!authorizeAdminRequest(req.headers)) {
+    return unauthorized();
+  }
+
   try {
     const { id } = await params;
     const body = (await req.json()) as Partial<PresentationData>;

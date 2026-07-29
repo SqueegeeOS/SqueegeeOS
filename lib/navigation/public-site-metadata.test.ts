@@ -20,12 +20,21 @@ describe("public site route policy", () => {
       ["app/page.tsx", 'canonical: "/"'],
       ["app/request/page.tsx", 'canonical: "/request"'],
       ["app/contact/page.tsx", 'canonical: "/contact"'],
-      ["app/day/page.tsx", 'canonical: "/day"'],
-      ["app/night/page.tsx", 'canonical: "/night"'],
     ] as const;
     for (const [path, expected] of expectations) {
       expect(readProjectFile(path)).toContain(expected);
     }
+  });
+
+  it("keeps alternate visual experiments out of search results and the sitemap", () => {
+    for (const path of ["app/day/page.tsx", "app/night/page.tsx"]) {
+      expect(readProjectFile(path)).toContain(
+        "robots: { index: false, follow: false }",
+      );
+    }
+    const sitemap = readProjectFile("app/sitemap.ts");
+    expect(sitemap).not.toContain("PUBLIC_SITE_URL}/day");
+    expect(sitemap).not.toContain("PUBLIC_SITE_URL}/night");
   });
 
   it("protects private workspaces from caching and search indexing", () => {

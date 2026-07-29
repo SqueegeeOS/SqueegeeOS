@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAtlasThemeId } from "@/lib/theme/atlas-themes";
 import {
-  getPortalThemeBySlugs,
   getPortalThemeByToken,
   savePortalThemeForMembership,
 } from "@/lib/persistence/queries/portal-theme";
@@ -9,8 +8,6 @@ import {
 interface PortalThemeRequestBody {
   theme?: string;
   token?: string;
-  homeownerSlug?: string;
-  propertySlug?: string;
 }
 
 async function resolveMembership(
@@ -19,13 +16,6 @@ async function resolveMembership(
   const token = body.token?.trim();
   if (token) {
     const ctx = await getPortalThemeByToken(token);
-    return ctx ? { membershipId: ctx.membershipId } : null;
-  }
-
-  const homeownerSlug = body.homeownerSlug?.trim();
-  const propertySlug = body.propertySlug?.trim();
-  if (homeownerSlug && propertySlug) {
-    const ctx = await getPortalThemeBySlugs(homeownerSlug, propertySlug);
     return ctx ? { membershipId: ctx.membershipId } : null;
   }
 

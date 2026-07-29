@@ -5,8 +5,13 @@ import {
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
-export async function GET() {
+export async function GET(request: Request) {
+  if (!authorizeAdminRequest(request.headers)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       {

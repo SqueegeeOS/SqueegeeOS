@@ -8,8 +8,13 @@ import {
   type MembershipLifecycleState,
 } from "@/lib/membership/membership-status";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
 export async function GET(req: NextRequest) {
+  if (!authorizeAdminRequest(req.headers)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       { error: "Supabase is not configured" },

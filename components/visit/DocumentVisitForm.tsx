@@ -15,6 +15,7 @@ import type {
   AssessmentFormState,
   RecommendedService,
 } from "@/lib/health/assessment-types";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 const TECHNICIAN_NAME_KEY = "squeegeeos-tech-name";
 
@@ -135,7 +136,7 @@ export function DocumentVisitForm({
     try {
       const response = await fetch("/api/assessments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminRequestHeaders(),
         body: JSON.stringify(payload),
       });
 

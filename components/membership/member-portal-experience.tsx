@@ -8,7 +8,7 @@ import { MEMBERSHIP_CLOSE_BILLING_BULLETS } from "@/lib/agreement/agreement-cont
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
-import { Eyebrow, HeroText } from "@/components/presentations/slide-primitives";
+import { HeroText } from "@/components/presentations/slide-primitives";
 import {
   ExpandLink,
   ProcessTimeline,
@@ -179,6 +179,7 @@ export function MemberPortalExperience({
                 memberEmail={portalData?.profile.email}
                 presentationId={view.presentationId ?? undefined}
                 membershipId={view.membershipId}
+                portalToken={resolvedPortalToken}
                 theme="presentation"
                 onSuccess={handlePaymentSuccess}
               />
@@ -357,6 +358,7 @@ export function MemberPortalExperience({
                         memberEmail={portalData?.profile.email}
                         presentationId={view.presentationId ?? undefined}
                         membershipId={view.membershipId}
+                        portalToken={resolvedPortalToken}
                         theme="presentation"
                         onSuccess={handlePaymentSuccess}
                       />
@@ -376,6 +378,7 @@ export function MemberPortalExperience({
                 memberEmail={portalData?.profile.email}
                 presentationId={view.presentationId ?? undefined}
                 membershipId={view.membershipId}
+                portalToken={resolvedPortalToken}
                 theme="presentation"
                 onSuccess={handlePaymentSuccess}
               />

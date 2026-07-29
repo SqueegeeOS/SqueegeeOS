@@ -19,6 +19,7 @@ import type { MembershipPlanId } from "@/lib/membership/types";
 import { isCarePlanQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
 function tierToPlanId(_tier: string): MembershipPlanId {
   return "preferred";
@@ -29,6 +30,10 @@ function isSignatureDataUrl(value: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  if (!authorizeAdminRequest(req.headers)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { signatureDataUrl, signedAt, presentationId, ...mutableFields } = body;

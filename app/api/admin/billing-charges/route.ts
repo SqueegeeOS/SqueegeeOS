@@ -4,15 +4,15 @@ import {
   validateRecordManualBillingChargeInput,
   type RecordManualBillingChargeInput,
 } from "@/lib/admin/record-manual-billing-charge";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
 export async function POST(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) {
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) {
     return unauthorized();
   }
 

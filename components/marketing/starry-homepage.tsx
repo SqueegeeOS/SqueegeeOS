@@ -86,8 +86,9 @@ export function StarryHomepage() {
             </h1>
             <div className="night-rise-2 mt-8 flex flex-wrap items-end justify-between gap-6 pb-2">
               <p className="max-w-sm text-base leading-relaxed" style={{ color: MIST }}>
-                Window, pressure washing, and solar care, done like we&apos;d do it
-                for our own family. Because when you join, you are family.
+                Window cleaning, pressure washing, and solar care, done like
+                we&apos;d do it for our own family. Because when you join, you are
+                family.
               </p>
               <Cta big>Request a plan</Cta>
             </div>

@@ -145,8 +145,9 @@ export function Day2Homepage() {
             </h1>
             <div className="night-rise-2 mt-7 flex flex-col items-start gap-7 pb-1 sm:mt-8 lg:flex-row lg:items-end lg:justify-between">
               <p className="max-w-md text-base leading-relaxed sm:text-lg" style={{ color: SAGE }}>
-                Window, pressure washing, and solar care, done like we&apos;d do it
-                for our own family. Because when you join, you are family.
+                Window cleaning, pressure washing, and solar care, done like
+                we&apos;d do it for our own family. Because when you join, you are
+                family.
               </p>
               <Cta big anchorRef={heroCtaRef}>Request a plan</Cta>
             </div>
@@ -290,6 +291,23 @@ export function Day2Homepage() {
           months. Every visit is recorded in HomeAtlas, the living memory of
           your home&apos;s care.
         </p>
+        <nav
+          aria-label="Footer"
+          className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs"
+        >
+          <Link
+            href="/request"
+            className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"
+          >
+            Request a plan
+          </Link>
+          <Link
+            href="/contact"
+            className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"
+          >
+            Contact SqueegeeKing
+          </Link>
+        </nav>
       </footer>
     </main>
   );

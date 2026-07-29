@@ -12,6 +12,7 @@ export const metadata: Metadata = {
     images: [{ url: "/day/morning.jpg", width: 1376, height: 768 }],
   },
   alternates: { canonical: "/day" },
+  robots: { index: false, follow: false },
 };
 
 export default function DayPage() {

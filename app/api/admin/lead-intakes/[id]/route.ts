@@ -4,7 +4,7 @@ import {
   updateLeadIntakeStatus,
 } from "@/lib/acquisition/leads/repository";
 import type { LeadIntakeStatus } from "@/lib/acquisition/lead-record";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
 const STATUSES: LeadIntakeStatus[] = [
   "new",
@@ -17,8 +17,8 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) {
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -41,8 +41,8 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) {
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

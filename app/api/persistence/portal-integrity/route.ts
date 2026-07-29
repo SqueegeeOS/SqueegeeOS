@@ -6,12 +6,17 @@ import {
 } from "@/lib/persistence/supabase/client";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { isMissingColumnError } from "@/lib/persistence/queries/load-membership-portal-row";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
 /**
  * Aggregate portal-table readability check — no customer identifiers or row payloads.
  * Pair with /api/persistence/health for infrastructure status.
  */
-export async function GET() {
+export async function GET(request: Request) {
+  if (!authorizeAdminRequest(request.headers)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!isSupabaseConfigured()) {
     return NextResponse.json(
       { ok: false, error: "Supabase environment variables are not configured." },

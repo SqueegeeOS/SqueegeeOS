@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordWebsiteMembershipSale } from "@/lib/admin/record-website-membership-sale";
 import type { WebsiteMembershipSaleActivationMode } from "@/lib/admin/website-membership-sales-types";
 import { persistMembershipEnrollmentSavings } from "@/lib/membership/persist-membership-enrollment-savings";
+import { authorizeMembershipAction } from "@/lib/membership/authorize-membership-action";
 
 const WELCOME_RECOVERY_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -169,6 +170,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (!(await authorizeMembershipAction(req, membership.id))) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const paymentCompletedAt = membership.payment_setup_completed_at;
     if (
       paymentCompletedAt &&
@@ -216,6 +221,12 @@ export async function POST(req: NextRequest) {
     }
 
     const stripeEnabled = isStripeServerEnabled();
+    if (!stripeEnabled && process.env.ALLOW_MOCK_PAYMENT !== "true") {
+      return NextResponse.json(
+        { error: "Payment setup is not available" },
+        { status: 503 },
+      );
+    }
     let stripePaymentMethodId: string | null = null;
     let stripeCustomerId = membership.stripe_customer_id;
 
@@ -241,7 +252,7 @@ export async function POST(req: NextRequest) {
       }
 
       const intentMembershipId = setupIntent.metadata?.membership_id;
-      if (intentMembershipId && intentMembershipId !== membership.id) {
+      if (intentMembershipId !== membership.id) {
         return NextResponse.json(
           { error: "SetupIntent does not match this membership" },
           { status: 400 },

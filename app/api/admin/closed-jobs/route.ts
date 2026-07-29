@@ -8,15 +8,15 @@ import {
   insertClosedJobToSupabase,
   listClosedJobsFromSupabase,
 } from "@/lib/admin/closed-jobs-server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
 export async function GET(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) return unauthorized();
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) return unauthorized();
 
   const supabaseResult = await listClosedJobsFromSupabase();
 
@@ -28,8 +28,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) return unauthorized();
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) return unauthorized();
 
   let body: ClosedJobInput;
   try {

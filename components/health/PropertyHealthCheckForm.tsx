@@ -13,6 +13,7 @@ import {
   type HealthCheckFormState,
   type HealthScores,
 } from "@/lib/health/types";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 const TECHNICIAN_NAME_KEY = "squeegeeos-tech-name";
 
@@ -77,7 +78,7 @@ export function PropertyHealthCheckForm({
     try {
       const res = await fetch("/api/health-checks", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminRequestHeaders(),
         body: JSON.stringify({ ...form, propertyId }),
       });
 

@@ -7,7 +7,7 @@ import {
   updatePresentationNotes,
   updatePropertyFields,
 } from "@/lib/hq/customer-workspace/update-workspace";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
 const TYPES: CustomerWorkspaceRefType[] = [
   "lead",
@@ -24,8 +24,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ type: string; id: string }> },
 ) {
-  const pinHeader = _request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) {
+  const authHeaders = _request.headers;
+  if (!authorizeAdminRequest(authHeaders)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -51,8 +51,8 @@ export async function PATCH(
   request: Request,
   context: { params: Promise<{ type: string; id: string }> },
 ) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) {
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

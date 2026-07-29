@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { searchHomeAtlasCustomers } from "@/lib/care-operations/jobber-customer-matching";
 
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
+  if (!authorizeAdminRequest(request.headers)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const url = new URL(request.url);

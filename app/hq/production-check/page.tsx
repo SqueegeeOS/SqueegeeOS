@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { AdminPinGate } from "@/components/admin/admin-pin-gate";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import type { ProductionCheckResult } from "@/lib/system/production-check";
 
 async function requestProductionCheck(): Promise<ProductionCheckResult> {
   const response = await fetch("/api/system/production-check", {
+    headers: getAdminRequestHeaders(),
     cache: "no-store",
   });
   if (!response.ok) {
@@ -44,6 +47,7 @@ function StatusRow({
 }
 
 export default function ProductionCheckPage() {
+  const [unlocked, setUnlocked] = useState(false);
   const [result, setResult] = useState<ProductionCheckResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +65,8 @@ export default function ProductionCheckPage() {
   }, []);
 
   useEffect(() => {
+    if (!unlocked) return;
+
     let cancelled = false;
     requestProductionCheck()
       .then((nextResult) => {
@@ -79,7 +85,11 @@ export default function ProductionCheckPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [unlocked]);
+
+  if (!unlocked) {
+    return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
+  }
 
   const modeLabel =
     result?.mode === "production"

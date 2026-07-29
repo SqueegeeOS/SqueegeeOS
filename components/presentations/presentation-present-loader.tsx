@@ -5,19 +5,18 @@ import { useCallback, useEffect, useState } from "react";
 import { readCachedPresentation } from "@/lib/presentations/client-cache";
 import type { PresentationData } from "@/lib/presentations/types";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
+import { AdminPinGate } from "@/components/admin/admin-pin-gate";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { PresentationViewer } from "./presentation-viewer";
 
 export function PresentationPresentLoader({
   id,
-  initial,
 }: {
   id: string;
-  initial: PresentationData | null;
 }) {
-  const [presentation, setPresentation] = useState<PresentationData | null>(
-    initial,
-  );
-  const [loading, setLoading] = useState(!initial);
+  const [unlocked, setUnlocked] = useState(false);
+  const [presentation, setPresentation] = useState<PresentationData | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const handlePresentationChange = useCallback((next: PresentationData) => {
@@ -25,13 +24,16 @@ export function PresentationPresentLoader({
   }, []);
 
   useEffect(() => {
-    if (presentation) return;
+    if (!unlocked || presentation) return;
 
     let cancelled = false;
 
     async function resolve() {
       try {
-        const res = await fetch(`/api/presentations/${id}`);
+        const res = await fetch(`/api/presentations/${id}`, {
+          headers: getAdminRequestHeaders(),
+          cache: "no-store",
+        });
         if (res.ok) {
           const json = (await res.json()) as { presentation: PresentationData };
           if (!cancelled) {
@@ -74,7 +76,11 @@ export function PresentationPresentLoader({
     return () => {
       cancelled = true;
     };
-  }, [id, presentation]);
+  }, [id, presentation, unlocked]);
+
+  if (!unlocked) {
+    return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
+  }
 
   if (loading) {
     return (

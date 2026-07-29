@@ -4,7 +4,7 @@ import {
   validateScheduleMembershipServiceInput,
   type ScheduleMembershipServiceInput,
 } from "@/lib/admin/schedule-membership-service";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -14,8 +14,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) {
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) {
     return unauthorized();
   }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { listStaffAssessments } from "@/lib/health/assessment-repository";
 import {
   getPropertyHealthHeader,
@@ -10,8 +10,8 @@ export async function GET(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) {
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

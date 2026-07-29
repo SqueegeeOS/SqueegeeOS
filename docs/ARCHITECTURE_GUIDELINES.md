@@ -63,17 +63,19 @@ export async function GET(request: Request) {
 }
 ```
 
-Admin routes require `x-admin-pin` header — see `lib/admin/pin.ts`, `getAdminRequestHeaders()`.
+Admin routes accept the signed HTTP-only admin session cookie. The PIN is sent
+only to `/api/admin/unlock`; it is never stored for later API calls. See
+`lib/admin/server-auth.ts` and `app/api/admin/unlock/route.ts`.
 
 ### Route groups
 
 | Prefix | Access |
 |--------|--------|
-| `/hq`, `/setup`, `/experience` | Admin PIN |
-| `/employee` | Employee nav (future auth) |
-| `/homecare/[slug]/...` | Customer experiences (demo slug routes) |
+| `/hq`, `/setup`, `/experience` | Signed admin session |
+| `/employee`, `/tech`, `/properties` | Signed admin session |
+| `/homecare/[slug]/...` | Legacy customer routes; signed admin session |
 | `/portal/[token]` | Member portal (production customer access) |
-| `/api/admin/*` | PIN + server secrets |
+| `/api/admin/*` | Signed admin session + server secrets |
 
 ---
 

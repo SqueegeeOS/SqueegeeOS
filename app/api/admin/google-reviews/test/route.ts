@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { testGoogleReviewsConnection } from "@/lib/reviews/place-id-resolver";
 import { resolveSearchApiKey } from "@/lib/reviews/resolve-search-api-key";
 import { assessPlaceProfileMatch } from "@/lib/reviews/place-profile-check";
 import { logGoogleReviewsSetup } from "@/lib/reviews/setup-log";
 
 export async function POST(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) {
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -12,7 +12,6 @@ import {
 import {
   ATLAS_THEMES,
   DEFAULT_ATLAS_THEME,
-  isAtlasThemeId,
   type AtlasThemeId,
 } from "@/lib/theme/atlas-themes";
 import {
@@ -52,8 +51,6 @@ export function AtlasThemeProvider({
   savedTheme = null,
   membershipId = null,
   portalToken = null,
-  homeownerSlug = null,
-  propertySlug = null,
 }: AtlasThemeProviderProps) {
   const resolvedSaved = useMemo(
     () => resolvePortalThemePreference(savedTheme, membershipId),
@@ -75,7 +72,7 @@ export function AtlasThemeProvider({
     setThemeState(next);
   }, []);
 
-  const canPersist = Boolean(membershipId || portalToken || (homeownerSlug && propertySlug));
+  const canPersist = Boolean(portalToken);
 
   const saveTheme = useCallback(async (): Promise<boolean> => {
     writePortalThemeToStorage(theme, membershipId);
@@ -93,8 +90,6 @@ export function AtlasThemeProvider({
         body: JSON.stringify({
           theme,
           token: portalToken ?? undefined,
-          homeownerSlug: homeownerSlug ?? undefined,
-          propertySlug: propertySlug ?? undefined,
         }),
       });
 
@@ -120,8 +115,6 @@ export function AtlasThemeProvider({
     theme,
     membershipId,
     portalToken,
-    homeownerSlug,
-    propertySlug,
     canPersist,
   ]);
 

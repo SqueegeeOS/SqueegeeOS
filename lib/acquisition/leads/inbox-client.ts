@@ -26,7 +26,7 @@ export async function schedulePresentationFromLead(
 
   const createResponse = await fetch("/api/presentations", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAdminRequestHeaders(),
     body: JSON.stringify({
       clientName: lead.name,
       createdBy: "HQ Request",
@@ -45,7 +45,7 @@ export async function schedulePresentationFromLead(
 
   const patchResponse = await fetch(`/api/presentations/${presentation.id}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: getAdminRequestHeaders(),
     body: JSON.stringify({
       clientEmail: lead.email,
       clientAddress: lead.serviceAddress,

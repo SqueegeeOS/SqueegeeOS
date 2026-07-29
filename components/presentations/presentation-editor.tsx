@@ -24,6 +24,7 @@ import {
   type SlideType,
 } from "@/lib/presentations/types";
 import { formatTierPrice } from "@/lib/membership/tier-config";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
   CollapsibleSection,
   EditorField,
@@ -156,7 +157,7 @@ export function PresentationEditor({
     try {
       const res = await fetch(`/api/presentations/${data.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminRequestHeaders(),
         body: JSON.stringify(data),
       });
       if (!res.ok) {

@@ -4,8 +4,17 @@ import {
   listPresentations,
   patchPresentation,
 } from "@/lib/presentations/repository";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
-export async function GET() {
+function unauthorized() {
+  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+export async function GET(req: NextRequest) {
+  if (!authorizeAdminRequest(req.headers)) {
+    return unauthorized();
+  }
+
   try {
     const presentations = await listPresentations();
     return NextResponse.json({ presentations });
@@ -19,6 +28,10 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  if (!authorizeAdminRequest(req.headers)) {
+    return unauthorized();
+  }
+
   try {
     const body = await req.json().catch(() => ({}));
     const presentation = await createPresentation({

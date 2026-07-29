@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { buildAdminDashboard } from "@/lib/admin/build-dashboard";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import {
+  authorizeAdminRequest,
+  isAdminPrivateBetaEnabled,
+} from "@/lib/admin/server-auth";
 
 export async function GET(request: Request) {
-  const privateBeta = !process.env.NEXT_PUBLIC_ADMIN_PIN?.trim();
-  const pinHeader = request.headers.get("x-admin-pin");
+  const privateBeta = isAdminPrivateBetaEnabled();
+  const authHeaders = request.headers;
 
-  if (!authorizeAdminRequest(pinHeader)) {
+  if (!authorizeAdminRequest(authHeaders)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

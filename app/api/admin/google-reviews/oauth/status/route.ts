@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import {
   getGoogleOAuthConfigStatus,
   isGoogleBusinessOAuthConfigured,
@@ -15,8 +15,8 @@ function unauthorized() {
 }
 
 export async function GET(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) return unauthorized();
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) return unauthorized();
 
   const oauthConfig = getGoogleOAuthConfigStatus();
   const configured = isGoogleBusinessOAuthConfigured();
@@ -34,8 +34,8 @@ export async function GET(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const pinHeader = request.headers.get("x-admin-pin");
-  if (!authorizeAdminRequest(pinHeader)) return unauthorized();
+  const authHeaders = request.headers;
+  if (!authorizeAdminRequest(authHeaders)) return unauthorized();
 
   await clearGoogleOAuthSession();
   return NextResponse.json({ disconnected: true });

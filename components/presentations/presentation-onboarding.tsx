@@ -42,6 +42,7 @@ import {
   SQUEEGEEKING_TIERS,
 } from "@/lib/membership/tier-config";
 import type { MembershipPlanId } from "@/lib/membership/types";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 type OnboardingStep = PersistedOnboardingStep;
 
@@ -116,6 +117,7 @@ export function PresentationOnboarding({
     try {
       const res = await fetch(
         `/api/membership/onboarding-status?presentationId=${presentation.id}`,
+        { headers: getAdminRequestHeaders(), cache: "no-store" },
       );
       if (!res.ok) return;
       const data = (await res.json()) as { portalUrl?: string | null };
@@ -187,6 +189,7 @@ export function PresentationOnboarding({
       try {
         const res = await fetch(
           `/api/membership/onboarding-status?presentationId=${presentation.id}`,
+          { headers: getAdminRequestHeaders(), cache: "no-store" },
         );
         if (!res.ok || cancelled) return;
 
@@ -243,7 +246,7 @@ export function PresentationOnboarding({
 
       const signRes = await fetch("/api/sign-agreement", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminRequestHeaders(),
         body: JSON.stringify({
           memberName: presentation.clientName,
           memberEmail: presentation.clientEmail || undefined,

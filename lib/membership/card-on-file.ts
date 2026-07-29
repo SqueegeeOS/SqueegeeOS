@@ -1,10 +1,12 @@
 import { isStripeClientEnabled } from "@/lib/stripe/client";
+import { getMembershipActionHeaders } from "@/lib/membership/action-client";
 
 export interface SaveCardOnFileInput {
   memberName: string;
   memberEmail?: string | null;
   presentationId?: string;
   membershipId?: string;
+  portalToken?: string | null;
 }
 
 export interface SaveCardOnFileResult {
@@ -33,7 +35,7 @@ export async function saveCardOnFile(
 
   const response = await fetch("/api/membership/setup-payment", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getMembershipActionHeaders(input.portalToken),
     body: JSON.stringify({
       presentationId: input.presentationId,
       membershipId: input.membershipId,

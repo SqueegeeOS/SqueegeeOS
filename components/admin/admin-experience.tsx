@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { AdminCommandCenter } from "@/components/admin/admin-command-center";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { FounderOnboarding } from "@/components/admin/founder-onboarding";
@@ -20,7 +21,6 @@ import {
   isHeadquartersInitialized,
   type LegacyBaseline,
 } from "@/lib/admin/legacy-baseline";
-import { isAdminUnlocked } from "@/lib/admin/pin";
 import type { MotionProfile } from "@/lib/motion/boot-sequence";
 import {
   markHeadquartersBootComplete,
@@ -28,6 +28,7 @@ import {
 } from "@/lib/motion/boot-sequence";
 
 export function AdminExperience() {
+  const router = useRouter();
   const [unlocked, setUnlocked] = useState(false);
   const [ready, setReady] = useState(false);
   const [legacyBaseline, setLegacyBaseline] =
@@ -53,15 +54,18 @@ export function AdminExperience() {
     return result;
   }, [applySyncResult]);
 
-  useEffect(() => {
-    setUnlocked(isAdminUnlocked());
-  }, []);
-
   const handleUnlock = useCallback(() => {
+    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+    if (returnTo?.startsWith("/") && !returnTo.startsWith("//")) {
+      setUnlocked(true);
+      router.replace(returnTo);
+      return;
+    }
+
     setUnlocked(true);
     setReady(false);
     void runCloudSync().finally(() => setReady(true));
-  }, [runCloudSync]);
+  }, [router, runCloudSync]);
 
   useEffect(() => {
     if (!unlocked) {

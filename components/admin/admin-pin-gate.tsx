@@ -4,16 +4,9 @@ import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { GlassCard } from "@/components/craft/glass-card";
 import { AmbientStage } from "@/components/craft/ambient-stage";
-import {
-  ADMIN_PIN_ARCHITECTURE_NOTE,
-  isAdminPrivateBeta,
-} from "@/lib/admin/config";
+import { ADMIN_PIN_ARCHITECTURE_NOTE } from "@/lib/admin/config";
 import { craftInput, craftLabel, craftPrimaryButton } from "@/lib/craft/tokens";
-import {
-  isAdminUnlocked,
-  markAdminUnlocked,
-  verifyAdminPin,
-} from "@/lib/admin/pin";
+import { markAdminUnlocked } from "@/lib/admin/pin";
 import { ROUTES } from "@/lib/navigation/config";
 import { materialize } from "@/lib/motion/system";
 
@@ -23,38 +16,67 @@ interface AdminPinGateProps {
 
 export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
   const reduceMotion = useReducedMotion();
-  const privateBeta = isAdminPrivateBeta();
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isAdminUnlocked()) {
-      onUnlock();
-    }
+    let cancelled = false;
+
+    fetch("/api/admin/unlock", {
+      method: "POST",
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (cancelled) return;
+        if (response.ok) {
+          const body = (await response.json()) as { mode: "pin" | "beta" };
+          markAdminUnlocked(body.mode);
+          onUnlock();
+        }
+      })
+      .catch(() => {
+        // Keep the gate closed when a saved session cannot be reverified.
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [onUnlock]);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
 
-    if (privateBeta) {
-      markAdminUnlocked("beta");
+    try {
+      const trimmedPin = pin.trim();
+      const response = await fetch("/api/admin/unlock", {
+        method: "POST",
+        headers: trimmedPin ? { "x-admin-pin": trimmedPin } : undefined,
+        cache: "no-store",
+      });
+      const body = (await response.json().catch(() => null)) as {
+        mode?: "pin" | "beta";
+        error?: string;
+      } | null;
+
+      if (!response.ok || !body?.mode) {
+        setError(
+          response.status === 503
+            ? "Owner access is not configured. Add ADMIN_PIN in Vercel."
+            : "Access denied. Check your PIN and try again.",
+        );
+        return;
+      }
+
+      markAdminUnlocked(body.mode);
       onUnlock();
+    } catch {
+      setError("Could not verify access. Check your connection and try again.");
+    } finally {
       setSubmitting(false);
-      return;
     }
-
-    if (!verifyAdminPin(pin.trim())) {
-      setError("Access denied. Check your PIN and try again.");
-      setSubmitting(false);
-      return;
-    }
-
-    markAdminUnlocked("pin", pin.trim());
-    onUnlock();
-    setSubmitting(false);
   };
 
   return (
@@ -81,34 +103,22 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
         </p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-          {!privateBeta ? (
-            <div>
-              <label
-                htmlFor="admin-pin"
-                className={craftLabel}
-              >
-                Access PIN
-              </label>
-              <input
-                id="admin-pin"
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                value={pin}
-                onChange={(event) => setPin(event.target.value)}
-                className={craftInput}
-                placeholder="Enter PIN"
-              />
-            </div>
-          ) : (
-            <p className="text-sm leading-relaxed text-muted/90">
-              Private beta mode is active. Configure{" "}
-              <code className="rounded bg-background px-1.5 py-0.5 text-[11px] text-accent">
-                NEXT_PUBLIC_ADMIN_PIN
-              </code>{" "}
-              before exposing real customer data.
-            </p>
-          )}
+          <div>
+            <label htmlFor="admin-pin" className={craftLabel}>
+              Access PIN
+            </label>
+            <input
+              id="admin-pin"
+              type="password"
+              inputMode="numeric"
+              autoComplete="current-password"
+              value={pin}
+              onChange={(event) => setPin(event.target.value)}
+              className={craftInput}
+              placeholder="Enter PIN"
+              autoFocus
+            />
+          </div>
 
           {error && (
             <p className="text-sm text-red-300/90" role="alert">
@@ -118,10 +128,10 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
 
           <button
             type="submit"
-            disabled={submitting || (!privateBeta && pin.trim().length === 0)}
+            disabled={submitting}
             className={`w-full ${craftPrimaryButton}`}
           >
-            {privateBeta ? "Enter headquarters" : "Unlock headquarters"}
+            {submitting ? "Verifyingâ€¦" : "Unlock headquarters"}
           </button>
         </form>
 

@@ -11,6 +11,7 @@ import {
   shouldResumeOnboarding,
 } from "@/lib/presentations/onboarding-session";
 import { getPresentationSlides, type PresentationData } from "@/lib/presentations/types";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 const easeEngineeredTuple = [...easeEngineered] as [number, number, number, number];
 
@@ -113,6 +114,7 @@ export function PresentationViewer({
       try {
         const res = await fetch(
           `/api/membership/onboarding-status?presentationId=${presentation.id}`,
+          { headers: getAdminRequestHeaders(), cache: "no-store" },
         );
         if (!res.ok) return;
         const data = (await res.json()) as {
@@ -172,7 +174,7 @@ export function PresentationViewer({
     if (currentIndex > 0 && presentation.status === "draft") {
       void fetch(`/api/presentations/${presentation.id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminRequestHeaders(),
         body: JSON.stringify({ status: "presented" }),
       });
     }

@@ -26,6 +26,7 @@ import {
 } from "@/lib/pricing/window-care-pricing";
 import { buildPresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { ROUTES } from "@/lib/navigation/config";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 /** Future: gate ranges, lead capture, hide one-time comparison. */
 const CUSTOMER_FACING_MODE = false;
@@ -174,7 +175,7 @@ export function CarePlanBuilderPage() {
 
       const response = await fetch("/api/presentations", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminRequestHeaders(),
         body: JSON.stringify({
           createdBy: "Care Plan Builder",
           homeSqft: clampedSqft,

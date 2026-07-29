@@ -12,6 +12,7 @@ export const metadata: Metadata = {
     images: [{ url: "/night/house-lit.jpg", width: 1584, height: 672 }],
   },
   alternates: { canonical: "/night" },
+  robots: { index: false, follow: false },
 };
 
 export default function NightPage() {

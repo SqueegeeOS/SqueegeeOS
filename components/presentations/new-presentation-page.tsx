@@ -1,0 +1,74 @@
+"use client";
+
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { AdminPinGate } from "@/components/admin/admin-pin-gate";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+
+export function NewPresentationPage() {
+  const router = useRouter();
+  const [unlocked, setUnlocked] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!unlocked) {
+    return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
+  }
+
+  const create = async () => {
+    setCreating(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/presentations", {
+        method: "POST",
+        headers: getAdminRequestHeaders(),
+        body: JSON.stringify({ createdBy: "Team" }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        presentation?: { id: string };
+        error?: string;
+      } | null;
+      if (!response.ok || !body?.presentation?.id) {
+        throw new Error(body?.error ?? "Could not create presentation");
+      }
+      router.replace(`/presentations/${body.presentation.id}/edit`);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Could not create presentation",
+      );
+      setCreating(false);
+    }
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#0a0a0a] px-5 text-white">
+      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.03] p-7 text-center">
+        <p className="text-[10px] uppercase tracking-[0.24em] text-[#c9a96e]">
+          Field presentation
+        </p>
+        <h1 className="mt-4 font-serif text-3xl">Start a new client</h1>
+        <p className="mt-3 text-sm leading-relaxed text-white/50">
+          This creates a private draft, then opens the details and pricing editor.
+        </p>
+        {error ? <p className="mt-5 text-sm text-red-300">{error}</p> : null}
+        <button
+          type="button"
+          onClick={() => void create()}
+          disabled={creating}
+          className="mt-7 min-h-[52px] w-full rounded-full bg-[#c9a96e] px-6 text-sm font-medium text-[#090909] disabled:opacity-50"
+        >
+          {creating ? "Creating…" : "Create presentation"}
+        </button>
+        <Link
+          href="/presentations"
+          className="mt-4 inline-flex min-h-[44px] items-center text-xs text-white/50 hover:text-white/80"
+        >
+          Back to clients
+        </Link>
+      </div>
+    </div>
+  );
+}

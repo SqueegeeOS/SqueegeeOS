@@ -5,6 +5,7 @@ import type {
   MembershipAgreementRecord,
   MembershipSignature,
 } from "./types";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 export interface SignMembershipAgreementInput {
   signature: MembershipSignature;
@@ -75,7 +76,7 @@ export async function signMembershipAgreement(
 
   const response = await fetch("/api/sign-agreement", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: getAdminRequestHeaders(),
     body: JSON.stringify({
       memberName: signature.signerName,
       memberEmail,

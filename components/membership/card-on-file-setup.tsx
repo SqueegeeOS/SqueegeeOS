@@ -15,6 +15,7 @@ export function CardOnFileSetup({
   memberEmail,
   presentationId,
   membershipId,
+  portalToken,
   theme = "presentation",
   onSuccess,
   onBack,
@@ -23,6 +24,7 @@ export function CardOnFileSetup({
   memberEmail?: string | null;
   presentationId?: string;
   membershipId?: string;
+  portalToken?: string | null;
   theme?: "presentation" | "portal";
   onSuccess: () => void;
   onBack?: () => void;
@@ -68,6 +70,7 @@ export function CardOnFileSetup({
         memberEmail,
         presentationId,
         membershipId,
+        portalToken,
       });
       onSuccess();
     } catch (err) {
@@ -106,6 +109,7 @@ export function CardOnFileSetup({
           memberEmail={memberEmail}
           presentationId={presentationId}
           membershipId={membershipId}
+          portalToken={portalToken}
           theme={theme}
           onBack={onBack}
           onSuccess={onSuccess}

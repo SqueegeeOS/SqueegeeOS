@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/pin";
+import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import {
   JobberCustomerMatchError,
   linkJobberCustomer,
@@ -22,7 +22,7 @@ function listOptions(url: URL) {
 }
 
 export async function GET(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
+  if (!authorizeAdminRequest(request.headers)) {
     return unauthorized();
   }
   try {
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  if (!authorizeAdminRequest(request.headers.get("x-admin-pin"))) {
+  if (!authorizeAdminRequest(request.headers)) {
     return unauthorized();
   }
   let body: {
