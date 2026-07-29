@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/pin";
 import {
-  linkJobberProperty,
-  loadJobberPropertyMatchingWorkspace,
-  revokeJobberPropertyLink,
-  SupervisedPropertyMatchError,
-} from "@/lib/care-operations/jobber-property-matching";
+  JobberCustomerMatchError,
+  linkJobberCustomer,
+  loadJobberCustomerMatchingWorkspace,
+  revokeJobberCustomerLink,
+} from "@/lib/care-operations/jobber-customer-matching";
 
 export const runtime = "nodejs";
 
@@ -17,7 +17,7 @@ function listOptions(url: URL) {
   return {
     search: url.searchParams.get("search") ?? "",
     page: Number.parseInt(url.searchParams.get("page") ?? "1", 10),
-    pageSize: Number.parseInt(url.searchParams.get("pageSize") ?? "25", 10),
+    pageSize: Number.parseInt(url.searchParams.get("pageSize") ?? "20", 10),
   };
 }
 
@@ -27,14 +27,13 @@ export async function GET(request: Request) {
   }
   try {
     return NextResponse.json(
-      await loadJobberPropertyMatchingWorkspace(listOptions(new URL(request.url))),
+      await loadJobberCustomerMatchingWorkspace(listOptions(new URL(request.url))),
     );
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Property workspace failed";
-    console.error("[jobber-property-links] load failed:", message);
+    const message = error instanceof Error ? error.message : "Customer workspace failed";
+    console.error("[jobber-customers] load failed:", message);
     return NextResponse.json(
-      { error: "Could not load supervised property matching." },
+      { error: "Could not load the Jobber customer workspace." },
       { status: 503 },
     );
   }
@@ -46,9 +45,9 @@ export async function POST(request: Request) {
   }
   let body: {
     action?: "link" | "revoke";
-    projectionId?: string;
-    membershipId?: string;
-    samePhysicalPropertyConfirmed?: boolean;
+    externalClientId?: string;
+    homeownerId?: string;
+    sameCustomerConfirmed?: boolean;
     expectedLinkUpdatedAt?: string | null;
     search?: string;
     page?: number;
@@ -61,22 +60,21 @@ export async function POST(request: Request) {
 
   try {
     if (body.action === "link") {
-      if (!body.projectionId || !body.membershipId) {
-        throw new SupervisedPropertyMatchError(
-          "Select a Jobber visit and an active HomeAtlas member property.",
+      if (!body.externalClientId || !body.homeownerId) {
+        throw new JobberCustomerMatchError(
+          "Select both a Jobber customer and a HomeAtlas customer.",
           400,
         );
       }
-      const outcome = await linkJobberProperty({
-        projectionId: body.projectionId,
-        membershipId: body.membershipId,
-        samePhysicalPropertyConfirmed:
-          body.samePhysicalPropertyConfirmed === true,
+      const outcome = await linkJobberCustomer({
+        externalClientId: body.externalClientId,
+        homeownerId: body.homeownerId,
+        sameCustomerConfirmed: body.sameCustomerConfirmed === true,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
       });
       return NextResponse.json({
         outcome,
-        workspace: await loadJobberPropertyMatchingWorkspace({
+        workspace: await loadJobberCustomerMatchingWorkspace({
           search: body.search,
           page: body.page,
         }),
@@ -84,19 +82,19 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "revoke") {
-      if (!body.projectionId || !body.expectedLinkUpdatedAt) {
-        throw new SupervisedPropertyMatchError(
-          "Refresh the property link before revoking it.",
+      if (!body.externalClientId || !body.expectedLinkUpdatedAt) {
+        throw new JobberCustomerMatchError(
+          "Refresh the customer pairing before revoking it.",
           400,
         );
       }
-      const outcome = await revokeJobberPropertyLink({
-        projectionId: body.projectionId,
+      const outcome = await revokeJobberCustomerLink({
+        externalClientId: body.externalClientId,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
       });
       return NextResponse.json({
         outcome,
-        workspace: await loadJobberPropertyMatchingWorkspace({
+        workspace: await loadJobberCustomerMatchingWorkspace({
           search: body.search,
           page: body.page,
         }),
@@ -108,18 +106,18 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   } catch (error) {
-    if (error instanceof SupervisedPropertyMatchError) {
+    if (error instanceof JobberCustomerMatchError) {
       return NextResponse.json(
         { error: error.message },
         { status: error.status },
       );
     }
-    const message = error instanceof Error ? error.message : "Write failed";
-    console.error("[jobber-property-links] supervised write failed:", message);
+    const message = error instanceof Error ? error.message : "Pairing failed";
+    console.error("[jobber-customers] pairing failed:", message);
     return NextResponse.json(
       {
         error:
-          "The property link was not changed. Refresh and verify both properties before trying again.",
+          "The customer pairing was not changed. Refresh and verify both records before trying again.",
       },
       { status: 503 },
     );

@@ -12,7 +12,10 @@ import {
   withComputedRates,
 } from "@/lib/presentations/calculations";
 import { defaultEnrollmentSavingsForTier } from "@/lib/membership/enrollment-savings";
-import { buildExteriorWindowBreakdown } from "@/lib/pricing/window-care-pricing";
+import {
+  buildExteriorWindowBreakdown,
+  DEFAULT_COMPANY_SETTINGS,
+} from "@/lib/pricing/window-care-pricing";
 import {
   getPresentationSlides,
   tierLabel,
@@ -57,6 +60,7 @@ export function PresentationEditor({
 
   const twoStory = data.twoStory;
   const includeScreens = data.includeScreens;
+  const includeInterior = data.includeInterior;
 
   const recalculateVisitRate = (
     prev: PresentationData,
@@ -70,12 +74,17 @@ export function PresentationEditor({
   };
 
   const setPricingOption = (
-    patch: Partial<{ twoStory: boolean; includeScreens: boolean }>,
+    patch: Partial<{
+      twoStory: boolean;
+      includeScreens: boolean;
+      includeInterior: boolean;
+    }>,
   ) => {
     setData((prev) =>
       recalculateVisitRate(prev, {
         twoStory: patch.twoStory ?? prev.twoStory,
         includeScreens: patch.includeScreens ?? prev.includeScreens,
+        includeInterior: patch.includeInterior ?? prev.includeInterior,
       }),
     );
   };
@@ -88,6 +97,9 @@ export function PresentationEditor({
           { twoStory, includeScreens },
         )
       : null;
+  const interiorCleaning = includeInterior
+    ? DEFAULT_COMPANY_SETTINGS.interiorCleaningAddOn
+    : 0;
 
   const update = <K extends keyof PresentationData>(
     field: K,
@@ -290,6 +302,7 @@ export function PresentationEditor({
               <button
                 type="button"
                 onClick={() => setPricingOption({ twoStory: !twoStory })}
+                aria-pressed={twoStory}
                 className="rounded-lg border px-3 py-2 text-xs transition-colors"
                 style={{
                   borderColor: twoStory ? "#c9a96e55" : "#222",
@@ -304,6 +317,7 @@ export function PresentationEditor({
                 onClick={() =>
                   setPricingOption({ includeScreens: !includeScreens })
                 }
+                aria-pressed={includeScreens}
                 className="rounded-lg border px-3 py-2 text-xs transition-colors"
                 style={{
                   borderColor: includeScreens ? "#c9a96e55" : "#222",
@@ -312,6 +326,22 @@ export function PresentationEditor({
                 }}
               >
                 Screens (+$50)
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPricingOption({ includeInterior: !includeInterior })
+                }
+                aria-pressed={includeInterior}
+                className="rounded-lg border px-3 py-2 text-xs transition-colors"
+                style={{
+                  borderColor: includeInterior ? "#c9a96e55" : "#222",
+                  color: includeInterior ? "#c9a96e" : "#555",
+                  backgroundColor: includeInterior ? "#141008" : "#111",
+                }}
+              >
+                Interior cleaning (+$
+                {DEFAULT_COMPANY_SETTINGS.interiorCleaningAddOn})
               </button>
             </div>
 
@@ -333,9 +363,15 @@ export function PresentationEditor({
                     <span>+${exteriorBreakdown.screenCleaning}</span>
                   </p>
                 ) : null}
+                {interiorCleaning > 0 ? (
+                  <p className="mt-1 flex justify-between">
+                    <span>Interior cleaning</span>
+                    <span>+${interiorCleaning}</span>
+                  </p>
+                ) : null}
                 <p className="mt-1.5 flex justify-between border-t border-[#1a1a1a] pt-1.5 text-[#888]">
                   <span>Per visit</span>
-                  <span>${exteriorBreakdown.visitTotal}</span>
+                  <span>${exteriorBreakdown.visitTotal + interiorCleaning}</span>
                 </p>
               </div>
             ) : null}

@@ -215,7 +215,11 @@ export function squeegeeKingTierLabel(tier: SqueegeeKingTierId): string {
 export function calculateVisitPrice(
   tier: SqueegeeKingTierId,
   squareFootage = 2500,
-  options: { twoStory?: boolean; includeScreens?: boolean } = {},
+  options: {
+    twoStory?: boolean;
+    includeScreens?: boolean;
+    includeInterior?: boolean;
+  } = {},
 ): number {
   return visitPriceForMembershipTier(tier, squareFootage, options);
 }

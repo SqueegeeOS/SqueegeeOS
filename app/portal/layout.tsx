@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 export const metadata: Metadata = {
   // Generic portal manifest; /portal/[token] overrides with its own.
   manifest: "/api/portal-manifest/portal",
+  robots: { index: false, follow: false, nocache: true },
 };
 
 export default function PortalRootLayout({ children }: { children: ReactNode }) {

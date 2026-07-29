@@ -116,6 +116,7 @@ export interface PresentationData {
   homeSqft: number;
   twoStory: boolean;
   includeScreens: boolean;
+  includeInterior: boolean;
   tier: PresentationTier;
   /** Legacy per-visit override for the tier in `overrideTier` */
   monthlyRate: number;

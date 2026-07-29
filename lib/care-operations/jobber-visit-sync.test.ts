@@ -1,15 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  fetchJobberVisitSample,
-  JOBBER_VISIT_SAMPLE_QUERY,
-  type JobberVisitSampleNode,
+  fetchAllJobberVisits,
+  fetchJobberVisitPage,
+  JOBBER_VISITS_QUERY,
+  type JobberVisitNode,
 } from "./jobber-api";
 import {
   hashJobberVisitPayload,
   toJobberVisitProjectionRow,
-} from "./jobber-visit-sample";
+} from "./jobber-visit-sync";
 
-const visit: JobberVisitSampleNode = {
+const visit: JobberVisitNode = {
   id: "visit-1",
   title: "Quarterly window care",
   visitStatus: "UPCOMING",
@@ -34,14 +35,15 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("read-only Jobber visit sample", () => {
+describe("complete read-only Jobber visit synchronization", () => {
   it("contains one fixed query and no mutation operation", () => {
-    expect(JOBBER_VISIT_SAMPLE_QUERY).toContain("query HomeAtlasVisitSample");
-    expect(JOBBER_VISIT_SAMPLE_QUERY).not.toMatch(/\bmutation\b/i);
-    expect(JOBBER_VISIT_SAMPLE_QUERY).not.toMatch(
+    expect(JOBBER_VISITS_QUERY).toContain("query HomeAtlasVisits");
+    expect(JOBBER_VISITS_QUERY).toContain("after: $after");
+    expect(JOBBER_VISITS_QUERY).not.toMatch(/\bmutation\b/i);
+    expect(JOBBER_VISITS_QUERY).not.toMatch(
       /invoice|payment|price|total|instructions|notes/i,
     );
-    expect(JOBBER_VISIT_SAMPLE_QUERY).toContain("jobberWebUri");
+    expect(JOBBER_VISITS_QUERY).toContain("jobberWebUri");
   });
 
   it("requests a bounded visit page using JSON and the pinned API version", async () => {
@@ -60,7 +62,7 @@ describe("read-only Jobber visit sample", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    const sample = await fetchJobberVisitSample("access-token", 5);
+    const sample = await fetchJobberVisitPage("access-token", { first: 5 });
     expect(sample.nodes).toEqual([visit]);
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
@@ -73,19 +75,62 @@ describe("read-only Jobber visit sample", () => {
     });
     const body = JSON.parse(String(init.body)) as {
       query: string;
-      variables: { first: number };
+      variables: { first: number; after: string | null };
     };
-    expect(body.query).toBe(JOBBER_VISIT_SAMPLE_QUERY);
-    expect(body.variables).toEqual({ first: 5 });
+    expect(body.query).toBe(JOBBER_VISITS_QUERY);
+    expect(body.variables).toEqual({ first: 5, after: null });
   });
 
   it("rejects an unbounded request before contacting Jobber", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    await expect(fetchJobberVisitSample("access-token", 11)).rejects.toThrow(
-      "between 1 and 10",
+    await expect(
+      fetchJobberVisitPage("access-token", { first: 101 }),
+    ).rejects.toThrow(
+      "between 1 and 100",
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("follows every Jobber cursor until all visits are loaded", async () => {
+    const secondVisit = { ...visit, id: "visit-2" };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              visits: {
+                nodes: [visit],
+                pageInfo: { endCursor: "cursor-1", hasNextPage: true },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              visits: {
+                nodes: [secondVisit],
+                pageInfo: { endCursor: "cursor-2", hasNextPage: false },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchAllJobberVisits("access-token");
+    expect(result.nodes.map((node) => node.id)).toEqual(["visit-1", "visit-2"]);
+    expect(result.pageCount).toBe(2);
+    const secondBody = JSON.parse(
+      String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
+    ) as { variables: { after: string | null } };
+    expect(secondBody.variables.after).toBe("cursor-1");
   });
 
   it("creates an unlinked source projection without HomeAtlas identity fields", () => {

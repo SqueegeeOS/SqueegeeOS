@@ -1,14 +1,12 @@
 import type { MetadataRoute } from "next";
-
-const BASE = "https://www.squeegeeking.net";
+import { PUBLIC_SITE_URL } from "@/lib/brand/urls";
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
   return [
-    { url: `${BASE}/`, lastModified: now, changeFrequency: "weekly", priority: 1 },
-    { url: `${BASE}/request`, lastModified: now, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${BASE}/contact`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${BASE}/day`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
-    { url: `${BASE}/night`, lastModified: now, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${PUBLIC_SITE_URL}/`, changeFrequency: "weekly", priority: 1 },
+    { url: `${PUBLIC_SITE_URL}/request`, changeFrequency: "monthly", priority: 0.9 },
+    { url: `${PUBLIC_SITE_URL}/contact`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${PUBLIC_SITE_URL}/day`, changeFrequency: "monthly", priority: 0.4 },
+    { url: `${PUBLIC_SITE_URL}/night`, changeFrequency: "monthly", priority: 0.4 },
   ];
 }

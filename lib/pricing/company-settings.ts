@@ -53,6 +53,8 @@ export interface CompanySettings {
     };
   };
   interiorMultiplier: number;
+  /** Flat presentation add-on when interior glass cleaning is included. */
+  interiorCleaningAddOn: number;
   oneTimePremium: number;
   /** Flat add-on when screen cleaning is included on a window visit. */
   screenCleaningAddOn: number;
@@ -103,6 +105,7 @@ export const DEFAULT_COMPANY_SETTINGS: CompanySettings = {
     },
   },
   interiorMultiplier: 1.6,
+  interiorCleaningAddOn: 100,
   oneTimePremium: 100,
   screenCleaningAddOn: 50,
   twoStorySurcharge: 100,
@@ -266,6 +269,11 @@ export function normalizeCompanySettings(
     },
     interiorMultiplier: clampMultiplier(
       input.interiorMultiplier ?? base.interiorMultiplier,
+    ),
+    interiorCleaningAddOn: clampInt(
+      input.interiorCleaningAddOn ?? base.interiorCleaningAddOn,
+      0,
+      5000,
     ),
     oneTimePremium: clampInt(input.oneTimePremium ?? base.oneTimePremium, 0, 5000),
     screenCleaningAddOn: clampInt(

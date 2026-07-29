@@ -310,12 +310,26 @@ export function getPricingComparison(
 export function visitPriceForMembershipTier(
   tier: "quarterly" | "biannual",
   squareFeet: number,
-  options: { twoStory?: boolean; includeScreens?: boolean } = {},
+  options: {
+    twoStory?: boolean;
+    includeScreens?: boolean;
+    includeInterior?: boolean;
+  } = {},
   settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
 ): number {
   const frequency: CareFrequency =
     tier === "quarterly" ? "quarterly" : "bi_annual";
-  return calculateExteriorPrice(squareFeet, frequency, settings, options);
+  const resolved = normalizeCompanySettings(settings);
+  const exteriorPrice = calculateExteriorPrice(
+    squareFeet,
+    frequency,
+    resolved,
+    options,
+  );
+  return (
+    exteriorPrice +
+    (options.includeInterior ? resolved.interiorCleaningAddOn : 0)
+  );
 }
 
 /** @deprecated Use getMinSqft(settings) */

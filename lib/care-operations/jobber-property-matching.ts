@@ -3,9 +3,9 @@ import "server-only";
 import { isMembershipActive } from "@/lib/membership/membership-status";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
-  listJobberVisitSample,
+  listJobberVisits,
   type JobberVisitProjectionPreview,
-} from "./jobber-visit-sample";
+} from "./jobber-visit-sync";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 
 const MAX_ACTIVE_MEMBER_CANDIDATES = 250;
@@ -98,6 +98,11 @@ export interface JobberPropertyMatchingWorkspace {
   candidateLimitReached: boolean;
   activeMemberProperties: ActiveMemberPropertyCandidate[];
   visits: SupervisedJobberVisitPreview[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  search: string;
 }
 
 export class SupervisedPropertyMatchError extends Error {
@@ -213,9 +218,14 @@ async function loadStrictMemberProperty(
   return { membership, property };
 }
 
-export async function loadJobberPropertyMatchingWorkspace(): Promise<JobberPropertyMatchingWorkspace> {
+export async function loadJobberPropertyMatchingWorkspace(options: {
+  search?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<JobberPropertyMatchingWorkspace> {
   const supabase = createServiceRoleSupabaseClient();
-  const visits = await listJobberVisitSample();
+  const visitList = await listJobberVisits(options);
+  const visits = visitList.visits;
   const externalPropertyIds = [
     ...new Set(visits.map((visit) => visit.externalPropertyId)),
   ];
@@ -328,6 +338,11 @@ export async function loadJobberPropertyMatchingWorkspace(): Promise<JobberPrope
     billingEnabled: false,
     candidateLimitReached,
     activeMemberProperties,
+    total: visitList.total,
+    page: visitList.page,
+    pageSize: visitList.pageSize,
+    totalPages: visitList.totalPages,
+    search: visitList.search,
     visits: visits.map((visit) => {
       const link = linkByExternalPropertyId.get(visit.externalPropertyId) ?? null;
       const membership = link ? membershipById.get(link.membership_id) : null;
