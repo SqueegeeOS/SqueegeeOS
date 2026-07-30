@@ -187,8 +187,20 @@ async function postTokenRequest(body: URLSearchParams): Promise<JobberOAuthToken
     signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
+    const providerError = await response
+      .json()
+      .then((payload: unknown) => {
+        if (!payload || typeof payload !== "object" || !("error" in payload)) {
+          return null;
+        }
+        const code = (payload as { error?: unknown }).error;
+        return typeof code === "string" && /^[a-z0-9_.-]{1,64}$/i.test(code)
+          ? code
+          : null;
+      })
+      .catch(() => null);
     throw new JobberApiError(
-      `Jobber token request failed (${response.status})`,
+      `Jobber token request failed (${response.status}${providerError ? `: ${providerError}` : ""})`,
       response.status,
     );
   }
