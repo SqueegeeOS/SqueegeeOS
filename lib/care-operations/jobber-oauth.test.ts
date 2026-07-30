@@ -9,6 +9,7 @@ import {
   decryptJobberToken,
   encryptJobberToken,
 } from "./jobber-token-crypto";
+import { createJobberPkce } from "./jobber-oauth-state";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -21,6 +22,7 @@ describe("Jobber OAuth configuration", () => {
         clientId: "client-123",
         redirectUri: "https://app.example.com/jobber/callback",
         state: "state-123",
+        codeChallenge: "challenge-123",
       }),
     );
 
@@ -32,8 +34,18 @@ describe("Jobber OAuth configuration", () => {
       client_id: "client-123",
       redirect_uri: "https://app.example.com/jobber/callback",
       state: "state-123",
+      code_challenge: "challenge-123",
+      code_challenge_method: "S256",
     });
     expect(authorization.searchParams.has("scope")).toBe(false);
+  });
+
+  it("creates an S256 PKCE verifier and challenge", () => {
+    const pkce = createJobberPkce();
+
+    expect(pkce.codeVerifier).toMatch(/^[A-Za-z0-9_-]{43,128}$/);
+    expect(pkce.codeChallenge).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(pkce.codeChallenge).not.toBe(pkce.codeVerifier);
   });
 
   it("requires an explicit production callback and all three secrets", () => {

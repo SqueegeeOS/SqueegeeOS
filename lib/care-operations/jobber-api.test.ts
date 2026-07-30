@@ -10,25 +10,29 @@ describe("Jobber OAuth token errors", () => {
   it("surfaces only a safe provider error code", async () => {
     vi.stubEnv("JOBBER_CLIENT_ID", "client-id");
     vi.stubEnv("JOBBER_CLIENT_SECRET", "client-secret");
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            error: "invalid_client",
-            error_description: "provider detail that must stay private",
-          }),
-          { status: 401, headers: { "Content-Type": "application/json" } },
-        ),
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "invalid_client",
+          error_description: "provider detail that must stay private",
+        }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
       ),
     );
+    vi.stubGlobal("fetch", fetchMock);
 
     await expect(
       exchangeJobberAuthorizationCode(
         "authorization-code",
         "https://app.example.com/jobber/callback",
+        "pkce-code-verifier",
       ),
     ).rejects.toThrow("Jobber token request failed (401: invalid_client)");
+
+    const request = fetchMock.mock.calls[0]?.[1] as RequestInit | undefined;
+    expect((request?.body as URLSearchParams).get("code_verifier")).toBe(
+      "pkce-code-verifier",
+    );
   });
 
   it("does not include malformed provider details in the error", async () => {
@@ -48,6 +52,7 @@ describe("Jobber OAuth token errors", () => {
       exchangeJobberAuthorizationCode(
         "authorization-code",
         "https://app.example.com/jobber/callback",
+        "pkce-code-verifier",
       ),
     ).rejects.toThrow("Jobber token request failed (401)");
   });

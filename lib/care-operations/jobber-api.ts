@@ -221,6 +221,7 @@ async function postTokenRequest(body: URLSearchParams): Promise<JobberOAuthToken
 export function exchangeJobberAuthorizationCode(
   code: string,
   redirectUri: string,
+  codeVerifier: string,
 ): Promise<JobberOAuthTokens> {
   return postTokenRequest(
     new URLSearchParams({
@@ -229,6 +230,7 @@ export function exchangeJobberAuthorizationCode(
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri,
+      code_verifier: codeVerifier,
     }),
   );
 }

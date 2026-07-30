@@ -7,6 +7,7 @@ import {
   resolveJobberOAuthRedirectUri,
 } from "@/lib/care-operations/jobber-oauth-config";
 import {
+  createJobberPkce,
   createJobberOAuthState,
   writeJobberOAuthState,
 } from "@/lib/care-operations/jobber-oauth-state";
@@ -26,13 +27,15 @@ export async function POST(request: Request) {
 
   try {
     const state = createJobberOAuthState();
-    await writeJobberOAuthState(state);
+    const { codeVerifier, codeChallenge } = createJobberPkce();
+    await writeJobberOAuthState(state, codeVerifier);
     const redirectUri = resolveJobberOAuthRedirectUri(request);
     return NextResponse.json({
       authorizationUrl: buildJobberAuthorizationUrl({
         clientId: getJobberClientId(),
         redirectUri,
         state,
+        codeChallenge,
       }),
       redirectUri,
     });
