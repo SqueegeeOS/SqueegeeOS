@@ -66,14 +66,15 @@ export async function POST(request: Request) {
           400,
         );
       }
-      const outcome = await linkJobberCustomer({
+      const result = await linkJobberCustomer({
         externalClientId: body.externalClientId,
         homeownerId: body.homeownerId,
         sameCustomerConfirmed: body.sameCustomerConfirmed === true,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
       });
       return NextResponse.json({
-        outcome,
+        outcome: result.outcome,
+        portalAppointment: result.portalAppointment,
         workspace: await loadJobberCustomerMatchingWorkspace({
           search: body.search,
           page: body.page,
