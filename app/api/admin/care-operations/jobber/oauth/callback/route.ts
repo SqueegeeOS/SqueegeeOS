@@ -24,13 +24,18 @@ export async function GET(request: Request) {
   const oauthError = url.searchParams.get("error");
   if (oauthError) return resultRedirect(request, "error", "authorization_denied");
   if (!code || !state) return resultRedirect(request, "error", "missing_code");
-  if (!(await consumeJobberOAuthState(state))) {
+  const codeVerifier = await consumeJobberOAuthState(state);
+  if (!codeVerifier) {
     return resultRedirect(request, "error", "invalid_state");
   }
 
   try {
     const redirectUri = resolveJobberOAuthRedirectUri(request);
-    const tokens = await exchangeJobberAuthorizationCode(code, redirectUri);
+    const tokens = await exchangeJobberAuthorizationCode(
+      code,
+      redirectUri,
+      codeVerifier,
+    );
     const account = await fetchJobberAccountIdentity(tokens.accessToken);
     await saveJobberConnection({ account, tokens });
     return resultRedirect(request, "connected");

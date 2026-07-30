@@ -5,6 +5,7 @@ export const JOBBER_AUTHORIZATION_URL =
 export const JOBBER_TOKEN_URL = "https://api.getjobber.com/api/oauth/token";
 export const JOBBER_GRAPHQL_URL = "https://api.getjobber.com/api/graphql";
 export const JOBBER_OAUTH_STATE_COOKIE = "homeatlas_jobber_oauth_state";
+export const JOBBER_OAUTH_VERIFIER_COOKIE = "homeatlas_jobber_oauth_verifier";
 export const JOBBER_CONNECTION_ID = "squeegeeking";
 export const DEFAULT_JOBBER_GRAPHQL_VERSION = "2025-04-16";
 
@@ -99,6 +100,7 @@ export function buildJobberAuthorizationUrl(input: {
   clientId: string;
   redirectUri: string;
   state: string;
+  codeChallenge: string;
 }): string {
   const url = new URL(JOBBER_AUTHORIZATION_URL);
   url.search = new URLSearchParams({
@@ -106,6 +108,8 @@ export function buildJobberAuthorizationUrl(input: {
     client_id: input.clientId,
     redirect_uri: input.redirectUri,
     state: input.state,
+    code_challenge: input.codeChallenge,
+    code_challenge_method: "S256",
   }).toString();
   return url.toString();
 }
