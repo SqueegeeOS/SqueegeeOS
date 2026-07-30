@@ -11,7 +11,8 @@ const STAGE_LABELS: Record<AtlasPulseStageId, string> = {
   presentation: "Presentation",
   agreement: "Agreement",
   payment: "Payment",
-  portal: "Portal delivered",
+  email: "Welcome email",
+  portal: "Portal opened",
   jobber: "Jobber paired",
   scheduled: "Visit scheduled",
 };
@@ -110,13 +111,17 @@ export interface JourneyStageInput {
   paymentReady: boolean;
   portalUrl: string | null;
   welcomeDeliveryStatus: string | null;
+  manualEmailComplete?: boolean;
+  manualPortalComplete?: boolean;
   jobberLinked: boolean;
   visitScheduled: boolean;
 }
 
 export function buildJourneyStages(input: JourneyStageInput): AtlasPulseStage[] {
   const welcomeStatus = input.welcomeDeliveryStatus?.toLowerCase() ?? null;
-  const deliveryComplete = welcomeStatus === "delivered";
+  const deliveryComplete = ["delivered", "opened", "clicked"].includes(
+    welcomeStatus ?? "",
+  );
   const deliveryAccepted = ["accepted", "sent"].includes(welcomeStatus ?? "");
   const deliveryFailed = [
     "failed",
@@ -176,18 +181,20 @@ export function buildJourneyStages(input: JourneyStageInput): AtlasPulseStage[] 
           : "Waiting for a signed agreement",
     },
     {
-      id: "portal",
-      label: STAGE_LABELS.portal,
+      id: "email",
+      label: STAGE_LABELS.email,
       status: !input.paymentReady
         ? "waiting"
-        : deliveryComplete
+        : input.manualEmailComplete || deliveryComplete
           ? "complete"
           : input.portalUrl
             ? "attention"
             : "waiting",
       detail: !input.paymentReady
         ? "Waiting for payment setup"
-        : deliveryComplete
+        : input.manualEmailComplete
+          ? "Founder confirmed the email handoff"
+          : deliveryComplete
           ? "Welcome email delivered"
           : deliveryAccepted
             ? "Email accepted; delivery pending"
@@ -196,6 +203,24 @@ export function buildJourneyStages(input: JourneyStageInput): AtlasPulseStage[] 
               : input.portalUrl
                 ? "Portal ready; delivery is unconfirmed"
                 : "Portal link is not ready",
+    },
+    {
+      id: "portal",
+      label: STAGE_LABELS.portal,
+      status: !input.paymentReady
+        ? "waiting"
+        : !input.portalUrl
+          ? "waiting"
+          : input.manualPortalComplete
+            ? "complete"
+            : "attention",
+      detail: !input.paymentReady
+        ? "Waiting for payment setup"
+        : !input.portalUrl
+          ? "Portal link is not ready"
+          : input.manualPortalComplete
+            ? "Founder confirmed customer portal access"
+            : "Portal is ready; customer access is unconfirmed",
     },
     {
       id: "jobber",
@@ -244,6 +269,8 @@ export function buildJourneyActions(input: {
   portalUrl: string | null;
   paymentReady: boolean;
   hasAgreement: boolean;
+  manualEmailComplete?: boolean;
+  manualPortalComplete?: boolean;
   jobberLinked: boolean;
   jobberWebUri: string | null;
   visitScheduled: boolean;
@@ -282,6 +309,18 @@ export function buildJourneyActions(input: {
       kind: "resend_welcome",
       label: "Resend welcome email",
       membershipId: input.membershipId,
+    });
+    const founderConfirmed = Boolean(
+      input.manualEmailComplete && input.manualPortalComplete,
+    );
+    actions.push({
+      id: founderConfirmed ? "undo-founder-confirmation" : "confirm-handoff",
+      kind: "set_manual_completion",
+      label: founderConfirmed
+        ? "Undo founder confirmation"
+        : "Mark email + portal complete",
+      membershipId: input.membershipId,
+      completed: !founderConfirmed,
     });
   }
   if (!input.jobberLinked) {

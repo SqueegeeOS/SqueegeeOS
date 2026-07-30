@@ -3,6 +3,7 @@ export type AtlasPulseStageId =
   | "presentation"
   | "agreement"
   | "payment"
+  | "email"
   | "portal"
   | "jobber"
   | "scheduled";
@@ -19,6 +20,7 @@ export interface AtlasPulseStage {
 export type AtlasPulseActionKind =
   | "resend_welcome"
   | "copy_portal"
+  | "set_manual_completion"
   | "open_link"
   | "open_jobber"
   | "pair_jobber";
@@ -30,7 +32,15 @@ export interface AtlasPulseAction {
   href?: string;
   membershipId?: string;
   portalUrl?: string;
+  completed?: boolean;
   primary?: boolean;
+}
+
+export interface AtlasPulseManualCompletion {
+  emailComplete: boolean;
+  emailConfirmedAt: string | null;
+  portalComplete: boolean;
+  portalConfirmedAt: string | null;
 }
 
 export type AtlasPulseOpportunityId =
@@ -69,6 +79,7 @@ export interface AtlasPulseCustomer {
   portalUrl: string | null;
   welcomeDeliveryStatus: string | null;
   welcomeDeliveryAt: string | null;
+  manualCompletion: AtlasPulseManualCompletion;
   jobber: {
     linked: boolean;
     externalClientId: string | null;

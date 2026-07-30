@@ -101,6 +101,15 @@ interface CommunicationRow {
   updated_at: string;
 }
 
+interface ActivationConfirmationRow {
+  membership_id: string;
+  email_complete: boolean;
+  email_confirmed_at: string | null;
+  portal_complete: boolean;
+  portal_confirmed_at: string | null;
+  updated_at: string;
+}
+
 interface AddonRow {
   membership_id: string;
   service_name: string;
@@ -231,7 +240,7 @@ async function loadIntegrations(input: {
           : !resendWebhookConfigured
             ? "Sending works; delivery webhook is not configured"
             : input.latestCommunicationAt
-              ? "Sending and delivery tracking ready"
+              ? "Delivery tracking ready; portal use needs confirmation"
               : "Ready; no welcome delivery recorded yet",
     ),
     integration(
@@ -313,6 +322,7 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
     linksResult,
     clientsResult,
     communicationsResult,
+    confirmationsResult,
     addonsResult,
     clientCountResult,
     webhookResult,
@@ -374,6 +384,14 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       : Promise.resolve({ data: [], error: null }),
     membershipIds.length
       ? supabase
+          .from("membership_activation_confirmations")
+          .select(
+            "membership_id, email_complete, email_confirmed_at, portal_complete, portal_confirmed_at, updated_at",
+          )
+          .in("membership_id", membershipIds)
+      : Promise.resolve({ data: [], error: null }),
+    membershipIds.length
+      ? supabase
           .from("member_addon_transactions")
           .select("membership_id, service_name")
           .in("membership_id", membershipIds)
@@ -424,6 +442,14 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
         : "Welcome-email delivery history is temporarily unavailable.",
     );
   }
+  const confirmationsTableReady = !confirmationsResult.error;
+  if (!confirmationsTableReady) {
+    dataNotes.push(
+      missingRelation(confirmationsResult.error)
+        ? "Run migration 037 to activate founder email and portal confirmation."
+        : "Founder confirmation history is temporarily unavailable.",
+    );
+  }
   const jobberWebhookTableReady = !webhookResult.error;
   if (!jobberWebhookTableReady && missingRelation(webhookResult.error)) {
     dataNotes.push("Run migration 036 to activate Jobber webhook history.");
@@ -442,6 +468,9 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
     : [];
   const communications = communicationsTableReady
     ? ((communicationsResult.data ?? []) as CommunicationRow[])
+    : [];
+  const confirmations = confirmationsTableReady
+    ? ((confirmationsResult.data ?? []) as ActivationConfirmationRow[])
     : [];
   const addons = !addonsResult.error
     ? ((addonsResult.data ?? []) as AddonRow[])
@@ -465,6 +494,9 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       communicationByMembership.set(row.membership_id, row);
     }
   }
+  const confirmationByMembership = new Map(
+    confirmations.map((row) => [row.membership_id, row]),
+  );
   const addonsByMembership = new Map<string, string[]>();
   for (const row of addons) {
     const list = addonsByMembership.get(row.membership_id) ?? [];
@@ -529,6 +561,9 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
     const communication = member.membershipId
       ? communicationByMembership.get(member.membershipId) ?? null
       : null;
+    const confirmation = member.membershipId
+      ? confirmationByMembership.get(member.membershipId) ?? null
+      : null;
     const stages = buildJourneyStages({
       hasLead: true,
       hasPresentation: Boolean(member.presentationId),
@@ -536,6 +571,8 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       paymentReady: paymentReady(member),
       portalUrl: member.portalUrl,
       welcomeDeliveryStatus: communication?.status ?? null,
+      manualEmailComplete: confirmation?.email_complete ?? false,
+      manualPortalComplete: confirmation?.portal_complete ?? false,
       jobberLinked: Boolean(link),
       visitScheduled: Boolean(member.nextServiceLabel),
     });
@@ -546,6 +583,8 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       portalUrl: member.portalUrl,
       paymentReady: paymentReady(member),
       hasAgreement: Boolean(member.agreementId),
+      manualEmailComplete: confirmation?.email_complete ?? false,
+      manualPortalComplete: confirmation?.portal_complete ?? false,
       jobberLinked: Boolean(link),
       jobberWebUri: jobberClient?.jobber_web_uri ?? null,
       visitScheduled: Boolean(member.nextServiceLabel),
@@ -574,6 +613,12 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       welcomeDeliveryStatus: communication?.status ?? null,
       welcomeDeliveryAt:
         communication?.provider_event_at ?? communication?.sent_at ?? null,
+      manualCompletion: {
+        emailComplete: confirmation?.email_complete ?? false,
+        emailConfirmedAt: confirmation?.email_confirmed_at ?? null,
+        portalComplete: confirmation?.portal_complete ?? false,
+        portalConfirmedAt: confirmation?.portal_confirmed_at ?? null,
+      },
       jobber: {
         linked: Boolean(link),
         externalClientId: link?.external_client_id ?? null,
@@ -590,7 +635,11 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
           })
         : [],
       updatedAt:
-        communication?.updated_at ?? presentation?.updated_at ?? contact?.updated_at ?? null,
+        confirmation?.updated_at ??
+        communication?.updated_at ??
+        presentation?.updated_at ??
+        contact?.updated_at ??
+        null,
     });
     if (member.presentationId) usedPresentationIds.add(member.presentationId);
   }
@@ -615,6 +664,8 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       paymentReady: false,
       portalUrl: null,
       welcomeDeliveryStatus: null,
+      manualEmailComplete: false,
+      manualPortalComplete: false,
       jobberLinked: Boolean(link),
       visitScheduled: false,
     });
@@ -642,6 +693,8 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
         portalUrl: null,
         paymentReady: false,
         hasAgreement,
+        manualEmailComplete: false,
+        manualPortalComplete: false,
         jobberLinked: Boolean(link),
         jobberWebUri: jobberClient?.jobber_web_uri ?? null,
         visitScheduled: false,
@@ -649,6 +702,12 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       portalUrl: null,
       welcomeDeliveryStatus: null,
       welcomeDeliveryAt: null,
+      manualCompletion: {
+        emailComplete: false,
+        emailConfirmedAt: null,
+        portalComplete: false,
+        portalConfirmedAt: null,
+      },
       jobber: {
         linked: Boolean(link),
         externalClientId: link?.external_client_id ?? null,
@@ -677,6 +736,8 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       paymentReady: false,
       portalUrl: null,
       welcomeDeliveryStatus: null,
+      manualEmailComplete: false,
+      manualPortalComplete: false,
       jobberLinked: false,
       visitScheduled: false,
     });
@@ -715,6 +776,12 @@ export async function loadAtlasPulseDashboard(): Promise<AtlasPulseDashboard> {
       portalUrl: null,
       welcomeDeliveryStatus: null,
       welcomeDeliveryAt: null,
+      manualCompletion: {
+        emailComplete: false,
+        emailConfirmedAt: null,
+        portalComplete: false,
+        portalConfirmedAt: null,
+      },
       jobber: {
         linked: false,
         externalClientId: null,
