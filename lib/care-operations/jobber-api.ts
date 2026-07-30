@@ -77,7 +77,34 @@ export interface JobberPaginatedResult<T> {
 }
 
 export const JOBBER_PAGE_SIZE = 50;
+export const JOBBER_CLIENT_PAGE_SIZE = 25;
 export const JOBBER_MAX_PAGES = 200;
+
+const JOBBER_GRAPHQL_MAX_ATTEMPTS = 6;
+const JOBBER_THROTTLE_MIN_DELAY_MS = 500;
+const JOBBER_THROTTLE_MAX_DELAY_MS = 20_000;
+const JOBBER_THROTTLE_BUFFER_MS = 250;
+
+interface JobberGraphqlErrorPayload {
+  message?: string;
+  extensions?: { code?: string };
+}
+
+interface JobberGraphqlCostPayload {
+  requestedQueryCost?: number;
+  actualQueryCost?: number;
+  throttleStatus?: {
+    maximumAvailable?: number;
+    currentlyAvailable?: number;
+    restoreRate?: number;
+  };
+}
+
+interface JobberGraphqlPayload<T> {
+  data?: T;
+  errors?: JobberGraphqlErrorPayload[];
+  extensions?: { cost?: JobberGraphqlCostPayload };
+}
 
 export const JOBBER_VISITS_QUERY = `
   query HomeAtlasVisits($first: Int!, $after: String) {
@@ -249,38 +276,119 @@ async function fetchJobberGraphql<T>(
   if (/\bmutation\b/i.test(query)) {
     throw new Error(`Jobber ${operationLabel} query must remain read-only`);
   }
-  const response = await fetch(JOBBER_GRAPHQL_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "X-JOBBER-GRAPHQL-VERSION": getJobberGraphqlVersion(),
-    },
-    body: JSON.stringify({
-      query,
-      variables,
-    }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) {
-    throw new JobberApiError(
-      `Jobber ${operationLabel} query failed (${response.status})`,
-      response.status,
+
+  for (let attempt = 0; attempt < JOBBER_GRAPHQL_MAX_ATTEMPTS; attempt += 1) {
+    const response = await fetch(JOBBER_GRAPHQL_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+        "X-JOBBER-GRAPHQL-VERSION": getJobberGraphqlVersion(),
+      },
+      body: JSON.stringify({
+        query,
+        variables,
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+    });
+    let payload: JobberGraphqlPayload<T> | null = null;
+    try {
+      payload = (await response.json()) as JobberGraphqlPayload<T>;
+    } catch {
+      // Preserve the HTTP status below when Jobber returns a non-JSON failure.
+    }
+
+    const throttled =
+      response.status === 429 ||
+      payload?.errors?.some(
+        (error) =>
+          error.extensions?.code === "THROTTLED" ||
+          error.message?.trim().toLowerCase() === "throttled",
+      ) === true;
+    if (throttled) {
+      if (attempt === JOBBER_GRAPHQL_MAX_ATTEMPTS - 1) {
+        throw new JobberApiError(
+          `Jobber ${operationLabel} query remained throttled after ${JOBBER_GRAPHQL_MAX_ATTEMPTS} attempts`,
+          429,
+        );
+      }
+      await waitForJobberCapacity(
+        calculateJobberThrottleDelayMs(
+          payload?.extensions?.cost,
+          response.headers.get("Retry-After"),
+          attempt,
+        ),
+      );
+      continue;
+    }
+    if (!response.ok) {
+      throw new JobberApiError(
+        `Jobber ${operationLabel} query failed (${response.status})`,
+        response.status,
+      );
+    }
+    if (payload?.errors?.length || !payload?.data) {
+      throw new Error(
+        payload?.errors?.[0]?.message
+          ? `Jobber ${operationLabel} query rejected: ${payload.errors[0].message}`
+          : `Jobber ${operationLabel} query returned no data`,
+      );
+    }
+    return payload.data;
+  }
+
+  throw new Error(`Jobber ${operationLabel} query retry guard failed`);
+}
+
+function clampJobberThrottleDelay(delayMs: number): number {
+  return Math.min(
+    JOBBER_THROTTLE_MAX_DELAY_MS,
+    Math.max(JOBBER_THROTTLE_MIN_DELAY_MS, Math.ceil(delayMs)),
+  );
+}
+
+function retryAfterDelayMs(retryAfter: string | null): number | null {
+  if (!retryAfter) return null;
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds >= 0) return seconds * 1000;
+  const retryAt = Date.parse(retryAfter);
+  return Number.isFinite(retryAt) ? Math.max(0, retryAt - Date.now()) : null;
+}
+
+function calculateJobberThrottleDelayMs(
+  cost: JobberGraphqlCostPayload | undefined,
+  retryAfter: string | null,
+  attempt: number,
+): number {
+  const headerDelay = retryAfterDelayMs(retryAfter);
+  if (headerDelay !== null) {
+    return clampJobberThrottleDelay(headerDelay + JOBBER_THROTTLE_BUFFER_MS);
+  }
+
+  const requested = cost?.requestedQueryCost;
+  const available = cost?.throttleStatus?.currentlyAvailable;
+  const restoreRate = cost?.throttleStatus?.restoreRate;
+  if (
+    typeof requested === "number" &&
+    Number.isFinite(requested) &&
+    typeof available === "number" &&
+    Number.isFinite(available) &&
+    typeof restoreRate === "number" &&
+    Number.isFinite(restoreRate) &&
+    restoreRate > 0
+  ) {
+    const deficit = Math.max(0, requested - available);
+    return clampJobberThrottleDelay(
+      (deficit / restoreRate) * 1000 + JOBBER_THROTTLE_BUFFER_MS,
     );
   }
-  const payload = (await response.json()) as {
-    data?: T;
-    errors?: Array<{ message?: string }>;
-  };
-  if (payload.errors?.length || !payload.data) {
-    throw new Error(
-      payload.errors?.[0]?.message
-        ? `Jobber ${operationLabel} query rejected: ${payload.errors[0].message}`
-        : `Jobber ${operationLabel} query returned no data`,
-    );
-  }
-  return payload.data;
+
+  return clampJobberThrottleDelay(1000 * 2 ** attempt);
+}
+
+function waitForJobberCapacity(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function validatePageSize(first: number): void {
@@ -311,7 +419,7 @@ export async function fetchJobberClientPage(
   accessToken: string,
   options: { first?: number; after?: string | null } = {},
 ): Promise<JobberClientPage> {
-  const first = options.first ?? JOBBER_PAGE_SIZE;
+  const first = options.first ?? JOBBER_CLIENT_PAGE_SIZE;
   validatePageSize(first);
   const data = await fetchJobberGraphql<{ clients?: JobberClientPage }>(
     accessToken,

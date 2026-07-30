@@ -3,6 +3,7 @@ import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { syncAllJobberData } from "@/lib/care-operations/jobber-full-sync";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   if (!authorizeAdminRequest(request.headers)) {

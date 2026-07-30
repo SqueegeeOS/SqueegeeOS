@@ -32,6 +32,7 @@ const visit: JobberVisitNode = {
 };
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -90,6 +91,53 @@ describe("complete read-only Jobber visit synchronization", () => {
       "between 1 and 100",
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("waits for Jobber capacity and retries a throttled query", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            errors: [
+              { message: "Throttled", extensions: { code: "THROTTLED" } },
+            ],
+            extensions: {
+              cost: {
+                requestedQueryCost: 1_000,
+                actualQueryCost: 0,
+                throttleStatus: {
+                  maximumAvailable: 10_000,
+                  currentlyAvailable: 500,
+                  restoreRate: 500,
+                },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              visits: {
+                nodes: [visit],
+                pageInfo: { endCursor: null, hasNextPage: false },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const pendingPage = fetchJobberVisitPage("access-token", { first: 5 });
+    await vi.advanceTimersByTimeAsync(1_250);
+
+    await expect(pendingPage).resolves.toMatchObject({ nodes: [visit] });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("follows every Jobber cursor until all visits are loaded", async () => {
