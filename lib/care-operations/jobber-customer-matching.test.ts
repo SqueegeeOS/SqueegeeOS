@@ -118,7 +118,7 @@ describe("Jobber customer synchronization", () => {
     );
   });
 
-  it("does not grant customer pairing scheduling or billing authority", () => {
+  it("keeps raw customer-link writes separate from appointments and billing", () => {
     const service = readFileSync(
       new URL("./jobber-customer-matching.ts", import.meta.url),
       "utf8",

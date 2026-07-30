@@ -9,6 +9,10 @@ import {
 import { getFreshJobberAccessToken } from "./jobber-connection-store";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 import {
+  reconcileAllPairedCustomerPortalVisits,
+  type JobberPortalReconciliationSummary,
+} from "./jobber-portal-appointments";
+import {
   buildSearchText,
   chunkItems,
   escapeLikePattern,
@@ -64,6 +68,7 @@ export interface JobberVisitSyncResult {
   unchanged: number;
   executionMode: "read_only_sync";
   automaticMatching: false;
+  portalAppointments: JobberPortalReconciliationSummary;
 }
 
 export interface JobberVisitList {
@@ -175,6 +180,7 @@ export async function syncAllJobberVisits(
     })),
     existing,
   );
+  const portalAppointments = await reconcileAllPairedCustomerPortalVisits();
 
   return {
     observed: rows.length,
@@ -182,6 +188,7 @@ export async function syncAllJobberVisits(
     ...changes,
     executionMode: "read_only_sync",
     automaticMatching: false,
+    portalAppointments,
   };
 }
 

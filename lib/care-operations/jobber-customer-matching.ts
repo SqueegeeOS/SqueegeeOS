@@ -9,6 +9,10 @@ import {
 import { getFreshJobberAccessToken } from "./jobber-connection-store";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 import {
+  reconcilePairedCustomerPortalVisit,
+  type JobberPortalProjectionResult,
+} from "./jobber-portal-appointments";
+import {
   buildSearchText,
   chunkItems,
   escapeLikePattern,
@@ -133,6 +137,11 @@ export interface JobberClientSyncResult {
   unchanged: number;
 }
 
+export interface JobberCustomerLinkResult {
+  outcome: "linked" | "already_linked";
+  portalAppointment: JobberPortalProjectionResult;
+}
+
 export class JobberCustomerMatchError extends Error {
   constructor(
     message: string,
@@ -140,6 +149,39 @@ export class JobberCustomerMatchError extends Error {
   ) {
     super(message);
     this.name = "JobberCustomerMatchError";
+  }
+}
+
+async function finishCustomerLink(input: {
+  outcome: JobberCustomerLinkResult["outcome"];
+  externalClientId: string;
+  homeownerId: string;
+}): Promise<JobberCustomerLinkResult> {
+  try {
+    return {
+      outcome: input.outcome,
+      portalAppointment: await reconcilePairedCustomerPortalVisit({
+        externalClientId: input.externalClientId,
+        homeownerId: input.homeownerId,
+      }),
+    };
+  } catch (error) {
+    console.error("[jobber-customer-pairing] portal projection failed", {
+      externalClientId: input.externalClientId,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return {
+      outcome: input.outcome,
+      portalAppointment: {
+        status: "error",
+        appointmentId: null,
+        externalVisitId: null,
+        scheduledAt: null,
+        propertyLinkCreated: false,
+        message:
+          "Customer paired, but the portal visit needs a retry from Jobber sync.",
+      },
+    };
   }
 }
 
@@ -513,7 +555,7 @@ export async function linkJobberCustomer(input: {
   homeownerId: string;
   sameCustomerConfirmed: boolean;
   expectedLinkUpdatedAt?: string | null;
-}): Promise<"linked" | "already_linked"> {
+}): Promise<JobberCustomerLinkResult> {
   if (input.sameCustomerConfirmed !== true) {
     throw new JobberCustomerMatchError(
       "Confirm that Jobber and HomeAtlas identify the same customer.",
@@ -535,7 +577,13 @@ export async function linkJobberCustomer(input: {
   const existing = (existingResult.data as CustomerLinkRow | null) ?? null;
 
   if (existing?.link_state === "active") {
-    if (existing.homeowner_id === input.homeownerId) return "already_linked";
+    if (existing.homeowner_id === input.homeownerId) {
+      return finishCustomerLink({
+        outcome: "already_linked",
+        externalClientId: input.externalClientId,
+        homeownerId: input.homeownerId,
+      });
+    }
     throw new JobberCustomerMatchError(
       "This Jobber customer is already paired. Revoke that pairing before choosing another HomeAtlas customer.",
       409,
@@ -569,7 +617,11 @@ export async function linkJobberCustomer(input: {
       linked_at: now,
     });
     if (error) throw error;
-    return "linked";
+    return finishCustomerLink({
+      outcome: "linked",
+      externalClientId: input.externalClientId,
+      homeownerId: input.homeownerId,
+    });
   }
 
   if (
@@ -604,7 +656,11 @@ export async function linkJobberCustomer(input: {
       409,
     );
   }
-  return "linked";
+  return finishCustomerLink({
+    outcome: "linked",
+    externalClientId: input.externalClientId,
+    homeownerId: input.homeownerId,
+  });
 }
 
 export async function revokeJobberCustomerLink(input: {

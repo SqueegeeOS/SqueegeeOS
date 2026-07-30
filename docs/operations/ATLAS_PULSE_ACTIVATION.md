@@ -23,6 +23,10 @@ service calendar, Stripe owns payment methods, and Resend owns email delivery.
   deduplication, coalescing, and background read-only synchronization.
 - Signed Resend/Svix webhook ingestion with replay protection and delivery,
   delay, bounce, failure, and complaint state.
+- Automatic member-portal projection of the nearest future Jobber visit after a
+  confirmed customer pair. Atlas Pulse creates the property link automatically
+  only when Jobber and HomeAtlas each have exactly one eligible property;
+  multi-property customers stay in supervised review.
 
 ## Production activation order
 
@@ -57,4 +61,6 @@ service calendar, Stripe owns payment methods, and Resend owns email delivery.
 - Webhook retries are idempotent and delivery order is resolved using provider
   timestamps.
 - HomeAtlas does not mutate Jobber appointments or auto-approve identity links.
+- Portal appointment projection mirrors Jobber scheduling truth but never binds
+  an obligation or enables billing on its own.
 - A Jobber customer link does not grant billing authority.

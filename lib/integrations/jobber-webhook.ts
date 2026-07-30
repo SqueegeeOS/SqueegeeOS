@@ -21,7 +21,15 @@ export function parseJobberWebhookPayload(
   rawPayload: string,
 ): JobberWebhookPayload | null {
   try {
-    const value = JSON.parse(rawPayload) as Partial<JobberWebhookPayload>;
+    const payload = JSON.parse(rawPayload) as
+      | Partial<JobberWebhookPayload>
+      | {
+          data?: { webHookEvent?: Partial<JobberWebhookPayload> };
+        };
+    const value =
+      "data" in payload && payload.data?.webHookEvent
+        ? payload.data.webHookEvent
+        : (payload as Partial<JobberWebhookPayload>);
     if (typeof value.topic !== "string" || !value.topic.trim()) return null;
     return value as JobberWebhookPayload;
   } catch {
