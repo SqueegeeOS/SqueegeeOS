@@ -59,19 +59,47 @@ function IntegrationPill({ item }: { item: AtlasPulseIntegration }) {
       : item.status === "attention"
         ? "bg-amber-400"
         : "bg-red-400";
-
-  return (
-    <div
-      className={`min-w-[10rem] rounded-2xl border px-4 py-3 ${tone}`}
-      title={[item.message, item.detail].filter(Boolean).join(" · ")}
-    >
+  const href =
+    item.id === "jobber"
+      ? "/hq/jobber"
+      : item.id === "resend" || item.id === "deployment"
+        ? "/hq/production-health"
+        : null;
+  const classes = `group relative min-w-0 rounded-2xl border px-4 py-3.5 transition-[border-color,background-color,transform] duration-300 ${tone} ${
+    href ? "hover:-translate-y-0.5 hover:border-accent/30" : ""
+  }`;
+  const content = (
+    <>
       <div className="flex items-center gap-2">
         <span className={`h-2 w-2 shrink-0 rounded-full ${dot}`} aria-hidden />
         <span className="text-xs font-medium">{item.label}</span>
       </div>
-      <p className="mt-1 line-clamp-2 text-[10px] leading-relaxed opacity-70">
+      <p className="mt-1.5 line-clamp-2 text-[10px] leading-relaxed opacity-70">
         {item.message}
       </p>
+      {href ? (
+        <span className="mt-2 inline-flex items-center gap-1 text-[9px] font-medium uppercase tracking-[0.16em] opacity-55 transition-opacity group-hover:opacity-90">
+          Open <span aria-hidden>→</span>
+        </span>
+      ) : null}
+    </>
+  );
+
+  return href ? (
+    <Link
+      href={href}
+      className={classes}
+      title={[item.message, item.detail].filter(Boolean).join(" · ")}
+      aria-label={`${item.label}: ${item.message}. Open details.`}
+    >
+      {content}
+    </Link>
+  ) : (
+    <div
+      className={classes}
+      title={[item.message, item.detail].filter(Boolean).join(" · ")}
+    >
+      {content}
     </div>
   );
 }
@@ -156,16 +184,20 @@ function CustomerJourneyCard({
   busyAction,
   feedback,
   onAction,
+  defaultExpanded = false,
 }: {
   customer: AtlasPulseCustomer;
   busyAction: string | null;
   feedback: string | null;
   onAction: (customer: AtlasPulseCustomer, action: AtlasPulseAction) => void;
+  defaultExpanded?: boolean;
 }) {
   const needsAttention = customer.exceptionCodes.length > 0;
   const founderConfirmed =
     customer.manualCompletion.emailComplete &&
     customer.manualCompletion.portalComplete;
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  const detailId = `journey-${customer.recordKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
   return (
     <article
       className={`rounded-[1.65rem] border p-5 sm:p-6 ${
@@ -213,7 +245,34 @@ function CustomerJourneyCard({
         <StageRail customer={customer} />
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[1.35fr_1fr]">
+      <div className="mt-4 flex flex-col justify-between gap-3 border-t border-border/60 pt-4 sm:flex-row sm:items-center">
+        <p className="text-xs leading-relaxed text-muted/75">
+          {expanded
+            ? "Portal evidence, customer actions, and care opportunities."
+            : `${customer.actions.length} action${customer.actions.length === 1 ? "" : "s"} ready · open only when you need the full dossier.`}
+        </p>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls={detailId}
+          onClick={() => setExpanded((current) => !current)}
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border border-accent/20 bg-accent/[0.055] px-4 text-[10px] font-medium uppercase tracking-[0.16em] text-accent transition-[border-color,background-color,transform] hover:border-accent/35 hover:bg-accent/[0.09] active:scale-[0.98]"
+        >
+          {expanded ? "Close dossier" : "Open dossier"}
+          <span
+            aria-hidden
+            className={`text-sm transition-transform duration-300 ${expanded ? "rotate-45" : ""}`}
+          >
+            +
+          </span>
+        </button>
+      </div>
+
+      {expanded ? (
+      <div
+        id={detailId}
+        className="hq-card-reveal mt-5 grid gap-4 lg:grid-cols-[1.35fr_1fr]"
+      >
         <div className="rounded-2xl border border-border/60 bg-black/10 p-4">
           <div className="flex items-center justify-between gap-3">
             <p className={craftEyebrow}>Home Passport</p>
@@ -346,6 +405,7 @@ function CustomerJourneyCard({
           )}
         </div>
       </div>
+      ) : null}
     </article>
   );
 }
@@ -434,6 +494,7 @@ function AtlasPulseContent() {
   const [actionFeedback, setActionFeedback] = useState<Record<string, string>>({});
   const [approvingMatch, setApprovingMatch] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [queueSearch, setQueueSearch] = useState("");
   const [searching, setSearching] = useState(false);
   const [searchResult, setSearchResult] =
     useState<AtlasPulseUniversalSearchResult | null>(null);
@@ -467,14 +528,36 @@ function AtlasPulseContent() {
 
   const filteredCustomers = useMemo(() => {
     if (!data) return [];
-    if (filter === "attention") {
-      return data.customers.filter((customer) => customer.exceptionCodes.length > 0);
+    let customers =
+      filter === "attention"
+        ? data.customers.filter((customer) => customer.exceptionCodes.length > 0)
+        : filter === "complete"
+          ? data.customers.filter((customer) => customer.completionPercent === 100)
+          : data.customers;
+    const query = queueSearch.trim().toLocaleLowerCase();
+    if (query) {
+      customers = customers.filter((customer) =>
+        [
+          customer.homeownerName,
+          customer.email,
+          customer.phone,
+          customer.propertyLabel,
+          customer.planType,
+          customer.nextActionLabel,
+        ]
+          .filter(Boolean)
+          .some((value) => value?.toLocaleLowerCase().includes(query)),
+      );
     }
-    if (filter === "complete") {
-      return data.customers.filter((customer) => customer.completionPercent === 100);
-    }
-    return data.customers;
-  }, [data, filter]);
+    return [...customers].sort((left, right) => {
+      const completionDelta = right.completionPercent - left.completionPercent;
+      if (completionDelta !== 0) return completionDelta;
+      return (
+        (Date.parse(right.updatedAt ?? "") || 0) -
+        (Date.parse(left.updatedAt ?? "") || 0)
+      );
+    });
+  }, [data, filter, queueSearch]);
 
   const performAction = async (
     customer: AtlasPulseCustomer,
@@ -671,18 +754,38 @@ function AtlasPulseContent() {
 
         {!loading && data ? (
           <div className="space-y-8">
-            <div className="flex gap-3 overflow-x-auto pb-1">
-              {data.integrations.map((item) => (
-                <IntegrationPill key={item.id} item={item} />
-              ))}
-            </div>
+            <section aria-labelledby="atlas-live-systems">
+              <div className="mb-3 flex items-end justify-between gap-4">
+                <div>
+                  <p className={craftEyebrow}>Live systems</p>
+                  <h2
+                    id="atlas-live-systems"
+                    className="mt-1.5 font-serif text-xl font-light text-foreground"
+                  >
+                    The operating layer
+                  </h2>
+                </div>
+                <p className="hidden text-[10px] uppercase tracking-[0.16em] text-muted/60 sm:block">
+                  Warnings open their control room
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                {data.integrations.map((item) => (
+                  <IntegrationPill key={item.id} item={item} />
+                ))}
+              </div>
+            </section>
 
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               {metrics.map((metric) => (
                 <div
                   key={metric.label}
-                  className="rounded-2xl border border-border/80 bg-background/40 p-5"
+                  className="group relative overflow-hidden rounded-2xl border border-border/80 bg-background/40 p-5 transition-[border-color,background-color,transform] duration-300 hover:-translate-y-0.5 hover:border-accent/20 hover:bg-background/[0.55]"
                 >
+                  <span
+                    className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-accent/30 to-transparent opacity-0 transition-opacity group-hover:opacity-100"
+                    aria-hidden
+                  />
                   <p className={craftEyebrow}>{metric.label}</p>
                   <p
                     className={`mt-2 font-serif text-3xl font-light tabular-nums ${
@@ -757,46 +860,83 @@ function AtlasPulseContent() {
             ) : null}
 
             <section>
-              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
                 <div>
                   <p className={craftEyebrow}>Activation inbox</p>
                   <h2 className="mt-2 font-serif text-3xl font-light text-foreground">
                     Customer journeys
                   </h2>
+                  <p className="mt-2 text-xs text-muted/70">
+                    Closest to the finish line first, so every action closes a loop.
+                  </p>
                 </div>
-                <div className="flex flex-wrap gap-2" role="group" aria-label="Journey filter">
-                  {(
-                    [
-                      ["attention", "Needs action"],
-                      ["all", "All journeys"],
-                      ["complete", "Complete"],
-                    ] as const
-                  ).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setFilter(value)}
-                      className={`rounded-full border px-4 py-2 text-xs transition ${
-                        filter === value
-                          ? "border-accent/35 bg-accent/10 text-accent"
-                          : "border-border text-muted hover:text-foreground"
-                      }`}
-                    >
-                      {label}
-                    </button>
-                  ))}
+                <div className="flex w-full flex-col gap-2 sm:flex-row lg:max-w-3xl lg:justify-end">
+                  <label className="relative min-w-0 flex-1 sm:max-w-xs">
+                    <span className="sr-only">Filter customer journeys</span>
+                    <input
+                      value={queueSearch}
+                      onChange={(event) => setQueueSearch(event.target.value)}
+                      placeholder="Filter this queue…"
+                      className={`${craftInput} min-h-[42px] py-2.5 pr-9`}
+                    />
+                    {queueSearch ? (
+                      <button
+                        type="button"
+                        onClick={() => setQueueSearch("")}
+                        aria-label="Clear queue filter"
+                        className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-sm text-muted transition hover:bg-white/[0.05] hover:text-foreground"
+                      >
+                        ×
+                      </button>
+                    ) : null}
+                  </label>
+                  <div
+                    className="flex shrink-0 gap-1 rounded-[1rem] border border-border/70 bg-black/10 p-1"
+                    role="group"
+                    aria-label="Journey filter"
+                  >
+                    {(
+                      [
+                        ["attention", "Action", data.summary.needsAttention],
+                        ["all", "All", data.summary.totalJourneys],
+                        ["complete", "Done", data.summary.completedJourneys],
+                      ] as const
+                    ).map(([value, label, count]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setFilter(value)}
+                        className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl px-3 text-[10px] font-medium uppercase tracking-[0.1em] transition ${
+                          filter === value
+                            ? "bg-accent/[0.12] text-accent shadow-[inset_0_0_0_1px_rgba(201,184,150,0.18)]"
+                            : "text-muted hover:text-foreground"
+                        }`}
+                      >
+                        {label}
+                        <span className="text-[9px] opacity-60">{count}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-4 border-y border-border/50 py-3 text-[10px] uppercase tracking-[0.14em] text-muted/60">
+                <span>
+                  {filteredCustomers.length} {filteredCustomers.length === 1 ? "journey" : "journeys"}
+                </span>
+                <span>{queueSearch ? `Matching “${queueSearch.trim()}”` : "Priority ranked"}</span>
               </div>
 
               <div className="mt-5 space-y-4">
                 {filteredCustomers.length > 0 ? (
-                  filteredCustomers.map((customer) => (
+                  filteredCustomers.map((customer, index) => (
                     <CustomerJourneyCard
                       key={customer.recordKey}
                       customer={customer}
                       busyAction={busyAction}
                       feedback={actionFeedback[customer.recordKey] ?? null}
                       onAction={(current, action) => void performAction(current, action)}
+                      defaultExpanded={index === 0}
                     />
                   ))
                 ) : (

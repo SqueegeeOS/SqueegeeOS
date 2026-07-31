@@ -11,7 +11,7 @@ interface NavLinkProps {
   className?: string;
   mobile?: boolean;
   light?: boolean;
-  variant?: "default" | "portal";
+  variant?: "default" | "portal" | "cta";
 }
 
 export function NavLink({
@@ -24,6 +24,33 @@ export function NavLink({
   light = false,
   variant = "default",
 }: NavLinkProps) {
+  if (variant === "cta") {
+    return (
+      <Link
+        href={href}
+        onClick={onClick}
+        aria-current={active ? "page" : undefined}
+        className={`group inline-flex items-center justify-center gap-2 rounded-full border font-medium uppercase transition-[transform,background-color,border-color,box-shadow] duration-300 active:scale-[0.98] touch-manipulation ${
+          mobile
+            ? "mt-2 min-h-[54px] w-full px-5 text-[11px] tracking-[0.18em]"
+            : "min-h-[38px] px-4 text-[10px] tracking-[0.19em]"
+        } ${
+          light
+            ? "border-white/25 bg-white/[0.12] text-white shadow-[0_10px_28px_rgba(0,0,0,0.14)] hover:bg-white/[0.18]"
+            : "border-accent/25 bg-foreground text-background shadow-[0_12px_30px_-18px_rgba(0,0,0,0.5)] hover:border-accent/40"
+        } ${className}`}
+      >
+        <span>{label}</span>
+        <span
+          aria-hidden
+          className="text-sm transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transform-none"
+        >
+          →
+        </span>
+      </Link>
+    );
+  }
+
   if (variant === "portal" && !mobile) {
     return (
       <Link

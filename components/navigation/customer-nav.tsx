@@ -74,6 +74,7 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
                 label={item.label}
                 active={isActiveNavItem(pathname, item.href)}
                 light={lightText}
+                variant={item.href === ROUTES.request ? "cta" : "default"}
               />
             ))}
 
