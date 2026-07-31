@@ -226,6 +226,28 @@ function RequestFormFields() {
             <p className="mt-3 text-[11px] tracking-[0.14em] text-muted/80">
               {CUSTOMER_CTAS.requestPlanHint}
             </p>
+            <ol
+              className="mt-8 grid grid-cols-3 overflow-hidden rounded-[1.4rem] border border-border/80 bg-white/[0.018]"
+              aria-label="What happens after you request a plan"
+            >
+              {[
+                ["01", "Tell us"],
+                ["02", "We review"],
+                ["03", "We reach out"],
+              ].map(([number, label], index) => (
+                <li
+                  key={number}
+                  className={`relative px-3 py-4 text-center ${index > 0 ? "border-l border-border/70" : ""}`}
+                >
+                  <span className="block font-mono text-[9px] tracking-[0.18em] text-accent/70">
+                    {number}
+                  </span>
+                  <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/75 sm:text-[11px]">
+                    {label}
+                  </span>
+                </li>
+              ))}
+            </ol>
           </Reveal>
 
           <Reveal delay={0.1}>
@@ -468,6 +490,10 @@ function RequestFormFields() {
               >
                 {isSubmitting ? "Submitting…" : CUSTOMER_CTAS.requestPlan}
               </motion.button>
+              <p className="text-center text-[11px] leading-relaxed text-muted/65">
+                No spam and no obligation. Your property details stay with
+                SqueegeeKing.
+              </p>
             </form>
           </Reveal>
         </div>

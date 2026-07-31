@@ -4,7 +4,7 @@ import { MembershipActiveBadge } from "@/components/membership/membership-active
 import Link from "next/link";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
-import type { NavItem } from "@/lib/navigation/config";
+import { ROUTES, type NavItem } from "@/lib/navigation/config";
 import type { NavigationSession } from "@/lib/navigation/session";
 import { isActiveNavItem } from "@/lib/navigation/resolve";
 import { NavLink } from "./nav-link";
@@ -217,6 +217,7 @@ export function MobileMenu({
                 label={item.label}
                 mobile
                 active={isActiveNavItem(activePath, item.href)}
+                variant={item.href === ROUTES.request ? "cta" : "default"}
                 onClick={onClose}
               />
             ))}
