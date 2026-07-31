@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   buildCareOpportunities,
   buildExceptionCodes,
+  buildJourneyActions,
   buildJourneyStages,
   journeyCompletionPercent,
   scoreCustomerMatch,
 } from "./atlas-pulse-model";
 
 describe("Atlas Pulse journey", () => {
-  it("shows a complete seven-step activation", () => {
+  it("shows a complete eight-step activation", () => {
     const stages = buildJourneyStages({
       hasLead: true,
       hasPresentation: true,
@@ -16,6 +17,8 @@ describe("Atlas Pulse journey", () => {
       paymentReady: true,
       portalUrl: "https://www.squeegeeking.net/portal/token",
       welcomeDeliveryStatus: "delivered",
+      manualEmailComplete: true,
+      manualPortalComplete: true,
       jobberLinked: true,
       visitScheduled: true,
     });
@@ -39,10 +42,32 @@ describe("Atlas Pulse journey", () => {
     expect(stages.find((stage) => stage.id === "portal")?.status).toBe(
       "attention",
     );
-    expect(buildExceptionCodes(stages)).toEqual([
-      "portal",
-      "jobber",
-    ]);
+    expect(buildExceptionCodes(stages)).toEqual(["email", "portal", "jobber"]);
+  });
+
+  it("keeps provider evidence separate from a founder-confirmed handoff", () => {
+    const stages = buildJourneyStages({
+      hasLead: true,
+      hasPresentation: true,
+      hasAgreement: true,
+      paymentReady: true,
+      portalUrl: "https://www.squeegeeking.net/portal/token",
+      welcomeDeliveryStatus: "accepted",
+      manualEmailComplete: true,
+      manualPortalComplete: true,
+      jobberLinked: false,
+      visitScheduled: false,
+    });
+
+    expect(stages.find((stage) => stage.id === "email")).toMatchObject({
+      status: "complete",
+      detail: "Founder confirmed the email handoff",
+    });
+    expect(stages.find((stage) => stage.id === "portal")).toMatchObject({
+      status: "complete",
+      detail: "Founder confirmed customer portal access",
+    });
+    expect(buildExceptionCodes(stages)).toEqual(["jobber"]);
   });
 
   it("marks only the next sequential step as actionable for a new lead", () => {
@@ -60,6 +85,53 @@ describe("Atlas Pulse journey", () => {
     expect(buildExceptionCodes(stages)).toEqual(["presentation"]);
     expect(stages.find((stage) => stage.id === "agreement")?.status).toBe(
       "waiting",
+    );
+  });
+});
+
+describe("Atlas Pulse founder actions", () => {
+  it("offers one reversible email and portal confirmation", () => {
+    const base = {
+      membershipId: "9aa145b0-ea61-4fd0-a82a-f235de827e64",
+      presentationId: null,
+      homeownerId: "56f02273-fb07-4d50-b948-d44242fbecad",
+      portalUrl: "/portal/token",
+      paymentReady: true,
+      hasAgreement: true,
+      jobberLinked: true,
+      jobberWebUri: null,
+      visitScheduled: true,
+    };
+
+    expect(
+      buildJourneyActions({
+        ...base,
+        manualEmailComplete: false,
+        manualPortalComplete: false,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "set_manual_completion",
+          completed: true,
+          label: "Mark email + portal complete",
+        }),
+      ]),
+    );
+    expect(
+      buildJourneyActions({
+        ...base,
+        manualEmailComplete: true,
+        manualPortalComplete: true,
+      }),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "set_manual_completion",
+          completed: false,
+          label: "Undo founder confirmation",
+        }),
+      ]),
     );
   });
 });

@@ -78,7 +78,10 @@ function IntegrationPill({ item }: { item: AtlasPulseIntegration }) {
 
 function StageRail({ customer }: { customer: AtlasPulseCustomer }) {
   return (
-    <div className="grid grid-cols-7 gap-1.5" aria-label="Activation journey">
+    <div
+      className="grid grid-cols-4 gap-x-1.5 gap-y-3 sm:grid-cols-8"
+      aria-label="Activation journey"
+    >
       {customer.stages.map((stage) => {
         const stageClass =
           stage.status === "complete"
@@ -160,6 +163,9 @@ function CustomerJourneyCard({
   onAction: (customer: AtlasPulseCustomer, action: AtlasPulseAction) => void;
 }) {
   const needsAttention = customer.exceptionCodes.length > 0;
+  const founderConfirmed =
+    customer.manualCompletion.emailComplete &&
+    customer.manualCompletion.portalComplete;
   return (
     <article
       className={`rounded-[1.65rem] border p-5 sm:p-6 ${
@@ -215,18 +221,34 @@ function CustomerJourneyCard({
               Updated {formatDate(customer.updatedAt)}
             </span>
           </div>
-          <div className="mt-3 grid gap-2 text-xs sm:grid-cols-3">
+          <div className="mt-3 grid gap-3 text-xs sm:grid-cols-3">
             <div>
-              <p className="text-muted">Portal</p>
+              <p className="text-muted">Portal access</p>
               <p className="mt-1 text-foreground">
-                {customer.portalUrl ? "Verified link ready" : "Not ready"}
+                {customer.manualCompletion.portalComplete
+                  ? "Founder confirmed"
+                  : customer.portalUrl
+                    ? "Link ready, unconfirmed"
+                    : "Not ready"}
               </p>
+              {customer.manualCompletion.portalConfirmedAt ? (
+                <p className="mt-1 text-[10px] text-muted/70">
+                  {formatDate(customer.manualCompletion.portalConfirmedAt)}
+                </p>
+              ) : null}
             </div>
             <div>
               <p className="text-muted">Welcome email</p>
               <p className="mt-1 capitalize text-foreground">
-                {customer.welcomeDeliveryStatus ?? "Untracked"}
+                {customer.manualCompletion.emailComplete
+                  ? "Founder confirmed"
+                  : customer.welcomeDeliveryStatus ?? "Untracked"}
               </p>
+              {customer.manualCompletion.emailComplete ? (
+                <p className="mt-1 text-[10px] capitalize text-muted/70">
+                  Resend: {customer.welcomeDeliveryStatus ?? "untracked"}
+                </p>
+              ) : null}
             </div>
             <div>
               <p className="text-muted">Jobber</p>
@@ -239,6 +261,11 @@ function CustomerJourneyCard({
               </p>
             </div>
           </div>
+          {founderConfirmed ? (
+            <p className="mt-3 rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2 text-[10px] leading-relaxed text-emerald-100/80">
+              Founder-confirmed handoff. Resend delivery evidence remains separate.
+            </p>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             {customer.actions.map((action) => {
               if (action.kind === "open_link" || action.kind === "pair_jobber") {
@@ -480,6 +507,43 @@ function AtlasPulseContent() {
         setActionFeedback((current) => ({
           ...current,
           [customer.recordKey]: body?.message ?? "Welcome email sent.",
+        }));
+        await load();
+        return;
+      }
+      if (
+        action.kind === "set_manual_completion" &&
+        action.membershipId &&
+        typeof action.completed === "boolean"
+      ) {
+        if (
+          !action.completed &&
+          !window.confirm(
+            "Undo the founder confirmation? Resend delivery evidence will stay unchanged.",
+          )
+        ) {
+          return;
+        }
+        const response = await fetch(
+          "/api/admin/activation/manual-completion",
+          {
+            method: "POST",
+            headers: getAdminRequestHeaders(),
+            body: JSON.stringify({
+              membershipId: action.membershipId,
+              completed: action.completed,
+            }),
+          },
+        );
+        const body = (await response.json().catch(() => null)) as
+          | { message?: string; error?: string }
+          | null;
+        if (!response.ok) {
+          throw new Error(body?.error ?? "Founder confirmation was not changed");
+        }
+        setActionFeedback((current) => ({
+          ...current,
+          [customer.recordKey]: body?.message ?? "Founder confirmation updated.",
         }));
         await load();
       }
