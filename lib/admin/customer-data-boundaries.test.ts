@@ -69,4 +69,12 @@ describe("customer data route boundaries", () => {
       expect(readProjectFile(route)).toContain("authorizeMembershipAction");
     }
   });
+
+  it("protects the Jobber Today schedule at the route handler", () => {
+    const source = readProjectFile(
+      "app/api/admin/care-operations/jobber/today/route.ts",
+    );
+    expect(source).toContain("authorizeAdminRequest");
+    expect(source).toMatch(/authorizeAdminRequest\(request\.headers\)/);
+  });
 });
