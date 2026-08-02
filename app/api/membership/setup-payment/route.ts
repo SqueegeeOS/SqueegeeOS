@@ -21,7 +21,12 @@ import type { WebsiteMembershipSaleActivationMode } from "@/lib/admin/website-me
 import { persistMembershipEnrollmentSavings } from "@/lib/membership/persist-membership-enrollment-savings";
 import { authorizeMembershipAction } from "@/lib/membership/authorize-membership-action";
 
-const WELCOME_RECOVERY_WINDOW_MS = 24 * 60 * 60 * 1000;
+type ActivationRepairStep =
+  | "obligations"
+  | "website_sale"
+  | "enrollment_savings"
+  | "presentation_status"
+  | "welcome_email";
 
 function publicWelcomeResult(result: AgreementEmailResult) {
   return {
@@ -36,18 +41,6 @@ async function attemptInitialWelcomeEmail(
   paymentSetupCompletedAt: string,
   portalUrl: string | null,
 ): Promise<AgreementEmailResult> {
-  const completedAtMs = Date.parse(paymentSetupCompletedAt);
-  if (
-    Number.isFinite(completedAtMs) &&
-    Date.now() - completedAtMs > WELCOME_RECOVERY_WINDOW_MS
-  ) {
-    return {
-      status: "skipped",
-      reason: "activation_not_recent",
-      recipient: null,
-    };
-  }
-
   return sendMembershipWelcomeEmail(supabase, {
     membershipId: membership.id,
     homeownerId: membership.homeowner_id,
@@ -64,7 +57,7 @@ async function recordMembershipObligations(
   supabase: SupabaseClient,
   membership: MembershipRowForPayment,
   startedAt: string,
-) {
+): Promise<ActivationRepairStep | null> {
   try {
     const result = await ensureMembershipObligations(supabase, {
       membershipId: membership.id,
@@ -80,8 +73,10 @@ async function recordMembershipObligations(
         created: result.created,
       });
     }
+    return null;
   } catch (error) {
     console.error("[setup-payment] obligation generation failed:", error);
+    return "obligations";
   }
 }
 
@@ -90,7 +85,7 @@ async function recordWebsiteSale(
   membershipId: string,
   paymentSetupCompletedAt: string,
   activationMode: WebsiteMembershipSaleActivationMode,
-) {
+): Promise<ActivationRepairStep | null> {
   try {
     const result = await recordWebsiteMembershipSale(supabase, {
       membershipId,
@@ -105,8 +100,14 @@ async function recordWebsiteSale(
         saleId: result.saleId,
       });
     }
+    return result.recorded ||
+      result.skippedReason === "already_recorded" ||
+      result.skippedReason === "mock_activation_not_counted"
+      ? null
+      : "website_sale";
   } catch (error) {
     console.error("[setup-payment] website membership sale failed:", error);
+    return "website_sale";
   }
 }
 
@@ -114,16 +115,78 @@ async function lockEnrollmentSavings(
   supabase: SupabaseClient,
   membershipId: string,
   presentationId: string | null,
-) {
+): Promise<ActivationRepairStep | null> {
   try {
     await persistMembershipEnrollmentSavings(
       supabase,
       membershipId,
       presentationId,
     );
+    return null;
   } catch (error) {
     console.error("[setup-payment] enrollment savings lock failed:", error);
+    return "enrollment_savings";
   }
+}
+
+async function finishActivationSideEffects(input: {
+  supabase: SupabaseClient;
+  membership: MembershipRowForPayment;
+  paymentSetupCompletedAt: string;
+  startedAt: string;
+  presentationId: string | null;
+  activationMode: WebsiteMembershipSaleActivationMode;
+  portalUrl: string | null;
+}): Promise<{
+  welcomeEmail: AgreementEmailResult;
+  repairNeeded: ActivationRepairStep[];
+}> {
+  const repairNeeded = (
+    await Promise.all([
+      recordMembershipObligations(
+        input.supabase,
+        input.membership,
+        input.startedAt,
+      ),
+      recordWebsiteSale(
+        input.supabase,
+        input.membership.id,
+        input.paymentSetupCompletedAt,
+        input.activationMode,
+      ),
+      lockEnrollmentSavings(
+        input.supabase,
+        input.membership.id,
+        input.presentationId,
+      ),
+    ])
+  ).filter((step): step is ActivationRepairStep => step !== null);
+
+  if (input.presentationId) {
+    const { error } = await input.supabase
+      .from("presentations")
+      .update({ onboarding_status: "complete" })
+      .eq("id", input.presentationId);
+    if (error) {
+      console.error("[setup-payment] presentation update failed:", error.message);
+      repairNeeded.push("presentation_status");
+    }
+  }
+
+  const welcomeEmail = await attemptInitialWelcomeEmail(
+    input.supabase,
+    input.membership,
+    input.paymentSetupCompletedAt,
+    input.portalUrl,
+  );
+  if (
+    welcomeEmail.status !== "sent" &&
+    welcomeEmail.reason !== "already_sent"
+  ) {
+    repairNeeded.push("welcome_email");
+  }
+
+  return { welcomeEmail, repairNeeded: [...new Set(repairNeeded)] };
 }
 
 /**
@@ -186,28 +249,15 @@ export async function POST(req: NextRequest) {
         membership.id,
         req.nextUrl.origin,
       );
-      await recordMembershipObligations(
+      const activation = await finishActivationSideEffects({
         supabase,
         membership,
-        membership.started_at ?? paymentCompletedAt,
-      );
-      await recordWebsiteSale(
-        supabase,
-        membership.id,
-        paymentCompletedAt,
-        isStripeServerEnabled() ? "stripe" : "mock",
-      );
-      await lockEnrollmentSavings(
-        supabase,
-        membership.id,
-        membership.presentation_id,
-      );
-      const welcomeEmail = await attemptInitialWelcomeEmail(
-        supabase,
-        membership,
-        paymentCompletedAt,
+        paymentSetupCompletedAt: paymentCompletedAt,
+        startedAt: membership.started_at ?? paymentCompletedAt,
+        presentationId: membership.presentation_id,
+        activationMode: isStripeServerEnabled() ? "stripe" : "mock",
         portalUrl,
-      );
+      });
       return NextResponse.json({
         membershipId: membership.id,
         presentationId: membership.presentation_id,
@@ -216,7 +266,9 @@ export async function POST(req: NextRequest) {
         mode: isStripeServerEnabled() ? "stripe" : "mock",
         alreadyActive: true,
         portalUrl,
-        welcomeEmail: publicWelcomeResult(welcomeEmail),
+        welcomeEmail: publicWelcomeResult(activation.welcomeEmail),
+        onboardingRepairRequired: activation.repairNeeded.length > 0,
+        repairNeeded: activation.repairNeeded,
       });
     }
 
@@ -347,28 +399,16 @@ export async function POST(req: NextRequest) {
           reloaded.id,
           req.nextUrl.origin,
         );
-        await recordMembershipObligations(
+        const activation = await finishActivationSideEffects({
           supabase,
-          reloaded,
-          reloaded.started_at ?? reloaded.payment_setup_completed_at!,
-        );
-        await recordWebsiteSale(
-          supabase,
-          reloaded.id,
-          reloaded.payment_setup_completed_at!,
-          stripeEnabled ? "stripe" : "mock",
-        );
-        await lockEnrollmentSavings(
-          supabase,
-          reloaded.id,
-          reloaded.presentation_id,
-        );
-        const welcomeEmail = await attemptInitialWelcomeEmail(
-          supabase,
-          reloaded,
-          reloaded.payment_setup_completed_at!,
+          membership: reloaded,
+          paymentSetupCompletedAt: reloaded.payment_setup_completed_at!,
+          startedAt:
+            reloaded.started_at ?? reloaded.payment_setup_completed_at!,
+          presentationId: reloaded.presentation_id,
+          activationMode: stripeEnabled ? "stripe" : "mock",
           portalUrl,
-        );
+        });
         return NextResponse.json({
           membershipId: reloaded.id,
           presentationId: reloaded.presentation_id,
@@ -377,58 +417,35 @@ export async function POST(req: NextRequest) {
           mode: stripeEnabled ? "stripe" : "mock",
           alreadyActive: true,
           portalUrl,
-          welcomeEmail: publicWelcomeResult(welcomeEmail),
+          welcomeEmail: publicWelcomeResult(activation.welcomeEmail),
+          onboardingRepairRequired: activation.repairNeeded.length > 0,
+          repairNeeded: activation.repairNeeded,
         });
       }
     }
 
-    await recordMembershipObligations(supabase, membership, startedAt);
-
     const resolvedPresentationId =
       presentationId ?? membership.presentation_id;
-
-    if (resolvedPresentationId) {
-      const { error: presentationError } = await supabase
-        .from("presentations")
-        .update({ onboarding_status: "complete" })
-        .eq("id", resolvedPresentationId);
-
-      if (presentationError) {
-        console.error(
-          "[setup-payment] Presentation update failed:",
-          presentationError.message,
-        );
-      }
-    }
-
-    await recordWebsiteSale(
-      supabase,
-      membership.id,
-      paymentSetupCompletedAt,
-      stripeEnabled ? "stripe" : "mock",
-    );
-    await lockEnrollmentSavings(
-      supabase,
-      membership.id,
-      resolvedPresentationId,
-    );
 
     const portalUrl = await getPortalAccessUrlForMembership(
       membership.id,
       req.nextUrl.origin,
     );
 
-    const welcomeEmail = await attemptInitialWelcomeEmail(
+    const activation = await finishActivationSideEffects({
       supabase,
-      { ...membership, presentation_id: resolvedPresentationId },
+      membership: { ...membership, presentation_id: resolvedPresentationId },
       paymentSetupCompletedAt,
+      startedAt,
+      presentationId: resolvedPresentationId,
+      activationMode: stripeEnabled ? "stripe" : "mock",
       portalUrl,
-    );
-    if (welcomeEmail.status !== "sent") {
+    });
+    if (activation.welcomeEmail.status !== "sent") {
       console.warn("[setup-payment] welcome email not sent", {
         membershipId: membership.id,
-        status: welcomeEmail.status,
-        reason: welcomeEmail.reason,
+        status: activation.welcomeEmail.status,
+        reason: activation.welcomeEmail.reason,
       });
     }
 
@@ -440,7 +457,9 @@ export async function POST(req: NextRequest) {
       paymentSetupCompletedAt,
       mode: stripeEnabled ? "stripe" : "mock",
       portalUrl,
-      welcomeEmail: publicWelcomeResult(welcomeEmail),
+      welcomeEmail: publicWelcomeResult(activation.welcomeEmail),
+      onboardingRepairRequired: activation.repairNeeded.length > 0,
+      repairNeeded: activation.repairNeeded,
     });
   } catch (error) {
     const message =

@@ -30,6 +30,7 @@ import {
 import type { MembershipSalesTier } from "@/lib/persistence/types/membership";
 import {
   firstNameFromFullName,
+  hasCompleteClientAddress,
   parseClientAddress,
 } from "@/lib/presentations/parse-client-address";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
@@ -170,6 +171,11 @@ export async function completeSignOnboarding(
     presentation.clientAddress,
     presentation.clientName,
   );
+  if (!hasCompleteClientAddress(parsedAddress)) {
+    throw new SignOnboardingError(
+      "A complete service address is required before membership onboarding.",
+    );
+  }
   const pricing = buildMembershipPricingFields({
     tier: input.agreementTier,
     visitPrice: input.visitPrice,
@@ -224,20 +230,39 @@ export async function completeSignOnboarding(
 
   const founding = resolveFoundingMemberFields(input.signedAt);
 
-  const { data: existingMembership } = await supabase
+  const { data: existingMembership, error: existingMembershipError } = await supabase
     .from("memberships")
-    .select("portal_access_token")
+    .select("id, presentation_id, portal_access_token")
     .eq("property_id", property.id)
+    .in("status", ["pending_checkout", "pending_payment", "active", "paused"])
     .maybeSingle();
+  if (existingMembershipError) {
+    throw new SignOnboardingError(
+      `Failed to check current membership: ${existingMembershipError.message}`,
+    );
+  }
+  if (
+    existingMembership &&
+    existingMembership.presentation_id !== presentation.id
+  ) {
+    throw new SignOnboardingError(
+      "This property already has a current membership. Archive it before starting a new agreement.",
+    );
+  }
 
   const portalAccessToken =
     (existingMembership?.portal_access_token as string | null | undefined) ??
     generatePortalAccessToken();
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("memberships")
-    .upsert(
-      {
+  let membership = existingMembership?.id
+    ? { id: existingMembership.id as string }
+    : null;
+  let membershipError: { message: string; code?: string } | null = null;
+
+  if (!membership) {
+    const created = await supabase
+      .from("memberships")
+      .insert({
         homeowner_id: homeowner.id,
         property_id: property.id,
         presentation_id: presentation.id,
@@ -255,11 +280,12 @@ export async function completeSignOnboarding(
         founding_member: founding.foundingMember,
         founding_member_since: founding.foundingMemberSince,
         portal_access_token: portalAccessToken,
-      },
-      { onConflict: "property_id" },
-    )
-    .select("id")
-    .single();
+      })
+      .select("id")
+      .single();
+    membership = created.data as { id: string } | null;
+    membershipError = created.error;
+  }
 
   if (membershipError || !membership?.id) {
     throw new SignOnboardingError(

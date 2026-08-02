@@ -13,6 +13,55 @@ export interface SendMembershipWelcomeEmailInput {
   idempotencyKey?: string;
 }
 
+interface WelcomeCommunicationRow {
+  status: string;
+  provider_message_id: string | null;
+}
+
+export function welcomeCommunicationAlreadyAccepted(
+  row: WelcomeCommunicationRow | null,
+): boolean {
+  if (!row) return false;
+  return Boolean(
+    row.provider_message_id ||
+      [
+        "accepted",
+        "delivered",
+        "delivery_delayed",
+        "bounced",
+        "complained",
+      ].includes(row.status),
+  );
+}
+
+async function loadPriorWelcomeCommunication(
+  supabase: SupabaseClient,
+  idempotencyKey: string | undefined,
+): Promise<WelcomeCommunicationRow | null> {
+  if (!idempotencyKey) return null;
+  const result = await supabase
+    .from("membership_communications")
+    .select("status, provider_message_id")
+    .eq("idempotency_key", idempotencyKey)
+    .maybeSingle();
+  if (!result.error) {
+    return (result.data as WelcomeCommunicationRow | null) ?? null;
+  }
+
+  const missingTable =
+    result.error.code === "42P01" ||
+    result.error.code === "PGRST205" ||
+    result.error.message.toLowerCase().includes("does not exist") ||
+    result.error.message.toLowerCase().includes("schema cache");
+  if (!missingTable) {
+    console.warn("[membership-welcome] prior delivery lookup failed", {
+      membershipId: null,
+      reason: result.error.message,
+    });
+  }
+  return null;
+}
+
 export function buildInitialWelcomeIdempotencyKey(
   membershipId: string,
   paymentSetupCompletedAt: string,
@@ -75,6 +124,19 @@ export async function sendMembershipWelcomeEmail(
   supabase: SupabaseClient,
   input: SendMembershipWelcomeEmailInput,
 ): Promise<AgreementEmailResult> {
+  const priorCommunication = await loadPriorWelcomeCommunication(
+    supabase,
+    input.idempotencyKey,
+  );
+  if (welcomeCommunicationAlreadyAccepted(priorCommunication)) {
+    return {
+      status: "skipped",
+      reason: "already_sent",
+      recipient: null,
+      resendId: priorCommunication?.provider_message_id ?? undefined,
+    };
+  }
+
   const portalUrl =
     input.portalUrl ??
     (await getPortalAccessUrlForMembership(input.membershipId, input.origin));

@@ -567,7 +567,11 @@ async function runIntegrityChecks(
   );
 
   const membershipsByProperty = new Map<string, number>();
-  for (const row of rows) {
+  for (const row of rows.filter((membership) =>
+    ["pending_checkout", "pending_payment", "active", "paused"].includes(
+      membership.status as string,
+    ),
+  )) {
     const propertyId = row.property_id as string;
     membershipsByProperty.set(
       propertyId,
@@ -616,11 +620,11 @@ async function runIntegrityChecks(
     ),
     check(
       "integrity-duplicate-memberships",
-      "Duplicate memberships per property",
+      "Concurrent memberships per property",
       duplicateMemberships === 0 ? "green" : "red",
       duplicateMemberships === 0
-        ? "One membership row per property"
-        : `${duplicateMemberships} property/properties have multiple memberships`,
+        ? "At most one current membership per property; history is preserved"
+        : `${duplicateMemberships} property/properties have multiple current memberships`,
     ),
     check(
       "integrity-duplicate-sales",

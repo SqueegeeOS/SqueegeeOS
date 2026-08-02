@@ -106,6 +106,7 @@ export async function loadJobberTodayBoard(
       .from("jobber_visit_projections")
       .select(TODAY_VISIT_SELECT)
       .eq("connection_id", JOBBER_CONNECTION_ID)
+      .neq("visit_status", "REMOVED")
       .gte("scheduled_start", startUtc.toISOString())
       .lt("scheduled_start", endUtc.toISOString())
       .order("scheduled_start", { ascending: true })

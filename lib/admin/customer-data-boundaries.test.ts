@@ -31,7 +31,7 @@ describe("customer data route boundaries", () => {
     }
   });
 
-  it("keeps the public PIN variable out of client components", () => {
+  it("removes the browser-exposed PIN variable from every auth boundary", () => {
     expect(
       readProjectFile("components/admin/admin-pin-gate.tsx"),
     ).not.toContain("NEXT_PUBLIC_ADMIN_PIN");
@@ -41,6 +41,79 @@ describe("customer data route boundaries", () => {
     expect(readProjectFile("lib/admin/pin.ts")).not.toContain(
       "ADMIN_PIN_SESSION_KEY",
     );
+    expect(readProjectFile("lib/admin/server-auth.ts")).not.toContain(
+      "NEXT_PUBLIC_ADMIN_PIN",
+    );
+  });
+
+  it("routes browser Home Care Plan persistence through an authenticated API", () => {
+    const route = readProjectFile("app/api/admin/home-care-plans/route.ts");
+    const adapter = readProjectFile("lib/persistence/adapters/supabase.ts");
+    const presentationPage = readProjectFile(
+      "app/homecare/[homeownerSlug]/[propertySlug]/plan/page.tsx",
+    );
+
+    expect(route).toContain("authorizeAdminRequest");
+    expect(route).toContain("isServiceRoleConfigured");
+    expect(adapter).not.toContain("createBrowserSupabaseClient");
+    expect(presentationPage).not.toContain("supabaseAdapter");
+  });
+
+  it("revokes anonymous access to all customer authority tables", () => {
+    const migration = readProjectFile(
+      "lib/persistence/supabase/migrations/038_close_customer_anon_access.sql",
+    );
+    const tables = [
+      "homeowners",
+      "properties",
+      "home_care_plans",
+      "memberships",
+      "signed_agreements",
+      "property_assets",
+    ];
+
+    for (const table of tables) {
+      expect(migration).toContain(
+        `revoke all privileges on table public.${table} from public, anon, authenticated`,
+      );
+    }
+
+    expect(migration).toContain("admin_unlock_rate_limits");
+    expect(migration).toContain("check_admin_unlock_rate_limit");
+  });
+
+  it("keeps membership history while allowing only one current plan", () => {
+    const migration = readProjectFile(
+      "lib/persistence/supabase/migrations/039_preserve_membership_history.sql",
+    );
+    const onboarding = readProjectFile(
+      "lib/membership/complete-sign-onboarding.ts",
+    );
+
+    expect(migration).toContain("drop constraint if exists memberships_property_id_key");
+    expect(migration).toContain("memberships_one_current_per_property_idx");
+    expect(migration).toContain("where status in");
+    expect(onboarding).not.toContain('{ onConflict: "property_id" }');
+    expect(onboarding).toContain("already has a current membership");
+  });
+
+  it("does not acknowledge Jobber events before a completed snapshot", () => {
+    const webhook = readProjectFile("lib/integrations/jobber-webhook.ts");
+    const cron = readProjectFile("app/api/cron/jobber-reconcile/route.ts");
+    const schedule = readProjectFile("vercel.json");
+
+    expect(webhook).not.toContain("coalesced_with_recent_sync");
+    expect(webhook).toContain("covered_by_completed_full_snapshot");
+    expect(cron).toContain("process.env.CRON_SECRET");
+    expect(cron).toContain("timingSafeEqual");
+    expect(schedule).toContain("/api/cron/jobber-reconcile");
+  });
+
+  it("derives signing identity from the stored presentation", () => {
+    const route = readProjectFile("app/api/sign-agreement/route.ts");
+    expect(route).toContain("scopedPresentationSlug");
+    expect(route).toContain("hasCompleteClientAddress");
+    expect(route).toContain("status: 422");
   });
 
   it("protects operator pages before their server components run", () => {

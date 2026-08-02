@@ -127,7 +127,7 @@ function formatMonthYear(iso: string): string {
 
 function resolveSquareFootage(
   data: HomeCarePlanData,
-  portalData: MemberPortalData | null | undefined,
+  portalData: Pick<MemberPortalData, "property"> | null | undefined,
 ): number | null {
   if (portalData?.property?.details?.squareFootage) {
     return portalData.property.details.squareFootage;
@@ -158,7 +158,25 @@ function buildTimelineEntries(
 
 export function buildPortalCareRecordView(
   data: HomeCarePlanData,
-  portalData: MemberPortalData | null | undefined,
+  portalData:
+    | (Omit<
+        MemberPortalData,
+        | "membershipEnrollmentSavings"
+        | "portalTheme"
+        | "careAddons"
+        | "savingsLedger"
+      > &
+        Partial<
+          Pick<
+            MemberPortalData,
+            | "membershipEnrollmentSavings"
+            | "portalTheme"
+            | "careAddons"
+            | "savingsLedger"
+          >
+        >)
+    | null
+    | undefined,
 ): PortalCareRecordView {
   const firstName =
     portalData?.profile.firstName ?? data.homeowner.firstName ?? "Member";

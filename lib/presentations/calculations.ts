@@ -268,4 +268,30 @@ export function slugifyPresentation(value: string): string {
     .slice(0, 48);
 }
 
+/**
+ * Builds a stable, presentation-scoped slug for records created during signing.
+ * Human-readable name/address slugs alone are not identities: two customers can
+ * share a name, and one customer can have multiple presentations. Scoping the
+ * slug prevents an unrelated presentation from overwriting an existing record.
+ */
+export function scopedPresentationSlug(
+  value: string,
+  presentationId: string,
+  fallback: string,
+): string {
+  const suffix = presentationId
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(-8);
+  const base = slugifyPresentation(value) || slugifyPresentation(fallback) || "record";
+
+  if (!suffix) {
+    return base;
+  }
+
+  const availableBaseLength = Math.max(1, 48 - suffix.length - 1);
+  const scopedBase = base.slice(0, availableBaseLength).replace(/-+$/g, "") || "record";
+  return `${scopedBase}-${suffix}`;
+}
+
 export type { SqueegeeKingTierId };

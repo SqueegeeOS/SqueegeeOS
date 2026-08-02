@@ -132,7 +132,7 @@ export function jobberVisitAppointmentStatus(
 ): ExistingAppointmentRow["status"] {
   const status = visit.visit_status.trim().toUpperCase();
   if (/NO[ _-]?SHOW/.test(status)) return "no_show";
-  if (status.includes("CANCEL")) return "cancelled";
+  if (status.includes("CANCEL") || status === "REMOVED") return "cancelled";
   if (visit.is_complete || status.includes("COMPLETE")) return "completed";
   return "scheduled";
 }

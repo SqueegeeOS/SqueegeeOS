@@ -17,6 +17,11 @@ export interface JobberWebhookPayload {
 
 type JobberWebhookSyncScope = "clients" | "visits" | "full" | "ignored";
 
+export interface JobberWebhookReconciliationResult {
+  pendingEventsReconciled: number;
+  staleProcessingEventsReconciled: number;
+}
+
 export function parseJobberWebhookPayload(
   rawPayload: string,
 ): JobberWebhookPayload | null {
@@ -120,28 +125,6 @@ export async function recordAndProcessJobberWebhook(input: {
       return;
     }
 
-    const coalesceSince = new Date(Date.now() - 2 * 60_000).toISOString();
-    const recent = await supabase
-      .from("jobber_webhook_events")
-      .select("event_key")
-      .eq("sync_scope", syncScope)
-      .in("status", ["processing", "processed"])
-      .neq("event_key", eventKey)
-      .gte("received_at", coalesceSince)
-      .limit(1)
-      .maybeSingle();
-    if (recent.data) {
-      await supabase
-        .from("jobber_webhook_events")
-        .update({
-          status: "ignored",
-          sync_summary: { reason: "coalesced_with_recent_sync" },
-          processed_at: new Date().toISOString(),
-        })
-        .eq("event_key", eventKey);
-      return;
-    }
-
     await supabase
       .from("jobber_webhook_events")
       .update({ status: "processing" })
@@ -181,4 +164,56 @@ export async function recordAndProcessJobberWebhook(input: {
       })
       .eq("event_key", eventKey);
   }
+}
+
+/**
+ * Marks only events that existed before a successfully completed full snapshot
+ * as reconciled. Events received after the snapshot started remain queued for
+ * the next run, so a concurrent provider change cannot be acknowledged early.
+ */
+export async function markJobberWebhookEventsReconciled(input: {
+  snapshotStartedAt: string;
+  syncSummary: unknown;
+  staleProcessingBefore?: string;
+}): Promise<JobberWebhookReconciliationResult> {
+  const supabase = createServiceRoleSupabaseClient();
+  const processedAt = new Date().toISOString();
+  const syncSummary = {
+    reason: "covered_by_completed_full_snapshot",
+    result: input.syncSummary,
+  };
+  const pending = await supabase
+    .from("jobber_webhook_events")
+    .update({
+      status: "processed",
+      sync_summary: syncSummary,
+      error_code: null,
+      processed_at: processedAt,
+    })
+    .in("status", ["received", "failed"])
+    .lte("received_at", input.snapshotStartedAt)
+    .select("event_key");
+  if (pending.error) throw new Error(pending.error.message);
+
+  const staleProcessingBefore =
+    input.staleProcessingBefore ??
+    new Date(Date.now() - 5 * 60_000).toISOString();
+  const stale = await supabase
+    .from("jobber_webhook_events")
+    .update({
+      status: "processed",
+      sync_summary: syncSummary,
+      error_code: null,
+      processed_at: processedAt,
+    })
+    .eq("status", "processing")
+    .lte("received_at", input.snapshotStartedAt)
+    .lt("updated_at", staleProcessingBefore)
+    .select("event_key");
+  if (stale.error) throw new Error(stale.error.message);
+
+  return {
+    pendingEventsReconciled: pending.data?.length ?? 0,
+    staleProcessingEventsReconciled: stale.data?.length ?? 0,
+  };
 }

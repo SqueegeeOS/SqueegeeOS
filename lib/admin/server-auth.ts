@@ -7,14 +7,7 @@ export type AdminAccessMode = "pin" | "beta";
 export const ADMIN_SESSION_COOKIE_NAME = "squeegeeking-admin-session";
 
 function configuredAdminPin(): string | null {
-  // ADMIN_PIN is the permanent server-only variable. Keep the legacy variable
-  // as a temporary server-side fallback so an existing deployment can migrate
-  // without locking the founders out between env and code rollouts.
-  return (
-    process.env.ADMIN_PIN?.trim() ||
-    process.env.NEXT_PUBLIC_ADMIN_PIN?.trim() ||
-    null
-  );
+  return process.env.ADMIN_PIN?.trim() || null;
 }
 
 export function isAdminPrivateBetaEnabled(): boolean {

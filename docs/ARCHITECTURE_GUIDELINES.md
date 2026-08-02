@@ -118,12 +118,12 @@ Never write `sessionStorage` in random components — go through persistence lay
 
 | Mechanism | Use |
 |-----------|-----|
-| `NEXT_PUBLIC_ADMIN_PIN` | Founder PIN for HQ, setup, experience lab |
-| `sessionStorage` admin keys | Unlock TTL, PIN session for API calls |
+| `ADMIN_PIN` | Server-only founder PIN for HQ, setup, experience lab |
+| Signed HttpOnly admin cookie | 8-hour server-verified HQ session |
 | Google OAuth cookies | Business Profile setup wizard only |
-| Supabase anon key | Client reads (when enabled) — RLS required |
+| Supabase anon key | Public Supabase identifier only; no customer-table privileges |
 
-**Never** expose admin PIN to client bundle logic beyond verification UI — PIN is checked server-side on API routes.
+**Never** expose the admin PIN to client bundle logic. The unlock form submits it to a rate-limited server route, which issues the signed session cookie.
 
 ---
 
@@ -134,7 +134,7 @@ Never write `sessionStorage` in random components — go through persistence lay
 | Google Places | None | `lib/reviews/google-places.ts` |
 | Google Business Profile | OAuth session | `lib/reviews/google-business-profile.ts` |
 | Google OAuth | Redirect flow | `app/api/admin/google-reviews/oauth/*` |
-| Supabase | Anon + service patterns | `lib/persistence/supabase/` |
+| Supabase | Service-role access behind authenticated routes | `lib/persistence/supabase/` |
 | Stripe | None | `app/api/stripe/setup-intent`, `app/api/membership/setup-payment` |
 
 Cache Google reviews 8 hours — `unstable_cache` on route.
@@ -181,12 +181,13 @@ Import springs from `@/lib/motion/system` — not duplicated easing arrays.
 
 | Variable | Scope | Purpose |
 |----------|-------|---------|
-| `NEXT_PUBLIC_ADMIN_PIN` | Client + server | HQ gate |
+| `ADMIN_PIN` | Server only | HQ gate |
 | `NEXT_PUBLIC_SUPABASE_*` | Client | Persistence toggle |
 | `GOOGLE_MAPS_API_KEY` | Server only | Places, reviews |
 | `GOOGLE_PLACE_ID` | Server only | Production place |
 | `GOOGLE_OAUTH_*` | Server only | Business Profile wizard |
-| `SUPABASE_SERVICE_ROLE` | Server only | Migrations, admin writes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Authenticated customer and admin persistence |
+| `CRON_SECRET` | Server only | Vercel Jobber reconciliation cron |
 
 Document new vars in ARCHITECTURE.md integration sections when added.
 

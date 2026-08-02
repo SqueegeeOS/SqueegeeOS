@@ -10,7 +10,9 @@ const STATE_ZIP_PATTERN = /,\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/;
 
 /**
  * Best-effort parse of a single-line client address from presentations.
- * Falls back to safe defaults when city/state/zip are missing.
+ * Preserves missing components as empty strings. Callers that create an
+ * authoritative property must reject incomplete addresses rather than invent
+ * a city or state.
  */
 export function parseClientAddress(
   raw: string,
@@ -20,8 +22,8 @@ export function parseClientAddress(
   if (!trimmed) {
     return {
       address: fallbackName?.trim() || "Property",
-      city: "TBD",
-      state: "CA",
+      city: "",
+      state: "",
       zip: "",
       propertyName: fallbackName?.trim() || "Property",
     };
@@ -31,8 +33,8 @@ export function parseClientAddress(
   if (!stateZipMatch) {
     return {
       address: trimmed,
-      city: "TBD",
-      state: "CA",
+      city: "",
+      state: "",
       zip: "",
       propertyName: fallbackName?.trim() || trimmed,
     };
@@ -57,11 +59,22 @@ export function parseClientAddress(
 
   return {
     address: beforeState,
-    city: "TBD",
+    city: "",
     state,
     zip,
     propertyName: fallbackName?.trim() || beforeState,
   };
+}
+
+export function hasCompleteClientAddress(
+  address: ParsedClientAddress,
+): boolean {
+  return Boolean(
+    address.address.trim() &&
+      address.city.trim() &&
+      /^[A-Z]{2}$/.test(address.state) &&
+      /^\d{5}(?:-\d{4})?$/.test(address.zip),
+  );
 }
 
 export function firstNameFromFullName(fullName: string): string {

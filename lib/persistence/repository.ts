@@ -37,7 +37,7 @@ export interface SaveHomeCarePlanResult {
 export function getPersistenceAdapter(): PersistenceAdapter {
   if (adapterOverride) return adapterOverride;
 
-  if (isCloudPersistenceConnected()) {
+  if (isCloudPersistenceConnected() && typeof window === "undefined") {
     return supabaseAdapter;
   }
 
@@ -103,6 +103,32 @@ function withTimeout<T>(
   });
 }
 
+async function callHomeCarePlanApi<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<T> {
+  const headers = new Headers(init?.headers);
+  if (!headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  const response = await fetch(`/api/admin/home-care-plans${path}`, {
+    ...init,
+    cache: "no-store",
+    credentials: "same-origin",
+    headers,
+  });
+  const body = (await response.json().catch(() => null)) as
+    | ({ error?: string } & T)
+    | null;
+
+  if (!response.ok || !body) {
+    throw new Error(body?.error || "Authenticated cloud persistence failed");
+  }
+
+  return body;
+}
+
 async function persistWithAdapter(
   adapter: PersistenceAdapter,
   presentation: HomeCarePlanData,
@@ -156,18 +182,25 @@ export async function saveGeneratedHomeCarePlan(
   if (isCloudPersistenceConnected()) {
     try {
       const record = await withTimeout(
-        persistWithAdapter(supabaseAdapter, presentation, draft),
+        typeof window === "undefined"
+          ? persistWithAdapter(supabaseAdapter, presentation, draft)
+          : callHomeCarePlanApi<{ record: PersistedHomeCarePlan }>("", {
+              method: "POST",
+              body: JSON.stringify({ presentation, draft: draft ?? null }),
+            }).then((result) => result.record),
         CLOUD_SAVE_TIMEOUT_MS,
-        "Supabase save",
+        "Cloud save",
       );
 
-      try {
-        await mirrorPlanToSessionStorage(presentation, draft, record);
-      } catch (mirrorError) {
-        console.warn(
-          "[persistence] Cloud save succeeded but browser mirror failed:",
-          mirrorError,
-        );
+      if (typeof window !== "undefined") {
+        try {
+          await mirrorPlanToSessionStorage(presentation, draft, record);
+        } catch (mirrorError) {
+          console.warn(
+            "[persistence] Cloud save succeeded but browser mirror failed:",
+            mirrorError,
+          );
+        }
       }
 
       return {
@@ -176,6 +209,10 @@ export async function saveGeneratedHomeCarePlan(
         usedCloudFallback: false,
       };
     } catch (error) {
+      if (typeof window === "undefined") {
+        throw error;
+      }
+
       const cloudError = formatCloudPersistenceError(error);
       console.error(
         "[persistence] Supabase save failed — falling back to sessionStorage:",
@@ -214,8 +251,24 @@ export async function loadGeneratedHomeCarePlan(
   homeownerSlug: string,
   propertySlug: string,
 ): Promise<HomeCarePlanData | null> {
-  const adapter = getPersistenceAdapter();
-  let record = await adapter.getHomeCarePlanBySlugs(homeownerSlug, propertySlug);
+  let record: PersistedHomeCarePlan | null = null;
+
+  if (isCloudPersistenceConnected() && typeof window !== "undefined") {
+    try {
+      const params = new URLSearchParams({ homeownerSlug, propertySlug });
+      const result = await callHomeCarePlanApi<{
+        record: PersistedHomeCarePlan | null;
+      }>(`?${params.toString()}`);
+      record = result.record;
+    } catch (error) {
+      console.warn("[persistence] Authenticated cloud load failed:", error);
+    }
+  } else {
+    record = await getPersistenceAdapter().getHomeCarePlanBySlugs(
+      homeownerSlug,
+      propertySlug,
+    );
+  }
 
   // Fallback: plans generated before cloud was connected
   if (!record && isCloudPersistenceConnected()) {
@@ -232,8 +285,17 @@ export async function clearGeneratedHomeCarePlan(
   homeownerSlug: string,
   propertySlug: string,
 ): Promise<void> {
-  const adapter = getPersistenceAdapter();
-  await adapter.deleteHomeCarePlan(homeownerSlug, propertySlug);
+  if (isCloudPersistenceConnected() && typeof window !== "undefined") {
+    const params = new URLSearchParams({ homeownerSlug, propertySlug });
+    await callHomeCarePlanApi<{ ok: true }>(`?${params.toString()}`, {
+      method: "DELETE",
+    });
+  } else {
+    await getPersistenceAdapter().deleteHomeCarePlan(
+      homeownerSlug,
+      propertySlug,
+    );
+  }
 
   if (isCloudPersistenceConnected()) {
     await sessionStorageAdapter.deleteHomeCarePlan(homeownerSlug, propertySlug);
@@ -241,6 +303,13 @@ export async function clearGeneratedHomeCarePlan(
 }
 
 export async function listGeneratedHomeCarePlans(): Promise<PersistedHomeCarePlan[]> {
+  if (isCloudPersistenceConnected() && typeof window !== "undefined") {
+    const result = await callHomeCarePlanApi<{
+      records: PersistedHomeCarePlan[];
+    }>("?list=1");
+    return result.records;
+  }
+
   return getPersistenceAdapter().listHomeCarePlans();
 }
 
