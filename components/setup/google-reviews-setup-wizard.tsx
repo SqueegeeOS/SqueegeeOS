@@ -32,6 +32,10 @@ import { ROUTES } from "@/lib/navigation/config";
 const inputClassName =
   "w-full rounded-2xl border border-border bg-background px-4 py-3.5 text-sm text-foreground placeholder:text-muted/50 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20";
 
+function businessConnectionKey(business: BusinessConnectOption): string {
+  return business.locationResourceName || business.placeId || business.name;
+}
+
 function ExternalLink({
   href,
   children,
@@ -113,12 +117,12 @@ function PlaceConnectConfirmation({
   return (
     <div className="rounded-[1.25rem] border border-accent/30 bg-accent/[0.06] p-5">
       <p className="text-[10px] uppercase tracking-[0.22em] text-accent">
-        Confirm Place ID before saving
+        Confirm Google business before saving
       </p>
       <p className="mt-3 text-sm leading-relaxed text-foreground/90">
-        Verify this is Noah&apos;s SqueegeeKing Google Business Profile (~5.0
-        stars, ~116 reviews). This Place ID will be copied into{" "}
-        <code className="text-xs">GOOGLE_PLACE_ID</code> for production.
+        Verify this is Noah&apos;s SqueegeeKing Google Business Profile. We will
+        use the verified owner connection for review sync
+        {business.placeId ? " and retain its public Place ID." : "."}
       </p>
       <div className="mt-4 space-y-2 rounded-xl border border-border/60 bg-background/50 px-4 py-3 text-sm">
         <p className="font-serif text-xl font-light text-foreground">
@@ -136,7 +140,9 @@ function PlaceConnectConfirmation({
           <p className="text-xs text-muted">{business.locationLabel}</p>
         )}
         <p className="font-mono text-[11px] text-muted break-all">
-          Place ID: {business.placeId}
+          {business.placeId
+            ? `Place ID: ${business.placeId}`
+            : `Business Profile: ${business.locationResourceName ?? "verified"}`}
         </p>
       </div>
       {sameAsProduction && (
@@ -151,7 +157,7 @@ function PlaceConnectConfirmation({
           disabled={confirming}
           className="rounded-full border border-accent/30 bg-accent/[0.12] px-6 py-3 text-[10px] uppercase tracking-[0.2em] text-accent disabled:opacity-50"
         >
-          {confirming ? "Confirming…" : "Confirm & save Place ID"}
+          {confirming ? "Confirming…" : "Confirm & connect profile"}
         </button>
         <button
           type="button"
@@ -350,13 +356,14 @@ function BusinessConnectList({
   return (
     <div className="space-y-3">
       {businesses.map((business) => {
-        const connected = connectedPlaceId === business.placeId;
-        const connecting = connectingPlaceId === business.placeId;
+        const key = businessConnectionKey(business);
+        const connected = connectedPlaceId === key;
+        const connecting = connectingPlaceId === key;
         const stars = formatStarRating(business.rating);
 
         return (
           <article
-            key={business.placeId}
+            key={key}
             className={`rounded-[1.25rem] border px-5 py-4 transition-colors ${
               connected
                 ? "border-accent/40 bg-accent/[0.08]"
@@ -594,10 +601,21 @@ export function GoogleReviewsSetupWizard() {
   const [oauthClientIdConfigured, setOauthClientIdConfigured] = useState(false);
   const [oauthClientSecretConfigured, setOauthClientSecretConfigured] =
     useState(false);
+  const [tokenEncryptionKeyConfigured, setTokenEncryptionKeyConfigured] =
+    useState(false);
+  const [tokenEncryptionKeyValid, setTokenEncryptionKeyValid] = useState(false);
+  const [publicFullReviewsEnabled, setPublicFullReviewsEnabled] = useState(false);
   const [oauthRedirectUri, setOauthRedirectUri] = useState("");
   const [oauthChecking, setOauthChecking] = useState(false);
   const [oauthConnected, setOauthConnected] = useState(false);
   const [oauthEmail, setOauthEmail] = useState<string | null>(null);
+  const [ownerConnectionSaved, setOwnerConnectionSaved] = useState(false);
+  const [fullReviewsConnected, setFullReviewsConnected] = useState(false);
+  const [fullReviewsCount, setFullReviewsCount] = useState<number | null>(null);
+  const [fullReviewsLocationName, setFullReviewsLocationName] = useState<
+    string | null
+  >(null);
+  const [syncingFullReviews, setSyncingFullReviews] = useState(false);
   const [loadingManaged, setLoadingManaged] = useState(false);
   const [connectingPlaceId, setConnectingPlaceId] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
@@ -621,7 +639,6 @@ export function GoogleReviewsSetupWizard() {
     useState<BusinessConnectOption | null>(null);
   const [productionPlaceId, setProductionPlaceId] = useState<string | null>(null);
   const [gbpApiAccessUrl, setGbpApiAccessUrl] = useState<string | null>(null);
-  const [gbpNeedsApproval, setGbpNeedsApproval] = useState(false);
   const [gbpDiagnostic, setGbpDiagnostic] = useState<GbpApiDiagnostic | null>(
     null,
   );
@@ -752,6 +769,13 @@ export function GoogleReviewsSetupWizard() {
         redirectUri?: string;
         clientIdConfigured?: boolean;
         clientSecretConfigured?: boolean;
+        tokenEncryptionKeyConfigured?: boolean;
+        tokenEncryptionKeyValid?: boolean;
+        publicFullReviewsEnabled?: boolean;
+        fullReviewsConnected?: boolean;
+        ownerConnectionSaved?: boolean;
+        fullReviewCount?: number | null;
+        fullReviewsLocationName?: string | null;
       };
       setOauthConfigured((wasConfigured) => {
         if (!wasConfigured && json.configured) {
@@ -763,9 +787,18 @@ export function GoogleReviewsSetupWizard() {
       });
       setOauthClientIdConfigured(Boolean(json.clientIdConfigured));
       setOauthClientSecretConfigured(Boolean(json.clientSecretConfigured));
+      setTokenEncryptionKeyConfigured(
+        Boolean(json.tokenEncryptionKeyConfigured),
+      );
+      setTokenEncryptionKeyValid(Boolean(json.tokenEncryptionKeyValid));
+      setPublicFullReviewsEnabled(Boolean(json.publicFullReviewsEnabled));
       if (json.redirectUri) setOauthRedirectUri(json.redirectUri);
       setOauthConnected(json.connected);
       setOauthEmail(json.email ?? null);
+      setOwnerConnectionSaved(Boolean(json.ownerConnectionSaved));
+      setFullReviewsConnected(Boolean(json.fullReviewsConnected));
+      setFullReviewsCount(json.fullReviewCount ?? null);
+      setFullReviewsLocationName(json.fullReviewsLocationName ?? null);
       return json;
     } catch {
       return null;
@@ -777,12 +810,8 @@ export function GoogleReviewsSetupWizard() {
   const loadManagedBusinesses = useCallback(async () => {
     setLoadingManaged(true);
     try {
-      const params = new URLSearchParams();
-      if (state.apiKey.trim()) {
-        params.set("apiKey", state.apiKey.trim());
-      }
       const response = await fetch(
-        `/api/admin/google-reviews/my-businesses?${params.toString()}`,
+        "/api/admin/google-reviews/my-businesses",
         {
           headers: getAdminRequestHeaders(),
           cache: "no-store",
@@ -809,7 +838,6 @@ export function GoogleReviewsSetupWizard() {
       setOauthConnected(true);
       setGbpDiagnostic(json.diagnostic ?? null);
       setOauthScopesRequested(json.oauthScopesRequested ?? null);
-      setGbpNeedsApproval(Boolean(json.diagnostic?.needsApiApproval));
       setGbpApiAccessUrl(json.gbpApiAccessUrl ?? null);
       if (json.serverEnvKeyPresent !== undefined) {
         setServerEnvKeyPresent(json.serverEnvKeyPresent);
@@ -817,16 +845,16 @@ export function GoogleReviewsSetupWizard() {
       if (json.warning && json.businesses.length === 0) {
         setStatusMessage(json.warning);
       } else if (json.businesses.length > 0) {
-        setGbpNeedsApproval(false);
+        if (json.warning) setStatusMessage(json.warning);
       }
     } finally {
       setLoadingManaged(false);
     }
-  }, [state.apiKey]);
+  }, []);
 
   const connectBusiness = useCallback(
     async (business: BusinessConnectOption) => {
-      setConnectingPlaceId(business.placeId);
+      setConnectingPlaceId(businessConnectionKey(business));
       setStatusMessage(null);
       setPendingConnect(null);
 
@@ -843,13 +871,86 @@ export function GoogleReviewsSetupWizard() {
           ? "oauth_connect"
           : "places_search";
 
-      const testResponse = await runTest({
-        placeId: business.placeId,
-        source,
-        businessNameHint: business.name,
-      });
+      let fullSyncReady = false;
+      let fullReviewCount: number | null = null;
+      let fullSyncWarning: string | null = null;
 
-      if (testResponse?.placeIdValid && testResponse.reviewsFound) {
+      if (business.source === "google_business") {
+        if (!business.accountResourceName || !business.locationResourceName) {
+          setStatusMessage(
+            "Google returned the business without the account/location identifiers required for full review sync. Refresh the managed business list and try again.",
+          );
+          setConnectingPlaceId(null);
+          return;
+        }
+
+        try {
+          const connectionResponse = await fetch(
+            "/api/admin/google-reviews/connect",
+            {
+              method: "POST",
+              headers: getAdminRequestHeaders(),
+              body: JSON.stringify({
+                accountResourceName: business.accountResourceName,
+                locationResourceName: business.locationResourceName,
+                placeId: business.placeId,
+              }),
+            },
+          );
+          const connectionBody = (await connectionResponse
+            .json()
+            .catch(() => null)) as {
+            error?: string;
+            fullSyncReady?: boolean;
+            fullReviewCount?: number | null;
+            warning?: string;
+          } | null;
+          if (!connectionResponse.ok) {
+            setStatusMessage(
+              connectionBody?.error ??
+                "Google Business could not be saved for full review sync.",
+            );
+            setConnectingPlaceId(null);
+            return;
+          }
+
+          fullSyncReady = Boolean(connectionBody?.fullSyncReady);
+          fullReviewCount = connectionBody?.fullReviewCount ?? null;
+          fullSyncWarning = connectionBody?.warning ?? null;
+          setOwnerConnectionSaved(true);
+          setFullReviewsConnected(fullSyncReady);
+          setFullReviewsCount(fullReviewCount);
+          setFullReviewsLocationName(business.locationResourceName);
+        } catch {
+          setStatusMessage(
+            "Google Business could not be reached. Check the connection and try again.",
+          );
+          setConnectingPlaceId(null);
+          return;
+        }
+      }
+
+      const testResponse = business.placeId
+        ? await runTest({
+            placeId: business.placeId,
+            source,
+            businessNameHint: business.name,
+          })
+        : null;
+
+      if (fullSyncReady) {
+        setStatusMessage(
+          `Connected ${business.name} for all ${fullReviewCount ?? "available"} Google reviews.`,
+        );
+      } else if (fullSyncWarning) {
+        setStatusMessage(
+          `Owner connection saved for ${business.name}, but complete review sync is not ready yet: ${fullSyncWarning}`,
+        );
+      } else if (business.source === "google_business") {
+        setStatusMessage(
+          `Owner connection saved for ${business.name}. Use Sync owner reviews after Google approves review access.`,
+        );
+      } else if (testResponse?.placeIdValid && testResponse.reviewsFound) {
         setStatusMessage(
           `Confirmed ${business.name} · Place ID ${business.placeId} · ${testResponse.rating?.toFixed(1) ?? "—"}★ · ${testResponse.reviewCount ?? "—"} reviews.`,
         );
@@ -875,6 +976,73 @@ export function GoogleReviewsSetupWizard() {
 
   const handleUseGoogleBusiness = useCallback(() => {
     window.location.href = "/api/admin/google-reviews/oauth/start";
+  }, []);
+
+  const handleDisconnectGoogleBusiness = useCallback(async () => {
+    setOauthChecking(true);
+    setStatusMessage(null);
+    try {
+      const response = await fetch("/api/admin/google-reviews/oauth/status", {
+        method: "DELETE",
+        headers: getAdminRequestHeaders(),
+      });
+      const json = (await response.json().catch(() => null)) as {
+        error?: string;
+        providerRevoked?: boolean;
+      } | null;
+      if (!response.ok) {
+        setStatusMessage(
+          json?.error ?? "Google Business could not be disconnected.",
+        );
+        return;
+      }
+
+      setOauthConnected(false);
+      setOauthEmail(null);
+      setOwnerConnectionSaved(false);
+      setFullReviewsConnected(false);
+      setFullReviewsCount(null);
+      setFullReviewsLocationName(null);
+      setManagedBusinesses([]);
+      setStatusMessage(
+        json?.providerRevoked === false
+          ? "Disconnected locally. Google did not confirm token revocation, so also remove SqueegeeKing in your Google Account permissions."
+          : "Google Business disconnected and its saved access was revoked.",
+      );
+    } finally {
+      setOauthChecking(false);
+    }
+  }, []);
+
+  const handleSyncFullReviews = useCallback(async () => {
+    setSyncingFullReviews(true);
+    setStatusMessage(null);
+    try {
+      const response = await fetch("/api/admin/google-reviews/sync", {
+        method: "POST",
+        headers: getAdminRequestHeaders(),
+      });
+      const json = (await response.json().catch(() => null)) as {
+        error?: string;
+        complete?: boolean;
+        reviewCount?: number;
+        reportedTotal?: number;
+      } | null;
+      if (!response.ok) {
+        setFullReviewsConnected(false);
+        setStatusMessage(json?.error ?? "Owner review sync failed.");
+        return;
+      }
+      setFullReviewsConnected(Boolean(json?.complete));
+      setFullReviewsCount(json?.reviewCount ?? null);
+      setStatusMessage(
+        json?.complete
+          ? `Owner review sync complete · ${json.reviewCount ?? 0} reviews.`
+          : `Google returned ${json?.reviewCount ?? 0} of ${json?.reportedTotal ?? "its reported"} reviews. The result is labeled partial; retry later.`,
+      );
+    } finally {
+      setSyncingFullReviews(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -1201,6 +1369,12 @@ export function GoogleReviewsSetupWizard() {
                 → Enable
               </li>
               <li>
+                <ExternalLink href={GOOGLE_CONSOLE_LINKS.businessReviewsApi}>
+                  Google My Business API (reviews)
+                </ExternalLink>{" "}
+                → Enable (required for the complete review archive)
+              </li>
+              <li>
                 Request{" "}
                 <ExternalLink href={GOOGLE_CONSOLE_LINKS.gbpApiAccess}>
                   Business Profile Basic API Access
@@ -1225,7 +1399,9 @@ export function GoogleReviewsSetupWizard() {
               <ExternalLink href={GOOGLE_CONSOLE_LINKS.billing}>
                 Billing
               </ExternalLink>{" "}
-              and link a billing account. Reviews use very little quota.
+              and link a billing account. Set a conservative Places quota and
+              a billing-budget alert before going live; Google bills Places
+              review-detail requests after the monthly free allowance.
             </p>
           </StepCard>
         );
@@ -1257,8 +1433,8 @@ export function GoogleReviewsSetupWizard() {
                 autoComplete="off"
               />
               <p className="mt-2 text-xs">
-                Stored only in this browser for the wizard. Never exposed to
-                customers.
+                Used only for this request and never saved in browser storage
+                or exposed to customers.
               </p>
             </div>
           </StepCard>
@@ -1303,10 +1479,26 @@ export function GoogleReviewsSetupWizard() {
               </p>
               <p className="mt-3 text-sm text-foreground/90">
                 Sign in with the Google account that manages SqueegeeKing. We
-                will list the Business Profiles you own, pull the Place ID
-                automatically, and use Places API only to fetch your live rating
-                and review count.
+                will verify the profile you own, securely retain offline access,
+                and page through the complete Google review archive.
               </p>
+              {fullReviewsConnected ? (
+                <p className="mt-3 rounded-xl border border-accent/25 bg-accent/[0.08] px-4 py-3 text-xs text-accent">
+                  {publicFullReviewsEnabled
+                    ? "Complete public review sync connected"
+                    : "Owner review sync is current · public site remains on the Google Maps preview until Google confirms full-corpus display"}
+                  {fullReviewsCount !== null
+                    ? ` · ${fullReviewsCount} reviews synced`
+                    : ""}
+                </p>
+              ) : ownerConnectionSaved ? (
+                <p className="mt-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-xs text-amber-800">
+                  Owner connection saved · complete review sync is pending
+                  {fullReviewsCount !== null
+                    ? ` · ${fullReviewsCount} reviews received so far`
+                    : ""}
+                </p>
+              ) : null}
               {oauthConfigured ? (
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   {!oauthConnected ? (
@@ -1332,6 +1524,26 @@ export function GoogleReviewsSetupWizard() {
                       {loadingManaged ? "Refreshing…" : "Refresh list"}
                     </button>
                   )}
+                  {ownerConnectionSaved && (
+                    <button
+                      type="button"
+                      onClick={() => void handleSyncFullReviews()}
+                      disabled={syncingFullReviews}
+                      className="rounded-full border border-accent/30 bg-accent/[0.08] px-5 py-2.5 text-[10px] uppercase tracking-[0.18em] text-accent disabled:opacity-50"
+                    >
+                      {syncingFullReviews ? "Syncing…" : "Sync owner reviews"}
+                    </button>
+                  )}
+                  {(oauthConnected || ownerConnectionSaved) && (
+                    <button
+                      type="button"
+                      onClick={() => void handleDisconnectGoogleBusiness()}
+                      disabled={oauthChecking}
+                      className="rounded-full border border-red-500/25 px-5 py-2.5 text-[10px] uppercase tracking-[0.18em] text-red-700 hover:border-red-500/40 disabled:opacity-50"
+                    >
+                      Disconnect Google
+                    </button>
+                  )}
                 </div>
               ) : (
                 <GoogleOAuthSetupGuide
@@ -1341,6 +1553,8 @@ export function GoogleReviewsSetupWizard() {
                   }
                   clientIdConfigured={oauthClientIdConfigured}
                   clientSecretConfigured={oauthClientSecretConfigured}
+                  tokenEncryptionKeyConfigured={tokenEncryptionKeyConfigured}
+                  tokenEncryptionKeyValid={tokenEncryptionKeyValid}
                   checking={oauthChecking}
                   copied={copied}
                   onCopy={(label, text) => void copyText(label, text)}
@@ -1369,7 +1583,7 @@ export function GoogleReviewsSetupWizard() {
                 </p>
                 <BusinessConnectList
                   businesses={managedBusinesses}
-                  connectedPlaceId={state.placeId}
+                  connectedPlaceId={fullReviewsLocationName || state.placeId}
                   onConnect={requestConnect}
                   connectingPlaceId={connectingPlaceId}
                 />
@@ -1380,7 +1594,9 @@ export function GoogleReviewsSetupWizard() {
               <PlaceConnectConfirmation
                 business={pendingConnect}
                 productionPlaceId={productionPlaceId}
-                confirming={connectingPlaceId === pendingConnect.placeId}
+                confirming={
+                  connectingPlaceId === businessConnectionKey(pendingConnect)
+                }
                 onCancel={() => setPendingConnect(null)}
                 onConfirm={() => void connectBusiness(pendingConnect)}
               />
@@ -1668,36 +1884,46 @@ export function GoogleReviewsSetupWizard() {
     copied,
     copyText,
     connectBusiness,
+    handleDisconnectGoogleBusiness,
     handleResolveUrl,
     handleSavePendingShareUrl,
     handleSearch,
     handleServiceAreaSearch,
     handleTest,
     handleUseGoogleBusiness,
+    handleSyncFullReviews,
     loadProductionPlaceStatus,
-    loadingManaged,
     managedBusinesses,
     oauthConfigured,
     oauthClientIdConfigured,
     oauthClientSecretConfigured,
+    tokenEncryptionKeyConfigured,
+    tokenEncryptionKeyValid,
     oauthRedirectUri,
     oauthChecking,
     oauthConnected,
     oauthEmail,
+    ownerConnectionSaved,
+    publicFullReviewsEnabled,
     gbpApiAccessUrl,
     gbpDiagnostic,
     loadManagedBusinesses,
+    loadOAuthStatus,
     loadingManaged,
     oauthScopesRequested,
     pendingConnect,
     productionPlaceId,
     connectingPlaceId,
+    fullReviewsConnected,
+    fullReviewsCount,
+    fullReviewsLocationName,
     requestConnect,
     resolving,
     resolveDiagnostic,
     searchDiagnostic,
     searchResults,
     searching,
+    syncingFullReviews,
     selectBusiness,
     serverEnvKeyPresent,
     state,

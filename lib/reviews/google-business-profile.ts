@@ -19,7 +19,7 @@ interface GbpLocation {
   name?: string;
   title?: string;
   websiteUri?: string;
-  metadata?: { placeId?: string };
+  metadata?: { placeId?: string; mapsUri?: string; newReviewUri?: string };
   categories?: {
     primaryCategory?: { displayName?: string };
   };
@@ -33,6 +33,16 @@ interface GbpLocation {
   };
 }
 
+interface GbpAccountsPage {
+  accounts?: GbpAccount[];
+  nextPageToken?: string;
+}
+
+interface GbpLocationsPage {
+  locations?: GbpLocation[];
+  nextPageToken?: string;
+}
+
 export type GbpFailureKind =
   | "success"
   | "api_access_blocked"
@@ -40,6 +50,7 @@ export type GbpFailureKind =
   | "accounts_request_failed"
   | "zero_accounts"
   | "locations_request_failed"
+  | "partial_locations"
   | "zero_locations"
   | "locations_missing_place_id";
 
@@ -70,6 +81,7 @@ export interface GbpApiDiagnostic {
   hasBusinessManageScope?: boolean;
   accountsRaw?: GbpAccountPreview[];
   locationPreviews?: GbpLocationPreview[];
+  failedLocationAccounts?: string[];
   accountsResponseSnippet?: string;
   recommendedApis?: readonly string[];
   interpretation: string;
@@ -82,6 +94,7 @@ const REQUIRED_APIS = [
   "My Business Account Management API",
   "Business Profile Business Information API",
 ] as const;
+const GBP_DISCOVERY_MAX_PAGES = 100;
 
 function buildGbpLocationLabel(location: GbpLocation): string {
   if (location.serviceArea && !location.storefrontAddress) {
@@ -143,6 +156,7 @@ async function fetchGbpJson<T>(
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
   });
 
   const body = await response.text();
@@ -172,13 +186,109 @@ async function fetchGbpJson<T>(
   }
 }
 
+export async function fetchGoogleBusinessLocationMapsUrl(input: {
+  accessToken: string;
+  accountName: string;
+  locationName: string;
+}): Promise<string | undefined> {
+  const accountName = input.accountName.trim().replace(/^\/+|\/+$/g, "");
+  const locationName = input.locationName.trim().replace(/^\/+|\/+$/g, "");
+  if (!/^accounts\/[^/]+$/.test(accountName)) return undefined;
+  const parent = /^locations\/[^/]+$/.test(locationName)
+    ? `${accountName}/${locationName}`
+    : locationName.startsWith(`${accountName}/locations/`)
+      ? locationName
+      : null;
+  if (!parent) return undefined;
+
+  const url = new URL(
+    `https://mybusinessbusinessinformation.googleapis.com/v1/${parent}`,
+  );
+  url.searchParams.set("readMask", "metadata");
+  const result = await fetchGbpJson<GbpLocation>(url.toString(), input.accessToken);
+  return result.data?.metadata?.mapsUri?.trim() || undefined;
+}
+
+async function fetchAllGbpPages<T>(input: {
+  baseUrl: string;
+  accessToken: string;
+  pageSize: number;
+  readPage: (data: unknown) => { items: T[]; nextPageToken?: string };
+}): Promise<{
+  items: T[] | null;
+  status: number;
+  error?: string;
+  rawBody?: string;
+  firstPage?: unknown;
+}> {
+  const items: T[] = [];
+  const seenTokens = new Set<string>();
+  let pageToken: string | undefined;
+  let firstPage: unknown;
+  let firstRawBody: string | undefined;
+  let lastStatus = 200;
+
+  for (let pageNumber = 1; pageNumber <= GBP_DISCOVERY_MAX_PAGES; pageNumber += 1) {
+    const url = new URL(input.baseUrl);
+    url.searchParams.set("pageSize", String(input.pageSize));
+    if (pageToken) url.searchParams.set("pageToken", pageToken);
+
+    const result = await fetchGbpJson<unknown>(url.toString(), input.accessToken);
+    lastStatus = result.status;
+    if (pageNumber === 1) {
+      firstPage = result.data;
+      firstRawBody = result.rawBody;
+    }
+    if (!result.data) {
+      return {
+        items: null,
+        status: result.status,
+        error: result.error,
+        rawBody: result.rawBody ?? firstRawBody,
+        firstPage,
+      };
+    }
+
+    const page = input.readPage(result.data);
+    items.push(...page.items);
+    const nextPageToken = page.nextPageToken?.trim();
+    if (!nextPageToken) {
+      return {
+        items,
+        status: lastStatus,
+        rawBody: firstRawBody,
+        firstPage,
+      };
+    }
+    if (seenTokens.has(nextPageToken)) {
+      return {
+        items: null,
+        status: lastStatus,
+        error: "Google repeated a discovery page token.",
+        rawBody: firstRawBody,
+        firstPage,
+      };
+    }
+    seenTokens.add(nextPageToken);
+    pageToken = nextPageToken;
+  }
+
+  return {
+    items: null,
+    status: lastStatus,
+    error: "Google returned too many discovery pages to process safely.",
+    rawBody: firstRawBody,
+    firstPage,
+  };
+}
+
 function buildInterpretation(
   failureKind: GbpFailureKind,
   needsApiApproval?: boolean,
 ): string {
   switch (failureKind) {
     case "success":
-      return "Google returned managed locations with Place IDs.";
+      return "Google returned managed Business Profile locations.";
     case "api_access_blocked":
       return "API / quota issue — not an account mismatch. Request Business Profile Basic API Access for this Cloud project (quota is often 0 QPM until Google approves).";
     case "missing_business_manage_scope":
@@ -191,6 +301,8 @@ function buildInterpretation(
         : "Accounts API returned HTTP 200 with zero accounts. This usually means the signed-in Google account does not own/manage any Business Profile linked to this OAuth token. Confirm the same email at business.google.com.";
     case "locations_request_failed":
       return "Accounts were found but location lookup failed — enable Business Profile Business Information API or request Basic API Access.";
+    case "partial_locations":
+      return "Some managed accounts loaded, but one or more location lists failed. The businesses shown may be incomplete; retry before selecting.";
     case "zero_locations":
       return "Google accounts exist but no locations were returned. The account may be empty or location API access is blocked.";
     case "locations_missing_place_id":
@@ -203,7 +315,6 @@ function buildInterpretation(
 export async function listManagedGoogleBusinesses(
   accessToken: string,
   apiKey?: string,
-  options?: { email?: string | null },
 ): Promise<{
   businesses: BusinessConnectOption[];
   error?: string;
@@ -233,15 +344,23 @@ export async function listManagedGoogleBusinesses(
     };
   }
 
-  const accountsResult = await fetchGbpJson<{ accounts?: GbpAccount[] }>(
-    GBP_ACCOUNTS_LIST_URL,
+  const accountsResult = await fetchAllGbpPages<GbpAccount>({
+    baseUrl: GBP_ACCOUNTS_LIST_URL,
     accessToken,
-  );
+    pageSize: 20,
+    readPage: (data) => {
+      const page = data as GbpAccountsPage;
+      return {
+        items: page.accounts ?? [],
+        nextPageToken: page.nextPageToken,
+      };
+    },
+  });
 
   diagnostic.accountsHttpStatus = accountsResult.status;
   diagnostic.accountsError = accountsResult.error;
 
-  if (!accountsResult.data) {
+  if (!accountsResult.items) {
     diagnostic.needsApiApproval = isLikelyApiAccessBlock(
       accountsResult.status,
       accountsResult.error ?? "",
@@ -259,12 +378,9 @@ export async function listManagedGoogleBusinesses(
     );
 
     logGoogleReviewsSetup("gbp_accounts_list", {
-      email: options?.email ?? tokenInfo?.email ?? null,
       failureKind: diagnostic.failureKind,
       accountsHttpStatus: accountsResult.status,
-      accountsError: accountsResult.error ?? null,
-      oauthScopes: oauthScopes ?? null,
-      accountsRaw: accountsResult.rawBody ?? null,
+      hasBusinessManageScope,
     });
 
     return {
@@ -274,7 +390,7 @@ export async function listManagedGoogleBusinesses(
     };
   }
 
-  const accounts = accountsResult.data.accounts ?? [];
+  const accounts = accountsResult.items;
   diagnostic.accountCount = accounts.length;
   diagnostic.accountsRaw = accounts.map((account) => ({
     name: account.name,
@@ -282,17 +398,15 @@ export async function listManagedGoogleBusinesses(
     type: account.type,
   }));
   diagnostic.accountsResponseSnippet = summarizeAccountsResponse(
-    accountsResult.data,
+    accountsResult.firstPage,
   );
 
   logGoogleReviewsSetup("gbp_accounts_list", {
-    email: options?.email ?? tokenInfo?.email ?? null,
     failureKind:
       accounts.length === 0 ? "zero_accounts" : "success",
     accountsHttpStatus: accountsResult.status,
     accountCount: accounts.length,
-    accountsRaw: diagnostic.accountsResponseSnippet,
-    oauthScopes: oauthScopes ?? null,
+    hasBusinessManageScope,
   });
 
   if (accounts.length === 0) {
@@ -312,6 +426,7 @@ export async function listManagedGoogleBusinesses(
   const locationPreviews: GbpLocationPreview[] = [];
   let totalLocations = 0;
   let locationsFailed = false;
+  const failedLocationAccounts: string[] = [];
 
   for (const account of accounts) {
     if (!account.name) continue;
@@ -326,16 +441,25 @@ export async function listManagedGoogleBusinesses(
       "websiteUri",
     ].join(",");
 
-    const locationsUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=${encodeURIComponent(readMask)}&pageSize=20`;
+    const locationsUrl = `https://mybusinessbusinessinformation.googleapis.com/v1/${account.name}/locations?readMask=${encodeURIComponent(readMask)}`;
     diagnostic.locationsEndpoint = locationsUrl;
 
-    const locationsResult = await fetchGbpJson<{ locations?: GbpLocation[] }>(
-      locationsUrl,
+    const locationsResult = await fetchAllGbpPages<GbpLocation>({
+      baseUrl: locationsUrl,
       accessToken,
-    );
+      pageSize: 100,
+      readPage: (data) => {
+        const page = data as GbpLocationsPage;
+        return {
+          items: page.locations ?? [],
+          nextPageToken: page.nextPageToken,
+        };
+      },
+    });
 
-    if (!locationsResult.data) {
+    if (!locationsResult.items) {
       locationsFailed = true;
+      failedLocationAccounts.push(account.accountName ?? account.name);
       diagnostic.locationsHttpStatus = locationsResult.status;
       diagnostic.locationsError = locationsResult.error;
       if (
@@ -346,7 +470,7 @@ export async function listManagedGoogleBusinesses(
       continue;
     }
 
-    const locations = locationsResult.data.locations ?? [];
+    const locations = locationsResult.items;
     totalLocations += locations.length;
 
     for (const location of locations) {
@@ -357,11 +481,12 @@ export async function listManagedGoogleBusinesses(
         accountName: account.accountName ?? account.name,
       });
 
-      if (!placeId) continue;
-
       businesses.push({
-        placeId,
+        placeId: placeId ?? "",
         name: location.title ?? "Google Business",
+        accountResourceName: account.name,
+        locationResourceName: location.name,
+        googleMapsUrl: location.metadata?.mapsUri?.trim() || undefined,
         category: location.categories?.primaryCategory?.displayName,
         locationLabel: buildGbpLocationLabel(location),
         isServiceAreaBusiness: Boolean(
@@ -376,18 +501,20 @@ export async function listManagedGoogleBusinesses(
 
   diagnostic.locationCount = totalLocations;
   diagnostic.locationPreviews = locationPreviews;
+  diagnostic.failedLocationAccounts = failedLocationAccounts;
 
   logGoogleReviewsSetup("gbp_locations_list", {
-    email: options?.email ?? tokenInfo?.email ?? null,
     accountCount: accounts.length,
     locationCount: totalLocations,
-    locationPreviews: JSON.stringify(locationPreviews),
     businessCount: businesses.length,
     locationsHttpStatus: diagnostic.locationsHttpStatus ?? 200,
-    locationsError: diagnostic.locationsError ?? null,
+    locationsFailed,
   });
 
-  if (businesses.length > 0) {
+  if (businesses.length > 0 && locationsFailed) {
+    diagnostic.failureKind = "partial_locations";
+    diagnostic.interpretation = buildInterpretation("partial_locations");
+  } else if (businesses.length > 0) {
     diagnostic.failureKind = "success";
     diagnostic.interpretation = buildInterpretation("success");
   } else if (diagnostic.needsApiApproval || locationsFailed) {
@@ -401,9 +528,6 @@ export async function listManagedGoogleBusinesses(
   } else if (totalLocations === 0) {
     diagnostic.failureKind = "zero_locations";
     diagnostic.interpretation = buildInterpretation("zero_locations");
-  } else {
-    diagnostic.failureKind = "locations_missing_place_id";
-    diagnostic.interpretation = buildInterpretation("locations_missing_place_id");
   }
 
   if (businesses.length === 0) {
@@ -416,14 +540,25 @@ export async function listManagedGoogleBusinesses(
 
   const trimmedKey = apiKey?.trim();
   if (trimmedKey) {
-    await Promise.all(
-      businesses.map(async (business) => {
+    const enrichmentBatchSize = 5;
+    for (let index = 0; index < businesses.length; index += enrichmentBatchSize) {
+      const batch = businesses.slice(index, index + enrichmentBatchSize);
+      await Promise.all(
+        batch.map(async (business) => {
+        if (!business.placeId) return;
         const summary = await fetchPlaceRatingSummary(trimmedKey, business.placeId);
         business.rating = summary.rating;
         business.reviewCount = summary.reviewCount;
-      }),
-    );
+        }),
+      );
+    }
   }
 
-  return { businesses, diagnostic };
+  return {
+    businesses,
+    diagnostic,
+    ...(diagnostic.failureKind === "partial_locations"
+      ? { error: diagnostic.interpretation }
+      : {}),
+  };
 }

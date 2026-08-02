@@ -3,6 +3,12 @@ import type { PlaceSearchCandidate } from "./place-id-resolver";
 export interface BusinessConnectOption {
   placeId: string;
   name: string;
+  /** Google Business Profile resource name, e.g. accounts/123. */
+  accountResourceName?: string;
+  /** Google Business Profile resource name, e.g. locations/456. */
+  locationResourceName?: string;
+  /** Provider-supplied public Google Maps destination. */
+  googleMapsUrl?: string;
   category?: string;
   rating?: number;
   reviewCount?: number;

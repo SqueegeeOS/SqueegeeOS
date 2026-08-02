@@ -354,6 +354,18 @@ export function Day2Homepage() {
           >
             Contact SqueegeeKing
           </Link>
+          <Link
+            href="/privacy"
+            className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"
+          >
+            Privacy
+          </Link>
+          <Link
+            href="/terms"
+            className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"
+          >
+            Terms
+          </Link>
           <a
             href={CUSTOMER_CONTACT.phoneHref}
             className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"

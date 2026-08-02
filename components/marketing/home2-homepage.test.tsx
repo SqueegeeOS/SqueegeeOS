@@ -68,18 +68,20 @@ describe("Home2Homepage", () => {
     }
   });
 
-  it("preserves the existing four-star review selection policy", () => {
+  it("keeps every valid rating, including rating-only reviews", () => {
     const review: Review = {
       id: "verified-review",
       reviewerName: "Verified reviewer",
       rating: 4,
-      reviewText: "Careful work.",
+      reviewText: "",
       reviewDate: "2026-07-19T00:00:00.000Z",
       source: "Google",
     };
 
     expect(isDisplayableReview(review)).toBe(true);
-    expect(isDisplayableReview({ ...review, rating: 3 })).toBe(false);
+    expect(isDisplayableReview({ ...review, rating: 1 })).toBe(true);
+    expect(isDisplayableReview({ ...review, rating: 3 })).toBe(true);
     expect(isDisplayableReview({ ...review, rating: 5 })).toBe(true);
+    expect(isDisplayableReview({ ...review, rating: 0 })).toBe(false);
   });
 });

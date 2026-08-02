@@ -1,10 +1,10 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import {
   getGoogleOAuthClientSecret,
   GOOGLE_OAUTH_COOKIE,
   GOOGLE_OAUTH_STATE_COOKIE,
 } from "./google-oauth-config";
+import { decryptGoogleToken, encryptGoogleToken } from "./google-token-crypto";
 
 export interface GoogleOAuthSession {
   accessToken: string;
@@ -13,40 +13,27 @@ export interface GoogleOAuthSession {
   email?: string;
 }
 
-function signPayload(payload: string): string {
-  const secret = getGoogleOAuthClientSecret();
-  return createHmac("sha256", secret).update(payload).digest("base64url");
+function encryptSessionJson(data: unknown): string {
+  return encryptGoogleToken(JSON.stringify(data));
 }
 
-function encodeSignedJson(data: unknown): string {
-  const payload = Buffer.from(JSON.stringify(data)).toString("base64url");
-  return `${payload}.${signPayload(payload)}`;
-}
-
-function decodeSignedJson<T>(value: string): T | null {
-  const [payload, signature] = value.split(".");
-  if (!payload || !signature) return null;
-
-  const expected = signPayload(payload);
-  const sigBuf = Buffer.from(signature);
-  const expBuf = Buffer.from(expected);
-  if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-    return null;
-  }
-
+function decryptSessionJson<T>(value: string): T | null {
   try {
-    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as T;
+    return JSON.parse(decryptGoogleToken(value)) as T;
   } catch {
     return null;
   }
 }
+
+const GOOGLE_OAUTH_API_PATH = "/api/admin/google-reviews";
+const GOOGLE_OAUTH_CALLBACK_PATH = `${GOOGLE_OAUTH_API_PATH}/oauth`;
 
 export async function readGoogleOAuthSession(): Promise<GoogleOAuthSession | null> {
   const jar = await cookies();
   const raw = jar.get(GOOGLE_OAUTH_COOKIE)?.value;
   if (!raw) return null;
 
-  const session = decodeSignedJson<GoogleOAuthSession>(raw);
+  const session = decryptSessionJson<GoogleOAuthSession>(raw);
   if (!session?.accessToken) return null;
 
   if (session.expiresAt <= Date.now()) {
@@ -61,37 +48,78 @@ export async function writeGoogleOAuthSession(
   session: GoogleOAuthSession,
 ): Promise<void> {
   const jar = await cookies();
-  jar.set(GOOGLE_OAUTH_COOKIE, encodeSignedJson(session), {
+  jar.set(GOOGLE_OAUTH_COOKIE, encryptSessionJson(session), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/",
+    path: GOOGLE_OAUTH_API_PATH,
     maxAge: 60 * 60,
   });
 }
 
 export async function clearGoogleOAuthSession(): Promise<void> {
   const jar = await cookies();
-  jar.delete(GOOGLE_OAUTH_COOKIE);
-  jar.delete(GOOGLE_OAUTH_STATE_COOKIE);
+  jar.set(GOOGLE_OAUTH_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: GOOGLE_OAUTH_API_PATH,
+    maxAge: 0,
+  });
+  jar.set(GOOGLE_OAUTH_STATE_COOKIE, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: GOOGLE_OAUTH_CALLBACK_PATH,
+    maxAge: 0,
+  });
 }
 
 export async function writeOAuthState(state: string): Promise<void> {
   const jar = await cookies();
-  jar.set(GOOGLE_OAUTH_STATE_COOKIE, state, {
+  const existingRaw = jar.get(GOOGLE_OAUTH_STATE_COOKIE)?.value;
+  const existingStates = existingRaw
+    ? decryptSessionJson<string[]>(existingRaw) ?? []
+    : [];
+  const states = [...existingStates.filter((value) => value !== state), state]
+    .slice(-4);
+  jar.set(GOOGLE_OAUTH_STATE_COOKIE, encryptSessionJson(states), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    path: "/",
+    path: GOOGLE_OAUTH_CALLBACK_PATH,
     maxAge: 10 * 60,
   });
 }
 
-export async function readAndClearOAuthState(): Promise<string | null> {
+export async function readAndClearOAuthState(
+  requestedState?: string | null,
+): Promise<string | null> {
   const jar = await cookies();
-  const state = jar.get(GOOGLE_OAUTH_STATE_COOKIE)?.value ?? null;
-  jar.delete(GOOGLE_OAUTH_STATE_COOKIE);
+  const raw = jar.get(GOOGLE_OAUTH_STATE_COOKIE)?.value;
+  const states = raw ? decryptSessionJson<string[]>(raw) ?? [] : [];
+  const state = requestedState
+    ? states.find((value) => value === requestedState) ?? null
+    : states.at(-1) ?? null;
+  const remaining = state ? states.filter((value) => value !== state) : states;
+  jar.set(
+    GOOGLE_OAUTH_STATE_COOKIE,
+    remaining.length > 0 ? encryptSessionJson(remaining) : "",
+    {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: GOOGLE_OAUTH_CALLBACK_PATH,
+      maxAge: remaining.length > 0 ? 10 * 60 : 0,
+    },
+  );
   return state;
+}
+
+export async function readGoogleOAuthSessionForRevocation(): Promise<GoogleOAuthSession | null> {
+  const jar = await cookies();
+  const raw = jar.get(GOOGLE_OAUTH_COOKIE)?.value;
+  return raw ? decryptSessionJson<GoogleOAuthSession>(raw) : null;
 }
 
 export async function refreshGoogleOAuthSession(
@@ -111,6 +139,7 @@ export async function refreshGoogleOAuthSession(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) return null;
@@ -147,6 +176,7 @@ export async function exchangeGoogleOAuthCode(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
   });
 
   if (!response.ok) {
@@ -167,6 +197,7 @@ export async function exchangeGoogleOAuthCode(
       {
         headers: { Authorization: `Bearer ${payload.access_token}` },
         cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
       },
     );
     if (userinfo.ok) {

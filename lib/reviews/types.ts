@@ -11,6 +11,8 @@ export interface Review {
   /** Human-readable relative date from Google when available */
   relativeDate?: string;
   profilePhotoUrl?: string;
+  reviewerProfileUrl?: string;
+  reviewUrl?: string;
   source: ReviewSource;
   /** Optional display context (e.g. neighborhood) — not from Google API */
   location?: string;
@@ -21,6 +23,12 @@ export interface ReviewsData {
   averageRating: number;
   source: ReviewSource;
   reviews: Review[];
+  /** Whether `reviews` is complete, an incomplete owned-profile sync, or a Places preview. */
+  coverage?: "complete" | "partial" | "preview";
+  /** Google product used to retrieve the current review set. */
+  provider?: "google_business_profile" | "google_places";
+  /** Public Google Maps destination for the connected business. */
+  businessUrl?: string;
   /** True when using manually approved testimonials */
   isSampleData?: boolean;
   /** True when fetched from Google Places API */

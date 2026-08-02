@@ -11,7 +11,14 @@ import {
   loadJobberCustomerMatchingWorkspace,
   searchHomeAtlasCustomers,
 } from "@/lib/care-operations/jobber-customer-matching";
+import {
+  getGoogleMapsApiKey,
+  getGooglePlaceId,
+  isPublicFullGoogleReviewDisplayEnabled,
+} from "@/lib/reviews/config";
+import { readGoogleBusinessConnectionStatus } from "@/lib/reviews/google-business-connection-store";
 import { isGoogleBusinessOAuthConfigured } from "@/lib/reviews/google-oauth-config";
+import { getGoogleTokenEncryptionKeyStatus } from "@/lib/reviews/google-token-crypto";
 import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { isStripeLiveMode } from "@/lib/stripe/mode";
 import {
@@ -26,6 +33,7 @@ import {
   journeyCompletionPercent,
   scoreCustomerMatch,
 } from "./atlas-pulse-model";
+import { buildGoogleReviewsHealth } from "./google-reviews-health";
 import type {
   AtlasPulseCustomer,
   AtlasPulseDashboard,
@@ -164,6 +172,9 @@ async function loadIntegrations(input: {
   communicationsTableReady: boolean;
 }): Promise<AtlasPulseIntegration[]> {
   const jobberConfig = getJobberConfigStatus();
+  const googleConnectionPromise = readGoogleBusinessConnectionStatus()
+    .then((connection) => ({ available: true as const, connection }))
+    .catch(() => ({ available: false as const, connection: null }));
   let jobberConnected = false;
   let jobberDetail: string | null = null;
   if (jobberConfig.configured) {
@@ -175,6 +186,22 @@ async function loadIntegrations(input: {
       jobberDetail = "Connection state is unavailable";
     }
   }
+  const googleConnectionResult = await googleConnectionPromise;
+  const googleConnection = googleConnectionResult.connection;
+  const googleReviewsHealth = buildGoogleReviewsHealth({
+    oauthConfigured: isGoogleBusinessOAuthConfigured(),
+    tokenEncryptionReady: getGoogleTokenEncryptionKeyStatus().ready,
+    ownerConnectionState: googleConnectionResult.available
+      ? (googleConnection?.status ?? "not_connected")
+      : "unavailable",
+    durablePlaceId: googleConnection?.placeId ?? null,
+    envPlaceId: getGooglePlaceId(),
+    mapsApiKeyConfigured: Boolean(getGoogleMapsApiKey()),
+    lastFullSyncAt: googleConnection?.lastFullSyncAt ?? null,
+    lastFullReviewCount: googleConnection?.lastFullReviewCount ?? null,
+    lastErrorCode: googleConnection?.lastErrorCode ?? null,
+    publicFullReviewsEnabled: isPublicFullGoogleReviewDisplayEnabled(),
+  });
 
   const stripeConfigured = isStripeServerEnabled();
   const stripeLive = isStripeLiveMode();
@@ -246,10 +273,9 @@ async function loadIntegrations(input: {
     integration(
       "reviews",
       "Google Reviews",
-      isGoogleBusinessOAuthConfigured() ? "healthy" : "attention",
-      isGoogleBusinessOAuthConfigured()
-        ? "Business Profile OAuth configured"
-        : "OAuth environment is incomplete",
+      googleReviewsHealth.status,
+      googleReviewsHealth.message,
+      googleReviewsHealth.detail,
     ),
     integration(
       "deployment",

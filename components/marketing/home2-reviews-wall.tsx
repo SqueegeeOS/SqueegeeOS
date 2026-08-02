@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useReviewRailAutoplay } from "@/components/marketing/reviews-carousel";
-import type { GoogleReviewsApiResponse, Review } from "@/lib/reviews/types";
+import { useNearViewport } from "@/components/reviews/use-near-viewport";
+import type {
+  GoogleReviewsApiResponse,
+  Review,
+  ReviewsData,
+} from "@/lib/reviews/types";
 
 interface ReviewItem {
   id: string;
@@ -10,26 +15,37 @@ interface ReviewItem {
   rating: number;
   text: string;
   when: string;
+  profilePhotoUrl?: string;
+  reviewerProfileUrl?: string;
+  reviewUrl?: string;
 }
+
+interface ReviewMeta {
+  rating?: number;
+  count?: number;
+  provider?: ReviewsData["provider"];
+  businessUrl?: string;
+}
+
 export function isDisplayableReview(review: Review): boolean {
   return (
     review.source === "Google" &&
-    review.reviewText.trim().length > 0 &&
     review.reviewerName.trim().length > 0 &&
     Number.isFinite(review.rating) &&
-    review.rating >= 4 &&
+    review.rating >= 1 &&
     review.rating <= 5
   );
 }
 
 export function Home2ReviewsWall() {
   const [items, setItems] = useState<ReviewItem[]>([]);
-  const [meta, setMeta] = useState<{ rating?: number; count?: number }>({});
+  const [meta, setMeta] = useState<ReviewMeta>({});
   const [hasOverflow, setHasOverflow] = useState(false);
   const [canScrollPrevious, setCanScrollPrevious] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
   const railRef = useRef<HTMLDivElement>(null);
+  const { targetRef: reviewLoadRef, shouldLoad } = useNearViewport();
   const carousel = useReviewRailAutoplay(railRef, {
     hasOverflow,
     itemCount: items.length,
@@ -49,6 +65,7 @@ export function Home2ReviewsWall() {
   }, []);
 
   useEffect(() => {
+    if (!shouldLoad) return;
     const controller = new AbortController();
 
     fetch("/api/reviews/google", { signal: controller.signal })
@@ -62,27 +79,30 @@ export function Home2ReviewsWall() {
           return;
         }
 
-        const mapped = payload.data.reviews
+        const data = payload.data;
+        if (data.provider === "google_places" && !data.businessUrl) return;
+
+        const mapped = data.reviews
           .filter(isDisplayableReview)
-          .slice(0, 8)
           .map((review) => ({
             id: review.id,
             author: review.reviewerName,
             rating: review.rating,
             text: review.reviewText,
             when: review.relativeDate ?? "",
+            profilePhotoUrl: review.profilePhotoUrl,
+            reviewerProfileUrl: review.reviewerProfileUrl,
+            reviewUrl: review.reviewUrl,
           }));
 
         if (mapped.length === 0) return;
 
         setItems(mapped);
         setMeta({
-          rating:
-            payload.data.averageRating > 0
-              ? payload.data.averageRating
-              : undefined,
-          count:
-            payload.data.totalCount > 0 ? payload.data.totalCount : undefined,
+          rating: data.averageRating > 0 ? data.averageRating : undefined,
+          count: data.totalCount > 0 ? data.totalCount : undefined,
+          provider: data.provider,
+          businessUrl: data.businessUrl,
         });
       })
       .catch((error: unknown) => {
@@ -90,7 +110,7 @@ export function Home2ReviewsWall() {
       });
 
     return () => controller.abort();
-  }, []);
+  }, [shouldLoad]);
 
   useEffect(() => {
     const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -128,7 +148,11 @@ export function Home2ReviewsWall() {
     });
   };
 
-  if (items.length === 0) return null;
+  if (items.length === 0) {
+    return <div ref={reviewLoadRef} aria-hidden className="min-h-px" />;
+  }
+
+  const placesPreview = meta.provider === "google_places";
 
   return (
     <section
@@ -141,8 +165,15 @@ export function Home2ReviewsWall() {
     >
       <div className="mx-auto flex w-full max-w-[90rem] items-end justify-between gap-5 px-5 sm:px-8 lg:px-10">
         <div>
-          <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[var(--editorial-accent)] sm:text-[11px]">
-            Verified words / Google
+          <p className="text-xs text-[var(--editorial-accent)]">
+            Verified words /{" "}
+            <span
+              translate="no"
+              style={placesPreview ? { color: "#5E5E5E" } : undefined}
+              className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal"
+            >
+              {placesPreview ? "Google Maps" : "Google"}
+            </span>
           </p>
           <h2
             id="google-reviews-heading"
@@ -155,6 +186,22 @@ export function Home2ReviewsWall() {
               {meta.rating ? `${meta.rating.toFixed(1)} average rating` : ""}
               {meta.rating && meta.count ? " / " : ""}
               {meta.count ? `${meta.count} Google reviews` : ""}
+            </p>
+          )}
+          {placesPreview && (
+            <p className="mt-2 font-sans text-xs font-normal normal-case leading-relaxed tracking-normal text-[var(--editorial-muted)]">
+              <a
+                href={meta.businessUrl}
+                target="_blank"
+                rel="noreferrer"
+                translate="no"
+                style={{ color: "#5E5E5E" }}
+                className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal underline-offset-4 hover:underline"
+              >
+                Google Maps
+              </a>{" "}
+              preview ordered by Google relevance; this site applies no rating
+              filter.
             </p>
           )}
         </div>
@@ -194,26 +241,74 @@ export function Home2ReviewsWall() {
         tabIndex={0}
         className="mx-auto mt-14 flex w-full max-w-[90rem] cursor-grab snap-x snap-mandatory scroll-px-5 gap-6 overflow-x-auto px-5 pb-4 outline-none [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-[var(--editorial-accent)] focus-visible:ring-inset active:cursor-grabbing sm:scroll-px-8 sm:px-8 lg:scroll-px-10 lg:px-10 [&::-webkit-scrollbar]:hidden"
       >
-        {items.map((review) => (
-          <figure
-            key={review.id}
-            className="w-[min(82vw,24rem)] flex-none snap-start border-t border-[var(--editorial-rule)] pt-6 transition-transform duration-500 hover:-translate-y-1 motion-reduce:transition-none md:w-[calc((100%_-_1.5rem)/2)] xl:w-[calc((100%_-_4.5rem)/4)]"
-          >
-            <p
-              aria-label={`${review.rating} out of 5 stars`}
-              className="font-mono text-xs tracking-[0.18em] text-[var(--editorial-accent)]"
+        {items.map((review) => {
+          const sourceUrl = review.reviewUrl ?? meta.businessUrl;
+          return (
+            <figure
+              key={review.id}
+              className="w-[min(82vw,24rem)] flex-none snap-start border-t border-[var(--editorial-rule)] pt-6 transition-transform duration-500 hover:-translate-y-1 motion-reduce:transition-none md:w-[calc((100%_-_1.5rem)/2)] xl:w-[calc((100%_-_4.5rem)/4)]"
             >
-              <span aria-hidden>{"★".repeat(Math.round(review.rating))}</span>
-            </p>
-            <blockquote className="mt-5 font-serif text-xl font-light leading-snug text-[var(--editorial-ink)] sm:text-2xl">
-              “{review.text}”
-            </blockquote>
-            <figcaption className="mt-6 border-t border-[var(--editorial-rule)] pt-4 text-xs leading-relaxed text-[var(--editorial-muted)]">
-              {review.author}
-              {review.when ? ` / ${review.when}` : ""}
-            </figcaption>
-          </figure>
-        ))}
+              <div className="flex items-center gap-3">
+                {review.profilePhotoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={review.profilePhotoUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="h-9 w-9 rounded-full object-cover"
+                  />
+                )}
+                <p
+                  aria-label={`${review.rating} out of 5 stars`}
+                  className="font-mono text-xs tracking-[0.18em] text-[var(--editorial-accent)]"
+                >
+                  <span aria-hidden>{"★".repeat(Math.round(review.rating))}</span>
+                </p>
+              </div>
+              {review.text.trim() ? (
+                <blockquote className="mt-5 font-serif text-xl font-light leading-snug text-[var(--editorial-ink)] sm:text-2xl">
+                  “{review.text}”
+                </blockquote>
+              ) : (
+                <p className="mt-5 text-sm text-[var(--editorial-muted)]">
+                  Rating-only review
+                </p>
+              )}
+              <figcaption className="mt-6 border-t border-[var(--editorial-rule)] pt-4 text-xs leading-relaxed text-[var(--editorial-muted)]">
+                {review.reviewerProfileUrl ? (
+                  <a
+                    href={review.reviewerProfileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline-offset-4 hover:underline"
+                  >
+                    {review.author}
+                  </a>
+                ) : (
+                  review.author
+                )}
+                {review.when ? ` / ${review.when}` : ""}
+                {sourceUrl && (
+                  <>
+                    {" / "}
+                    <a
+                      href={sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      translate="no"
+                      style={
+                        placesPreview ? { color: "#5E5E5E" } : undefined
+                      }
+                      className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal underline-offset-4 hover:underline"
+                    >
+                      {placesPreview ? "Google Maps" : "Google"}
+                    </a>
+                  </>
+                )}
+              </figcaption>
+            </figure>
+          );
+        })}
       </div>
     </section>
   );

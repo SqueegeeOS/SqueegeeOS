@@ -19,6 +19,7 @@ export const GBP_ACCOUNTS_LIST_URL =
 export const GBP_REQUIRED_APIS = [
   "My Business Account Management API",
   "Business Profile Business Information API",
+  "Google My Business API (reviews)",
 ] as const;
 
 export const GOOGLE_OAUTH_COOKIE = "squeegeeking_google_business_oauth";

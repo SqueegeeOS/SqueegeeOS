@@ -11,7 +11,7 @@ export async function fetchOAuthTokenInfo(
   try {
     const response = await fetch(
       `https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(accessToken)}`,
-      { cache: "no-store" },
+      { cache: "no-store", signal: AbortSignal.timeout(8_000) },
     );
     if (!response.ok) return null;
     return (await response.json()) as OAuthTokenInfo;
@@ -35,6 +35,7 @@ export async function resolveOAuthEmail(
       {
         headers: { Authorization: `Bearer ${accessToken}` },
         cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
       },
     );
     if (userinfo.ok) {

@@ -15,22 +15,22 @@ export async function GET(request: Request) {
 
   const wizardUrl = new URL(ROUTES.setupGoogleReviews, url.origin);
 
-  if (oauthError) {
-    wizardUrl.searchParams.set("oauth", "error");
-    wizardUrl.searchParams.set("message", oauthError);
-    return NextResponse.redirect(wizardUrl);
-  }
-
-  if (!code || !state) {
-    wizardUrl.searchParams.set("oauth", "error");
-    wizardUrl.searchParams.set("message", "missing_code");
-    return NextResponse.redirect(wizardUrl);
-  }
-
-  const expectedState = await readAndClearOAuthState();
-  if (!expectedState || expectedState !== state) {
+  const expectedState = await readAndClearOAuthState(state);
+  if (!state || !expectedState || expectedState !== state) {
     wizardUrl.searchParams.set("oauth", "error");
     wizardUrl.searchParams.set("message", "invalid_state");
+    return NextResponse.redirect(wizardUrl);
+  }
+
+  if (oauthError) {
+    wizardUrl.searchParams.set("oauth", "error");
+    wizardUrl.searchParams.set("message", "google_authorization_denied");
+    return NextResponse.redirect(wizardUrl);
+  }
+
+  if (!code) {
+    wizardUrl.searchParams.set("oauth", "error");
+    wizardUrl.searchParams.set("message", "missing_code");
     return NextResponse.redirect(wizardUrl);
   }
 

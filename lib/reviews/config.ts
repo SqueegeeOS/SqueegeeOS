@@ -1,6 +1,18 @@
 export const GOOGLE_REVIEWS_CACHE_SECONDS = 8 * 60 * 60; // 8 hours
 
 /**
+ * Public republication of the owner-only Business Profile corpus stays
+ * opt-in until Google confirms that use for this project. Places remains the
+ * supported public fallback.
+ */
+export function isPublicFullGoogleReviewDisplayEnabled(): boolean {
+  return (
+    process.env.GOOGLE_BUSINESS_PUBLIC_FULL_REVIEWS_ENABLED?.trim().toLowerCase() ===
+    "true"
+  );
+}
+
+/**
  * Place IDs are public identifiers. API keys and OAuth tokens are not.
  * Keep a mistaken secret out of review requests, links, and JSON-LD.
  */

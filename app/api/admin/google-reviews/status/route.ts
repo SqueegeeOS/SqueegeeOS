@@ -46,11 +46,7 @@ export async function GET(request: Request) {
 
   logGoogleReviewsSetup("production_place_checked", {
     placeId,
-    businessName: summary.businessName ?? null,
-    rating: summary.rating ?? null,
-    reviewCount: summary.reviewCount ?? null,
     likelySqueegeeKing: assessment.likelySqueegeeKing,
-    mismatchReason: assessment.mismatchReason,
   });
 
   return NextResponse.json({

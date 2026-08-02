@@ -54,6 +54,8 @@ export function GoogleOAuthSetupGuide({
   redirectUri,
   clientIdConfigured,
   clientSecretConfigured,
+  tokenEncryptionKeyConfigured,
+  tokenEncryptionKeyValid,
   checking,
   copied,
   onCopy,
@@ -62,6 +64,8 @@ export function GoogleOAuthSetupGuide({
   redirectUri: string;
   clientIdConfigured: boolean;
   clientSecretConfigured: boolean;
+  tokenEncryptionKeyConfigured: boolean;
+  tokenEncryptionKeyValid: boolean;
   checking: boolean;
   copied: string | null;
   onCopy: (label: string, text: string) => void;
@@ -77,8 +81,8 @@ export function GoogleOAuthSetupGuide({
           One-time Google sign-in setup
         </p>
         <p className="mt-2 text-sm leading-relaxed text-foreground/90">
-          Follow these steps in order. When both credentials are saved in Vercel
-          and the site redeploys, the{" "}
+          Follow these steps in order. When the OAuth credentials and encryption
+          key are saved in Vercel and the site redeploys, the{" "}
           <strong className="text-foreground">Sign in with Google Business</strong>{" "}
           button will appear automatically — no code changes needed.
         </p>
@@ -96,6 +100,11 @@ export function GoogleOAuthSetupGuide({
             Internal if you use Google Workspace). App name:{" "}
             <strong className="text-foreground">SqueegeeKing</strong>. Add your
             email under Test users if the app is still in Testing mode.
+          </p>
+          <p className="mt-2 text-xs text-amber-700">
+            Before relying on unattended sync, move an External OAuth app to{" "}
+            <strong>In production</strong>. Google testing-mode refresh tokens
+            can expire after seven days for these scopes.
           </p>
         </li>
 
@@ -142,7 +151,7 @@ export function GoogleOAuthSetupGuide({
 
         <li>
           <span className="text-foreground/90">
-            Copy Client ID and Client Secret into Vercel
+            Copy credentials and an encryption key into Vercel
           </span>
           <p className="mt-1">
             After creating the client, Google shows a{" "}
@@ -164,6 +173,11 @@ export function GoogleOAuthSetupGuide({
             <li>
               <code className="text-foreground/85">GOOGLE_OAUTH_CLIENT_SECRET</code>{" "}
               → paste the Client secret
+            </li>
+            <li>
+              <code className="text-foreground/85">GOOGLE_TOKEN_ENCRYPTION_KEY</code>{" "}
+              → a 32-byte base64 key, or reuse{" "}
+              <code className="text-foreground/85">JOBBER_TOKEN_ENCRYPTION_KEY</code>
             </li>
           </ul>
           <p className="mt-2 text-xs">
@@ -209,6 +223,17 @@ export function GoogleOAuthSetupGuide({
             {clientSecretConfigured ? "✅" : "○"}{" "}
             <code>GOOGLE_OAUTH_CLIENT_SECRET</code>{" "}
             {clientSecretConfigured ? "detected" : "not detected yet"}
+          </li>
+          <li>
+            {tokenEncryptionKeyConfigured && tokenEncryptionKeyValid
+              ? "✅"
+              : "○"}{" "}
+            <code>GOOGLE_TOKEN_ENCRYPTION_KEY</code>{" "}
+            {!tokenEncryptionKeyConfigured
+              ? "not detected yet"
+              : tokenEncryptionKeyValid
+                ? "detected and valid"
+                : "detected but must decode to exactly 32 bytes"}
           </li>
         </ul>
       </div>

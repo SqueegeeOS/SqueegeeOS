@@ -30,14 +30,9 @@ export async function POST(request: Request) {
   logGoogleReviewsSetup("connection_test", {
     source: body.source ?? "manual_test",
     placeId: placeId || null,
-    businessName: result.businessName ?? body.businessNameHint ?? null,
-    rating: result.rating,
-    reviewCount: result.reviewCount,
     apiKeyValid: result.apiKeyValid,
     placeIdValid: result.placeIdValid,
     reviewsFound: result.reviewsFound,
-    likelySqueegeeKing: assessment.likelySqueegeeKing,
-    mismatchReason: assessment.mismatchReason,
   });
 
   return NextResponse.json({

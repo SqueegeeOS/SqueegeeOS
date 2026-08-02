@@ -13,26 +13,37 @@ function formatReviewDate(isoDate: string, relativeDate?: string): string {
 function ReviewerAvatar({
   name,
   photoUrl,
+  profileUrl,
 }: {
   name: string;
   photoUrl?: string;
+  profileUrl?: string;
 }) {
-  if (photoUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={photoUrl}
-        alt=""
-        className="h-10 w-10 rounded-full object-cover ring-1 ring-border"
-      />
-    );
-  }
-
-  const initial = name.trim().charAt(0).toUpperCase();
-  return (
+  const avatar = photoUrl ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={photoUrl}
+      alt=""
+      referrerPolicy="no-referrer"
+      className="h-10 w-10 rounded-full object-cover ring-1 ring-border"
+    />
+  ) : (
     <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-surface font-serif text-sm text-muted">
-      {initial}
+      {name.trim().charAt(0).toUpperCase()}
     </div>
+  );
+
+  if (!profileUrl) return avatar;
+
+  return (
+    <a
+      href={profileUrl}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`Open ${name}'s Google Maps profile`}
+    >
+      {avatar}
+    </a>
   );
 }
 
@@ -58,24 +69,82 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-export function ReviewCard({ review }: { review: Review }) {
+export function ReviewCard({
+  review,
+  provider,
+  businessUrl,
+}: {
+  review: Review;
+  provider?: ReviewsData["provider"];
+  businessUrl?: string;
+}) {
+  const sourceUrl = review.reviewUrl ?? businessUrl;
+  const sourceLabel = provider === "google_places" ? "Google Maps" : "Google";
+
   return (
     <blockquote className="text-center">
       <StarRating rating={review.rating} />
-      <p className="mt-6 font-serif text-xl font-light leading-relaxed text-foreground sm:text-2xl sm:leading-relaxed">
-        &ldquo;{review.reviewText}&rdquo;
-      </p>
+      {review.reviewText.trim() ? (
+        <p className="mt-6 font-serif text-xl font-light leading-relaxed text-foreground sm:text-2xl sm:leading-relaxed">
+          &ldquo;{review.reviewText}&rdquo;
+        </p>
+      ) : (
+        <p className="mt-6 text-sm leading-relaxed text-muted">
+          Rating-only review
+        </p>
+      )}
       <footer className="mt-8 flex flex-col items-center gap-3">
         <ReviewerAvatar
           name={review.reviewerName}
           photoUrl={review.profilePhotoUrl}
+          profileUrl={review.reviewerProfileUrl}
         />
         <div>
-          <p className="text-sm text-foreground/90">{review.reviewerName}</p>
-          <p className="mt-1 text-[10px] uppercase tracking-[0.28em] text-muted">
+          <p className="text-sm text-foreground/90">
+            {review.reviewerProfileUrl ? (
+              <a
+                href={review.reviewerProfileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline-offset-4 hover:underline"
+              >
+                {review.reviewerName}
+              </a>
+            ) : (
+              review.reviewerName
+            )}
+          </p>
+          <p className="mt-1 text-xs text-muted">
             {review.location ? `${review.location} · ` : ""}
             {formatReviewDate(review.reviewDate, review.relativeDate)} ·{" "}
-            {review.source}
+            {sourceUrl ? (
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                translate="no"
+                style={
+                  provider === "google_places"
+                    ? { color: "#5E5E5E" }
+                    : undefined
+                }
+                className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal underline-offset-4 hover:underline"
+              >
+                {sourceLabel}
+              </a>
+            ) : (
+              <span
+                translate="no"
+                style={
+                  provider === "google_places"
+                    ? { color: "#5E5E5E" }
+                    : undefined
+                }
+                className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal"
+              >
+                {sourceLabel}
+              </span>
+            )}
           </p>
         </div>
       </footer>
