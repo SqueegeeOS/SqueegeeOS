@@ -9,6 +9,7 @@ export const ROUTES = {
   night2: "/night2",
   request: "/request",
   contact: "/contact",
+  services: "/services",
   employeeHome: "/employee",
   createPlan: "/employee/home-care-plan/create",
   properties: "/properties",
@@ -50,6 +51,7 @@ export interface NavItem {
 
 export const CUSTOMER_PRIMARY_NAV: NavItem[] = [
   { label: "Home", href: ROUTES.home },
+  { label: "Services", href: ROUTES.services },
   { label: "Request Plan", href: ROUTES.request },
 ];
 

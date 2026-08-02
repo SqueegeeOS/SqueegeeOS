@@ -5,6 +5,11 @@ export const CUSTOMER_BRAND = {
   location: "Chico, California",
 } as const;
 
+export const CUSTOMER_CONTACT = {
+  phoneDisplay: "(530) 588-6235",
+  phoneHref: "tel:+15305886235",
+} as const;
+
 export const CUSTOMER_CTAS = {
   requestPlan: "Get My Home Care Plan",
   requestPlanHint: "Takes about 60 seconds",

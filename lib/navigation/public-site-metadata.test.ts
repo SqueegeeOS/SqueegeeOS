@@ -20,10 +20,17 @@ describe("public site route policy", () => {
       ["app/page.tsx", 'canonical: "/"'],
       ["app/request/page.tsx", 'canonical: "/request"'],
       ["app/contact/page.tsx", 'canonical: "/contact"'],
+      ["app/services/page.tsx", 'canonical: "/services"'],
     ] as const;
     for (const [path, expected] of expectations) {
       expect(readProjectFile(path)).toContain(expected);
     }
+
+    const servicePage = readProjectFile("app/services/[slug]/page.tsx");
+    expect(servicePage).toContain(
+      'const canonical = `/services/${service.slug}`',
+    );
+    expect(servicePage).toContain("generateStaticParams");
   });
 
   it("keeps alternate visual experiments out of search results and the sitemap", () => {
@@ -33,8 +40,30 @@ describe("public site route policy", () => {
       );
     }
     const sitemap = readProjectFile("app/sitemap.ts");
-    expect(sitemap).not.toContain("PUBLIC_SITE_URL}/day");
-    expect(sitemap).not.toContain("PUBLIC_SITE_URL}/night");
+    expect(sitemap).not.toContain('url: `${PUBLIC_SITE_URL}/day`');
+    expect(sitemap).not.toContain('url: `${PUBLIC_SITE_URL}/night`');
+  });
+
+  it("publishes service routes and their source images for discovery", () => {
+    const sitemap = readProjectFile("app/sitemap.ts");
+    expect(sitemap).toContain('url: `${PUBLIC_SITE_URL}/services`');
+    expect(sitemap).toContain(
+      'url: `${PUBLIC_SITE_URL}/services/${service.slug}`',
+    );
+    expect(sitemap).toContain(
+      'images: [`${PUBLIC_SITE_URL}${service.image}`]',
+    );
+
+    const services = readProjectFile("lib/marketing/public-services.ts");
+    for (const slug of [
+      "window-cleaning",
+      "pressure-washing",
+      "solar-panel-cleaning",
+      "home-care-memberships",
+    ]) {
+      expect(services).toContain(`slug: "${slug}"`);
+    }
+    expect(services).toContain("imageAlt:");
   });
 
   it("protects private workspaces from caching and search indexing", () => {
