@@ -200,6 +200,29 @@ create unique index if not exists customer_conversations_lead_uidx
 create index if not exists customer_conversations_property_idx
   on public.customer_conversations(property_id, last_message_at desc);
 
+-- Make pre-existing website requests visible in the founder inbox without
+-- triggering an acknowledgement or contacting anyone.
+insert into public.customer_conversations (
+  id,
+  lead_intake_id,
+  subject,
+  created_at,
+  updated_at
+)
+select
+  lead.id,
+  lead.id,
+  'Website service request',
+  lead.submitted_at,
+  lead.submitted_at
+from public.lead_intakes as lead
+where not exists (
+  select 1
+  from public.customer_conversations as conversation
+  where conversation.lead_intake_id = lead.id
+)
+on conflict do nothing;
+
 create or replace function public.validate_customer_conversation_context()
 returns trigger
 language plpgsql
