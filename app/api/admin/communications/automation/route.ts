@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
+import { getCommunicationsConfiguration } from "@/lib/communications/service";
+import { getCommunicationAutomationReadiness } from "@/lib/communications/provider-readiness";
 
 const ALLOWED_RULE_IDS = new Set([
   "lead_acknowledgement_email",
@@ -38,6 +40,32 @@ export async function PATCH(request: Request) {
   const id = typeof body?.id === "string" ? body.id.trim() : "";
   if (!ALLOWED_RULE_IDS.has(id) || typeof body?.enabled !== "boolean") {
     return NextResponse.json({ error: "Invalid automation update" }, { status: 400 });
+  }
+  if (body.enabled) {
+    const channel = id.endsWith("_sms") ? "sms" : "email";
+    const configuration = getCommunicationsConfiguration();
+    if (!configuration[channel].configured) {
+      return NextResponse.json(
+        {
+          error: `${channel === "sms" ? "Text" : "Email"} provider setup must be complete before this automation can be enabled.`,
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
+    const provider = channel === "sms" ? "twilio" : "resend";
+    const readiness = await getCommunicationAutomationReadiness(provider);
+    if (!readiness.ready) {
+      return NextResponse.json(
+        {
+          error:
+            channel === "sms"
+              ? "Send a signed Twilio inbound or status-callback test for the current auth token before enabling text automation."
+              : "Send a signed Resend delivery-webhook test for the current signing secret before enabling email automation.",
+          code: readiness.reason,
+        },
+        { status: 409, headers: { "Cache-Control": "no-store" } },
+      );
+    }
   }
   const supabase = createServiceRoleSupabaseClient();
   const { data, error } = await supabase

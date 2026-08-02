@@ -2,9 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import {
-  formatBillingStatusLabel,
-} from "@/lib/admin/billing-charge-dates";
+import { formatBillingStatusLabel } from "@/lib/admin/billing-charge-dates";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
 import type {
   BillingRegisterRow,
@@ -14,6 +12,7 @@ import type {
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 import { craftEyebrow, craftTableHead } from "@/lib/craft/tokens";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
+import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 function stripeDashboardCustomerUrl(
   customerId: string,
@@ -62,6 +61,19 @@ function formatChargeDate(isoDate: string | null): string {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function customerBankApprovalRequired(row: BillingRegisterRow): boolean {
+  if (row.billingExecutionState !== "needs_action") return false;
+  const code = row.billingFailureCode?.toLowerCase() ?? "";
+  const message = row.billingFailureMessage?.toLowerCase() ?? "";
+  return (
+    code === "stripe_requires_action" ||
+    code === "requires_action" ||
+    code === "authentication_required" ||
+    message.includes("requires_action") ||
+    message.includes("authentication required")
+  );
 }
 
 function RowAction({
@@ -123,11 +135,16 @@ function RowAction({
 function BillingRegisterRowActions({
   row,
   stripeDashboardLive,
+  onUpdated,
 }: {
   row: BillingRegisterRow;
   stripeDashboardLive: boolean;
+  onUpdated: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [noticeIsError, setNoticeIsError] = useState(false);
 
   const copyCustomerId = async () => {
     if (!row.stripeCustomerId) return;
@@ -143,6 +160,149 @@ function BillingRegisterRowActions({
   const stripeUrl = row.stripeCustomerId
     ? stripeDashboardCustomerUrl(row.stripeCustomerId, stripeDashboardLive)
     : null;
+  const bankApprovalRequired = customerBankApprovalRequired(row);
+
+  const setAutomaticBilling = async (enabled: boolean) => {
+    const confirmed = window.confirm(
+      enabled
+        ? `Resume automatic billing for ${row.homeownerName}? Atlas will only charge after every signed-price, Jobber membership-job, saved-card, and duplicate-payment check passes.`
+        : `Pause automatic billing for ${row.homeownerName}? Any unstarted queued order for this member will be voided.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    setWorking(true);
+    setNotice(null);
+    setNoticeIsError(false);
+    try {
+      const response = await fetch("/api/admin/billing-automation", {
+        method: "PATCH",
+        headers: {
+          ...getAdminRequestHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "membership",
+          membershipId: row.membershipId,
+          enabled,
+          reason: "Founder changed this member from the billing register",
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Update failed");
+      setNotice(
+        enabled
+          ? "Member auto-bill is eligible when the global switch is armed"
+          : "Member auto-bill paused and unstarted orders voided",
+      );
+      onUpdated();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Update failed");
+      setNoticeIsError(true);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const verifyBillingAuthorization = async () => {
+    if (!row.agreementPdfUrl || row.visitPrice == null) return;
+    const agreementWindow = window.open(row.agreementPdfUrl, "_blank");
+    if (!agreementWindow) {
+      setNotice(
+        "Your browser blocked the signed agreement. Open it with View agreement, then try again.",
+      );
+      setNoticeIsError(true);
+      return;
+    }
+    agreementWindow.opener = null;
+    if (
+      !window.confirm(
+        `Review the signed PDF that just opened. Does it authorize charging exactly ${formatCurrency(row.visitPrice)} on the 1st of each scheduled service month for this exact membership and property?`,
+      )
+    ) {
+      return;
+    }
+    setWorking(true);
+    setNotice(null);
+    setNoticeIsError(false);
+    try {
+      const response = await fetch("/api/admin/billing-automation", {
+        method: "PATCH",
+        headers: {
+          ...getAdminRequestHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "authorize_membership",
+          membershipId: row.membershipId,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Authorization review failed");
+      }
+      setNotice("Signed billing authorization recorded");
+      onUpdated();
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "Authorization review failed",
+      );
+      setNoticeIsError(true);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const retryCharge = async () => {
+    if (!row.billingOrderId) return;
+    if (
+      !window.confirm(
+        "Retry this exact locked service-month charge now? Use this only after the member updates or approves their saved card.",
+      )
+    ) {
+      return;
+    }
+    setWorking(true);
+    setNotice(null);
+    setNoticeIsError(false);
+    try {
+      const response = await fetch("/api/admin/billing-automation", {
+        method: "POST",
+        headers: {
+          ...getAdminRequestHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "retry",
+          billingOrderId: row.billingOrderId,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+        run?: { paid?: number; needsAction?: number; failed?: number };
+      } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Retry failed");
+      setNotice(
+        body?.run?.paid
+          ? "Payment succeeded"
+          : body?.run?.needsAction
+            ? "Card still needs customer action"
+            : body?.run?.failed
+              ? "Retry failed; review the order status"
+              : "No charge was attempted",
+      );
+      onUpdated();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "Retry failed");
+      setNoticeIsError(true);
+    } finally {
+      setWorking(false);
+    }
+  };
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -175,18 +335,44 @@ function BillingRegisterRowActions({
         href={customerWorkspaceHref("property", row.propertyId)}
       />
       <RowAction
-        label="Care billing preview only"
-        disabled
+        label={
+          row.automaticBillingEnabled ? "Pause auto-bill" : "Resume auto-bill"
+        }
+        onClick={() => void setAutomaticBilling(!row.automaticBillingEnabled)}
+        disabled={
+          working ||
+          (!row.automaticBillingEnabled && !row.billingAuthorizationReady)
+        }
       />
-      <RowAction
-        label="Payment recording paused"
-        disabled
-      />
-      {row.chargeAction === "manual_charge" ? (
+      {!row.billingAuthorizationReady ? (
         <RowAction
-          label="Manual charge paused"
-          disabled
+          label="Open + verify signed terms"
+          onClick={() => void verifyBillingAuthorization()}
+          disabled={working || !row.agreementPdfUrl || row.visitPrice == null}
         />
+      ) : null}
+      {row.billingStatus === "failed" &&
+      row.billingOrderId &&
+      !bankApprovalRequired &&
+      ["failed_retryable", "needs_action", "permanently_failed"].includes(
+        row.billingExecutionState ?? "",
+      ) ? (
+        <RowAction
+          label="Retry exact charge"
+          onClick={() => void retryCharge()}
+          disabled={working}
+        />
+      ) : null}
+      {bankApprovalRequired ? (
+        <RowAction label="Customer approval required" disabled />
+      ) : null}
+      {notice ? (
+        <span
+          className={`self-center text-[11px] ${noticeIsError ? "text-red-300" : "text-muted"}`}
+          role={noticeIsError ? "alert" : "status"}
+        >
+          {notice}
+        </span>
       ) : null}
     </div>
   );
@@ -195,6 +381,7 @@ function BillingRegisterRowActions({
 export function BillingRegisterTable({
   rows,
   stripeDashboardLive,
+  onRecorded,
 }: {
   rows: BillingRegisterRow[];
   stripeDashboardLive: boolean;
@@ -224,7 +411,7 @@ export function BillingRegisterTable({
               <th className="pb-3 pr-4 font-medium">Visit price</th>
               <th className="pb-3 pr-4 font-medium">Stripe</th>
               <th className="pb-3 pr-4 font-medium">Card on file</th>
-              <th className="pb-3 pr-4 font-medium">Next charge</th>
+              <th className="pb-3 pr-4 font-medium">Service-month charge</th>
               <th className="pb-3 pr-4 font-medium">Last charge</th>
               <th className="pb-3 pr-4 font-medium">Status</th>
               <th className="pb-3 font-medium">Actions</th>
@@ -269,11 +456,53 @@ export function BillingRegisterTable({
                   >
                     {formatBillingStatusLabel(row.billingStatus)}
                   </span>
+                  {!row.billingAuthorizationReady ? (
+                    <p className="mt-2 max-w-56 text-[11px] leading-relaxed text-amber-200">
+                      Signed automatic-billing terms need founder verification.
+                    </p>
+                  ) : null}
+                  {!row.membershipJobClassified ? (
+                    <p className="mt-2 max-w-56 text-[11px] leading-relaxed text-amber-200">
+                      Classify the recurring Jobber membership job before any
+                      visit can qualify for billing.
+                    </p>
+                  ) : !row.verifiedServiceVisitReady ? (
+                    <p className="mt-2 max-w-56 text-[11px] leading-relaxed text-muted">
+                      Membership job verified; no upcoming scheduled service
+                      visit is ready yet.
+                    </p>
+                  ) : null}
+                  {row.billingExecutionState ? (
+                    <p className="mt-2 max-w-52 text-[11px] leading-relaxed text-muted">
+                      {row.billingExecutionState.replaceAll("_", " ")}
+                      {row.billingAttemptCount > 0
+                        ? ` · ${row.billingAttemptCount} attempt${row.billingAttemptCount === 1 ? "" : "s"}`
+                        : ""}
+                    </p>
+                  ) : null}
+                  {row.billingFailureMessage ? (
+                    <p className="mt-1 max-w-56 text-[11px] leading-relaxed text-red-300">
+                      {row.billingFailureMessage}
+                    </p>
+                  ) : null}
+                  {customerBankApprovalRequired(row) ? (
+                    <p className="mt-1 max-w-56 text-[11px] leading-relaxed text-amber-200">
+                      Customer bank approval is required. Handle this in Stripe
+                      or contact the customer; Atlas will not retry it
+                      automatically.
+                    </p>
+                  ) : null}
+                  {row.billingNextAttemptAt ? (
+                    <p className="mt-1 max-w-56 text-[11px] leading-relaxed text-muted">
+                      Next provider retry {new Date(row.billingNextAttemptAt).toLocaleString()}
+                    </p>
+                  ) : null}
                 </td>
                 <td className="py-4">
                   <BillingRegisterRowActions
                     row={row}
                     stripeDashboardLive={stripeDashboardLive}
+                    onUpdated={onRecorded}
                   />
                 </td>
               </tr>

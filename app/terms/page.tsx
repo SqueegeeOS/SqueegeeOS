@@ -31,6 +31,20 @@ export default function TermsOfUsePage() {
         </section>
 
         <section>
+          <h2 className="font-serif text-2xl text-foreground">
+            Transactional text messages
+          </h2>
+          <p className="mt-3">
+            If you separately check the text-message consent box, SqueegeeKing
+            may send transactional messages about your request, appointments,
+            service, or account. Message frequency varies, and message and data
+            rates may apply. Reply STOP to opt out or HELP for help. Consent is
+            not a condition of purchase. Mobile carriers are not responsible
+            for delayed or undelivered messages.
+          </p>
+        </section>
+
+        <section>
           <h2 className="font-serif text-2xl text-foreground">Google Maps content</h2>
           <p className="mt-3">
             Maps, place details, reviews, author attribution, and related links

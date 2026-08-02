@@ -12,6 +12,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { canBillMembership } from "@/lib/membership/membership-status";
+import { verifyStripePaymentReference } from "@/lib/billing/verify-stripe-payment-reference";
 
 export interface RecordManualBillingChargeInput {
   membershipId: string;
@@ -67,7 +68,9 @@ export async function recordManualBillingCharge(
 
   const { data: membership, error: membershipError } = await supabase
     .from("memberships")
-    .select("id, homeowner_id, property_id, visit_price, status, payment_setup_completed_at")
+    .select(
+      "id, homeowner_id, property_id, visit_price, status, payment_setup_completed_at, stripe_customer_id",
+    )
     .eq("id", input.membershipId)
     .maybeSingle();
 
@@ -85,6 +88,9 @@ export async function recordManualBillingCharge(
     })
   ) {
     throw new Error("Only active memberships with a card on file can be charged.");
+  }
+  if (!membership.stripe_customer_id) {
+    throw new Error("This membership has no Stripe customer to verify.");
   }
 
   const { data: obligations, error: obligationsError } = await supabase
@@ -136,6 +142,11 @@ export async function recordManualBillingCharge(
     membership.visit_price != null ? Number(membership.visit_price) : null;
   const stripeReference = input.stripeReference!.trim();
   const notes = input.notes?.trim() ?? "";
+  const verifiedPayment = await verifyStripePaymentReference({
+    reference: stripeReference,
+    expectedCustomerId: membership.stripe_customer_id as string,
+    expectedAmountCents: Math.round(input.amount * 100),
+  });
 
   const { data: inserted, error: insertError } = await supabase
     .from("membership_billing_charges")
@@ -151,7 +162,9 @@ export async function recordManualBillingCharge(
       charged_at: chargeTimestampFromDate(input.chargeDate),
       billing_method: "manual_stripe",
       stripe_reference: stripeReference,
-      stripe_payment_intent_id: stripeReference,
+      stripe_payment_intent_id: verifiedPayment.paymentIntentId,
+      billing_authority_verified_at: verifiedPayment.verifiedAt,
+      billing_authority_verified_by: "stripe_verified_manual_record",
       notes,
       created_by: "hq",
     })

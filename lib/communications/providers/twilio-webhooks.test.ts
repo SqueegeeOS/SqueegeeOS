@@ -63,7 +63,13 @@ describe("Twilio webhook helpers", () => {
       consentKeyword: "stop",
     });
     expect(classifySmsConsentKeyword("Unstop")).toBe("start");
-    expect(classifySmsConsentKeyword("please stop texting me")).toBe("none");
+    expect(classifySmsConsentKeyword("STOP!")).toBe("stop");
+    expect(classifySmsConsentKeyword("please stop texting me")).toBe("stop");
+    expect(classifySmsConsentKeyword("do not message this number")).toBe("stop");
+    expect(classifySmsConsentKeyword("take me off your text list")).toBe("stop");
+    expect(classifySmsConsentKeyword("no more texts please")).toBe("stop");
+    expect(classifySmsConsentKeyword("please don't stop by today")).toBe("none");
+    expect(classifySmsConsentKeyword("do not send it until Tuesday")).toBe("none");
   });
 
   it("honors Twilio Advanced Opt-Out classification and keeps all form params", () => {

@@ -1,6 +1,7 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
+import { getCommunicationAutomationReadiness } from "@/lib/communications/provider-readiness";
 import {
   getResendEmailConfigState,
   resolveResendEmailConfig,
@@ -42,6 +43,7 @@ import type {
   CustomerMessage,
   CustomerMessageDeliveryStatus,
 } from "@/lib/communications/types";
+import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 
 export interface CommunicationsProviderView {
   configured: boolean;
@@ -150,9 +152,16 @@ export function getCommunicationsConfiguration(): CommunicationsConfigurationVie
   const emailConfig = resolveResendEmailConfig();
   const emailProvider = getResendEmailConfigState(emailConfig);
   const replyTo = resolveCommunicationsReplyTo();
-  const emailConfigured = emailProvider.configured && Boolean(replyTo);
+  const resendWebhookConfigured = Boolean(
+    process.env.RESEND_WEBHOOK_SECRET?.trim(),
+  );
+  const emailConfigured =
+    emailProvider.configured && Boolean(replyTo) && resendWebhookConfigured;
   const twilioConfig = resolveTwilioSmsConfig();
   const smsProvider = getTwilioSmsConfigState(twilioConfig);
+  const twilioSenderApproved =
+    process.env.TWILIO_SENDER_APPROVED?.trim().toLowerCase() === "true";
+  const smsConfigured = smsProvider.configured && twilioSenderApproved;
 
   return {
     email: {
@@ -160,20 +169,39 @@ export function getCommunicationsConfiguration(): CommunicationsConfigurationVie
       fromLabel: emailConfig.from || null,
       detail: emailConfigured
         ? "Resend is ready for customer email."
+        : emailProvider.configured && Boolean(replyTo) && !resendWebhookConfigured
+          ? "Add the signed Resend delivery webhook before sending customer email."
         : emailProvider.configured
           ? "Add a monitored communications reply-to address."
           : "Connect a verified Resend sender to send email.",
     },
     sms: {
-      configured: smsProvider.configured,
+      configured: smsConfigured,
       fromLabel:
         maskSmsSender(twilioConfig.fromNumber) ??
         (twilioConfig.messagingServiceSid ? "Messaging service connected" : null),
-      detail: smsProvider.configured
-        ? "Twilio is ready; explicit customer opt-in is still required."
+      detail: smsConfigured
+        ? "Twilio credentials and sender approval are recorded; explicit customer opt-in is still required."
+        : smsProvider.configured && !twilioSenderApproved
+          ? "Confirm sender registration is approved before enabling TWILIO_SENDER_APPROVED."
         : "Connect a Twilio sender and status callback to send texts.",
     },
   };
+}
+
+async function assertCommunicationProviderReadiness(
+  channel: CustomerCommunicationChannel,
+): Promise<void> {
+  const provider = channel === "email" ? "resend" : "twilio";
+  const readiness = await getCommunicationAutomationReadiness(provider);
+  if (readiness.ready) return;
+  throw new CommunicationsServiceError(
+    channel === "email"
+      ? "Send a signed Resend delivery-webhook test for the current secret before sending customer email."
+      : "Send a signed Twilio inbound or status-callback test for the current auth token before sending customer texts.",
+    409,
+    readiness.reason ?? "provider_webhook_unverified",
+  );
 }
 
 export function evaluateOutboundCommunicationGate(input: {
@@ -545,6 +573,7 @@ export async function sendOutboundCommunication(input: {
     const blocked = blockMessage(gate.code, input.channel);
     throw new CommunicationsServiceError(blocked.message, blocked.status, gate.code);
   }
+  await assertCommunicationProviderReadiness(input.channel);
 
   const provider = input.channel === "email" ? "resend" : "twilio";
   const attempt = await createOutboundCommunicationAttempt({
@@ -621,6 +650,7 @@ export async function scheduleOutboundCommunication(input: {
     const blocked = blockMessage(gate.code, input.channel);
     throw new CommunicationsServiceError(blocked.message, blocked.status, gate.code);
   }
+  await assertCommunicationProviderReadiness(input.channel);
   return createOutboundCommunicationAttempt({
     conversationId: input.conversationId,
     contactPointId: destination?.contactPointId ?? null,
@@ -639,7 +669,26 @@ export interface ScheduledCommunicationRunSummary {
   due: number;
   sent: number;
   claimedElsewhere: number;
+  cancelled: number;
   failed: number;
+}
+
+async function scheduledCommunicationIsStillApplicable(
+  message: CustomerMessage,
+): Promise<boolean> {
+  if (message.metadata.source !== "automatic_membership_billing") return true;
+  if (message.metadata.outcome !== "needs_action") return false;
+  const billingOrderId = message.metadata.billingOrderId;
+  if (typeof billingOrderId !== "string" || !billingOrderId.trim()) return false;
+
+  const supabase = createServiceRoleSupabaseClient();
+  const { data, error } = await supabase
+    .from("billing_orders")
+    .select("execution_state")
+    .eq("id", billingOrderId)
+    .maybeSingle();
+  if (error) throw new Error("scheduled_billing_state_unavailable");
+  return data?.execution_state === "needs_action";
 }
 
 export async function processDueScheduledCommunications(
@@ -649,6 +698,7 @@ export async function processDueScheduledCommunications(
     due: 0,
     sent: 0,
     claimedElsewhere: 0,
+    cancelled: 0,
     failed: 0,
   };
   const due = await listDueScheduledCommunicationMessages(now.toISOString());
@@ -661,6 +711,15 @@ export async function processDueScheduledCommunications(
       continue;
     }
     try {
+      if (!(await scheduledCommunicationIsStillApplicable(claimed))) {
+        await finalizeOutboundCommunicationAttempt({
+          messageId: claimed.id,
+          deliveryStatus: "cancelled",
+          failureCode: "scheduled_message_no_longer_applicable",
+        });
+        summary.cancelled += 1;
+        continue;
+      }
       const context = await loadCommunicationConversationContext(claimed.conversationId);
       if (!context) throw new Error("scheduled_conversation_missing");
       const configuration = getCommunicationsConfiguration();
@@ -686,6 +745,7 @@ export async function processDueScheduledCommunications(
         summary.failed += 1;
         continue;
       }
+      await assertCommunicationProviderReadiness(claimed.channel);
       await deliverPreparedCommunication({
         messageId: claimed.id,
         channel: claimed.channel,

@@ -4,6 +4,7 @@ import { syncAllJobberData } from "@/lib/care-operations/jobber-full-sync";
 import { processVerifiedAppointmentReminders } from "@/lib/communications/reminders";
 import { processDueScheduledCommunications } from "@/lib/communications/service";
 import { markJobberWebhookEventsReconciled } from "@/lib/integrations/jobber-webhook";
+import { runAutomaticMembershipBilling } from "@/lib/billing/automatic-billing-executor";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,17 +26,49 @@ export async function GET(request: Request) {
     );
   }
 
-  const snapshotStartedAt = new Date().toISOString();
+  const requestStartedAt = Date.now();
+  const snapshotStartedAt = new Date(requestStartedAt).toISOString();
   try {
-    const scheduledCommunications = await processDueScheduledCommunications();
+    const scheduledCommunications = await processDueScheduledCommunications().catch(
+      (error) => {
+        console.error("[jobber-reconcile-cron] scheduled communications failed", {
+          reason: error instanceof Error ? error.message : "unknown",
+        });
+        return {
+          status: "failed" as const,
+          error:
+            "Scheduled communications failed; fresh Jobber sync and billing safety checks continued.",
+        };
+      },
+    );
     const sync = await syncAllJobberData();
     const webhookInbox = await markJobberWebhookEventsReconciled({
       snapshotStartedAt,
       syncSummary: sync,
     });
+    const billing = await runAutomaticMembershipBilling({
+      triggerSource: "cron",
+      actor: "vercel_jobber_reconcile_cron",
+      stopClaimingAt: requestStartedAt + 270_000,
+    }).catch((error) => {
+      console.error("[jobber-reconcile-cron] automatic billing failed", {
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+      return {
+        status: "failed" as const,
+        error: "Automatic billing failed; Jobber reconciliation still completed.",
+      };
+    });
     const reminders = await processVerifiedAppointmentReminders();
     return NextResponse.json(
-      { ok: true, sync, webhookInbox, scheduledCommunications, reminders },
+      {
+        ok: true,
+        sync,
+        webhookInbox,
+        scheduledCommunications,
+        billing,
+        reminders,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

@@ -21,6 +21,7 @@ import {
   type AppointmentProvenance,
 } from "@/lib/care-operations/model";
 import { assertBillingExecutionDisabled } from "@/lib/care-operations/billing-preview";
+import { verifyStripePaymentReference } from "@/lib/billing/verify-stripe-payment-reference";
 
 export type CompleteChargeVisitOutcome =
   | "paid"
@@ -154,6 +155,42 @@ function stripeFailureMessage(error: unknown): string {
   return error instanceof Error ? error.message : "Stripe could not process the charge.";
 }
 
+function assertInvoiceBinding(input: {
+  invoice: Stripe.Invoice;
+  membership: MembershipRow;
+  operationKey: string;
+  payload: CompleteChargeVisitInput;
+  amountCents: number;
+}) {
+  const customerId =
+    typeof input.invoice.customer === "string"
+      ? input.invoice.customer
+      : input.invoice.customer?.id ?? null;
+  const expectedLivemode = Boolean(
+    process.env.STRIPE_SECRET_KEY?.trim().startsWith("sk_live_"),
+  );
+  const requiredMetadata = {
+    homeatlas_operation_key: input.operationKey,
+    membership_id: input.membership.id,
+    property_id: input.membership.property_id,
+    appointment_id: input.payload.appointmentId ?? "",
+    service_date: input.payload.serviceDate,
+  };
+  if (
+    input.invoice.livemode !== expectedLivemode ||
+    input.invoice.currency.toLowerCase() !== "usd" ||
+    customerId !== input.membership.stripe_customer_id ||
+    input.invoice.total !== input.amountCents ||
+    Object.entries(requiredMetadata).some(
+      ([key, value]) => input.invoice.metadata?.[key] !== value,
+    )
+  ) {
+    throw new Error(
+      "Stripe invoice does not match this member, visit, and exact charge.",
+    );
+  }
+}
+
 export async function completeAndChargeVisit(
   payload: CompleteChargeVisitInput,
 ): Promise<CompleteChargeVisitResult> {
@@ -234,21 +271,20 @@ export async function completeAndChargeVisit(
 
   const { data: existingCharge, error: existingChargeError } = await supabase
     .from("membership_billing_charges")
-    .select("id, status, billing_method, stripe_reference, stripe_payment_intent_id")
+    .select(
+      "id, status, billing_method, stripe_reference, stripe_payment_intent_id, billing_authority_verified_at, billing_authority_verified_by",
+    )
     .eq("membership_id", membership.id)
     .eq("service_month", period)
     .maybeSingle();
   if (existingChargeError) throw new Error(existingChargeError.message);
 
-  const hasVerifiedStripePayment = Boolean(
-    existingCharge?.stripe_payment_intent_id ||
-      (typeof existingCharge?.stripe_reference === "string" &&
-        /^(pi|ch|in)_[A-Za-z0-9]+$/.test(existingCharge.stripe_reference)),
-  );
   const isVerifiedPaidCharge =
     (existingCharge?.status === "paid" || existingCharge?.status === "charged") &&
-    (existingCharge.billing_method === "automatic_stripe" ||
-      hasVerifiedStripePayment);
+    Boolean(
+      existingCharge.billing_authority_verified_at &&
+        existingCharge.billing_authority_verified_by?.trim(),
+    );
 
   if (isVerifiedPaidCharge) {
     return {
@@ -265,6 +301,14 @@ export async function completeAndChargeVisit(
       savingsRecordedCents,
       message: "This visit was already paid. No second charge was created.",
     };
+  }
+  if (
+    existingCharge?.status === "paid" ||
+    existingCharge?.status === "charged"
+  ) {
+    throw new Error(
+      "This historical paid record needs Stripe verification before any new charge can be attempted.",
+    );
   }
 
   const pendingRow = {
@@ -348,6 +392,13 @@ export async function completeAndChargeVisit(
         { idempotencyKey: `${operationKey}:finalize` },
       );
     }
+    assertInvoiceBinding({
+      invoice,
+      membership,
+      operationKey,
+      payload,
+      amountCents: totals.chargeTotalCents,
+    });
     if (invoice.status !== "paid") {
       invoice = await stripe.invoices.pay(
         invoice.id,
@@ -359,16 +410,20 @@ export async function completeAndChargeVisit(
     if (invoice.status !== "paid") {
       throw new Error(`Stripe invoice ended in ${invoice.status ?? "unknown"} status.`);
     }
-    const invoicePayments = await stripe.invoicePayments.list({
-      invoice: invoice.id,
-      status: "paid",
-      limit: 1,
+    const requiredMetadata = {
+      homeatlas_operation_key: operationKey,
+      membership_id: membership.id,
+      property_id: membership.property_id,
+      appointment_id: payload.appointmentId ?? "",
+      service_date: payload.serviceDate,
+    };
+    const verifiedPayment = await verifyStripePaymentReference({
+      reference: invoice.id,
+      expectedCustomerId: membership.stripe_customer_id,
+      expectedAmountCents: totals.chargeTotalCents,
+      requiredMetadata,
     });
-    const paymentIntent = invoicePayments.data[0]?.payment.payment_intent;
-    const paymentIntentId =
-      typeof paymentIntent === "string"
-        ? paymentIntent
-        : paymentIntent?.id ?? null;
+    const paymentIntentId = verifiedPayment.paymentIntentId;
 
     const { error: paidError } = await supabase
       .from("membership_billing_charges")
@@ -378,6 +433,8 @@ export async function completeAndChargeVisit(
         charged_at: new Date().toISOString(),
         stripe_reference: invoice.id,
         stripe_payment_intent_id: paymentIntentId,
+        billing_authority_verified_at: verifiedPayment.verifiedAt,
+        billing_authority_verified_by: "stripe_verified_complete_charge",
       })
       .eq("membership_id", membership.id)
       .eq("service_month", period);

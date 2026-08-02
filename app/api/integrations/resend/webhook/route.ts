@@ -4,6 +4,7 @@ import {
   recordResendDeliveryWebhook,
 } from "@/lib/integrations/resend-webhook";
 import { verifySvixWebhookSignature } from "@/lib/integrations/webhook-signatures";
+import { recordCommunicationWebhookVerification } from "@/lib/communications/provider-readiness";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -37,6 +38,10 @@ export async function POST(request: Request) {
 
   try {
     await recordResendDeliveryWebhook({ svixId, rawPayload, event });
+    await recordCommunicationWebhookVerification({
+      provider: "resend",
+      eventType: event.type,
+    });
     return NextResponse.json({ received: true });
   } catch (error) {
     console.error("[resend-webhook] processing failed", {

@@ -7,6 +7,7 @@ import {
   recordTwilioStatusCallback,
   resolveTwilioSignatureUrl,
 } from "@/lib/integrations/twilio-communications";
+import { recordCommunicationWebhookVerification } from "@/lib/communications/provider-readiness";
 
 export const runtime = "nodejs";
 
@@ -36,6 +37,10 @@ export async function POST(request: Request) {
     messageStatus,
     errorCode: form.get("ErrorCode"),
     rawPayload,
+  });
+  await recordCommunicationWebhookVerification({
+    provider: "twilio",
+    eventType: `message.${messageStatus}`,
   });
   return new NextResponse(null, { status: 204 });
 }

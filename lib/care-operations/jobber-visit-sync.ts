@@ -28,6 +28,7 @@ interface ExistingProjection {
 interface StoredProjectionPreviewRow {
   id: string;
   external_visit_id: string;
+  external_job_id: string;
   external_client_id: string;
   external_property_id: string;
   jobber_property_web_uri: string | null;
@@ -42,11 +43,12 @@ interface StoredProjectionPreviewRow {
 }
 
 const PROJECTION_PREVIEW_SELECT =
-  "id, external_visit_id, external_client_id, external_property_id, jobber_property_web_uri, job_number, title, client_name, visit_status, job_status, scheduled_start, is_complete, match_state";
+  "id, external_visit_id, external_job_id, external_client_id, external_property_id, jobber_property_web_uri, job_number, title, client_name, visit_status, job_status, scheduled_start, is_complete, match_state";
 
 export interface JobberVisitProjectionPreview {
   projectionId: string;
   externalVisitId: string;
+  externalJobId: string;
   externalClientId: string;
   externalPropertyId: string;
   jobberPropertyWebUri: string | null;
@@ -219,6 +221,7 @@ function toProjectionPreview(
   return {
     projectionId: row.id,
     externalVisitId: row.external_visit_id,
+    externalJobId: row.external_job_id,
     externalClientId: row.external_client_id,
     externalPropertyId: row.external_property_id,
     jobberPropertyWebUri: row.jobber_property_web_uri,

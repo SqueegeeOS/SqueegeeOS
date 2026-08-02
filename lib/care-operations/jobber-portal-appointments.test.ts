@@ -14,6 +14,7 @@ function visit(
   return {
     id: "projection-1",
     external_visit_id: "visit-1",
+    external_job_id: "job-1",
     external_client_id: "client-1",
     external_property_id: "jobber-property-1",
     title: "Window care",
@@ -79,14 +80,13 @@ describe("Jobber member portal appointment projection", () => {
     ).toBe("9:00 AM–11:00 AM");
   });
 
-  it("creates provider-confirmed portal truth without binding a billing obligation", () => {
-    expect(
-      buildJobberPortalAppointmentValues({
-        visit: visit(),
-        memberProfileId: "member-profile-1",
-        propertyId: "property-1",
-      }),
-    ).toMatchObject({
+  it("creates provider truth without overwriting a later billing binding", () => {
+    const values = buildJobberPortalAppointmentValues({
+      visit: visit(),
+      memberProfileId: "member-profile-1",
+      propertyId: "property-1",
+    });
+    expect(values).toMatchObject({
       member_profile_id: "member-profile-1",
       property_id: "property-1",
       service_type: "home_care_visit",
@@ -97,8 +97,8 @@ describe("Jobber member portal appointment projection", () => {
       provenance_state: "provider_imported",
       verification_state: "verified",
       match_state: "matched",
-      matched_obligation_id: null,
     });
+    expect(values).not.toHaveProperty("matched_obligation_id");
   });
 
   it("reconciles after both a confirmed customer pair and every visit sync", () => {
@@ -112,5 +112,25 @@ describe("Jobber member portal appointment projection", () => {
     );
     expect(pairing).toContain("reconcilePairedCustomerPortalVisit");
     expect(visitSync).toContain("reconcileAllPairedCustomerPortalVisits");
+  });
+
+  it("projects only explicitly classified, exactly matched membership jobs", () => {
+    const source = readFileSync(
+      new URL("./jobber-portal-appointments.ts", import.meta.url),
+      "utf8",
+    );
+    expect(source).toContain('.from("jobber_membership_job_links")');
+    expect(source).toContain('.eq("link_state", "active")');
+    expect(source).toContain('.eq("match_state", "matched")');
+    expect(source).toContain(
+      '.eq("matched_property_id", input.target.member.property.id)',
+    );
+    expect(source).toContain(
+      "appointment.service_type === MEMBERSHIP_APPOINTMENT_TYPE",
+    );
+    expect(source).toContain(
+      'if (existing?.link_state === "revoked") return null',
+    );
+    expect(source).not.toContain('.eq("link_state", "revoked")\n    .select');
   });
 });

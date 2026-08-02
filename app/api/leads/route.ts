@@ -5,6 +5,7 @@ import { REFERRAL_COOKIE } from "@/lib/referrals/types";
 import { estimatedPriceForLead } from "@/lib/acquisition/request-params";
 import { createLeadIntake } from "@/lib/acquisition/leads/repository";
 import {
+  SMS_CONSENT_DISCLOSURE_VERSION,
   smsConsentStatusForLead,
   type CreateLeadIntakeInput,
 } from "@/lib/acquisition/lead-record";
@@ -82,6 +83,11 @@ export async function POST(request: Request) {
       body.preferredContactMethod && isContactMethod(body.preferredContactMethod)
         ? body.preferredContactMethod
         : "Phone";
+    const smsConsentStatus = smsConsentStatusForLead(
+      preferredContactMethod,
+      body.smsConsent === true,
+    );
+    const forwardedFor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
 
     const input: CreateLeadIntakeInput = {
       name: body.name!.trim(),
@@ -90,10 +96,19 @@ export async function POST(request: Request) {
       serviceAddress: body.serviceAddress!.trim(),
       servicesInterested,
       preferredContactMethod,
-      smsConsentStatus: smsConsentStatusForLead(
-        preferredContactMethod,
-        body.smsConsent === true,
-      ),
+      smsConsentStatus,
+      smsConsentDisclosureVersion:
+        smsConsentStatus === "opted_in"
+          ? SMS_CONSENT_DISCLOSURE_VERSION
+          : null,
+      smsConsentSourcePath:
+        smsConsentStatus === "opted_in" ? new URL(request.url).pathname : null,
+      smsConsentIpAddress:
+        smsConsentStatus === "opted_in" ? forwardedFor || null : null,
+      smsConsentUserAgent:
+        smsConsentStatus === "opted_in"
+          ? request.headers.get("user-agent")?.slice(0, 1_000) || null
+          : null,
       notes: body.notes?.trim() ?? "",
       membershipTier,
       squareFootage,

@@ -726,6 +726,36 @@ function CommunicationsAutomationPanel({
       </div>
 
       <div className="p-4 sm:p-5">
+        {configuration.sms.configured === false ? (
+          <div className="mb-4 rounded-[1rem] border border-amber-300/15 bg-amber-300/[0.055] px-4 py-4 text-xs leading-relaxed text-amber-50">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="font-medium text-foreground">Finish text setup</p>
+                <p className="mt-1 text-amber-100/80">
+                  Create a Twilio Messaging Service, add an approved sender,
+                  finish the required U.S. registration, and connect the Atlas
+                  inbound and delivery-status webhooks. Set sender approval only
+                  after Twilio confirms it, then send a signed webhook test.
+                  Text automations stay locked off until those checks pass.
+                </p>
+                <p className="mt-2 break-all font-mono text-[10px] text-amber-100/65">
+                  Inbound: https://www.squeegeeking.net/api/integrations/twilio/inbound
+                  <br />
+                  Status: https://www.squeegeeking.net/api/integrations/twilio/status
+                </p>
+              </div>
+              <a
+                href="https://console.twilio.com/"
+                target="_blank"
+                rel="noreferrer"
+                className="shrink-0 text-[9px] uppercase tracking-[0.16em] text-amber-50 underline decoration-amber-200/30 underline-offset-4"
+              >
+                Open Twilio
+              </a>
+            </div>
+          </div>
+        ) : null}
+
         {error ? (
           <div
             role="alert"
@@ -942,6 +972,9 @@ function CommunicationsInboxContent() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sendNotice, setSendNotice] = useState<string | null>(null);
+  const [smsConsentEvidence, setSmsConsentEvidence] = useState("");
+  const [smsConsentAttested, setSmsConsentAttested] = useState(false);
+  const [smsConsentSaving, setSmsConsentSaving] = useState(false);
   const inboxRequest = useRef(0);
   const detailRequest = useRef(0);
   const selectedIdRef = useRef<string | null>(null);
@@ -1108,6 +1141,8 @@ function CommunicationsInboxContent() {
       setError(null);
       setSubject("");
       setBody("");
+      setSmsConsentEvidence("");
+      setSmsConsentAttested(false);
       sendAttemptRef.current = null;
       if (conversation.messages === null) void loadConversation(conversation.id);
     },
@@ -1140,6 +1175,76 @@ function CommunicationsInboxContent() {
     }
     return null;
   }, [channel, configuration, selected]);
+
+  const updateSmsConsent = useCallback(
+    async (action: "record_opt_in" | "record_opt_out") => {
+      if (!selected?.contact.phone || smsConsentSaving) return;
+      if (
+        action === "record_opt_out" &&
+        !window.confirm(
+          `Stop all Atlas texts to ${selected.contact.phone}? This takes effect immediately and requires fresh explicit permission to restore.`,
+        )
+      ) {
+        return;
+      }
+
+      setSmsConsentSaving(true);
+      setError(null);
+      setSendNotice(null);
+      try {
+        const headers = new Headers(getAdminRequestHeaders());
+        headers.set("Idempotency-Key", `hq-consent:${globalThis.crypto.randomUUID()}`);
+        const response = await fetch(
+          `/api/admin/communications/${encodeURIComponent(selected.id)}/sms-consent`,
+          {
+            method: "POST",
+            headers,
+            body: JSON.stringify({
+              action,
+              phone: selected.contact.phone,
+              evidenceNote:
+                action === "record_opt_in" ? smsConsentEvidence.trim() : "",
+              attested: action === "record_opt_in" && smsConsentAttested,
+            }),
+          },
+        );
+        const responseBody = (await response.json().catch(() => null)) as unknown;
+        if (!response.ok) {
+          const responseRecord = asRecord(responseBody);
+          throw new Error(
+            firstString(responseRecord, ["error", "message"]) ??
+              "Text consent could not be recorded.",
+          );
+        }
+        setSmsConsentEvidence("");
+        setSmsConsentAttested(false);
+        setSendNotice(
+          action === "record_opt_in"
+            ? "Explicit text permission recorded for this exact number."
+            : "Text opt-out recorded. Atlas will block future sends to this number.",
+        );
+        await loadConversation(selected.id, true);
+        void loadInbox(debouncedQuery, true);
+      } catch (consentError) {
+        setError(
+          consentError instanceof Error
+            ? consentError.message
+            : "Text consent could not be recorded.",
+        );
+      } finally {
+        setSmsConsentSaving(false);
+      }
+    },
+    [
+      debouncedQuery,
+      loadConversation,
+      loadInbox,
+      selected,
+      smsConsentAttested,
+      smsConsentEvidence,
+      smsConsentSaving,
+    ],
+  );
 
   const sendMessage = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
@@ -1221,7 +1326,9 @@ function CommunicationsInboxContent() {
               <p className={craftEyebrow}>Atlas communications</p>
               <h1 className={`${craftHeading} mt-3 text-3xl sm:text-4xl`}>Customer inbox</h1>
               <p className="mt-4 max-w-2xl text-sm leading-[1.65] text-muted">
-                One calm timeline for every website request, email, and text — with consent and delivery state visible before you send.
+                One calm timeline for every website request, sent email, and
+                two-way text — with consent and delivery state visible before
+                you send.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -1412,7 +1519,9 @@ function CommunicationsInboxContent() {
                             Start the conversation
                           </p>
                           <p className="mt-2 text-sm leading-relaxed text-muted">
-                            Send a personal note below. Automated confirmations and replies will appear on this same timeline.
+                            Send a personal note below. Automated confirmations
+                            and incoming text replies will appear on this same
+                            timeline.
                           </p>
                         </div>
                       </div>
@@ -1511,6 +1620,96 @@ function CommunicationsInboxContent() {
                       </p>
                     </div>
 
+                    {channel === "sms" ? (
+                      <div className="mb-4 rounded-[1rem] border border-white/[0.075] bg-white/[0.025] p-4">
+                        {!selected.contact.phone ? (
+                          <p className="text-xs leading-relaxed text-amber-100/90">
+                            Add the customer&apos;s mobile number in their HQ record,
+                            then return here to record explicit permission. Adding
+                            or editing a phone number never opts someone into texts.
+                          </p>
+                        ) : selected.consent.smsStatus.toLowerCase() === "opted_in" ? (
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <p className="text-xs font-medium text-emerald-200">
+                                Explicit text permission is active
+                              </p>
+                              <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                                Atlas still verifies this exact destination before
+                                every send. A customer opt-out must be recorded
+                                immediately.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => void updateSmsConsent("record_opt_out")}
+                              disabled={smsConsentSaving}
+                              className="min-h-9 shrink-0 rounded-full border border-red-300/20 bg-red-300/[0.055] px-4 text-[9px] uppercase tracking-[0.14em] text-red-100 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {smsConsentSaving ? "Recording..." : "Stop texts now"}
+                            </button>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-xs font-medium text-amber-100">
+                              {selected.consent.smsStatus.toLowerCase() === "opted_out"
+                                ? "Fresh permission is required to restore texts"
+                                : "Record explicit permission before texting"}
+                            </p>
+                            <p className="mt-1 text-[11px] leading-relaxed text-muted">
+                              Phone edits do not count as consent. Describe when and
+                              how this customer explicitly approved transactional
+                              service texts to {selected.contact.phone}.
+                            </p>
+                            <label className="mt-3 block text-[10px] uppercase tracking-[0.14em] text-muted/80">
+                              Consent evidence
+                              <textarea
+                                value={smsConsentEvidence}
+                                onChange={(event) =>
+                                  setSmsConsentEvidence(event.target.value)
+                                }
+                                maxLength={1000}
+                                className={`${craftTextarea} mt-2 min-h-20`}
+                                placeholder="Example: Customer explicitly agreed by phone on Aug. 2 during membership setup."
+                                disabled={smsConsentSaving}
+                              />
+                            </label>
+                            <label className="mt-3 flex items-start gap-3 text-[11px] leading-relaxed text-muted">
+                              <input
+                                type="checkbox"
+                                checked={smsConsentAttested}
+                                onChange={(event) =>
+                                  setSmsConsentAttested(event.target.checked)
+                                }
+                                className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
+                                disabled={smsConsentSaving}
+                              />
+                              <span>
+                                I confirm the customer explicitly asked SqueegeeKing
+                                to send transactional service texts to this exact
+                                number. I am not inferring permission from the phone
+                                field.
+                              </span>
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => void updateSmsConsent("record_opt_in")}
+                              disabled={
+                                smsConsentSaving ||
+                                !smsConsentAttested ||
+                                smsConsentEvidence.trim().length < 12
+                              }
+                              className={`${craftPrimaryButton} mt-3 min-h-10 px-4 text-[10px] disabled:cursor-not-allowed disabled:opacity-45`}
+                            >
+                              {smsConsentSaving
+                                ? "Recording..."
+                                : "Record explicit permission"}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+
                     {channel === "email" ? (
                       <div className="mb-3">
                         <label htmlFor="communications-subject" className="sr-only">
@@ -1558,7 +1757,10 @@ function CommunicationsInboxContent() {
                             {body.length}/1600 · Consent verified before send
                           </p>
                         ) : (
-                          <p className="text-muted/70">Replies return to this timeline.</p>
+                          <p className="text-muted/70">
+                            Customer email replies go to your monitored reply-to
+                            inbox.
+                          </p>
                         )}
                       </div>
                       <button

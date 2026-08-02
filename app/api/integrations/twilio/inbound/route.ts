@@ -8,6 +8,7 @@ import {
   recordTwilioInboundMessage,
   resolveTwilioSignatureUrl,
 } from "@/lib/integrations/twilio-communications";
+import { recordCommunicationWebhookVerification } from "@/lib/communications/provider-readiness";
 
 export const runtime = "nodejs";
 
@@ -35,6 +36,10 @@ export async function POST(request: Request) {
   }
   try {
     await recordTwilioInboundMessage({ message, rawPayload });
+    await recordCommunicationWebhookVerification({
+      provider: "twilio",
+      eventType: "message.inbound",
+    });
   } catch (error) {
     console.error("[twilio-inbound] persistence failed", {
       reason: error instanceof Error ? error.message : "unknown",
