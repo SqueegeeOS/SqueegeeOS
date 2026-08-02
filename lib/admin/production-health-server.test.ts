@@ -46,6 +46,16 @@ describe("resolveOnboardingSafe", () => {
     expect(result.summary).toContain("Do not onboard");
   });
 
+  it("blocks onboarding when customer privacy is red", () => {
+    const result = resolveOnboardingSafe([
+      greenSection("schema", "Database"),
+      greenSection("stripe", "Stripe"),
+      { id: "privacy", title: "Customer data privacy", status: "red", checks: [] },
+    ]);
+    expect(result.status).toBe("red");
+    expect(result.summary).toContain("customer data privacy is not closed");
+  });
+
   it("requires manual review for yellow-only issues", () => {
     const result = resolveOnboardingSafe([
       greenSection("schema", "Database"),

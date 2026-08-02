@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { syncAllJobberData } from "@/lib/care-operations/jobber-full-sync";
+import { processVerifiedAppointmentReminders } from "@/lib/communications/reminders";
+import { processDueScheduledCommunications } from "@/lib/communications/service";
 import { markJobberWebhookEventsReconciled } from "@/lib/integrations/jobber-webhook";
 
 export const runtime = "nodejs";
@@ -25,13 +27,15 @@ export async function GET(request: Request) {
 
   const snapshotStartedAt = new Date().toISOString();
   try {
+    const scheduledCommunications = await processDueScheduledCommunications();
     const sync = await syncAllJobberData();
     const webhookInbox = await markJobberWebhookEventsReconciled({
       snapshotStartedAt,
       syncSummary: sync,
     });
+    const reminders = await processVerifiedAppointmentReminders();
     return NextResponse.json(
-      { ok: true, sync, webhookInbox },
+      { ok: true, sync, webhookInbox, scheduledCommunications, reminders },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {

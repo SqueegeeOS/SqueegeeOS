@@ -68,15 +68,26 @@ export function loadWizardState(): GoogleReviewsWizardState {
   const raw = localStorage.getItem(GOOGLE_REVIEWS_WIZARD_KEY);
   if (!raw) return DEFAULT_WIZARD_STATE;
   try {
-    return { ...DEFAULT_WIZARD_STATE, ...JSON.parse(raw) };
+    // Older versions persisted the API key. Ignore and overwrite that value;
+    // server-side credentials belong in Vercel, never browser storage.
+    return { ...DEFAULT_WIZARD_STATE, ...JSON.parse(raw), apiKey: "" };
   } catch {
     return DEFAULT_WIZARD_STATE;
   }
 }
 
+export function wizardStateForStorage(
+  state: GoogleReviewsWizardState,
+): GoogleReviewsWizardState {
+  return { ...state, apiKey: "" };
+}
+
 export function saveWizardState(state: GoogleReviewsWizardState): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(GOOGLE_REVIEWS_WIZARD_KEY, JSON.stringify(state));
+  localStorage.setItem(
+    GOOGLE_REVIEWS_WIZARD_KEY,
+    JSON.stringify(wizardStateForStorage(state)),
+  );
 }
 
 export function buildEnvLocalSnippet(apiKey: string, placeId: string): string {

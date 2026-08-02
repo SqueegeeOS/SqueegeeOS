@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Post-migration 038 checks: public customer access is closed and the service
+ * Post-migration 041 checks: public customer access is closed and the service
  * role remains healthy.
  * Usage: SUPABASE_SERVICE_ROLE_KEY=... npm run verify:supabase-security
  */
@@ -51,6 +51,12 @@ const customerTables = [
   "memberships",
   "signed_agreements",
   "property_assets",
+  "lead_intakes",
+  "customer_contact_points",
+  "customer_communication_automation_rules",
+  "customer_conversations",
+  "customer_messages",
+  "customer_communication_webhook_events",
 ];
 
 let failed = false;
@@ -81,8 +87,8 @@ if (postureError || !posture) {
 
 for (const table of customerTables) {
   const [serviceResult, anonResult] = await Promise.all([
-    service.from(table).select("id").limit(1),
-    anon.from(table).select("id").limit(1),
+    service.from(table).select("*").limit(1),
+    anon.from(table).select("*").limit(1),
   ]);
 
   const serviceOk = !serviceResult.error;
@@ -96,7 +102,7 @@ for (const table of customerTables) {
 }
 
 if (failed) {
-  console.error("\nSecurity verification failed - apply migration 038.");
+  console.error("\nSecurity verification failed - apply migrations 040 and 041.");
   process.exit(1);
 }
 

@@ -81,6 +81,11 @@ function mapLeadRow(row: Record<string, unknown>): LeadIntakeRecord {
       row.services_interested as LeadIntakeRecord["servicesInterested"],
     preferredContactMethod:
       row.preferred_contact_method as LeadIntakeRecord["preferredContactMethod"],
+    smsConsentStatus:
+      (row.sms_consent_status as LeadIntakeRecord["smsConsentStatus"] | null) ??
+      "unknown",
+    smsConsentRecordedAt:
+      (row.sms_consent_recorded_at as string | null) ?? null,
     notes: row.notes as string,
     membershipTier: row.membership_tier as LeadIntakeRecord["membershipTier"],
     squareFootage: row.square_footage as number | null,

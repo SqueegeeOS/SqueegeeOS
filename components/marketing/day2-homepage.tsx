@@ -87,7 +87,7 @@ function Cta({
       ref={anchorRef}
       href="/request"
       tabIndex={tabIndex}
-      className={`group inline-flex items-center justify-center gap-4 rounded-full border border-[#173f32]/10 bg-[#173f32] font-medium tracking-[0.08em] text-[#fffaf0] shadow-[0_16px_40px_-24px_rgba(23,63,50,0.75)] transition-[background-color,box-shadow,transform] duration-300 outline-none hover:bg-[#214c3d] hover:shadow-[0_20px_44px_-22px_rgba(23,63,50,0.65)] active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[#99683d] focus-visible:ring-offset-4 focus-visible:ring-offset-[#f5f0e6] motion-reduce:transition-none ${dock ? "min-h-[56px] w-full px-7 text-sm md:min-h-[54px] md:w-auto" : big ? "min-h-[60px] px-8 text-sm sm:min-h-[64px] sm:px-10 sm:text-base" : "min-h-[54px] px-9 text-sm"}`}
+      className={`group inline-flex items-center justify-center gap-4 rounded-full border border-[#173f32]/10 bg-[#173f32] font-medium tracking-[0.08em] text-[#fffaf0] shadow-[0_16px_40px_-24px_rgba(23,63,50,0.75)] transition-[background-color,box-shadow,transform] duration-300 outline-none hover:-translate-y-0.5 hover:bg-[#214c3d] hover:shadow-[0_20px_44px_-22px_rgba(23,63,50,0.65)] active:translate-y-0 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-[#99683d] focus-visible:ring-offset-4 focus-visible:ring-offset-[#f5f0e6] motion-reduce:transform-none motion-reduce:transition-none ${dock ? "min-h-[56px] w-full px-7 text-sm md:min-h-[54px] md:w-auto" : big ? "min-h-[60px] w-full px-8 text-sm sm:min-h-[64px] sm:w-auto sm:px-10 sm:text-base" : "min-h-[54px] px-9 text-sm"}`}
     >
       <span>{children}</span>
       <span aria-hidden className="font-mono text-base transition-transform duration-300 group-hover:translate-x-0.5 motion-reduce:transform-none motion-reduce:transition-none">
@@ -159,40 +159,45 @@ export function Day2Homepage() {
         />
         <div aria-hidden className="absolute inset-0"
           style={{ background: "linear-gradient(to top, rgba(250,246,236,0.99) 0%, rgba(250,246,236,0.94) 24%, rgba(250,246,236,0.54) 50%, rgba(250,246,236,0.12) 76%), linear-gradient(to right, rgba(250,246,236,0.58), transparent 68%)" }} />
-        <div className="relative z-10 flex min-h-[100svh] flex-col justify-end px-5 pb-10 pt-28 sm:px-8 sm:pb-12 lg:px-12 lg:pb-16">
+        <div className="relative z-10 flex min-h-[100svh] flex-col justify-end px-5 pb-8 pt-28 sm:px-8 sm:pb-12 lg:px-12 lg:pb-16">
           <div className="mx-auto w-full max-w-[90rem]">
-            <p className="night-rise mb-5 font-mono text-[10px] uppercase tracking-[0.24em] text-[#173f32]/75 sm:text-xs sm:tracking-[0.3em]">
+            <p className="night-rise mb-4 max-w-max rounded-full border border-[#173f32]/10 bg-[#fffaf0]/65 px-3 py-1.5 font-mono text-[9px] uppercase tracking-[0.2em] text-[#173f32]/80 shadow-sm backdrop-blur-sm sm:mb-5 sm:px-4 sm:text-[11px] sm:tracking-[0.28em]">
               Window cleaning &amp; exterior home care · Chico, California
             </p>
-            <h1 className="night-rise font-serif font-light uppercase leading-[0.86] tracking-tight"
+            <h1 className="night-rise max-w-[10ch] text-balance font-serif font-light uppercase leading-[0.86] tracking-tight"
               style={{ color: PINE, fontSize: "clamp(3.6rem, 13vw, 11.5rem)" }}>
               The right
               <br />
               <span className="italic normal-case" style={{ color: BRONZE }}>way.</span>
             </h1>
-            <div className="night-rise-2 mt-7 flex flex-col items-start gap-7 pb-1 sm:mt-8 lg:flex-row lg:items-end lg:justify-between">
-              <p className="max-w-md text-base leading-relaxed sm:text-lg" style={{ color: SAGE }}>
+            <div className="night-rise-2 mt-6 flex flex-col items-start gap-6 pb-1 sm:mt-8 sm:gap-7 lg:flex-row lg:items-end lg:justify-between">
+              <p className="max-w-lg text-pretty text-[0.98rem] leading-relaxed sm:text-lg" style={{ color: SAGE }}>
                 Window cleaning, pressure washing, and solar care, done like
                 we&apos;d do it for our own family. Because when you join, you are
                 family.
               </p>
-              <Cta big anchorRef={heroCtaRef}>Request a plan</Cta>
+              <div className="w-full sm:w-auto">
+                <Cta big anchorRef={heroCtaRef}>Get a free quote</Cta>
+                <p className="mt-3 text-center font-mono text-[9px] uppercase tracking-[0.2em] text-[#173f32]/65 sm:text-[10px]">
+                  One-time or recurring care
+                </p>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* ACT II — the idea, first */}
-      <section className="relative overflow-hidden border-y py-28 text-center sm:py-40" style={{ borderColor: "rgba(23,63,50,0.12)", background: "linear-gradient(180deg, #f7f3e9 0%, #edf3eb 58%, #f6efe2 100%)" }} aria-label="HomeAtlas">
+      <section className="relative overflow-hidden border-y py-24 text-center sm:py-32 lg:py-36" style={{ borderColor: "rgba(23,63,50,0.12)", background: "linear-gradient(180deg, #f7f3e9 0%, #edf3eb 58%, #f6efe2 100%)" }} aria-label="HomeAtlas">
         <div aria-hidden className="absolute inset-0" style={{ background: "radial-gradient(ellipse 64% 50% at 50% 0%, rgba(180,214,224,0.4), transparent), radial-gradient(ellipse 58% 45% at 50% 112%, rgba(187,205,174,0.35), transparent)" }} />
         <div className="relative mx-auto max-w-3xl px-5 sm:px-8">
-          <div className="mx-auto mb-9 flex h-28 w-28 items-center justify-center rounded-full border border-[#173f32]/10 bg-white/70 shadow-[0_20px_60px_-36px_rgba(23,63,50,0.45)] [--accent:#99683d] [--foreground:#173f32] sm:mb-10"><AtlasMark size={78} /></div>
-          <h2 className="font-serif text-[2.85rem] font-light leading-[0.98] sm:text-7xl" style={{ color: PINE }}>
+          <div className="mx-auto mb-8 flex h-24 w-24 items-center justify-center rounded-full border border-[#173f32]/10 bg-white/70 shadow-[0_20px_60px_-36px_rgba(23,63,50,0.45)] [--accent:#99683d] [--foreground:#173f32] sm:mb-10 sm:h-28 sm:w-28"><AtlasMark size={78} /></div>
+          <h2 className="text-balance font-serif text-[2.7rem] font-light leading-[0.98] sm:text-7xl" style={{ color: PINE }}>
             What if your home
             <br />
             <em style={{ color: BRONZE }}>remembered?</em>
           </h2>
-          <p className="mx-auto mt-8 max-w-xl text-lg leading-relaxed" style={{ color: SAGE }}>
+          <p className="mx-auto mt-7 max-w-xl text-pretty text-base leading-relaxed sm:mt-8 sm:text-lg" style={{ color: SAGE }}>
             Every membership includes HomeAtlas: a living record of every
             visit, photo, observation, and promise. Nothing about your home
             explained twice, ever again.
@@ -208,14 +213,17 @@ export function Day2Homepage() {
       </div>
 
       {/* ACT II — the work, as film strips */}
-      <section className="py-24 sm:py-32 lg:py-40" aria-label="The work">
+      <section id="services" className="scroll-mt-24 pb-20 pt-24 sm:pb-24 sm:pt-32 lg:pb-28 lg:pt-36" aria-label="The work">
         <div className="mx-auto w-full max-w-[90rem] px-5 sm:px-8 lg:px-12">
+          <p className="mb-5 font-mono text-[10px] uppercase tracking-[0.28em]" style={{ color: BRONZE_TEXT }}>
+            How we care for your home
+          </p>
           <h2 className="max-w-3xl font-serif text-5xl font-light leading-[0.95] sm:text-7xl lg:text-8xl" style={{ color: PINE }}>
             Four crafts.
             <br />
             <em style={{ color: BRONZE }}>One obsession.</em>
           </h2>
-          <div className="mt-12 grid gap-5 sm:mt-16 sm:gap-6 md:grid-cols-2">
+          <div className="mt-10 grid gap-5 sm:mt-14 sm:gap-6 md:grid-cols-2">
             {WORK.map(([n, title, line, film, poster]) => (
               <article key={n}
                 className="group relative isolate overflow-hidden rounded-[1.5rem] border border-[#173f32]/10 bg-[#fffdf8] shadow-[0_24px_70px_-50px_rgba(23,63,50,0.4)] transition-[border-color,box-shadow] duration-500 hover:border-[#99683d]/30 hover:shadow-[0_30px_80px_-48px_rgba(23,63,50,0.35)] motion-reduce:transition-none">
@@ -239,7 +247,7 @@ export function Day2Homepage() {
       <Day2ReviewsWall reduced={reduced} />
 
       {/* ACT III — the family */}
-      <section className="relative overflow-hidden border-y py-24 sm:py-32 lg:py-40" style={{ borderColor: "rgba(23,63,50,0.1)", background: "linear-gradient(135deg, #e7ecdf 0%, #f0eadc 100%)" }} aria-label="Membership">
+      <section className="relative overflow-hidden border-y py-20 sm:py-28 lg:py-32" style={{ borderColor: "rgba(23,63,50,0.1)", background: "linear-gradient(135deg, #e7ecdf 0%, #f0eadc 100%)" }} aria-label="Membership">
         <div aria-hidden className="absolute inset-0" style={{ background: "radial-gradient(circle at 10% 10%, rgba(255,255,255,0.7), transparent 34%), radial-gradient(circle at 92% 90%, rgba(177,199,176,0.35), transparent 38%)" }} />
         <div className="relative mx-auto w-full max-w-[90rem] px-5 sm:px-8 lg:px-12">
           <div className="rounded-[2rem] border border-[#173f32]/10 bg-[#fffdf8]/90 px-5 py-10 shadow-[0_28px_90px_-58px_rgba(23,63,50,0.45)] backdrop-blur-sm sm:rounded-[2.5rem] sm:px-10 sm:py-14 lg:px-16 lg:py-18">
@@ -291,8 +299,8 @@ export function Day2Homepage() {
               <br />
               <em style={{ color: BRONZE }}>through clean glass.</em>
             </h2>
-            <div className="mt-12"><Cta big anchorRef={closingCtaRef}>Request a plan</Cta></div>
-            <p className="mt-8 font-mono text-[11px] uppercase tracking-[0.3em]" style={{ color: SAGE }}>
+            <div className="mx-auto mt-10 max-w-xs sm:mt-12"><Cta big anchorRef={closingCtaRef}>Get a free quote</Cta></div>
+            <p className="mt-7 font-mono text-[10px] uppercase tracking-[0.22em] sm:mt-8 sm:text-[11px] sm:tracking-[0.3em]" style={{ color: SAGE }}>
               Every 3 Months · Every 6 Months · One-Time Service
             </p>
           </div>
@@ -304,7 +312,7 @@ export function Day2Homepage() {
         className={`fixed inset-x-0 bottom-0 z-50 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:inset-x-auto md:bottom-6 md:right-6 md:p-0 ${reduced ? "transition-none" : "transition-[opacity,transform,visibility] duration-300 ease-out"} ${dockVisible ? "visible translate-y-0 opacity-100" : "invisible pointer-events-none translate-y-2 opacity-0"}`}
       >
         <div className="rounded-[1.25rem] border border-[#173f32]/10 bg-[#fffaf0]/92 p-2 shadow-[0_18px_48px_-24px_rgba(23,63,50,0.42)] backdrop-blur-lg md:rounded-full md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none">
-          <Cta dock tabIndex={dockVisible ? 0 : -1}>Request a plan</Cta>
+          <Cta dock tabIndex={dockVisible ? 0 : -1}>Get a free quote</Cta>
         </div>
       </div>
 

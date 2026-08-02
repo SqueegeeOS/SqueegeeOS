@@ -33,6 +33,8 @@ export interface LeadIntakeFormData {
   serviceAddress: string;
   servicesInterested: ServiceOption[];
   preferredContactMethod: ContactMethod;
+  /** Explicit consent for transactional SMS. Required when Text is selected. */
+  smsConsent: boolean;
   notes: string;
   membershipTier: SqueegeeKingTierId | null;
   squareFootage: number | null;
@@ -46,6 +48,7 @@ export const emptyLeadForm: LeadIntakeFormData = {
   serviceAddress: "",
   servicesInterested: [],
   preferredContactMethod: "Phone",
+  smsConsent: false,
   notes: "",
   membershipTier: null,
   squareFootage: null,
