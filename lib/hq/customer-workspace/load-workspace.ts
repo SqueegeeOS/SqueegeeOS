@@ -177,6 +177,9 @@ async function loadPropertyWorkspace(
           "id, status, plan_name, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, started_at, founding_member, presentation_id, agreement_id, stripe_payment_method_id",
         )
         .eq("property_id", propertyId)
+        .in("status", ["pending_checkout", "pending_payment", "active", "paused"])
+        .order("updated_at", { ascending: false })
+        .limit(1)
         .maybeSingle(),
       supabase
         .from("presentations")

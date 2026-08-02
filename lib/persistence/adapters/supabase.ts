@@ -15,7 +15,6 @@ import type {
 import type { PersistenceAdapter } from "../adapters/types";
 import { finalizeHomeCarePlanRecord } from "../mappers/home-care-plan";
 import {
-  createBrowserSupabaseClient,
   createPrivilegedServerSupabaseClient,
 } from "../supabase/client";
 import {
@@ -32,14 +31,13 @@ import {
 } from "../supabase/mappers";
 
 function getClient() {
-  // This adapter is shared by browser presentation flows and Server Component
-  // portal reads. After migration 030, the anonymous browser client is
-  // intentionally denied access to authority tables such as home_care_plans.
-  // Server renders must therefore use the server-only privileged client while
-  // browser callers remain constrained by RLS.
-  return typeof window === "undefined"
-    ? createPrivilegedServerSupabaseClient()
-    : createBrowserSupabaseClient();
+  if (typeof window !== "undefined") {
+    throw new Error(
+      "Customer persistence is server-only; use an authenticated application route.",
+    );
+  }
+
+  return createPrivilegedServerSupabaseClient();
 }
 
 export const supabaseAdapter: PersistenceAdapter = {
@@ -241,40 +239,37 @@ export const supabaseAdapter: PersistenceAdapter = {
   ): Promise<PersistedMembership> {
     const supabase = getClient();
 
-    const { data, error } = await supabase
-      .from("memberships")
-      .upsert(
-        {
-          homeowner_id: input.homeownerId,
-          property_id: input.propertyId,
-          home_care_plan_id: input.homeCarePlanId,
-          presentation_id: input.presentationId,
-          agreement_id: input.agreementId,
-          plan_id: input.planId,
-          plan_name: input.planName,
-          price_display: input.priceDisplay,
-          billing_period: input.billingPeriod,
-          sales_tier: input.salesTier,
-          visit_price: input.visitPrice,
-          annual_rate: input.annualRate,
-          visits_per_year: input.visitsPerYear,
-          billing_schedule: input.billingSchedule,
-          next_billing_date: input.nextBillingDate,
-          payment_setup_completed_at: input.paymentSetupCompletedAt,
-          status: input.status,
-          stripe_customer_id: input.stripeCustomerId,
-          stripe_payment_method_id: input.stripePaymentMethodId,
-          stripe_subscription_id: input.stripeSubscriptionId,
-          stripe_price_id: input.stripePriceId,
-          started_at: input.startedAt,
-          founding_member: input.foundingMember,
-          founding_member_since: input.foundingMemberSince,
-          cancelled_at: input.cancelledAt,
-        },
-        { onConflict: "property_id" },
-      )
-      .select("*")
-      .single();
+    const values = {
+      homeowner_id: input.homeownerId,
+      property_id: input.propertyId,
+      home_care_plan_id: input.homeCarePlanId,
+      presentation_id: input.presentationId,
+      agreement_id: input.agreementId,
+      plan_id: input.planId,
+      plan_name: input.planName,
+      price_display: input.priceDisplay,
+      billing_period: input.billingPeriod,
+      sales_tier: input.salesTier,
+      visit_price: input.visitPrice,
+      annual_rate: input.annualRate,
+      visits_per_year: input.visitsPerYear,
+      billing_schedule: input.billingSchedule,
+      next_billing_date: input.nextBillingDate,
+      payment_setup_completed_at: input.paymentSetupCompletedAt,
+      status: input.status,
+      stripe_customer_id: input.stripeCustomerId,
+      stripe_payment_method_id: input.stripePaymentMethodId,
+      stripe_subscription_id: input.stripeSubscriptionId,
+      stripe_price_id: input.stripePriceId,
+      started_at: input.startedAt,
+      founding_member: input.foundingMember,
+      founding_member_since: input.foundingMemberSince,
+      cancelled_at: input.cancelledAt,
+    };
+    const query = input.id
+      ? supabase.from("memberships").update(values).eq("id", input.id)
+      : supabase.from("memberships").insert(values);
+    const { data, error } = await query.select("*").single();
 
     if (error) {
       throw new Error(`Failed to save membership: ${error.message}`);
@@ -298,6 +293,9 @@ export const supabaseAdapter: PersistenceAdapter = {
       .from("memberships")
       .select("*")
       .eq("property_id", property.id)
+      .in("status", ["pending_checkout", "pending_payment", "active", "paused"])
+      .order("updated_at", { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (error) {

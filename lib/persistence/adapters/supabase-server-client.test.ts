@@ -7,11 +7,9 @@ const select = vi.fn(() => ({ eq: eqHomeowner }));
 const from = vi.fn(() => ({ select }));
 
 const privilegedClient = { from };
-const browserClient = { from: vi.fn() };
 
 vi.mock("../supabase/client", () => ({
   createPrivilegedServerSupabaseClient: vi.fn(() => privilegedClient),
-  createBrowserSupabaseClient: vi.fn(() => browserClient),
 }));
 
 import { supabaseAdapter } from "./supabase";
@@ -29,7 +27,6 @@ describe("supabase persistence adapter on the server", () => {
     expect(
       clientModule.createPrivilegedServerSupabaseClient,
     ).toHaveBeenCalledOnce();
-    expect(clientModule.createBrowserSupabaseClient).not.toHaveBeenCalled();
     expect(from).toHaveBeenCalledWith("home_care_plans");
   });
 });

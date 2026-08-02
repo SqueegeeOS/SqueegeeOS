@@ -63,6 +63,9 @@ describe("Jobber member portal appointment projection", () => {
       jobberVisitAppointmentStatus({ visit_status: "CANCELLED", is_complete: false }),
     ).toBe("cancelled");
     expect(
+      jobberVisitAppointmentStatus({ visit_status: "REMOVED", is_complete: false }),
+    ).toBe("cancelled");
+    expect(
       jobberVisitAppointmentStatus({ visit_status: "COMPLETED", is_complete: true }),
     ).toBe("completed");
   });

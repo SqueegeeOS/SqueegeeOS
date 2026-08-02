@@ -1,7 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-let browserClient: SupabaseClient | null = null;
-
 export function getSupabaseUrl(): string {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!url) {
@@ -25,49 +23,21 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
-/** Browser/client-side Supabase instance */
-export function createBrowserSupabaseClient(): SupabaseClient {
-  if (typeof window === "undefined") {
-    return createClient(getSupabaseUrl(), getSupabaseAnonKey());
-  }
-
-  if (!browserClient) {
-    browserClient = createClient(getSupabaseUrl(), getSupabaseAnonKey());
-  }
-
-  return browserClient;
-}
-
-/** Server-side Supabase instance (API routes, server components).
- * Uses the service role when configured so RLS can deny the anon key on HQ tables.
- * In production, missing service role breaks portal/HQ reads after migration 030. */
+/** Server-side Supabase instance for API routes and Server Components. */
 export function createServerSupabaseClient(): SupabaseClient {
-  if (isServiceRoleConfigured()) {
-    return createServiceRoleSupabaseClient();
-  }
-
-  if (process.env.VERCEL === "1" || process.env.NODE_ENV === "production") {
-    console.error(
-      "[supabase] SUPABASE_SERVICE_ROLE_KEY is not set — portal and HQ reads will fail after RLS migration 030",
-    );
-  }
-
-  return createClient(getSupabaseUrl(), getSupabaseAnonKey());
+  return createServiceRoleSupabaseClient();
 }
 
 /** Server routes that must bypass RLS (portal, HQ, billing). */
 export function createPrivilegedServerSupabaseClient(): SupabaseClient {
-  if (isServiceRoleConfigured()) {
-    return createServiceRoleSupabaseClient();
-  }
-  return createServerSupabaseClient();
+  return createServiceRoleSupabaseClient();
 }
 
 export function isServiceRoleConfigured(): boolean {
   return Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY?.trim());
 }
 
-/** Server-only privileged client — storage uploads and signed agreement URLs. */
+/** Server-only privileged client for customer data and private storage. */
 export function createServiceRoleSupabaseClient(): SupabaseClient {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!key) {

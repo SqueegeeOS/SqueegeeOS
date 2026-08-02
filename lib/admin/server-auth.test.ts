@@ -9,7 +9,6 @@ import {
 
 const original = {
   ADMIN_PIN: process.env.ADMIN_PIN,
-  NEXT_PUBLIC_ADMIN_PIN: process.env.NEXT_PUBLIC_ADMIN_PIN,
   ADMIN_PRIVATE_BETA: process.env.ADMIN_PRIVATE_BETA,
 };
 
@@ -65,10 +64,10 @@ describe("admin server authorization", () => {
     expect(authorizeAdminRequest(sessionHeaders)).toBe(false);
   });
 
-  it("supports the legacy Vercel variable only as a server migration fallback", () => {
+  it("never accepts the browser-exposed legacy PIN variable", () => {
     process.env.NEXT_PUBLIC_ADMIN_PIN = "legacy-pin";
-    expect(authorizeAdminRequest("legacy-pin")).toBe(true);
-    expect(getAdminAccessMode()).toBe("pin");
+    expect(authorizeAdminRequest("legacy-pin")).toBe(false);
+    expect(getAdminAccessMode()).toBeNull();
   });
 
   it("opens private beta only when explicitly enabled", () => {

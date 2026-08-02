@@ -6,10 +6,50 @@ import {
   issueAdminSessionToken,
 } from "@/lib/admin/server-auth";
 import { ADMIN_SESSION_TTL_MS } from "@/lib/admin/config";
+import {
+  checkAdminUnlockRateLimit,
+  recordAdminUnlockAttempt,
+} from "@/lib/admin/unlock-rate-limit";
+
+function rateLimited(retryAfterSeconds: number) {
+  return NextResponse.json(
+    { error: "Too many unlock attempts. Try again shortly." },
+    {
+      status: 429,
+      headers: {
+        "Cache-Control": "no-store",
+        "Retry-After": String(Math.max(1, retryAfterSeconds)),
+      },
+    },
+  );
+}
 
 export async function POST(request: Request) {
-  if (!authorizeAdminRequest(request.headers)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const suppliedPin = request.headers.get("x-admin-pin")?.trim();
+
+  if (suppliedPin) {
+    const currentLimit = await checkAdminUnlockRateLimit(request.headers);
+    if (!currentLimit.allowed) {
+      return rateLimited(currentLimit.retryAfterSeconds);
+    }
+  }
+
+  const authorized = authorizeAdminRequest(request.headers);
+  if (suppliedPin) {
+    const updatedLimit = await recordAdminUnlockAttempt(
+      request.headers,
+      authorized,
+    );
+    if (!updatedLimit.allowed) {
+      return rateLimited(updatedLimit.retryAfterSeconds);
+    }
+  }
+
+  if (!authorized) {
+    return NextResponse.json(
+      { error: "Unauthorized" },
+      { status: 401, headers: { "Cache-Control": "no-store" } },
+    );
   }
 
   const mode = getAdminAccessMode();
@@ -28,7 +68,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = NextResponse.json({ ok: true, mode });
+  const response = NextResponse.json(
+    { ok: true, mode },
+    { headers: { "Cache-Control": "no-store" } },
+  );
   response.cookies.set({
     name: ADMIN_SESSION_COOKIE_NAME,
     value: sessionToken,

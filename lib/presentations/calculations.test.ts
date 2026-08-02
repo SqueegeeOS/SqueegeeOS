@@ -5,12 +5,42 @@ import {
   applyTierVisitOverride,
   computePresentationRates,
   hasManualVisitRateOverride,
+  scopedPresentationSlug,
   tierVisitPriceForPresentation,
   visitRateFromPresentation,
   withComputedRates,
 } from "@/lib/presentations/calculations";
 
 const SQFT = 2800;
+
+describe("scopedPresentationSlug", () => {
+  it("keeps same-name presentations from sharing a customer identity", () => {
+    expect(scopedPresentationSlug("Alex Smith", "pres_12345678", "client")).toBe(
+      "alex-smith-12345678",
+    );
+    expect(scopedPresentationSlug("Alex Smith", "pres_87654321", "client")).toBe(
+      "alex-smith-87654321",
+    );
+  });
+
+  it("is stable and remains within the database slug limit", () => {
+    const slug = scopedPresentationSlug(
+      "A very long customer name that would otherwise exceed the slug limit",
+      "presentation_deadbeef",
+      "client",
+    );
+
+    expect(slug).toBe(
+      scopedPresentationSlug(
+        "A very long customer name that would otherwise exceed the slug limit",
+        "presentation_deadbeef",
+        "client",
+      ),
+    );
+    expect(slug).toHaveLength(48);
+    expect(slug.endsWith("-deadbeef")).toBe(true);
+  });
+});
 
 describe("hasManualVisitRateOverride", () => {
   it("treats positive monthlyRate as manual override", () => {

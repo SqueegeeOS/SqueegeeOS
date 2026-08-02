@@ -25,55 +25,18 @@ export default function GeneratedHomeCarePlanPage() {
     let cancelled = false;
 
     async function loadPlan() {
-      if (isCloudPersistenceConnected()) {
-        const { supabaseAdapter } = await import(
-          "@/lib/persistence/adapters/supabase"
-        );
-        const { sessionStorageAdapter } = await import(
-          "@/lib/persistence/adapters/session-storage"
-        );
+      const stored = await loadGeneratedHomeCarePlan(
+        homeownerSlug,
+        propertySlug,
+      );
 
-        const cloudRecord = await supabaseAdapter.getHomeCarePlanBySlugs(
-          homeownerSlug,
-          propertySlug,
-        );
+      if (cancelled) return;
 
-        if (cancelled) return;
-
-        if (cloudRecord) {
-          setPlanData(cloudRecord.presentation);
-          setLoadedFromLocalFallback(false);
-          setIsLoading(false);
-          return;
-        }
-
-        const localRecord = await sessionStorageAdapter.getHomeCarePlanBySlugs(
-          homeownerSlug,
-          propertySlug,
-        );
-
-        if (cancelled) return;
-
-        if (localRecord) {
-          setPlanData(localRecord.presentation);
-          setLoadedFromLocalFallback(true);
-          setIsLoading(false);
-          return;
-        }
-      } else {
-        const stored = await loadGeneratedHomeCarePlan(
-          homeownerSlug,
-          propertySlug,
-        );
-
-        if (cancelled) return;
-
-        if (stored) {
-          setPlanData(stored);
-          setLoadedFromLocalFallback(true);
-          setIsLoading(false);
-          return;
-        }
+      if (stored) {
+        setPlanData(stored);
+        setLoadedFromLocalFallback(!isCloudPersistenceConnected());
+        setIsLoading(false);
+        return;
       }
 
       setPlanData(null);

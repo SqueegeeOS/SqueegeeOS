@@ -490,13 +490,13 @@ Founder command center for **Noah Thomas** and **Dasan Gramps** — executive re
 | Item | Detail |
 |------|--------|
 | Route | `/hq` (canonical) · `/admin` (legacy redirect if present) |
-| Access | Temporary PIN via `NEXT_PUBLIC_ADMIN_PIN` |
+| Access | Server-only founder PIN via `ADMIN_PIN` and signed HttpOnly session cookie |
 | Private beta | If PIN unset → beta entry + mock/local ledger |
 | APIs | `GET /api/admin/overview`, `GET|POST /api/admin/closed-jobs` |
-| Session | Browser `sessionStorage`, 8-hour TTL |
+| Session | Signed HttpOnly cookie, 8-hour TTL |
 | Nav | Hidden from public site navigation |
 
-**Security note (required):** PIN gate is private beta only. Replace with Supabase Auth before real customer data is exposed.
+**Security note (required):** The server-only PIN is rate-limited and fails closed. Replace the shared founder credential with individual identity-provider accounts before adding operators with different access levels.
 
 ### Closed Jobs table
 

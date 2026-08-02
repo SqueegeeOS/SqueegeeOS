@@ -5,7 +5,10 @@ import {
   SignOnboardingError,
 } from "@/lib/membership/complete-sign-onboarding";
 import { getPresentation } from "@/lib/presentations/repository";
-import { slugifyPresentation, tierVisitPriceForPresentation } from "@/lib/presentations/calculations";
+import {
+  scopedPresentationSlug,
+  tierVisitPriceForPresentation,
+} from "@/lib/presentations/calculations";
 import {
   normalizeToSqueegeeKingTier,
   planNameForAgreement,
@@ -20,8 +23,12 @@ import { isCarePlanQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import {
+  hasCompleteClientAddress,
+  parseClientAddress,
+} from "@/lib/presentations/parse-client-address";
 
-function tierToPlanId(_tier: string): MembershipPlanId {
+function tierToPlanId(): MembershipPlanId {
   return "preferred";
 }
 
@@ -69,16 +76,22 @@ export async function POST(req: NextRequest) {
         memberEmail,
         presentation.clientEmail,
       );
-      homeownerSlug =
-        homeownerSlug || slugifyPresentation(presentation.clientName) || "client";
-      propertySlug =
-        propertySlug ||
-        slugifyPresentation(presentation.clientAddress) ||
-        "property";
+      // Do not accept mutable slugs as customer identity. Same-name customers
+      // must never overwrite one another during an otherwise valid signing.
+      homeownerSlug = scopedPresentationSlug(
+        presentation.clientName,
+        presentation.id,
+        "client",
+      );
+      propertySlug = scopedPresentationSlug(
+        presentation.clientAddress,
+        presentation.id,
+        "property",
+      );
       propertyName =
         propertyName || presentation.clientAddress || presentation.clientName;
       agreementTier = agreementTier ?? presentation.tier;
-      planId = planId || tierToPlanId(agreementTier);
+      planId = planId || tierToPlanId();
       planName =
         planName || planNameForAgreement(normalizeToSqueegeeKingTier(agreementTier));
       const resolvedAgreementTier = normalizeToSqueegeeKingTier(agreementTier);
@@ -107,6 +120,22 @@ export async function POST(req: NextRequest) {
     const resolvedTier = isOneTime
       ? undefined
       : normalizeToSqueegeeKingTier(agreementTier ?? "quarterly");
+
+    if (
+      presentation &&
+      !isOneTime &&
+      !hasCompleteClientAddress(
+        parseClientAddress(presentation.clientAddress, presentation.clientName),
+      )
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Enter the complete service address as Street, City, ST ZIP before signing.",
+        },
+        { status: 422 },
+      );
+    }
 
     if (
       !memberName ||

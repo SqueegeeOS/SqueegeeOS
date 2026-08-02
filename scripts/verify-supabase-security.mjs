@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Post-migration 030 checks: anon vs service-role access patterns.
+ * Post-migration 038 checks: public customer access is closed and the service
+ * role remains healthy.
  * Usage: SUPABASE_SERVICE_ROLE_KEY=... npm run verify:supabase-security
  */
 import { readFileSync } from "node:fs";
@@ -20,8 +21,7 @@ function loadEnvLocal() {
       if (!process.env[key]) process.env[key] = value;
     }
   } catch {
-    console.error("Could not read .env.local");
-    process.exit(1);
+    // CI or an operator shell may supply the variables directly.
   }
 }
 
@@ -31,49 +31,72 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
-if (!url || !anonKey) {
-  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or ANON_KEY");
+if (!url || !anonKey || !serviceKey) {
+  console.error(
+    "Missing NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, or SUPABASE_SERVICE_ROLE_KEY",
+  );
   process.exit(1);
 }
 
-const anon = createClient(url, anonKey);
-const service = serviceKey ? createClient(url, serviceKey) : null;
-
-async function probe(label, client, table) {
-  const { error } = await client.from(table).select("id").limit(1);
-  return { label, table, ok: !error, error: error?.message ?? null };
-}
-
-const checks = [];
-
-checks.push(await probe("anon", anon, "homeowners"));
-checks.push(await probe("anon", anon, "closed_jobs"));
-checks.push(await probe("anon", anon, "member_addon_transactions"));
-checks.push(await probe("anon", anon, "referral_codes"));
-checks.push(await probe("anon", anon, "referral_visits"));
-checks.push(await probe("anon", anon, "referrals"));
-
-if (service) {
-  checks.push(await probe("service_role", service, "closed_jobs"));
-  checks.push(await probe("service_role", service, "member_addon_transactions"));
-  checks.push(await probe("service_role", service, "referral_codes"));
-  checks.push(await probe("service_role", service, "referral_visits"));
-  checks.push(await probe("service_role", service, "referrals"));
-} else {
-  console.warn("SUPABASE_SERVICE_ROLE_KEY not set — skipping service role probes");
-}
+const anon = createClient(url, anonKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+const service = createClient(url, serviceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+const customerTables = [
+  "homeowners",
+  "properties",
+  "home_care_plans",
+  "memberships",
+  "signed_agreements",
+  "property_assets",
+];
 
 let failed = false;
-for (const row of checks) {
-  const status = row.ok ? "OK" : "DENIED";
-  console.log(`${row.label.padEnd(14)} ${row.table.padEnd(28)} ${status}${row.error ? ` (${row.error})` : ""}`);
-  if (row.label === "anon" && row.table === "homeowners" && !row.ok) failed = true;
-  if (row.label === "anon" && row.table !== "homeowners" && row.ok) failed = true;
-  if (row.label === "service_role" && !row.ok) failed = true;
+
+const { data: postureData, error: postureError } = await service.rpc(
+  "homeatlas_security_posture",
+);
+const posture = Array.isArray(postureData) ? postureData[0] : postureData;
+
+if (postureError || !posture) {
+  console.error(
+    `service_role security posture DENIED (${postureError?.message ?? "no result"})`,
+  );
+  failed = true;
+} else {
+  const policyCount = Number(posture.customer_public_policy_count ?? -1);
+  const privilegeCount = Number(posture.customer_public_privilege_count ?? -1);
+  const rateLimitReady = posture.admin_rate_limit_ready === true;
+
+  console.log(`customer public policies      ${policyCount}`);
+  console.log(`customer public privileges   ${privilegeCount}`);
+  console.log(`admin unlock rate limit      ${rateLimitReady ? "READY" : "MISSING"}`);
+
+  if (policyCount !== 0 || privilegeCount !== 0 || !rateLimitReady) {
+    failed = true;
+  }
+}
+
+for (const table of customerTables) {
+  const [serviceResult, anonResult] = await Promise.all([
+    service.from(table).select("id").limit(1),
+    anon.from(table).select("id").limit(1),
+  ]);
+
+  const serviceOk = !serviceResult.error;
+  const anonRows = anonResult.data?.length ?? 0;
+  const anonClosed = Boolean(anonResult.error) || anonRows === 0;
+  console.log(
+    `${table.padEnd(24)} service=${serviceOk ? "OK" : "DENIED"} anon=${anonClosed ? "CLOSED" : "EXPOSED"}`,
+  );
+
+  if (!serviceOk || !anonClosed) failed = true;
 }
 
 if (failed) {
-  console.error("\nSecurity verification failed — see docs/SUPABASE_SECURITY_ADVISOR.md");
+  console.error("\nSecurity verification failed - apply migration 038.");
   process.exit(1);
 }
 

@@ -55,7 +55,7 @@ function formatStateName(state: string): string {
     };
     return map[normalized.toUpperCase()] ?? normalized;
   }
-  return normalized || "California";
+  return normalized;
 }
 
 /**
@@ -249,6 +249,9 @@ async function fetchBackfillContext(
     .from("memberships")
     .select("plan_name, sales_tier, visit_price, presentation_id")
     .eq("property_id", property.id)
+    .in("status", ["pending_checkout", "pending_payment", "active", "paused"])
+    .order("updated_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   return {

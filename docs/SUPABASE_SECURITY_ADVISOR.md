@@ -1,44 +1,65 @@
-# Supabase Security Advisor — Hardening Pass (Migration 030)
+# Supabase Customer Data Boundary — Migration 038
 
-Applied in `lib/persistence/supabase/migrations/030_supabase_security_hardening.sql`.
+Migration `030_supabase_security_hardening.sql` closed anonymous access to HQ,
+billing, and referral data, but intentionally left six customer persistence
+tables anonymously readable and writable for the original browser adapter.
+That exception included `memberships.portal_access_token` and is no longer an
+acceptable production boundary.
 
-**Prerequisite:** `SUPABASE_SERVICE_ROLE_KEY` on Vercel/server. `createServerSupabaseClient()` uses the service role when set (bypasses RLS for HQ, portal loaders, billing, add-ons).
+Migration `038_close_customer_anon_access.sql` completes the move to
+server-only persistence:
 
-## Advisor findings
+- removes every `anon`, `authenticated`, or `public` policy from
+  `homeowners`, `properties`, `home_care_plans`, `memberships`,
+  `signed_agreements`, and `property_assets`;
+- revokes direct table privileges from `anon` and `authenticated`;
+- preserves service-role access for authenticated Next.js route handlers;
+- adds durable failed-attempt throttling for `/api/admin/unlock`; and
+- exposes a service-role-only posture check used by
+  `scripts/verify-supabase-security.mjs`.
 
-| Advisor warning | Status | Why |
-|-----------------|--------|-----|
-| **Function `set_updated_at` has a role mutable search_path** | **Fixed** | Recreated with `SET search_path = public` and `SECURITY INVOKER`. |
-| **RLS disabled on `referral_codes`** | **Fixed** | RLS enabled; no anon policies (server/service role only). |
-| **RLS disabled on `referral_visits`** | **Fixed** | Same as referral_codes. |
-| **RLS disabled on `referrals`** | **Fixed** | Same as referral_codes. |
-| **Permissive RLS policy `*_anon_all` (USING true / WITH CHECK true)** | **Fixed** (admin tables) | Dropped on all HQ/ledger/billing/intelligence tables. Anon key no longer has blanket ALL access. |
-| **Permissive RLS on customer persistence tables** | **Intentionally scoped** | Replaced `FOR ALL` with explicit `SELECT` + `INSERT` + `UPDATE` for anon on: homeowners, properties, home_care_plans, memberships, signed_agreements, property_assets. **No anon DELETE.** Required until browser `supabaseAdapter` moves behind API routes. |
-| **Anon key can read/write HQ tables via PostgREST** | **Fixed** | closed_jobs, headquarters_profile, member_addon_transactions, billing, savings ledger, referrals, presentations, lead_intakes, etc. have RLS enabled with **no anon policy** → denied for anon. |
-| **Storage: signed-agreements bucket anon insert/update** | **Fixed** (017 + 030) | Bucket private; `signed_agreements_service_role_all` policy for service role only. |
-| **Service role not used server-side** | **Fixed** | `createServerSupabaseClient()` prefers `SUPABASE_SERVICE_ROLE_KEY`. |
-| **No Supabase Auth / JWT-scoped portal RLS** | **Left as-is** | Portal still loads via server routes + `portal_access_token` in app code. Token-scoped RLS is a follow-up (wargame 001 Phase 4+). |
-| **Customer tables still world-readable to anyone with anon key** | **Left as-is** | Anon SELECT remains on persistence tables for signing + home care plan flows. Tighten when Supabase Auth or API-only writes ship. |
-| **Extensions in public schema** | **Not changed** | Supabase-managed; no app migration. |
-| **Leaked password protection / MFA** | **N/A** | No Supabase Auth users yet. |
+The Supabase publishable/anon key is designed to be present in a browser. The
+security guarantee comes from RLS and table privileges, not from hiding that
+key. Portal bearer tokens should still be rotated if there is evidence they
+were copied or as part of a deliberate customer-notification campaign.
 
-## Apply migration
+## Required Vercel configuration
 
-```bash
-psql "$SUPABASE_DB_URL" -f lib/persistence/supabase/migrations/030_supabase_security_hardening.sql
-```
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `ADMIN_PIN` (server-only)
 
-Or paste into Supabase SQL Editor.
+`NEXT_PUBLIC_ADMIN_PIN` is no longer read by application code. Remove it from
+Vercel after confirming `ADMIN_PIN` exists.
 
-## Post-deploy verification
+## Deployment order
 
-1. `SUPABASE_SERVICE_ROLE_KEY` set on Vercel → redeploy.
-2. `GET /api/persistence/health` → 200.
-3. HQ PIN → `/hq`, `/hq/memberships` load (service role).
-4. Sylvia portal `/portal/[token]` loads care add-ons + savings.
-5. Sign flow / home care plan save still works (anon write on persistence tables).
-6. Supabase Dashboard → **Security Advisor** → re-run lint.
+1. Deploy the application release that includes the authenticated
+   `/api/admin/home-care-plans` route.
+2. Confirm the Home Care Plan builder saves and reloads through an active HQ
+   session.
+3. Apply `038_close_customer_anon_access.sql` in the Supabase SQL Editor.
+4. Apply `039_preserve_membership_history.sql` after 038.
+4. Run `npm run verify:supabase-security` with the service-role environment
+   available.
+5. Smoke-test `/hq`, `/hq/memberships`, one real `/portal/[token]`, and the
+   presentation/signing flow.
+6. Re-run Supabase Security Advisor.
 
-## Rollback
+Do not apply migration 038 before deploying the server-routed presentation
+builder; the older browser adapter depends on the policies being removed.
 
-Re-run permissive policies from `schema.sql` pre-030 only if service role is unavailable — not recommended for production.
+## Expected verification
+
+- customer public policy count: `0`
+- customer public privilege count: `0`
+- admin unlock rate limit: `READY`
+- all six customer tables: `service=OK anon=CLOSED`
+
+## Recovery
+
+If the application cannot read customer data after migration 038, verify
+`SUPABASE_SERVICE_ROLE_KEY` first and redeploy. Do not restore anonymous
+customer-table policies as a routine rollback. The repository keeps migration
+030 as historical evidence, not as the desired security state.

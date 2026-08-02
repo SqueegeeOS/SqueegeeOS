@@ -63,7 +63,9 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
 
       if (!response.ok || !body?.mode) {
         setError(
-          response.status === 503
+          response.status === 429
+            ? "Too many attempts. Wait a few minutes, then try again."
+            : response.status === 503
             ? "Owner access is not configured. Add ADMIN_PIN in Vercel."
             : "Access denied. Check your PIN and try again.",
         );

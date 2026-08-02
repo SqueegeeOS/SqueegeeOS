@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   firstNameFromFullName,
+  hasCompleteClientAddress,
   parseClientAddress,
 } from "./parse-client-address";
 
@@ -20,8 +21,8 @@ describe("parseClientAddress", () => {
   it("uses fallback when state/zip missing", () => {
     expect(parseClientAddress("123 Main St", "Lake House")).toEqual({
       address: "123 Main St",
-      city: "TBD",
-      state: "CA",
+      city: "",
+      state: "",
       zip: "",
       propertyName: "Lake House",
     });
@@ -30,11 +31,22 @@ describe("parseClientAddress", () => {
   it("handles empty address", () => {
     expect(parseClientAddress("", "Client Home")).toEqual({
       address: "Client Home",
-      city: "TBD",
-      state: "CA",
+      city: "",
+      state: "",
       zip: "",
       propertyName: "Client Home",
     });
+  });
+
+  it("distinguishes complete addresses from partial free text", () => {
+    expect(
+      hasCompleteClientAddress(
+        parseClientAddress("742 Evergreen Terrace, Springfield, IL 62704"),
+      ),
+    ).toBe(true);
+    expect(hasCompleteClientAddress(parseClientAddress("123 Main St"))).toBe(
+      false,
+    );
   });
 });
 

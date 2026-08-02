@@ -92,19 +92,25 @@ const checks = [
   ["034", "Jobber supervised property links", (s) => hasTable(s, "jobber_property_links")],
   ["035", "Jobber full sync and customer links", (s) => hasTable(s, "jobber_client_projections") && hasTable(s, "jobber_customer_links")],
   ["036", "Atlas Pulse delivery and webhooks", (s) => hasTable(s, "membership_communications") && hasTable(s, "resend_webhook_events") && hasTable(s, "jobber_webhook_events")],
+  ["037", "Atlas Pulse manual completion", (s) => hasTable(s, "membership_activation_confirmations") && hasTable(s, "membership_activation_confirmation_events")],
+  ["038", "customer data boundary", (s) => hasTable(s, "admin_unlock_rate_limits") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
+  ["039", "membership history", (s) => s.indexes.has("memberships_one_current_per_property_idx")],
 ];
 
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, enums, rls, referralPolicies, updatedAt, storageTable] = await Promise.all([
+  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, updatedAt, storageTable] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
+    client.query("select indexname from pg_indexes where schemaname = 'public'"),
     client.query("select t.typname as type_name, e.enumlabel as value from pg_type t join pg_enum e on e.enumtypid = t.oid join pg_namespace n on n.oid = t.typnamespace where n.nspname = 'public'"),
     client.query("select relname from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relrowsecurity"),
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('referral_codes', 'referral_visits', 'referrals') and ('anon' = any(roles) or 'public' = any(roles))"),
+    client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('homeowners', 'properties', 'home_care_plans', 'memberships', 'signed_agreements', 'property_assets') and ('anon' = any(roles) or 'authenticated' = any(roles) or 'public' = any(roles))"),
+    client.query("with customer_tables(table_name) as (values ('homeowners'), ('properties'), ('home_care_plans'), ('memberships'), ('signed_agreements'), ('property_assets')), public_roles(role_name) as (values ('anon'), ('authenticated')), table_privileges(privilege_name) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) select count(*)::int as count from customer_tables t cross join public_roles r cross join table_privileges p where has_table_privilege(r.role_name, format('public.%I', t.table_name), p.privilege_name)"),
     client.query("select coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'set_updated_at' limit 1"),
     client.query("select to_regclass('storage.buckets') is not null as exists"),
   ]);
@@ -122,9 +128,12 @@ try {
       table_name: row.table_name,
       definition: String(row.definition),
     })),
+    indexes: new Set(indexes.rows.map((row) => row.indexname)),
     enumValues: new Set(enums.rows.map((row) => `${row.type_name}.${row.value}`)),
     rlsTables: new Set(rls.rows.map((row) => row.relname)),
     referralAnonPolicies: referralPolicies.rows[0]?.count ?? 0,
+    customerPublicPolicies: customerPolicies.rows[0]?.count ?? -1,
+    customerPublicPrivileges: customerPrivileges.rows[0]?.count ?? -1,
     secureUpdatedAt: updatedAt.rows.some((row) => String(row.config).includes("search_path=public")),
     agreementBucket,
   };
