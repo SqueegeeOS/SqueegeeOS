@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { Day2ReviewsWall } from "@/components/marketing/day2-reviews-wall";
+import { CUSTOMER_CONTACT } from "@/lib/brand/customer";
 
 /* CINEMA MAXIMAL — SqueegeeKing. Full-bleed residential film, colossal type. */
 
@@ -29,7 +30,17 @@ function getServerReducedMotionSnapshot() {
   return false;
 }
 
-function Film({ src, poster, className = "", reduced }: { src: string; poster: string; className?: string; reduced: boolean }) {
+function Film({
+  src,
+  poster,
+  className = "",
+  reduced,
+}: {
+  src: string;
+  poster: string;
+  className?: string;
+  reduced: boolean;
+}) {
   const ref = useRef<HTMLVideoElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -41,7 +52,20 @@ function Film({ src, poster, className = "", reduced }: { src: string; poster: s
     io.observe(el);
     return () => io.disconnect();
   }, [reduced]);
-  if (reduced) return <img src={poster} alt="" aria-hidden className={className} draggable={false} />;
+  if (reduced) {
+    return (
+      <Image
+        src={poster}
+        alt=""
+        aria-hidden
+        width={1376}
+        height={768}
+        sizes="100vw"
+        className={className}
+        draggable={false}
+      />
+    );
+  }
   return <video ref={ref} src={src} poster={poster} muted loop playsInline preload="none" aria-hidden className={className} />;
 }
 
@@ -137,6 +161,9 @@ export function Day2Homepage() {
           style={{ background: "linear-gradient(to top, rgba(250,246,236,0.99) 0%, rgba(250,246,236,0.94) 24%, rgba(250,246,236,0.54) 50%, rgba(250,246,236,0.12) 76%), linear-gradient(to right, rgba(250,246,236,0.58), transparent 68%)" }} />
         <div className="relative z-10 flex min-h-[100svh] flex-col justify-end px-5 pb-10 pt-28 sm:px-8 sm:pb-12 lg:px-12 lg:pb-16">
           <div className="mx-auto w-full max-w-[90rem]">
+            <p className="night-rise mb-5 font-mono text-[10px] uppercase tracking-[0.24em] text-[#173f32]/75 sm:text-xs sm:tracking-[0.3em]">
+              Window cleaning &amp; exterior home care · Chico, California
+            </p>
             <h1 className="night-rise font-serif font-light uppercase leading-[0.86] tracking-tight"
               style={{ color: PINE, fontSize: "clamp(3.6rem, 13vw, 11.5rem)" }}>
               The right
@@ -283,7 +310,7 @@ export function Day2Homepage() {
 
       <footer className="mx-auto max-w-3xl px-6 py-10 text-center">
         <p className="font-mono text-xs tracking-[0.14em]" style={{ color: BRONZE_TEXT }}>
-          SqueegeeKing · powered by HomeAtlas
+          SqueegeeKing · Chico, California · powered by HomeAtlas
         </p>
         <p className="mx-auto mt-4 max-w-2xl text-xs leading-relaxed" style={{ color: SAGE }}>
           Professional window cleaning, pressure washing, and solar panel
@@ -296,6 +323,18 @@ export function Day2Homepage() {
           className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-xs"
         >
           <Link
+            href="/services"
+            className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"
+          >
+            Explore services
+          </Link>
+          <Link
+            href="/services/window-cleaning"
+            className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"
+          >
+            Window cleaning
+          </Link>
+          <Link
             href="/request"
             className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"
           >
@@ -307,6 +346,12 @@ export function Day2Homepage() {
           >
             Contact SqueegeeKing
           </Link>
+          <a
+            href={CUSTOMER_CONTACT.phoneHref}
+            className="min-h-11 content-center underline decoration-[#99683d]/30 underline-offset-4 transition-colors hover:text-[#99683d]"
+          >
+            {CUSTOMER_CONTACT.phoneDisplay}
+          </a>
         </nav>
       </footer>
     </main>

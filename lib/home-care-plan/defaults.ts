@@ -1,5 +1,6 @@
 import { emptyPlanReviews } from "@/lib/reviews/plan-placeholder";
 import { foundersAsPlanTeam } from "@/lib/team/founders";
+import { CUSTOMER_CONTACT } from "@/lib/brand/customer";
 import type { HomeCarePlanData } from "./types";
 
 export const defaultHomeCareBrand = {
@@ -67,7 +68,7 @@ export const defaultHeroImage =
 export const defaultFindingImage =
   "https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&q=80";
 
-export const SQUEEGEEKING_PHONE = "(530) 588-6235";
+export const SQUEEGEEKING_PHONE = CUSTOMER_CONTACT.phoneDisplay;
 
 export function getPlanFounders(): HomeCarePlanData["team"] {
   return foundersAsPlanTeam();

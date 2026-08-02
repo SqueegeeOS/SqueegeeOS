@@ -4,12 +4,12 @@ import { SQUEEGEEKING_PHONE } from "@/lib/home-care-plan/defaults";
 import { ContactPageContent } from "@/components/navigation/contact-page";
 
 export const metadata: Metadata = {
-  title: `Contact | ${CUSTOMER_BRAND.name}`,
-  description: `Reach ${CUSTOMER_BRAND.name} in ${CUSTOMER_BRAND.location}.`,
+  title: "Contact",
+  description: `Call ${CUSTOMER_BRAND.name} for window cleaning and exterior home care in ${CUSTOMER_BRAND.location}, or request a personalized Home Care Plan online.`,
   alternates: { canonical: "/contact" },
   openGraph: {
-    title: `Contact | ${CUSTOMER_BRAND.name}`,
-    description: `Reach ${CUSTOMER_BRAND.name} in ${CUSTOMER_BRAND.location}.`,
+    title: `Contact ${CUSTOMER_BRAND.name} in ${CUSTOMER_BRAND.location}`,
+    description: `Call or request a personalized window cleaning and exterior home care plan in ${CUSTOMER_BRAND.location}.`,
     url: "/contact",
     type: "website",
   },

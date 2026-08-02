@@ -26,9 +26,51 @@ const cormorant = Cormorant_Garamond({
 
 export const metadata: Metadata = {
   metadataBase: new URL(PUBLIC_SITE_URL),
-  title: CUSTOMER_BRAND.name,
-  description: pwaConfig.description,
-  applicationName: pwaConfig.name,
+  title: {
+    default: "SqueegeeKing | Window Cleaning in Chico, CA",
+    template: "%s | SqueegeeKing",
+  },
+  description:
+    "Window cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
+  applicationName: CUSTOMER_BRAND.name,
+  creator: CUSTOMER_BRAND.name,
+  publisher: CUSTOMER_BRAND.name,
+  category: "Home services",
+  openGraph: {
+    type: "website",
+    locale: "en_US",
+    siteName: CUSTOMER_BRAND.name,
+    url: "/",
+    title: "SqueegeeKing | Window Cleaning in Chico, CA",
+    description:
+      "Window cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
+    images: [
+      {
+        url: "/day/morning.jpg",
+        width: 1376,
+        height: 768,
+        alt: "A cared-for Chico home in warm morning light",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SqueegeeKing | Window Cleaning in Chico, CA",
+    description:
+      "Exterior home care in Chico, California—done the right way.",
+    images: ["/day/morning.jpg"],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

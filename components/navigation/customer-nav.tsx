@@ -27,7 +27,11 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const scrolled = useNavScroll(pathname);
   const immersive = shouldUseOverlayNav(pathname);
-  const daylight = pathname === ROUTES.home || pathname === "/home2";
+  const daylight =
+    pathname === ROUTES.home ||
+    pathname === "/home2" ||
+    pathname === ROUTES.services ||
+    pathname.startsWith(`${ROUTES.services}/`);
   const elevated = daylight || scrolled || !immersive;
   const lightText = !daylight && immersive && !scrolled;
   const session = getNavigationSession();

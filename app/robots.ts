@@ -9,6 +9,7 @@ export default function robots(): MetadataRoute.Robots {
         allow: "/",
         disallow: [
           "/hq",
+          "/HQ",
           "/admin",
           "/api",
           "/portal",
@@ -24,5 +25,6 @@ export default function robots(): MetadataRoute.Robots {
       },
     ],
     sitemap: `${PUBLIC_SITE_URL}/sitemap.xml`,
+    host: PUBLIC_SITE_URL,
   };
 }

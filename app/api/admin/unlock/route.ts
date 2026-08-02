@@ -26,19 +26,20 @@ function rateLimited(retryAfterSeconds: number) {
 
 export async function POST(request: Request) {
   const suppliedPin = request.headers.get("x-admin-pin")?.trim();
+  const authorized = authorizeAdminRequest(request.headers);
 
-  if (suppliedPin) {
+  // A correct founder PIN must be able to clear a stale lockout. Only failed
+  // PINs are blocked by the preflight check; successful verification resets
+  // both the durable and in-memory counters below.
+  if (suppliedPin && !authorized) {
     const currentLimit = await checkAdminUnlockRateLimit(request.headers);
     if (!currentLimit.allowed) {
       return rateLimited(currentLimit.retryAfterSeconds);
     }
-  }
 
-  const authorized = authorizeAdminRequest(request.headers);
-  if (suppliedPin) {
     const updatedLimit = await recordAdminUnlockAttempt(
       request.headers,
-      authorized,
+      false,
     );
     if (!updatedLimit.allowed) {
       return rateLimited(updatedLimit.retryAfterSeconds);
@@ -50,6 +51,10 @@ export async function POST(request: Request) {
       { error: "Unauthorized" },
       { status: 401, headers: { "Cache-Control": "no-store" } },
     );
+  }
+
+  if (suppliedPin) {
+    await recordAdminUnlockAttempt(request.headers, true);
   }
 
   const mode = getAdminAccessMode();
