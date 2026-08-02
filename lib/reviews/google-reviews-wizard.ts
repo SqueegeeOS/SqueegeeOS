@@ -46,6 +46,8 @@ export const GOOGLE_CONSOLE_LINKS = {
     "https://console.cloud.google.com/marketplace/product/google/mybusinessbusinessinformation.googleapis.com",
   businessAccountApi:
     "https://console.cloud.google.com/marketplace/product/google/mybusinessaccountmanagement.googleapis.com",
+  businessReviewsApi:
+    "https://console.cloud.google.com/apis/library/mybusiness.googleapis.com",
   oauthConsent:
     "https://console.cloud.google.com/apis/credentials/consent",
 } as const;
@@ -70,7 +72,19 @@ export function loadWizardState(): GoogleReviewsWizardState {
   try {
     // Older versions persisted the API key. Ignore and overwrite that value;
     // server-side credentials belong in Vercel, never browser storage.
-    return { ...DEFAULT_WIZARD_STATE, ...JSON.parse(raw), apiKey: "" };
+    const sanitized = {
+      ...DEFAULT_WIZARD_STATE,
+      ...JSON.parse(raw),
+      apiKey: "",
+      businessName: "",
+      lastRating: null,
+      lastReviewCount: null,
+    };
+    localStorage.setItem(
+      GOOGLE_REVIEWS_WIZARD_KEY,
+      JSON.stringify(wizardStateForStorage(sanitized)),
+    );
+    return sanitized;
   } catch {
     return DEFAULT_WIZARD_STATE;
   }
@@ -79,7 +93,15 @@ export function loadWizardState(): GoogleReviewsWizardState {
 export function wizardStateForStorage(
   state: GoogleReviewsWizardState,
 ): GoogleReviewsWizardState {
-  return { ...state, apiKey: "" };
+  // Google Places permits durable Place ID storage, but not indefinite local
+  // storage of provider-derived names, ratings, or review counts.
+  return {
+    ...state,
+    apiKey: "",
+    businessName: "",
+    lastRating: null,
+    lastReviewCount: null,
+  };
 }
 
 export function saveWizardState(state: GoogleReviewsWizardState): void {

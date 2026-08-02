@@ -218,6 +218,14 @@ export function StarryHomepage() {
           months. Every visit is recorded in HomeAtlas, the living memory of
           your home&apos;s care.
         </p>
+        <p className="mt-4 flex justify-center gap-4 text-xs" style={{ color: `${MIST}99` }}>
+          <Link className="underline-offset-4 hover:underline" href="/privacy">
+            Privacy
+          </Link>
+          <Link className="underline-offset-4 hover:underline" href="/terms">
+            Terms
+          </Link>
+        </p>
       </footer>
     </main>
   );

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Post-migration 041 checks: public customer access is closed and the service
- * role remains healthy.
+ * Post-migration 042 checks: public access to customer data and encrypted
+ * provider credentials is closed while the service role remains healthy.
  * Usage: SUPABASE_SERVICE_ROLE_KEY=... npm run verify:supabase-security
  */
 import { readFileSync } from "node:fs";
@@ -44,7 +44,7 @@ const anon = createClient(url, anonKey, {
 const service = createClient(url, serviceKey, {
   auth: { persistSession: false, autoRefreshToken: false },
 });
-const customerTables = [
+const sensitiveTables = [
   "homeowners",
   "properties",
   "home_care_plans",
@@ -57,14 +57,23 @@ const customerTables = [
   "customer_conversations",
   "customer_messages",
   "customer_communication_webhook_events",
+  "google_business_connections",
 ];
 
 let failed = false;
 
-const { data: postureData, error: postureError } = await service.rpc(
-  "homeatlas_security_posture",
-);
+const [servicePostureResult, anonPostureResult] = await Promise.all([
+  service.rpc("homeatlas_security_posture"),
+  anon.rpc("homeatlas_security_posture"),
+]);
+const { data: postureData, error: postureError } = servicePostureResult;
 const posture = Array.isArray(postureData) ? postureData[0] : postureData;
+
+const anonPostureClosed = Boolean(anonPostureResult.error);
+console.log(
+  `security posture RPC          ${anonPostureClosed ? "SERVICE ONLY" : "PUBLIC"}`,
+);
+if (!anonPostureClosed) failed = true;
 
 if (postureError || !posture) {
   console.error(
@@ -85,7 +94,7 @@ if (postureError || !posture) {
   }
 }
 
-for (const table of customerTables) {
+for (const table of sensitiveTables) {
   const [serviceResult, anonResult] = await Promise.all([
     service.from(table).select("*").limit(1),
     anon.from(table).select("*").limit(1),
@@ -102,7 +111,7 @@ for (const table of customerTables) {
 }
 
 if (failed) {
-  console.error("\nSecurity verification failed - apply migrations 040 and 041.");
+  console.error("\nSecurity verification failed - apply migrations 038 through 042.");
   process.exit(1);
 }
 

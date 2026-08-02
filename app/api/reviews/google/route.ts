@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { getGoogleReviewsResponse } from "@/lib/reviews/get-google-reviews";
 
-/** 8 hours — must be a literal for Next.js segment config */
-export const revalidate = 28800;
+// Provider credentials and the durable Google connection are runtime state.
+// Keep this handler out of build-time prerendering; the response and inner
+// provider fetches are still cached for eight hours below.
+export const dynamic = "force-dynamic";
 
 export async function GET() {
   const payload = await getGoogleReviewsResponse();
-
   return NextResponse.json(payload, {
     headers: {
-      "Cache-Control": "public, s-maxage=28800, stale-while-revalidate=86400",
+      // Connection changes must take effect immediately. GBP content is
+      // cached only in the server-side tagged cache; never in a CDN/browser.
+      "Cache-Control": "private, no-store, max-age=0",
     },
   });
 }

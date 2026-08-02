@@ -40,6 +40,36 @@ function ReviewsAttribution({
     );
   }
 
+  if (data.provider === "google_places") {
+    const source = data.businessUrl ? (
+      <a
+        href={data.businessUrl}
+        target="_blank"
+        rel="noreferrer"
+        translate="no"
+        style={{ color: "#5E5E5E" }}
+        className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal underline-offset-4 hover:underline"
+      >
+        Google Maps
+      </a>
+    ) : (
+      <span
+        translate="no"
+        style={{ color: "#5E5E5E" }}
+        className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal"
+      >
+        Google Maps
+      </span>
+    );
+
+    return (
+      <p className="mt-4 font-sans text-xs font-normal normal-case leading-relaxed tracking-normal text-muted">
+        {source} preview ordered by Google relevance; this site applies no
+        rating filter.
+      </p>
+    );
+  }
+
   return (
     <p className="mt-4 text-[10px] uppercase tracking-[0.28em] text-muted">
       {data.attribution ?? "Based on Google reviews."}
@@ -58,6 +88,9 @@ export function ReviewsSection({
   apiMessage,
 }: ReviewsSectionProps) {
   const displayed = featured ?? selectFeaturedReviews(data);
+
+  // A Places preview must retain a Maps destination for source attribution.
+  if (data.provider === "google_places" && !data.businessUrl) return null;
 
   if (displayed.length === 0) {
     return (
@@ -94,7 +127,11 @@ export function ReviewsSection({
       <div className="mx-auto mt-20 max-w-4xl space-y-16 lg:mt-24 lg:space-y-20">
         {displayed.map((review, index) => (
           <Reveal key={review.id} delay={0.1 * index}>
-            <ReviewCard review={review} />
+            <ReviewCard
+              review={review}
+              provider={data.provider}
+              businessUrl={data.businessUrl}
+            />
           </Reveal>
         ))}
       </div>

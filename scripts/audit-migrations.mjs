@@ -48,6 +48,10 @@ function hasColumn(snapshot, table, column) {
   return snapshot.columns.has(`${table}.${column}`);
 }
 
+function hasColumns(snapshot, table, ...columns) {
+  return columns.every((column) => hasColumn(snapshot, table, column));
+}
+
 function constraintIncludes(snapshot, table, ...parts) {
   return snapshot.constraints.some(
     (row) =>
@@ -97,15 +101,16 @@ const checks = [
   ["039", "membership history", (s) => s.indexes.has("memberships_one_current_per_property_idx")],
   ["040", "lead request privacy boundary", (s) => s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["041", "customer communications", (s) => hasTable(s, "customer_contact_points") && hasTable(s, "customer_conversations") && hasTable(s, "customer_messages") && hasTable(s, "customer_communication_webhook_events") && hasColumn(s, "lead_intakes", "sms_consent_status") && hasColumn(s, "lead_intakes", "email_delivery_status") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
+  ["042", "Google Business full reviews", (s) => hasTable(s, "google_business_connections") && hasColumns(s, "google_business_connections", "account_name", "location_name", "place_id", "oauth_email", "access_token_ciphertext", "refresh_token_ciphertext", "token_generation", "connection_revision") && s.nullableColumns.has("google_business_connections.place_id") && s.nullableColumns.has("google_business_connections.oauth_email") && s.rlsTables.has("google_business_connections") && s.googlePublicPolicies === 0 && s.googlePublicPrivileges === 0 && s.googleServicePrivileges === 4 && s.googleSecurityPosture],
 ];
 
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, updatedAt, storageTable] = await Promise.all([
+  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
-    client.query("select table_name, column_name from information_schema.columns where table_schema = 'public'"),
+    client.query("select table_name, column_name, is_nullable from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
     client.query("select indexname from pg_indexes where schemaname = 'public'"),
     client.query("select t.typname as type_name, e.enumlabel as value from pg_type t join pg_enum e on e.enumtypid = t.oid join pg_namespace n on n.oid = t.typnamespace where n.nspname = 'public'"),
@@ -113,7 +118,11 @@ try {
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('referral_codes', 'referral_visits', 'referrals') and ('anon' = any(roles) or 'public' = any(roles))"),
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('homeowners', 'properties', 'home_care_plans', 'memberships', 'signed_agreements', 'property_assets', 'lead_intakes', 'customer_contact_points', 'customer_communication_automation_rules', 'customer_conversations', 'customer_messages', 'customer_communication_webhook_events') and ('anon' = any(roles) or 'authenticated' = any(roles) or 'public' = any(roles))"),
     client.query("with customer_tables(table_name) as (values ('homeowners'), ('properties'), ('home_care_plans'), ('memberships'), ('signed_agreements'), ('property_assets'), ('lead_intakes'), ('customer_contact_points'), ('customer_communication_automation_rules'), ('customer_conversations'), ('customer_messages'), ('customer_communication_webhook_events')), public_roles(role_name) as (values ('anon'), ('authenticated')), table_privileges(privilege_name) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) select count(*)::int as count from customer_tables t cross join public_roles r cross join table_privileges p where has_table_privilege(r.role_name, format('public.%I', t.table_name), p.privilege_name)"),
+    client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename = 'google_business_connections' and ('anon' = any(roles) or 'authenticated' = any(roles) or 'public' = any(roles))"),
+    client.query("with public_roles(role_name) as (values ('anon'), ('authenticated')), table_privileges(privilege_name) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) select count(*)::int as count from public_roles r cross join table_privileges p where has_table_privilege(r.role_name, to_regclass('public.google_business_connections'), p.privilege_name)"),
+    client.query("with table_privileges(privilege_name) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) select count(*)::int as count from table_privileges p where has_table_privilege('service_role', to_regclass('public.google_business_connections'), p.privilege_name)"),
     client.query("select coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'set_updated_at' limit 1"),
+    client.query("select pg_get_functiondef(p.oid) as definition, coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'homeatlas_security_posture' and p.pronargs = 0 limit 1"),
     client.query("select to_regclass('storage.buckets') is not null as exists"),
   ]);
 
@@ -126,6 +135,7 @@ try {
   const snapshot = {
     tables: new Set(tables.rows.map((row) => row.table_name)),
     columns: new Set(columns.rows.map((row) => `${row.table_name}.${row.column_name}`)),
+    nullableColumns: new Set(columns.rows.filter((row) => row.is_nullable === "YES").map((row) => `${row.table_name}.${row.column_name}`)),
     constraints: constraints.rows.map((row) => ({
       table_name: row.table_name,
       definition: String(row.definition),
@@ -136,6 +146,10 @@ try {
     referralAnonPolicies: referralPolicies.rows[0]?.count ?? 0,
     customerPublicPolicies: customerPolicies.rows[0]?.count ?? -1,
     customerPublicPrivileges: customerPrivileges.rows[0]?.count ?? -1,
+    googlePublicPolicies: googlePolicies.rows[0]?.count ?? -1,
+    googlePublicPrivileges: googlePublicPrivileges.rows[0]?.count ?? -1,
+    googleServicePrivileges: googleServicePrivileges.rows[0]?.count ?? -1,
+    googleSecurityPosture: securityPosture.rows.some((row) => String(row.definition).includes("google_business_connections") && String(row.config).includes("search_path=public")),
     secureUpdatedAt: updatedAt.rows.some((row) => String(row.config).includes("search_path=public")),
     agreementBucket,
   };

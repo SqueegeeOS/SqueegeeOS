@@ -34,30 +34,20 @@ export async function GET(request: Request) {
     await writeGoogleOAuthSession({ ...session, email });
   }
 
-  const { searchParams } = new URL(request.url);
-  const keyInfo = resolveSearchApiKey(searchParams.get("apiKey") ?? undefined);
+  const keyInfo = resolveSearchApiKey();
 
   const result = await listManagedGoogleBusinesses(
     session.accessToken,
     keyInfo.apiKey,
-    { email },
   );
 
   logGoogleReviewsSetup("managed_businesses_listed", {
-    email: email ?? null,
     failureKind: result.diagnostic.failureKind,
     businessCount: result.businesses.length,
     accountsHttpStatus: result.diagnostic.accountsHttpStatus ?? null,
     accountCount: result.diagnostic.accountCount ?? null,
     locationCount: result.diagnostic.locationCount ?? null,
-    oauthScopes: result.diagnostic.oauthScopes ?? null,
     hasBusinessManageScope: result.diagnostic.hasBusinessManageScope ?? null,
-    businesses: result.businesses
-      .map(
-        (item) =>
-          `${item.name} (${item.placeId}) · ${item.rating ?? "?"}★ · ${item.reviewCount ?? "?"} reviews`,
-      )
-      .join(" | "),
   });
 
   return NextResponse.json({

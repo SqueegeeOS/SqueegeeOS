@@ -356,6 +356,14 @@ export function Home2Homepage() {
               {CUSTOMER_BRAND.tagline} / {CUSTOMER_BRAND.location}
             </p>
             <p>{PLATFORM_BRAND.poweredByLabel}</p>
+            <p className="flex gap-3 md:justify-end">
+              <Link className="underline-offset-4 hover:underline" href="/privacy">
+                Privacy
+              </Link>
+              <Link className="underline-offset-4 hover:underline" href="/terms">
+                Terms
+              </Link>
+            </p>
           </div>
         </div>
       </footer>

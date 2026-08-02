@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useNearViewport } from "@/components/reviews/use-near-viewport";
+import type {
+  GoogleReviewsApiResponse,
+  Review,
+  ReviewsData,
+} from "@/lib/reviews/types";
 
 const INK = "#07080c";
 const GOLD = "#d4b98c";
@@ -56,11 +62,12 @@ export function BeforeAfter({
           if (e.key === "ArrowRight") setP((v) => Math.min(0.98, v + 0.05));
         }}
       >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={before} alt="Before our visit" className="absolute inset-0 h-full w-full object-cover" draggable={false} onError={() => setOk(false)} />
         <div className="absolute inset-0 overflow-hidden" style={{ clipPath: `inset(0 ${100 - p * 100}% 0 0)` }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={after} alt="After our visit" className="h-full w-full object-cover" draggable={false} />
         </div>
-        {/* the blade */}
         <div aria-hidden className="absolute bottom-0 top-0 w-[3px]" style={{ left: `${p * 100}%`, background: GOLD, boxShadow: "0 0 18px rgba(212,185,140,0.7)" }}>
           <div className="absolute left-1/2 top-1/2 flex h-11 w-11 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full font-mono text-[10px]" style={{ background: GOLD, color: INK }}>
             ⇔
@@ -75,55 +82,187 @@ export function BeforeAfter({
 
 /* ---- #4 Living testimonial wall (real Google reviews only) -------- */
 
-interface ReviewItem { author: string; rating: number; text: string; when: string }
+interface ReviewItem {
+  id: string;
+  author: string;
+  rating: number;
+  text: string;
+  when: string;
+  profilePhotoUrl?: string;
+  reviewerProfileUrl?: string;
+  reviewUrl?: string;
+}
+
+interface ReviewMeta {
+  rating?: number;
+  count?: number;
+  provider?: ReviewsData["provider"];
+  businessUrl?: string;
+}
+
+export function isDisplayableRightwayReview(review: Review): boolean {
+  return (
+    review.source === "Google" &&
+    review.reviewerName.trim().length > 0 &&
+    Number.isFinite(review.rating) &&
+    review.rating >= 1 &&
+    review.rating <= 5
+  );
+}
 
 export function ReviewsWall() {
   const [items, setItems] = useState<ReviewItem[]>([]);
-  const [meta, setMeta] = useState<{ rating?: number; count?: number }>({});
+  const [meta, setMeta] = useState<ReviewMeta>({});
+  const { targetRef: reviewLoadRef, shouldLoad } = useNearViewport();
 
   useEffect(() => {
-    fetch("/api/reviews/google")
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        const d = data?.data ?? data ?? {};
-        const raw = d.reviews ?? d.result?.reviews ?? [];
-        const mapped: ReviewItem[] = raw
-          .filter((r: { rating?: number }) => (r.rating ?? 0) >= 4)
-          .slice(0, 8)
-          .map((r: { author_name?: string; authorName?: string; rating?: number; text?: string; relative_time_description?: string; relativeTime?: string }) => ({
-            author: r.author_name ?? r.authorName ?? "A neighbor",
-            rating: r.rating ?? 5,
-            text: (r.text ?? "").slice(0, 220),
-            when: r.relative_time_description ?? r.relativeTime ?? "",
-          }))
-          .filter((r: ReviewItem) => r.text.length > 0);
-        setItems(mapped);
-        setMeta({ rating: d.rating ?? d.result?.rating, count: d.userRatingCount ?? d.user_ratings_total ?? d.result?.user_ratings_total });
-      })
-      .catch(() => undefined);
-  }, []);
+    if (!shouldLoad) return;
+    const controller = new AbortController();
 
-  if (items.length === 0) return null; // never fake it
+    fetch("/api/reviews/google", { signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload: GoogleReviewsApiResponse | null) => {
+        if (
+          !payload?.data ||
+          (payload.status !== "live" && payload.status !== "cached")
+        ) {
+          return;
+        }
+
+        const data = payload.data;
+        if (data.provider === "google_places" && !data.businessUrl) return;
+
+        const mapped = data.reviews
+          .filter(isDisplayableRightwayReview)
+          .map((review) => ({
+            id: review.id,
+            author: review.reviewerName,
+            rating: review.rating,
+            text: review.reviewText,
+            when: review.relativeDate ?? "",
+            profilePhotoUrl: review.profilePhotoUrl,
+            reviewerProfileUrl: review.reviewerProfileUrl,
+            reviewUrl: review.reviewUrl,
+          }));
+
+        if (mapped.length === 0) return;
+
+        setItems(mapped);
+        setMeta({
+          rating: data.averageRating > 0 ? data.averageRating : undefined,
+          count: data.totalCount > 0 ? data.totalCount : undefined,
+          provider: data.provider,
+          businessUrl: data.businessUrl,
+        });
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      });
+
+    return () => controller.abort();
+  }, [shouldLoad]);
+
+  if (items.length === 0) {
+    return <div ref={reviewLoadRef} aria-hidden className="min-h-px" />;
+  }
+
+  const placesPreview = meta.provider === "google_places";
 
   return (
     <section className="overflow-hidden border-y py-24 sm:py-28" style={{ borderColor: "rgba(242,239,231,0.1)" }} aria-label="Reviews">
       <div className="px-5 sm:px-12">
-        <p className="font-mono text-[11px] uppercase tracking-[0.3em]" style={{ color: GOLD }}>
-          {meta.rating ? `★ ${meta.rating.toFixed(1)} on Google` : "On Google"}
+        <p className="font-sans text-xs font-normal normal-case tracking-normal" style={{ color: GOLD }}>
+          {meta.rating ? `★ ${meta.rating.toFixed(1)} on ` : "Reviews on "}
+          <span
+            translate="no"
+            style={placesPreview ? { color: "#ffffff" } : undefined}
+            className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal"
+          >
+            {placesPreview ? "Google Maps" : "Google"}
+          </span>
           {meta.count ? ` · ${meta.count} reviews` : ""}
         </p>
+        {placesPreview && (
+          <p className="mt-2 font-sans text-xs font-normal normal-case leading-relaxed tracking-normal" style={{ color: MIST }}>
+            <a
+              href={meta.businessUrl}
+              target="_blank"
+              rel="noreferrer"
+              translate="no"
+              style={{ color: "#ffffff" }}
+              className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal underline-offset-4 hover:underline"
+            >
+              Google Maps
+            </a>{" "}
+            preview ordered by Google relevance; this site applies no rating
+            filter.
+          </p>
+        )}
         <h2 className="mt-5 font-serif text-4xl font-light sm:text-6xl" style={{ color: IVORY }}>
           The neighbors talk.
         </h2>
       </div>
       <div className="night-marquee-slow mt-12 flex w-max gap-6 whitespace-normal">
-        {[...items, ...items].map((r, i) => (
-          <figure key={i} className="w-80 flex-none rounded-[1.25rem] border p-6" style={{ borderColor: "rgba(242,239,231,0.1)", background: "#0d0f16" }}>
-            <p className="font-mono text-xs tracking-[0.2em]" style={{ color: GOLD }}>{"★".repeat(Math.round(r.rating))}</p>
-            <blockquote className="mt-3 text-sm leading-relaxed" style={{ color: `${IVORY}d9` }}>&ldquo;{r.text}&rdquo;</blockquote>
-            <figcaption className="mt-4 text-xs" style={{ color: MIST }}>{r.author}{r.when ? ` · ${r.when}` : ""}</figcaption>
-          </figure>
-        ))}
+        {[...items, ...items].map((review, index) => {
+          const sourceUrl = review.reviewUrl ?? meta.businessUrl;
+          return (
+            <figure key={`${review.id}-${index}`} className="w-80 flex-none rounded-[1.25rem] border p-6" style={{ borderColor: "rgba(242,239,231,0.1)", background: "#0d0f16" }}>
+              <div className="flex items-center gap-3">
+                {review.profilePhotoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={review.profilePhotoUrl}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    className="h-9 w-9 rounded-full object-cover"
+                  />
+                )}
+                <p aria-label={`${review.rating} out of 5 stars`} className="font-mono text-xs tracking-[0.2em]" style={{ color: GOLD }}>
+                  <span aria-hidden>{"★".repeat(Math.round(review.rating))}</span>
+                </p>
+              </div>
+              {review.text.trim() ? (
+                <blockquote className="mt-3 text-sm leading-relaxed" style={{ color: `${IVORY}d9` }}>&ldquo;{review.text}&rdquo;</blockquote>
+              ) : (
+                <p className="mt-3 text-sm leading-relaxed" style={{ color: MIST }}>
+                  Rating-only review
+                </p>
+              )}
+              <figcaption className="mt-4 text-xs" style={{ color: MIST }}>
+                {review.reviewerProfileUrl ? (
+                  <a
+                    href={review.reviewerProfileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline-offset-4 hover:underline"
+                  >
+                    {review.author}
+                  </a>
+                ) : (
+                  review.author
+                )}
+                {review.when ? ` · ${review.when}` : ""}
+                {sourceUrl && (
+                  <>
+                    {" · "}
+                    <a
+                      href={sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      translate="no"
+                      style={
+                        placesPreview ? { color: "#ffffff" } : undefined
+                      }
+                      className="whitespace-nowrap font-sans text-xs font-normal normal-case tracking-normal underline-offset-4 hover:underline"
+                    >
+                      {placesPreview ? "Google Maps" : "Google"}
+                    </a>
+                  </>
+                )}
+              </figcaption>
+            </figure>
+          );
+        })}
       </div>
     </section>
   );

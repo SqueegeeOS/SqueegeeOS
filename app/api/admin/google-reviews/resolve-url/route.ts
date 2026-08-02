@@ -31,20 +31,11 @@ export async function POST(request: Request) {
     website: body.website,
   });
 
-  const resolvedName =
-    result.candidates.find((item) => item.placeId === result.placeId)?.name ??
-    result.businessNameHint ??
-    result.candidates[0]?.name ??
-    null;
-
   if (result.placeId) {
     logGoogleReviewsSetup("place_resolved", {
       source: "resolve_url",
-      inputUrl: url,
-      resolvedUrl: result.resolvedUrl,
       method: result.method,
       placeId: result.placeId,
-      businessName: resolvedName,
       candidateCount: result.candidates.length,
     });
   }

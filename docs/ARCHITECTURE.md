@@ -319,9 +319,9 @@ Live reviews load from **`GET /api/reviews/google`** (server-only). The client n
 
 | Item | Detail |
 |------|--------|
-| **Stage 1 (current)** | Google Places API — Place Details (`GOOGLE_MAPS_API_KEY`, `GOOGLE_PLACE_ID`) |
-| **Stage 2 (planned)** | Google Business Profile API — owned-business review management, replies, and full review sync |
-| **Cache** | 8 hours (`unstable_cache` + route `revalidate`) |
+| **Stage 1 fallback** | Google Places API — Place Details preview (`GOOGLE_MAPS_API_KEY`, `GOOGLE_PLACE_ID`, maximum five review records) |
+| **Stage 2 (implemented)** | Google Business Profile API — encrypted owner OAuth plus paginated full-review sync |
+| **Cache** | Places: no-store. Owner corpus: 8-hour private server cache, 24-hour display ceiling. Public route: browser/CDN no-store. |
 | **Fallback** | Approved client testimonials — clearly labeled, never fake counts |
 
 **Server env vars (never `NEXT_PUBLIC`):**
@@ -329,6 +329,7 @@ Live reviews load from **`GET /api/reviews/google`** (server-only). The client n
 ```
 GOOGLE_MAPS_API_KEY=
 GOOGLE_PLACE_ID=
+GOOGLE_BUSINESS_PUBLIC_FULL_REVIEWS_ENABLED=false
 ```
 
 **Data shape** (`lib/reviews/types.ts`):
@@ -348,12 +349,14 @@ interface Review {
 
 **UI:** `components/reviews/google-reviews-section.tsx` fetches `/api/reviews/google` and renders `ReviewsSection`.
 
-### Stage 2 — Google Business Profile API upgrade path
+### Stage 2 — Google Business Profile full-review sync
 
 1. Apply for [Google Business Profile API access](https://developers.google.com/my-business/content/prereqs) (requires verified business ownership).
-2. Replace `lib/reviews/google-places.ts` fetch with GBP `accounts.locations.reviews.list`.
-3. Keep the same `ReviewsData` shape and `/api/reviews/google` contract so the frontend stays unchanged.
-4. Benefits: full review corpus, owner responses, review metadata, no 5-review Places preview cap.
+2. In the protected Google Reviews setup wizard, sign in as the profile owner and confirm the exact managed location.
+3. Migration `042_google_business_full_reviews.sql` stores encrypted OAuth state and the verified account/location resource names behind service-role-only access.
+4. `lib/reviews/google-business-reviews.ts` retrieves up to 50 reviews per page until Google stops returning `nextPageToken`.
+5. Public surfaces default to the five-review Places preview. The owner-only corpus is available publicly only after explicit Google project confirmation and `GOOGLE_BUSINESS_PUBLIC_FULL_REVIEWS_ENABLED=true`.
+6. The homepage renders every returned star rating, including rating-only reviews, with Google Maps attribution and source links. Complete coverage is claimed only when the unique count equals Google's reported total.
 
 ---
 
