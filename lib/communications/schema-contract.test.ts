@@ -68,6 +68,10 @@ describe("customer communications migration contract", () => {
     expect(migration).toContain(
       "create trigger customer_conversations_validate_context before insert or update of homeowner_id, property_id, membership_id",
     );
+    expect(migration).toContain("Make pre-existing website requests visible");
+    expect(migration).toContain(
+      "where conversation.lead_intake_id = lead.id",
+    );
   });
 
   it("prevents a message from using another homeowner's contact point", () => {
