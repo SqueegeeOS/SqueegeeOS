@@ -3,7 +3,7 @@
   "crons": [
     {
       "path": "/api/cron/jobber-reconcile",
-      "schedule": "17 10 * * *"
+      "schedule": "17 17 * * *"
     }
   ]
 }

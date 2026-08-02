@@ -60,8 +60,11 @@ describe("customer data route boundaries", () => {
   });
 
   it("revokes anonymous access to all customer authority tables", () => {
-    const migration = readProjectFile(
+    const authorityMigration = readProjectFile(
       "lib/persistence/supabase/migrations/038_close_customer_anon_access.sql",
+    );
+    const leadMigration = readProjectFile(
+      "lib/persistence/supabase/migrations/040_close_lead_intake_anon_access.sql",
     );
     const tables = [
       "homeowners",
@@ -73,13 +76,35 @@ describe("customer data route boundaries", () => {
     ];
 
     for (const table of tables) {
-      expect(migration).toContain(
+      expect(authorityMigration).toContain(
         `revoke all privileges on table public.${table} from public, anon, authenticated`,
       );
     }
 
-    expect(migration).toContain("admin_unlock_rate_limits");
-    expect(migration).toContain("check_admin_unlock_rate_limit");
+    expect(leadMigration).toContain(
+      "revoke all privileges on table public.lead_intakes",
+    );
+    expect(leadMigration).toContain("('lead_intakes')");
+    expect(authorityMigration).toContain("admin_unlock_rate_limits");
+    expect(authorityMigration).toContain("check_admin_unlock_rate_limit");
+  });
+
+  it("keeps communication content private to service-role routes", () => {
+    const migration = readProjectFile(
+      "lib/persistence/supabase/migrations/041_customer_communications.sql",
+    );
+    for (const table of [
+      "customer_contact_points",
+      "customer_communication_automation_rules",
+      "customer_conversations",
+      "customer_messages",
+      "customer_communication_webhook_events",
+    ]) {
+      expect(migration).toContain(
+        `revoke all privileges on table public.${table}`,
+      );
+      expect(migration).toContain(`('${table}')`);
+    }
   });
 
   it("keeps membership history while allowing only one current plan", () => {
@@ -107,6 +132,9 @@ describe("customer data route boundaries", () => {
     expect(cron).toContain("process.env.CRON_SECRET");
     expect(cron).toContain("timingSafeEqual");
     expect(schedule).toContain("/api/cron/jobber-reconcile");
+    expect(schedule).toContain('"schedule": "17 17 * * *"');
+    expect(cron).toContain("processDueScheduledCommunications");
+    expect(cron).toContain("processVerifiedAppointmentReminders");
   });
 
   it("derives signing identity from the stored presentation", () => {

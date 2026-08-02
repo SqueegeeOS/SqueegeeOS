@@ -2,6 +2,16 @@ import type { ContactMethod, ServiceOption } from "./types";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 
 export type LeadIntakeStatus = "new" | "contacted" | "scheduled" | "archived";
+export type SmsConsentStatus = "unknown" | "opted_in" | "opted_out";
+
+export function smsConsentStatusForLead(
+  preferredContactMethod: ContactMethod,
+  smsConsent: boolean,
+): SmsConsentStatus {
+  return preferredContactMethod === "Text" && smsConsent
+    ? "opted_in"
+    : "unknown";
+}
 
 export interface LeadIntakeRecord {
   id: string;
@@ -11,6 +21,8 @@ export interface LeadIntakeRecord {
   serviceAddress: string;
   servicesInterested: ServiceOption[];
   preferredContactMethod: ContactMethod;
+  smsConsentStatus: SmsConsentStatus;
+  smsConsentRecordedAt: string | null;
   notes: string;
   membershipTier: SqueegeeKingTierId | null;
   squareFootage: number | null;
@@ -28,6 +40,7 @@ export interface CreateLeadIntakeInput {
   serviceAddress: string;
   servicesInterested: ServiceOption[];
   preferredContactMethod: ContactMethod;
+  smsConsentStatus: SmsConsentStatus;
   notes: string;
   membershipTier: SqueegeeKingTierId | null;
   squareFootage: number | null;

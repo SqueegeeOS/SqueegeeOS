@@ -68,9 +68,8 @@ function ProductionHealthContent() {
             Production Health
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-[1.65] text-muted">
-            Read-only checks for migrations, Stripe, storage, agreement signing,
-            billing readiness, and live customer data integrity. Run this before
-            onboarding Customer #2.
+            Read-only checks for customer privacy, migrations, Stripe, storage,
+            agreement signing, billing readiness, and live data integrity.
           </p>
         </MotionReveal>
 

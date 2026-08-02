@@ -4,9 +4,12 @@ import { attachLeadToReferral } from "@/lib/referrals/repository";
 import { REFERRAL_COOKIE } from "@/lib/referrals/types";
 import { estimatedPriceForLead } from "@/lib/acquisition/request-params";
 import { createLeadIntake } from "@/lib/acquisition/leads/repository";
-import type { CreateLeadIntakeInput } from "@/lib/acquisition/lead-record";
-import { sendLeadConfirmationEmail } from "@/lib/acquisition/send-lead-confirmation-email";
+import {
+  smsConsentStatusForLead,
+  type CreateLeadIntakeInput,
+} from "@/lib/acquisition/lead-record";
 import { sendLeadNotificationEmail } from "@/lib/acquisition/send-lead-notification-email";
+import { runLeadAcknowledgementAutomation } from "@/lib/communications/lead-automation";
 import {
   contactMethods,
   preferredStartWindows,
@@ -51,6 +54,9 @@ function validateLeadBody(body: Partial<LeadIntakeFormData>): string | null {
   if (!body.servicesInterested?.length) {
     return "Select at least one service.";
   }
+  if (body.preferredContactMethod === "Text" && body.smsConsent !== true) {
+    return "Please confirm text-message consent to choose Text.";
+  }
   return null;
 }
 
@@ -84,6 +90,10 @@ export async function POST(request: Request) {
       serviceAddress: body.serviceAddress!.trim(),
       servicesInterested,
       preferredContactMethod,
+      smsConsentStatus: smsConsentStatusForLead(
+        preferredContactMethod,
+        body.smsConsent === true,
+      ),
       notes: body.notes?.trim() ?? "",
       membershipTier,
       squareFootage,
@@ -110,19 +120,43 @@ export async function POST(request: Request) {
       // attribution must never block a lead
     }
 
-    const emailResult = await sendLeadConfirmationEmail({
-      to: record.email,
-      name: record.name,
-      membershipTier: record.membershipTier,
-      squareFootage: record.squareFootage,
-      estimatedVisitPrice: record.estimatedVisitPrice,
-    });
+    // The request is already durably saved. Provider outages must never turn a
+    // successful intake into a 500 that encourages duplicate submissions.
+    const [automationAttempt, notifyAttempt] = await Promise.allSettled([
+      runLeadAcknowledgementAutomation(record),
+      sendLeadNotificationEmail(record),
+    ]);
+    const emailResult =
+      automationAttempt.status === "fulfilled"
+        ? {
+            sent: automationAttempt.value.emailSent,
+            reason: automationAttempt.value.reason,
+          }
+        : { sent: false, reason: "Email provider unavailable" };
+    const smsResult =
+      automationAttempt.status === "fulfilled"
+        ? {
+            sent: automationAttempt.value.smsSent,
+            scheduled: automationAttempt.value.smsScheduled,
+            reason: automationAttempt.value.smsReason,
+          }
+        : { sent: false, scheduled: false, reason: "Text provider unavailable" };
+    const notifyResult =
+      notifyAttempt.status === "fulfilled"
+        ? notifyAttempt.value
+        : { sent: false, reason: "Email provider unavailable" };
 
-    const notifyResult = await sendLeadNotificationEmail(record);
-    if (!notifyResult.sent) {
-      console.warn("[leads] founder notification not sent", {
+    if (!emailResult.sent || !notifyResult.sent) {
+      console.warn("[leads] post-save communication incomplete", {
         leadId: record.id,
-        reason: notifyResult.reason,
+        confirmation: emailResult.reason ?? "sent",
+        textConfirmation:
+          smsResult.sent || smsResult.scheduled
+            ? smsResult.scheduled
+              ? "scheduled"
+              : "sent"
+            : smsResult.reason ?? "not_requested",
+        founderNotification: notifyResult.reason ?? "sent",
       });
     }
 
@@ -130,6 +164,8 @@ export async function POST(request: Request) {
       id: record.id,
       storage,
       emailSent: emailResult.sent,
+      smsSent: smsResult.sent,
+      smsScheduled: smsResult.scheduled,
       notifySent: notifyResult.sent,
     });
   } catch (error) {

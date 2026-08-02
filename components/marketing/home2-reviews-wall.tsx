@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useReviewRailAutoplay } from "@/components/marketing/reviews-carousel";
 import type { GoogleReviewsApiResponse, Review } from "@/lib/reviews/types";
 
 interface ReviewItem {
@@ -27,7 +28,13 @@ export function Home2ReviewsWall() {
   const [hasOverflow, setHasOverflow] = useState(false);
   const [canScrollPrevious, setCanScrollPrevious] = useState(false);
   const [canScrollNext, setCanScrollNext] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const railRef = useRef<HTMLDivElement>(null);
+  const carousel = useReviewRailAutoplay(railRef, {
+    hasOverflow,
+    itemCount: items.length,
+    reducedMotion,
+  });
 
   const updateScrollState = useCallback(() => {
     const rail = railRef.current;
@@ -86,6 +93,15 @@ export function Home2ReviewsWall() {
   }, []);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setReducedMotion(mediaQuery.matches);
+
+    updatePreference();
+    mediaQuery.addEventListener("change", updatePreference);
+    return () => mediaQuery.removeEventListener("change", updatePreference);
+  }, []);
+
+  useEffect(() => {
     const rail = railRef.current;
     if (!rail) return;
 
@@ -104,12 +120,11 @@ export function Home2ReviewsWall() {
   const scrollReviews = (direction: -1 | 1) => {
     const rail = railRef.current;
     if (!rail) return;
+    carousel.pauseAfterManualNavigation();
 
     rail.scrollBy({
       left: direction * Math.max(rail.clientWidth - 32, 240),
-      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-        ? "auto"
-        : "smooth",
+      behavior: reducedMotion ? "auto" : "smooth",
     });
   };
 
@@ -119,6 +134,10 @@ export function Home2ReviewsWall() {
     <section
       aria-labelledby="google-reviews-heading"
       className="overflow-hidden border-b border-[var(--editorial-rule)] bg-[var(--editorial-canvas)] py-24 sm:py-28"
+      onBlurCapture={carousel.onBlurCapture}
+      onFocusCapture={carousel.onFocusCapture}
+      onMouseEnter={carousel.onMouseEnter}
+      onMouseLeave={carousel.onMouseLeave}
     >
       <div className="mx-auto flex w-full max-w-[90rem] items-end justify-between gap-5 px-5 sm:px-8 lg:px-10">
         <div>
@@ -170,12 +189,15 @@ export function Home2ReviewsWall() {
 
       <div
         ref={railRef}
-        className="mx-auto mt-14 flex w-full max-w-[90rem] snap-x snap-mandatory scroll-px-5 gap-6 overflow-x-auto px-5 pb-4 sm:scroll-px-8 sm:px-8 lg:scroll-px-10 lg:px-10"
+        aria-label="Google customer reviews. Swipe or use the arrow buttons to browse."
+        onPointerDown={carousel.pauseAfterManualNavigation}
+        tabIndex={0}
+        className="mx-auto mt-14 flex w-full max-w-[90rem] cursor-grab snap-x snap-mandatory scroll-px-5 gap-6 overflow-x-auto px-5 pb-4 outline-none [scrollbar-width:none] focus-visible:ring-2 focus-visible:ring-[var(--editorial-accent)] focus-visible:ring-inset active:cursor-grabbing sm:scroll-px-8 sm:px-8 lg:scroll-px-10 lg:px-10 [&::-webkit-scrollbar]:hidden"
       >
         {items.map((review) => (
           <figure
             key={review.id}
-            className="w-[min(82vw,24rem)] flex-none snap-start border-t border-[var(--editorial-rule)] pt-6 md:w-[calc((100%_-_1.5rem)/2)] xl:w-[calc((100%_-_4.5rem)/4)]"
+            className="w-[min(82vw,24rem)] flex-none snap-start border-t border-[var(--editorial-rule)] pt-6 transition-transform duration-500 hover:-translate-y-1 motion-reduce:transition-none md:w-[calc((100%_-_1.5rem)/2)] xl:w-[calc((100%_-_4.5rem)/4)]"
           >
             <p
               aria-label={`${review.rating} out of 5 stars`}

@@ -1,4 +1,4 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   parseResendDeliveryWebhook,
   recordResendDeliveryWebhook,
@@ -35,6 +35,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  after(() => recordResendDeliveryWebhook({ svixId, rawPayload, event }));
-  return NextResponse.json({ received: true });
+  try {
+    await recordResendDeliveryWebhook({ svixId, rawPayload, event });
+    return NextResponse.json({ received: true });
+  } catch (error) {
+    console.error("[resend-webhook] processing failed", {
+      eventType: event.type,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return NextResponse.json({ error: "Webhook processing failed" }, { status: 500 });
+  }
 }

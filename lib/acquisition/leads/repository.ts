@@ -14,6 +14,8 @@ interface LeadIntakeRow {
   service_address: string;
   services_interested: string[];
   preferred_contact_method: string;
+  sms_consent_status?: string | null;
+  sms_consent_recorded_at?: string | null;
   notes: string;
   membership_tier: string | null;
   square_footage: number | null;
@@ -41,6 +43,10 @@ function rowToRecord(row: LeadIntakeRow): LeadIntakeRecord {
     servicesInterested: row.services_interested as LeadIntakeRecord["servicesInterested"],
     preferredContactMethod:
       row.preferred_contact_method as LeadIntakeRecord["preferredContactMethod"],
+    smsConsentStatus:
+      (row.sms_consent_status as LeadIntakeRecord["smsConsentStatus"] | null) ??
+      "unknown",
+    smsConsentRecordedAt: row.sms_consent_recorded_at ?? null,
     notes: row.notes,
     membershipTier: row.membership_tier as LeadIntakeRecord["membershipTier"],
     squareFootage: row.square_footage,
@@ -65,6 +71,9 @@ function inputToRow(
     service_address: input.serviceAddress,
     services_interested: input.servicesInterested,
     preferred_contact_method: input.preferredContactMethod,
+    sms_consent_status: input.smsConsentStatus,
+    sms_consent_recorded_at:
+      input.smsConsentStatus === "opted_in" ? submittedAt : null,
     notes: input.notes,
     membership_tier: input.membershipTier,
     square_footage: input.squareFootage,
@@ -154,6 +163,9 @@ export async function createLeadIntake(
     serviceAddress: input.serviceAddress.trim(),
     servicesInterested: input.servicesInterested,
     preferredContactMethod: input.preferredContactMethod,
+    smsConsentStatus: input.smsConsentStatus,
+    smsConsentRecordedAt:
+      input.smsConsentStatus === "opted_in" ? submittedAt : null,
     notes: input.notes.trim(),
     membershipTier: input.membershipTier,
     squareFootage: input.squareFootage,

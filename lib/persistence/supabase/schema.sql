@@ -416,7 +416,8 @@ as $$
       ('home_care_plans'),
       ('memberships'),
       ('signed_agreements'),
-      ('property_assets')
+      ('property_assets'),
+      ('lead_intakes')
   ),
   public_roles(role_name) as (
     values ('anon'), ('authenticated')

@@ -58,6 +58,11 @@ export async function updateLeadIntakeFields(
       data.services_interested as LeadIntakeRecord["servicesInterested"],
     preferredContactMethod:
       data.preferred_contact_method as LeadIntakeRecord["preferredContactMethod"],
+    smsConsentStatus:
+      (data.sms_consent_status as LeadIntakeRecord["smsConsentStatus"] | null) ??
+      "unknown",
+    smsConsentRecordedAt:
+      (data.sms_consent_recorded_at as string | null) ?? null,
     notes: data.notes as string,
     membershipTier: data.membership_tier as LeadIntakeRecord["membershipTier"],
     squareFootage: data.square_footage as number | null,

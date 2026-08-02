@@ -440,13 +440,18 @@ function RequestFormFields() {
                 <select
                   id="request-contact-method"
                   value={form.preferredContactMethod}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const preferredContactMethod = e.target
+                      .value as LeadIntakeFormData["preferredContactMethod"];
                     setForm({
                       ...form,
-                      preferredContactMethod: e.target
-                        .value as LeadIntakeFormData["preferredContactMethod"],
-                    })
-                  }
+                      preferredContactMethod,
+                      smsConsent:
+                        preferredContactMethod === "Text"
+                          ? form.smsConsent
+                          : false,
+                    });
+                  }}
                   className={inputClassName}
                 >
                   {contactMethods.map((method) => (
@@ -455,6 +460,26 @@ function RequestFormFields() {
                     </option>
                   ))}
                 </select>
+
+                {form.preferredContactMethod === "Text" ? (
+                  <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-2xl border border-accent/15 bg-accent/[0.035] p-4 text-left">
+                    <input
+                      type="checkbox"
+                      checked={form.smsConsent}
+                      onChange={(event) =>
+                        setForm({ ...form, smsConsent: event.target.checked })
+                      }
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
+                      required
+                    />
+                    <span className="text-[11px] leading-relaxed text-muted/80">
+                      I agree to receive transactional texts from SqueegeeKing
+                      about this request, appointments, and service updates.
+                      Message and data rates may apply. Reply STOP to opt out.
+                      Consent is not a condition of purchase.
+                    </span>
+                  </label>
+                ) : null}
               </div>
 
               <div>

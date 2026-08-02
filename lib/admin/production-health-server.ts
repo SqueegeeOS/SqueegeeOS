@@ -147,6 +147,62 @@ async function runSchemaChecks(
   return sectionFromChecks("schema", "Database migrations / schema", checks);
 }
 
+interface SecurityPostureRow {
+  customer_public_policy_count: number | string | null;
+  customer_public_privilege_count: number | string | null;
+  admin_rate_limit_ready: boolean | null;
+}
+
+async function runCustomerPrivacyChecks(
+  supabase: SupabaseClient,
+): Promise<ProductionHealthSection> {
+  const { data, error } = await supabase.rpc("homeatlas_security_posture");
+  const row = (Array.isArray(data) ? data[0] : data) as
+    | SecurityPostureRow
+    | null;
+
+  if (error || !row) {
+    return sectionFromChecks("privacy", "Customer data privacy", [
+      check(
+        "privacy-posture",
+        "Server-only customer tables",
+        "red",
+        "Security posture unavailable — apply migration 040",
+        error?.message,
+      ),
+    ]);
+  }
+
+  const policyCount = Number(row.customer_public_policy_count ?? -1);
+  const privilegeCount = Number(row.customer_public_privilege_count ?? -1);
+  return sectionFromChecks("privacy", "Customer data privacy", [
+    check(
+      "privacy-policies",
+      "Anonymous table policies",
+      policyCount === 0 ? "green" : "red",
+      policyCount === 0
+        ? "Customer and quote-request tables have no public policies"
+        : `${policyCount} public customer-table policy/policies must be removed`,
+    ),
+    check(
+      "privacy-privileges",
+      "Anonymous table privileges",
+      privilegeCount === 0 ? "green" : "red",
+      privilegeCount === 0
+        ? "Customer and quote-request tables are server-only"
+        : `${privilegeCount} public customer-table privilege(s) must be revoked`,
+    ),
+    check(
+      "privacy-admin-throttle",
+      "HQ unlock protection",
+      row.admin_rate_limit_ready ? "green" : "red",
+      row.admin_rate_limit_ready
+        ? "Durable unlock throttling is available"
+        : "Admin unlock rate-limit table is missing",
+    ),
+  ]);
+}
+
 function runStripeChecks(): ProductionHealthSection {
   const publishable = Boolean(getStripePublishableKey());
   const secret = Boolean(process.env.STRIPE_SECRET_KEY?.trim());
@@ -652,12 +708,14 @@ export function resolveOnboardingSafe(
   const stripe = sections.find((section) => section.id === "stripe");
   const integrity = sections.find((section) => section.id === "integrity");
   const storage = sections.find((section) => section.id === "storage");
+  const privacy = sections.find((section) => section.id === "privacy");
 
   const blockers: string[] = [];
   if (schema?.status === "red") blockers.push("schema migrations incomplete");
   if (stripe?.status === "red") blockers.push("Stripe not production-ready");
   if (storage?.status === "red") blockers.push("agreement storage unsafe");
   if (integrity?.status === "red") blockers.push("customer data integrity issues");
+  if (privacy?.status === "red") blockers.push("customer data privacy is not closed");
 
   if (blockers.length > 0) {
     return {
@@ -726,6 +784,14 @@ export async function runProductionHealthReport(): Promise<ProductionHealthRepor
           "Integrity checks require Supabase",
         ),
       ]),
+      sectionFromChecks("privacy", "Customer data privacy", [
+        check(
+          "privacy-supabase",
+          "Supabase configured",
+          "red",
+          "Privacy checks require Supabase",
+        ),
+      ]),
     ];
     const onboarding = resolveOnboardingSafe(sections);
     return {
@@ -739,6 +805,7 @@ export async function runProductionHealthReport(): Promise<ProductionHealthRepor
   const supabase = createServerSupabaseClient();
   const sections = await Promise.all([
     runSchemaChecks(supabase),
+    runCustomerPrivacyChecks(supabase),
     Promise.resolve(runStripeChecks()),
     runStorageChecks(),
     runAgreementChecks(supabase),
