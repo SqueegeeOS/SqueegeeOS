@@ -4,6 +4,7 @@ import { MemberPortalNotFound } from "@/app/homecare/[homeownerSlug]/[propertySl
 import { loadMemberPortalPageByToken } from "@/lib/membership/load-member-portal-page";
 import {
   extractVisibleCustomerNotesFromAssessments,
+  getLatestCustomerHealthUnified,
   listStaffAssessments,
 } from "@/lib/health/assessment-repository";
 import {
@@ -36,14 +37,16 @@ export default async function TokenHomeHealthPage({
     model.propertySlug,
   );
 
-  const latest = model.homeHealth;
+  let latest = null;
   let notes: ReturnType<typeof extractVisibleCustomerNotes> = [];
 
   if (propertyId) {
-    const [assessments, checks] = await Promise.all([
+    const [latestResult, assessments, checks] = await Promise.all([
+      getLatestCustomerHealthUnified(propertyId),
       listStaffAssessments(propertyId),
       listStaffHealthChecks(propertyId),
     ]);
+    latest = latestResult;
     notes = [
       ...extractVisibleCustomerNotesFromAssessments(assessments),
       ...extractVisibleCustomerNotes(checks),

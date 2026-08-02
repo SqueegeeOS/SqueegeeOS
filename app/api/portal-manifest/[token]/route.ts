@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
-import { loadMemberPortalPageByToken } from "@/lib/membership/load-member-portal-page";
 import { buildPortalManifest, genericPortalManifest } from "@/lib/pwa/portal-manifest";
+import { startPortalTiming } from "@/lib/observability/portal-timing";
+import { resolvePortalAccessByToken } from "@/lib/persistence/queries/portal-access";
 
 /**
  * Per-member PWA manifest: installing from /portal/[token] bakes that exact
@@ -15,6 +16,7 @@ export async function GET(
   _request: Request,
   { params }: { params: Promise<{ token: string }> },
 ) {
+  const timing = startPortalTiming("portal-manifest");
   const { token } = await params;
   const trimmed = token?.trim() ?? "";
 
@@ -22,19 +24,25 @@ export async function GET(
 
   if (trimmed && trimmed !== "portal" && /^[A-Za-z0-9_-]{8,128}$/.test(trimmed)) {
     try {
-      const model = await loadMemberPortalPageByToken(trimmed);
-      if (model) {
+      const access = await resolvePortalAccessByToken(trimmed);
+      if (access) {
         body = buildPortalManifest(`/portal/${trimmed}`);
+        timing.finish("success");
+      } else {
+        timing.finish("not-found");
       }
     } catch {
+      timing.finish("error");
       // fall through to the generic manifest
     }
+  } else {
+    timing.finish("skipped");
   }
 
   return NextResponse.json(body, {
     headers: {
       "Content-Type": "application/manifest+json",
-      "Cache-Control": "private, max-age=600",
+      "Cache-Control": "private, no-store",
     },
   });
 }

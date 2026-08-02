@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const EXISTING_APPOINTMENT = {
   id: "appt-existing-1",
@@ -19,6 +19,11 @@ const EXISTING_APPOINTMENT = {
 
 const insertSpy = vi.fn();
 const upsertSpy = vi.fn();
+let memberProfileRow: Record<string, unknown> | null = null;
+
+const mocks = vi.hoisted(() => ({
+  loadMemberSavingsLedgerView: vi.fn(),
+}));
 
 function chain(result: { data?: unknown; error?: unknown; count?: number }) {
   const promise = Promise.resolve(result);
@@ -103,7 +108,7 @@ function mockSupabaseFrom(table: string) {
       });
     case "member_profiles":
       // Migration 030: anon cannot read; service role may also have no row yet.
-      return chain({ data: null });
+      return chain({ data: memberProfileRow });
     case "signed_agreements":
       return chain({ data: null });
     case "member_appointments":
@@ -157,11 +162,17 @@ vi.mock("@/lib/agreement/signed-agreement-storage", () => ({
 }));
 
 vi.mock("@/lib/membership/member-savings-ledger-server", () => ({
-  loadMemberSavingsLedgerView: vi.fn(async () => null),
+  loadMemberSavingsLedgerView: mocks.loadMemberSavingsLedgerView,
 }));
 
 describe("migration 030 portal appointment regression", () => {
+  beforeEach(() => {
+    mocks.loadMemberSavingsLedgerView.mockResolvedValue(null);
+  });
+
   afterEach(() => {
+    memberProfileRow = null;
+    mocks.loadMemberSavingsLedgerView.mockReset();
     insertSpy.mockClear();
     upsertSpy.mockClear();
     vi.clearAllMocks();
@@ -201,5 +212,110 @@ describe("migration 030 portal appointment regression", () => {
 
     expect(insertSpy).not.toHaveBeenCalled();
     expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not read legacy savings or observations and returns neutral fields", async () => {
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+    const queriedTables = mockPrivilegedClient.from.mock.calls.map(
+      ([table]) => table,
+    );
+
+    expect(queriedTables).not.toContain("member_savings_transactions");
+    expect(queriedTables).not.toContain("service_observations");
+    expect(data?.profile.totalSaved).toBe(0);
+    expect(data?.profile.savingsHistory).toEqual([]);
+    expect(data?.ytdSavings).toEqual({ savings: 0, retail: 0, paid: 0 });
+    expect(data?.lifetimeSavings).toEqual({
+      savings: 0,
+      retail: 0,
+      paid: 0,
+      entries: [],
+    });
+    expect(data?.observations).toEqual([]);
+  });
+
+  it("preserves known savings when no positive ledger total is available", async () => {
+    memberProfileRow = {
+      id: "profile-1",
+      homeowner_id: "homeowner-1",
+      membership_tier: "standard",
+      total_saved_cents: 12_500,
+      preferred_services: [],
+      created_at: "2026-01-01T00:00:00.000Z",
+    };
+    mocks.loadMemberSavingsLedgerView.mockResolvedValue(null);
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.profile.totalSaved).toBe(125);
+    expect(data?.lifetimeSavings.savings).toBe(125);
+  });
+
+  it("maps positive ledger totals and dates without fabricating prices", async () => {
+    const currentYear = new Date().getUTCFullYear();
+    memberProfileRow = {
+      id: "profile-1",
+      homeowner_id: "homeowner-1",
+      membership_tier: "standard",
+      total_saved_cents: 12_500,
+      preferred_services: [],
+      created_at: "2026-01-01T00:00:00.000Z",
+    };
+    mocks.loadMemberSavingsLedgerView.mockResolvedValue({
+      totalServiceSavings: 175,
+      totalServiceSavingsLabel: "$175",
+      membershipVisits: {
+        total: 100,
+        headline: "Membership visit savings",
+        support: "",
+        lines: [
+          {
+            id: "visit-1",
+            entryType: "membership_visit",
+            label: "Membership visit",
+            amount: 100,
+            occurredAt: `${currentYear}-06-15T12:00:00.000Z`,
+            detail: null,
+          },
+        ],
+      },
+      addonServices: {
+        total: 75,
+        headline: "Add-on service savings",
+        support: "",
+        lines: [
+          {
+            id: "addon-1",
+            entryType: "addon_service",
+            label: "Moss treatment",
+            amount: 75,
+            occurredAt: `${currentYear - 1}-07-11T12:00:00.000Z`,
+            detail: null,
+          },
+        ],
+      },
+      hasAnySavings: true,
+    });
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.profile.totalSaved).toBe(175);
+    expect(data?.lifetimeSavings).toEqual({
+      savings: 175,
+      retail: 0,
+      paid: 0,
+      entries: [],
+    });
+    expect(data?.ytdSavings).toEqual({ savings: 100, retail: 0, paid: 0 });
   });
 });
