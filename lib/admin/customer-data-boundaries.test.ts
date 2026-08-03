@@ -149,6 +149,8 @@ describe("customer data route boundaries", () => {
 
     for (const route of [
       "/hq/:path+",
+      "/david/:path*",
+      "/sales/:path*",
       "/employee/:path*",
       "/tech/:path*",
       "/properties/:path*",
@@ -160,6 +162,30 @@ describe("customer data route boundaries", () => {
     }
 
     expect(source).toContain("verifyAdminSessionToken");
+  });
+
+  it("keeps sales workspace reads and writes behind server authorization", () => {
+    const route = readProjectFile(
+      "app/api/sales/[repSlug]/workspace/route.ts",
+    );
+    const migration = readProjectFile(
+      "lib/persistence/supabase/migrations/048_sales_rep_workspace.sql",
+    );
+
+    expect(route).toContain("authorizeAdminRequest(request.headers)");
+    for (const table of [
+      "sales_reps",
+      "sales_rep_leads",
+      "sales_rep_activity_events",
+      "sales_rep_attributions",
+    ]) {
+      expect(migration).toContain(
+        `alter table public.${table} enable row level security`,
+      );
+      expect(migration).toContain(
+        `revoke all privileges on table public.${table}`,
+      );
+    }
   });
 
   it("authorizes payment changes with an admin session or portal token", () => {
