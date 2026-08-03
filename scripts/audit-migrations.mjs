@@ -106,6 +106,7 @@ const checks = [
   ["044", "SMS consent evidence", (s) => hasColumns(s, "lead_intakes", "sms_consent_disclosure_version", "sms_consent_source_path", "sms_consent_ip_address", "sms_consent_user_agent")],
   ["045", "communications consent and provider readiness", (s) => hasTable(s, "customer_contact_consent_events") && hasTable(s, "customer_communication_provider_verifications") && s.rlsTables.has("customer_contact_consent_events") && s.rlsTables.has("customer_communication_provider_verifications")],
   ["046", "Jobber scheduled-service billing", (s) => hasColumns(s, "jobber_visit_projections", "job_type", "job_billing_type", "job_total_cents", "job_will_auto_charge", "visit_invoice_id", "is_last_scheduled_visit") && s.nullableColumns.has("billing_orders.obligation_id") && s.nullableColumns.has("atlas_pricing_snapshots.obligation_id") && s.indexes.has("billing_orders_active_appointment_unique") && s.indexes.has("membership_billing_charges_automatic_appointment_unique")],
+  ["047", "Jobber invoice visibility fail-closed", (s) => constraintIncludes(s, "jobber_visit_projections", "job_will_auto_charge", "visit_invoice_status", "none")],
 ];
 
 await client.connect();

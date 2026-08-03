@@ -3,6 +3,7 @@ import {
   fetchAllJobberVisits,
   fetchJobberVisitPage,
   JOBBER_VISITS_QUERY,
+  JOBBER_VISITS_WITHOUT_INVOICE_QUERY,
   type JobberVisitNode,
 } from "./jobber-api";
 import {
@@ -21,6 +22,7 @@ const visit: JobberVisitNode = {
   endAt: "2026-08-12T18:00:00Z",
   completedAt: null,
   invoice: null,
+  invoiceReadState: "available",
   client: { id: "client-1", name: "Home Owner" },
   property: {
     id: "jobber-property-1",
@@ -52,6 +54,8 @@ describe("complete read-only Jobber visit synchronization", () => {
     expect(JOBBER_VISITS_QUERY).toContain("billingType");
     expect(JOBBER_VISITS_QUERY).toContain("willClientBeAutomaticallyCharged");
     expect(JOBBER_VISITS_QUERY).toContain("jobberWebUri");
+    expect(JOBBER_VISITS_QUERY).toContain("invoice { id invoiceStatus }");
+    expect(JOBBER_VISITS_WITHOUT_INVOICE_QUERY).not.toContain("invoice {");
   });
 
   it("requests a bounded visit page using JSON and the pinned API version", async () => {
@@ -98,6 +102,55 @@ describe("complete read-only Jobber visit synchronization", () => {
       "between 1 and 100",
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to scheduling truth and marks invoice visibility hidden", async () => {
+    const { invoice: _invoice, invoiceReadState: _invoiceReadState, ...restrictedVisit } =
+      visit;
+    void _invoice;
+    void _invoiceReadState;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message:
+                  "An object of type Invoice was hidden due to permissions",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              visits: {
+                nodes: [restrictedVisit],
+                pageInfo: { endCursor: null, hasNextPage: false },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const sample = await fetchJobberVisitPage("access-token", { first: 5 });
+
+    expect(sample.nodes[0]).toMatchObject({
+      id: "visit-1",
+      invoice: null,
+      invoiceReadState: "permission_hidden",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const fallbackBody = JSON.parse(
+      String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
+    ) as { query: string };
+    expect(fallbackBody.query).toBe(JOBBER_VISITS_WITHOUT_INVOICE_QUERY);
   });
 
   it("waits for Jobber capacity and retries a throttled query", async () => {
@@ -206,11 +259,25 @@ describe("complete read-only Jobber visit synchronization", () => {
       job_billing_type: "PER_VISIT",
       job_total_cents: 27500,
       job_will_auto_charge: false,
+      visit_invoice_status: "NONE",
       is_complete: false,
     });
     expect(row).not.toHaveProperty("matched_property_id");
     expect(row).not.toHaveProperty("matched_obligation_id");
     expect(row).not.toHaveProperty("match_state");
+  });
+
+  it("holds billing when Jobber hides invoice visibility", () => {
+    const row = toJobberVisitProjectionRow(
+      { ...visit, invoiceReadState: "permission_hidden" },
+      "2026-07-12T16:00:00.000Z",
+    );
+
+    expect(row).toMatchObject({
+      job_will_auto_charge: true,
+      visit_invoice_id: null,
+      visit_invoice_status: "PERMISSION_HIDDEN",
+    });
   });
 
   it("produces a stable hash that changes with source truth", () => {

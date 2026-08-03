@@ -73,6 +73,7 @@ interface JobberProjectionRow {
   job_total_cents: number | null;
   job_will_auto_charge: boolean;
   visit_invoice_id: string | null;
+  visit_invoice_status: string | null;
   is_last_scheduled_visit: boolean;
   match_state: string;
   matched_property_id: string | null;
@@ -509,7 +510,7 @@ export async function prepareAutomaticBillingOrders(input: {
       ? supabase
           .from("jobber_visit_projections")
           .select(
-            "connection_id, external_visit_id, external_job_id, external_property_id, scheduled_start, source_payload_hash, title, job_type, job_billing_type, job_total_cents, job_will_auto_charge, visit_invoice_id, is_last_scheduled_visit, match_state, matched_property_id",
+            "connection_id, external_visit_id, external_job_id, external_property_id, scheduled_start, source_payload_hash, title, job_type, job_billing_type, job_total_cents, job_will_auto_charge, visit_invoice_id, visit_invoice_status, is_last_scheduled_visit, match_state, matched_property_id",
           )
           .eq("connection_id", JOBBER_CONNECTION_ID)
           .in("external_visit_id", externalVisitIds)
@@ -587,6 +588,7 @@ export async function prepareAutomaticBillingOrders(input: {
           jobTotalCents: projection.job_total_cents,
           jobWillAutoCharge: projection.job_will_auto_charge,
           visitInvoiceId: projection.visit_invoice_id,
+          visitInvoiceStatus: projection.visit_invoice_status,
           isLastScheduledVisit: projection.is_last_scheduled_visit,
           isFirstVisitForJobInServiceMonth:
             firstVisitByJob.get(projection.external_job_id) ===

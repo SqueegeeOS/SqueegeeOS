@@ -113,6 +113,7 @@ interface JobberVisitProjectionBillingRow {
   job_total_cents: number | null;
   job_will_auto_charge: boolean;
   visit_invoice_id: string | null;
+  visit_invoice_status: string | null;
 }
 
 interface JobberPropertyLinkBillingRow {
@@ -323,7 +324,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     ? await supabase
         .from("jobber_visit_projections")
         .select(
-          "external_visit_id, external_job_id, external_property_id, match_state, matched_property_id, job_total_cents, job_will_auto_charge, visit_invoice_id",
+          "external_visit_id, external_job_id, external_property_id, match_state, matched_property_id, job_total_cents, job_will_auto_charge, visit_invoice_id, visit_invoice_status",
         )
         .eq("connection_id", JOBBER_CONNECTION_ID)
         .in("external_visit_id", appointmentExternalIds)
@@ -430,6 +431,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
           projection.job_total_cents > 0 &&
           projection.job_will_auto_charge === false &&
           projection.visit_invoice_id === null &&
+          projection.visit_invoice_status === "NONE" &&
           activePropertyLinkKeys.has(
             `${membership.id}:${membership.property_id}:${projection.external_property_id}`,
           ),

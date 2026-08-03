@@ -11,6 +11,7 @@ export interface JobberScheduledChargeInput {
   jobTotalCents: number | null;
   jobWillAutoCharge: boolean;
   visitInvoiceId: string | null;
+  visitInvoiceStatus: string | null;
   isLastScheduledVisit: boolean;
   isFirstVisitForJobInServiceMonth: boolean;
   serviceMonth: string;
@@ -44,7 +45,13 @@ export function jobberScheduledChargeDecision(
   if (!input.externalJobId.trim()) blockers.push("jobber_job_id_missing");
   if (!input.externalVisitId.trim()) blockers.push("jobber_visit_id_missing");
   if (input.jobWillAutoCharge) blockers.push("jobber_automatic_payment_enabled");
-  if (input.visitInvoiceId) blockers.push("jobber_visit_already_invoiced");
+  const invoiceStatus = normalized(input.visitInvoiceStatus);
+  if (!invoiceStatus) blockers.push("jobber_invoice_state_unknown");
+  if (invoiceStatus === "permission_hidden") {
+    blockers.push("jobber_invoice_visibility_unavailable");
+  } else if (input.visitInvoiceId || invoiceStatus !== "none") {
+    blockers.push("jobber_visit_already_invoiced");
+  }
   if (!Number.isInteger(input.jobTotalCents) || input.jobTotalCents! <= 0) {
     blockers.push("jobber_job_price_missing");
   }

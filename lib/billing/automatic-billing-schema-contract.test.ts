@@ -16,7 +16,14 @@ const currentMigration = readFileSync(
   ),
   "utf8",
 );
-const migration = `${legacyMigration}\n${currentMigration}`;
+const invoiceVisibilityMigration = readFileSync(
+  new URL(
+    "../persistence/supabase/migrations/047_jobber_invoice_visibility_fail_closed.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const migration = `${legacyMigration}\n${currentMigration}\n${invoiceVisibilityMigration}`;
 
 describe("automatic billing schema contract", () => {
   it("pins the approved billing disclosure hash in application and SQL", () => {
@@ -96,6 +103,15 @@ describe("automatic billing schema contract", () => {
     expect(currentMigration).toContain("projection.job_will_auto_charge = false");
     expect(currentMigration).toContain("projection.visit_invoice_id is null");
     expect(currentMigration).toContain("property_link.link_state = 'active'");
+    expect(invoiceVisibilityMigration).toContain(
+      "jobber_visit_projection_invoice_visibility_check",
+    );
+    expect(invoiceVisibilityMigration).toContain(
+      "visit_invoice_status = 'NONE'",
+    );
+    expect(invoiceVisibilityMigration).toContain(
+      "job_will_auto_charge = true",
+    );
   });
 
   it("claims due work, lease recovery, and its attempt row atomically", () => {

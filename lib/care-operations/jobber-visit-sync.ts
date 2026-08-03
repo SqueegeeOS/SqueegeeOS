@@ -188,6 +188,7 @@ export function toJobberVisitProjectionRow(
   visit: JobberVisitNode,
   observedAt: string,
 ) {
+  const invoiceVisibilityAvailable = visit.invoiceReadState === "available";
   return {
     connection_id: JOBBER_CONNECTION_ID,
     provider: "jobber",
@@ -206,9 +207,16 @@ export function toJobberVisitProjectionRow(
     job_type: visit.job.jobType,
     job_billing_type: visit.job.billingType,
     job_total_cents: jobberMoneyToCents(visit.job.total),
-    job_will_auto_charge: visit.job.willClientBeAutomaticallyCharged === true,
+    // The database already fails closed on this flag. Treat hidden invoice
+    // visibility as a billing hold so read-only scheduling can still sync
+    // without weakening double-charge protection.
+    job_will_auto_charge:
+      visit.job.willClientBeAutomaticallyCharged === true ||
+      !invoiceVisibilityAvailable,
     visit_invoice_id: visit.invoice?.id ?? null,
-    visit_invoice_status: visit.invoice?.invoiceStatus ?? null,
+    visit_invoice_status: invoiceVisibilityAvailable
+      ? (visit.invoice?.invoiceStatus ?? "NONE")
+      : "PERMISSION_HIDDEN",
     is_complete: visit.isComplete,
     scheduled_start: visit.startAt,
     scheduled_end: visit.endAt,

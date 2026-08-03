@@ -58,6 +58,7 @@ describe("HQ automatic-billing UI safety contract", () => {
     expect(server).toContain("projection.job_total_cents > 0");
     expect(server).toContain("projection.job_will_auto_charge === false");
     expect(server).toContain("projection.visit_invoice_id === null");
+    expect(server).toContain('projection.visit_invoice_status === "NONE"');
     expect(server).toContain("verifiedServiceVisitReady: Boolean(nextAppointment)");
   });
 
