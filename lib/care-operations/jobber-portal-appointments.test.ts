@@ -89,7 +89,7 @@ describe("Jobber member portal appointment projection", () => {
     expect(values).toMatchObject({
       member_profile_id: "member-profile-1",
       property_id: "property-1",
-      service_type: "home_care_visit",
+      service_type: "Window care",
       scheduled_at: "2026-08-12T16:00:00.000Z",
       status: "scheduled",
       provider: "jobber",
@@ -114,19 +114,19 @@ describe("Jobber member portal appointment projection", () => {
     expect(visitSync).toContain("reconcileAllPairedCustomerPortalVisits");
   });
 
-  it("projects only explicitly classified, exactly matched membership jobs", () => {
+  it("projects every exactly matched visit at an active paired property", () => {
     const source = readFileSync(
       new URL("./jobber-portal-appointments.ts", import.meta.url),
       "utf8",
     );
-    expect(source).toContain('.from("jobber_membership_job_links")');
+    expect(source).toContain('.from("jobber_property_links")');
     expect(source).toContain('.eq("link_state", "active")');
     expect(source).toContain('.eq("match_state", "matched")');
     expect(source).toContain(
       '.eq("matched_property_id", input.target.member.property.id)',
     );
     expect(source).toContain(
-      "appointment.service_type === MEMBERSHIP_APPOINTMENT_TYPE",
+      "eligibleExternalVisitIds.has(appointment.external_id)",
     );
     expect(source).toContain(
       'if (existing?.link_state === "revoked") return null',

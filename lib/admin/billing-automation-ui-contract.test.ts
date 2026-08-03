@@ -50,13 +50,14 @@ describe("HQ automatic-billing UI safety contract", () => {
     expect(page).toContain("setAutomationError");
   });
 
-  it("does not treat an unrelated Jobber appointment as a billable visit", () => {
+  it("requires a paired property and priced unbilled Jobber visit", () => {
     const server = read("./billing-workspace-server.ts");
 
-    expect(server).toContain('.from("jobber_membership_job_links")');
     expect(server).toContain('.from("jobber_property_links")');
     expect(server).toContain('.from("jobber_visit_projections")');
-    expect(server).toContain("membershipJobLinks.some");
+    expect(server).toContain("projection.job_total_cents > 0");
+    expect(server).toContain("projection.job_will_auto_charge === false");
+    expect(server).toContain("projection.visit_invoice_id === null");
     expect(server).toContain("verifiedServiceVisitReady: Boolean(nextAppointment)");
   });
 

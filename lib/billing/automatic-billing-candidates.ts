@@ -10,14 +10,13 @@ import {
 } from "./membership-billing-authorization";
 import {
   automaticBillingBlockingReasons,
+  automaticJobberBillingOperationKey,
   automaticBillingMonthBounds,
-  automaticBillingOperationKey,
   dollarsToBillingCents,
-  findUniqueCoveringObligation,
   type AutomaticBillingAppointmentInput,
   type AutomaticBillingMembershipInput,
-  type AutomaticBillingObligationInput,
 } from "./automatic-billing-rules";
+import { jobberScheduledChargeDecision } from "./jobber-scheduled-charge";
 import {
   isFirstBusinessDay,
   type AutomaticBillingSettings,
@@ -67,30 +66,22 @@ interface JobberProjectionRow {
   external_job_id: string;
   external_property_id: string;
   scheduled_start: string | null;
-}
-
-interface JobberMembershipJobLinkRow {
-  connection_id: string;
-  external_job_id: string;
-  external_property_id: string;
-  membership_id: string;
-  property_id: string;
-  link_state: "active" | "revoked";
-}
-
-interface ObligationRow {
-  id: string;
-  membership_id: string;
-  property_id: string;
-  target_window_start: string;
-  target_window_end: string;
-  status: string;
+  source_payload_hash: string;
+  title: string | null;
+  job_type: string | null;
+  job_billing_type: string | null;
+  job_total_cents: number | null;
+  job_will_auto_charge: boolean;
+  visit_invoice_id: string | null;
+  is_last_scheduled_visit: boolean;
+  match_state: string;
+  matched_property_id: string | null;
 }
 
 interface BillingOrderRow {
   id: string;
   membership_id: string;
-  obligation_id: string;
+  obligation_id: string | null;
   appointment_id: string;
   service_month: string;
   scheduled_service_at: string;
@@ -98,6 +89,15 @@ interface BillingOrderRow {
   preview_state: string;
   execution_state: string;
   stripe_payment_intent_id: string | null;
+  input_fingerprint: string;
+}
+
+interface JobberPropertyLinkRow {
+  connection_id: string;
+  external_property_id: string;
+  membership_id: string;
+  property_id: string;
+  link_state: "active" | "revoked";
 }
 
 export interface AutomaticBillingPreparationSummary {
@@ -163,7 +163,7 @@ function membershipInput(
 
 function appointmentInput(
   row: AppointmentRow,
-  membershipJobVerified: boolean,
+  jobberBillingVerified: boolean,
 ): AutomaticBillingAppointmentInput {
   return {
     id: row.id,
@@ -174,25 +174,15 @@ function appointmentInput(
     provenanceState: row.provenance_state,
     verificationState: row.verification_state,
     matchState: row.match_state,
-    membershipJobVerified,
-  };
-}
-
-function obligationInput(row: ObligationRow): AutomaticBillingObligationInput {
-  return {
-    id: row.id,
-    membershipId: row.membership_id,
-    propertyId: row.property_id,
-    targetWindowStart: row.target_window_start,
-    targetWindowEnd: row.target_window_end,
-    status: row.status,
+    jobberBillingVerified,
   };
 }
 
 function pricingFingerprint(input: {
   membership: MembershipRow;
   appointment: AppointmentRow;
-  obligation: ObligationRow;
+  projection: JobberProjectionRow;
+  billingUnitKey: string;
   amountCents: number;
 }): string {
   return createHash("sha256")
@@ -203,7 +193,9 @@ function pricingFingerprint(input: {
         appointmentId: input.appointment.id,
         externalVisitId: input.appointment.external_id,
         scheduledAt: input.appointment.scheduled_at,
-        obligationId: input.obligation.id,
+        externalJobId: input.projection.external_job_id,
+        jobberSourcePayloadHash: input.projection.source_payload_hash,
+        billingUnitKey: input.billingUnitKey,
         amountCents: input.amountCents,
       }),
     )
@@ -245,48 +237,18 @@ export function shouldVoidOrderMissingFromScheduledVisits(
   );
 }
 
-async function bindAppointmentToObligation(
-  appointment: AppointmentRow,
-  obligation: ObligationRow,
-): Promise<boolean> {
-  if (appointment.matched_obligation_id === obligation.id) return true;
-  if (appointment.matched_obligation_id) return false;
-  const supabase = createServiceRoleSupabaseClient();
-  const updated = await supabase
-    .from("member_appointments")
-    .update({ matched_obligation_id: obligation.id, match_state: "matched" })
-    .eq("id", appointment.id)
-    .is("matched_obligation_id", null)
-    .select("id")
-    .maybeSingle();
-  if (updated.error) throw new Error(updated.error.message);
-  if (!updated.data) return false;
-  const event = await supabase.from("appointment_source_events").insert({
-    appointment_id: appointment.id,
-    provider: "jobber",
-    external_id: appointment.external_id,
-    event_type: "match_changed",
-    actor: "automatic_billing_truth_gate",
-    reason: "Unique open membership obligation covers the verified Jobber visit date",
-    evidence: {
-      obligation_id: obligation.id,
-      scheduled_at: appointment.scheduled_at,
-    },
-  });
-  if (event.error) throw new Error(event.error.message);
-  appointment.matched_obligation_id = obligation.id;
-  return true;
-}
 
 async function voidStaleOrders(
   appointment: AppointmentRow,
   orders: BillingOrderRow[],
+  expectedFingerprint: string,
 ): Promise<boolean> {
   const stale = orders.filter(
     (order) =>
       order.appointment_id === appointment.id &&
       isActiveOrder(order) &&
-      order.scheduled_service_at !== appointment.scheduled_at,
+      (order.scheduled_service_at !== appointment.scheduled_at ||
+        order.input_fingerprint !== expectedFingerprint),
   );
   if (stale.some((order) => !isSafeToVoidBeforePaymentContact(order))) {
     return false;
@@ -300,7 +262,7 @@ async function voidStaleOrders(
         preview_state: "void",
         execution_state: "void",
         locked_at: null,
-        blocking_reasons: ["jobber_visit_rescheduled"],
+        blocking_reasons: ["jobber_scheduled_service_or_price_changed"],
         lease_owner: null,
         lease_expires_at: null,
       })
@@ -315,8 +277,11 @@ async function voidStaleOrders(
       billing_order_id: order.id,
       event_type: "voided",
       actor: "automatic_billing_truth_gate",
-      reason: "Verified Jobber visit moved after the billing order was prepared",
-      event_data: { scheduled_at: appointment.scheduled_at },
+      reason: "Verified Jobber service timing or price changed before Stripe contact",
+      event_data: {
+        scheduled_at: appointment.scheduled_at,
+        input_fingerprint: expectedFingerprint,
+      },
     });
     if (event.error) throw new Error(event.error.message);
     order.preview_state = "void";
@@ -372,20 +337,21 @@ async function voidOrdersMissingFromScheduledVisits(input: {
   }
 }
 
-function membershipJobIsVerified(input: {
+function jobberPropertyPricingIsVerified(input: {
   appointment: AppointmentRow;
   membership: MembershipRow;
   projection: JobberProjectionRow | null;
-  link: JobberMembershipJobLinkRow | null;
+  link: JobberPropertyLinkRow | null;
 }): boolean {
   return Boolean(
     input.projection &&
       input.link &&
       input.projection.external_visit_id === input.appointment.external_id &&
       input.projection.scheduled_start === input.appointment.scheduled_at &&
+      input.projection.match_state === "matched" &&
+      input.projection.matched_property_id === input.membership.property_id &&
       input.link.link_state === "active" &&
       input.link.connection_id === input.projection.connection_id &&
-      input.link.external_job_id === input.projection.external_job_id &&
       input.link.external_property_id ===
         input.projection.external_property_id &&
       input.link.membership_id === input.membership.id &&
@@ -500,7 +466,7 @@ export async function prepareAutomaticBillingOrders(input: {
   const ordersResult = await supabase
     .from("billing_orders")
     .select(
-      "id, membership_id, obligation_id, appointment_id, service_month, scheduled_service_at, amount_cents, preview_state, execution_state, stripe_payment_intent_id",
+      "id, membership_id, obligation_id, appointment_id, service_month, scheduled_service_at, amount_cents, preview_state, execution_state, stripe_payment_intent_id, input_fingerprint",
     )
     .eq("service_month", bounds.serviceMonth);
   if (ordersResult.error) throw new Error(ordersResult.error.message);
@@ -524,24 +490,13 @@ export async function prepareAutomaticBillingOrders(input: {
   const membershipByProperty = new Map(
     memberships.map((membership) => [membership.property_id, membership]),
   );
-  const membershipIds = memberships.map((row) => row.id);
-
   const agreementIds = memberships
     .map((row) => row.agreement_id)
     .filter((id): id is string => Boolean(id));
   const externalVisitIds = appointments
     .map((row) => row.external_id)
     .filter((id): id is string => Boolean(id?.trim()));
-  const [obligationsResult, agreementsResult, projectionsResult] =
-    await Promise.all([
-    membershipIds.length
-      ? supabase
-          .from("obligations")
-          .select(
-            "id, membership_id, property_id, target_window_start, target_window_end, status",
-          )
-          .in("membership_id", membershipIds)
-      : Promise.resolve({ data: [], error: null }),
+  const [agreementsResult, projectionsResult] = await Promise.all([
     agreementIds.length
       ? supabase
           .from("signed_agreements")
@@ -554,43 +509,48 @@ export async function prepareAutomaticBillingOrders(input: {
       ? supabase
           .from("jobber_visit_projections")
           .select(
-            "connection_id, external_visit_id, external_job_id, external_property_id, scheduled_start",
+            "connection_id, external_visit_id, external_job_id, external_property_id, scheduled_start, source_payload_hash, title, job_type, job_billing_type, job_total_cents, job_will_auto_charge, visit_invoice_id, is_last_scheduled_visit, match_state, matched_property_id",
           )
           .eq("connection_id", JOBBER_CONNECTION_ID)
           .in("external_visit_id", externalVisitIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (obligationsResult.error) throw new Error(obligationsResult.error.message);
   if (agreementsResult.error) throw new Error(agreementsResult.error.message);
   if (projectionsResult.error) throw new Error(projectionsResult.error.message);
-  const obligations = (obligationsResult.data ?? []) as ObligationRow[];
-  const obligationInputs = obligations.map(obligationInput);
   const agreements = (agreementsResult.data ?? []) as AgreementRow[];
   const agreementById = new Map(agreements.map((row) => [row.id, row]));
   const projections = (projectionsResult.data ?? []) as JobberProjectionRow[];
   const projectionByVisitId = new Map(
     projections.map((row) => [row.external_visit_id, row]),
   );
-  const externalJobIds = [
-    ...new Set(projections.map((row) => row.external_job_id)),
+  const externalPropertyIds = [
+    ...new Set(projections.map((row) => row.external_property_id)),
   ];
-  const linksResult = externalJobIds.length
+  const linksResult = externalPropertyIds.length
     ? await supabase
-        .from("jobber_membership_job_links")
+        .from("jobber_property_links")
         .select(
-          "connection_id, external_job_id, external_property_id, membership_id, property_id, link_state",
+          "connection_id, external_property_id, membership_id, property_id, link_state",
         )
         .eq("connection_id", JOBBER_CONNECTION_ID)
         .eq("link_state", "active")
-        .in("external_job_id", externalJobIds)
+        .in("external_property_id", externalPropertyIds)
     : { data: [], error: null };
   if (linksResult.error) throw new Error(linksResult.error.message);
-  const jobLinkByExternalJobId = new Map(
-    ((linksResult.data ?? []) as JobberMembershipJobLinkRow[]).map((row) => [
-      row.external_job_id,
+  const propertyLinkByExternalPropertyAndMembership = new Map(
+    ((linksResult.data ?? []) as JobberPropertyLinkRow[]).map((row) => [
+      `${row.external_property_id}:${row.membership_id}`,
       row,
     ]),
   );
+  const firstVisitByJob = new Map<string, string>();
+  for (const projection of [...projections].sort((left, right) =>
+    (left.scheduled_start ?? "").localeCompare(right.scheduled_start ?? ""),
+  )) {
+    if (!firstVisitByJob.has(projection.external_job_id)) {
+      firstVisitByJob.set(projection.external_job_id, projection.external_visit_id);
+    }
+  }
 
   for (const appointment of appointments) {
     const membership = membershipByProperty.get(appointment.property_id);
@@ -607,55 +567,73 @@ export async function prepareAutomaticBillingOrders(input: {
       : null;
     const projection =
       projectionByVisitId.get(appointment.external_id ?? "") ?? null;
-    const jobLink = projection
-      ? jobLinkByExternalJobId.get(projection.external_job_id) ?? null
+    const propertyLink = projection
+      ? propertyLinkByExternalPropertyAndMembership.get(
+          `${projection.external_property_id}:${membership.id}`,
+        ) ?? null
       : null;
-    const membershipJobVerified = membershipJobIsVerified({
+    const jobberBillingVerified = jobberPropertyPricingIsVerified({
       appointment,
       membership,
       projection,
-      link: jobLink,
+      link: propertyLink,
     });
+    const pricingDecision = projection
+      ? jobberScheduledChargeDecision({
+          externalJobId: projection.external_job_id,
+          externalVisitId: projection.external_visit_id,
+          jobType: projection.job_type,
+          billingType: projection.job_billing_type,
+          jobTotalCents: projection.job_total_cents,
+          jobWillAutoCharge: projection.job_will_auto_charge,
+          visitInvoiceId: projection.visit_invoice_id,
+          isLastScheduledVisit: projection.is_last_scheduled_visit,
+          isFirstVisitForJobInServiceMonth:
+            firstVisitByJob.get(projection.external_job_id) ===
+            projection.external_visit_id,
+          serviceMonth: bounds.serviceMonth,
+        })
+      : null;
     const blockers = automaticBillingBlockingReasons({
       membership: membershipInput(membership, agreement),
-      appointment: appointmentInput(appointment, membershipJobVerified),
+      appointment: appointmentInput(
+        appointment,
+        jobberBillingVerified && Boolean(pricingDecision?.eligible),
+      ),
       serviceMonth: bounds.serviceMonth,
     });
+    if (!projection) blockers.push("jobber_projection_missing");
+    if (!propertyLink) blockers.push("jobber_property_not_paired");
+    if (pricingDecision && !pricingDecision.eligible) {
+      blockers.push(...pricingDecision.blockers);
+    }
     if (blockers.length > 0) {
-      incrementReason(summary, blockers.join(","));
+      incrementReason(summary, [...new Set(blockers)].join(","));
       continue;
     }
-    if (!(await voidStaleOrders(appointment, orders))) {
-      incrementReason(summary, "paid_visit_rescheduled_needs_review");
-      continue;
-    }
-    const obligation = findUniqueCoveringObligation({
-      obligations: obligationInputs,
-      membershipId: membership.id,
-      propertyId: membership.property_id,
-      scheduledAt: appointment.scheduled_at,
-    });
-    if (!obligation) {
-      incrementReason(summary, "unique_covering_obligation_required");
-      continue;
-    }
-    const obligationRow = obligations.find((row) => row.id === obligation.id)!;
-    if (!(await bindAppointmentToObligation(appointment, obligationRow))) {
-      incrementReason(summary, "appointment_obligation_conflict");
-      continue;
-    }
-    summary.eligible += 1;
-
-    const amountCents = agreement?.authorized_visit_price_cents ?? 0;
+    const amountCents = pricingDecision!.amountCents!;
+    const billingUnitKey = pricingDecision!.billingUnitKey!;
     if (amountCents > input.settings.maxChargeCents) {
       incrementReason(summary, "charge_above_founder_cap");
       continue;
     }
+    const fingerprint = pricingFingerprint({
+      membership,
+      appointment,
+      projection: projection!,
+      billingUnitKey,
+      amountCents,
+    });
+    if (!(await voidStaleOrders(appointment, orders, fingerprint))) {
+      incrementReason(summary, "paid_or_processing_jobber_charge_changed");
+      continue;
+    }
+    summary.eligible += 1;
     const activeOrder = orders.find(
       (order) =>
         isActiveOrder(order) &&
-        order.membership_id === membership.id &&
-        order.service_month.startsWith(bounds.serviceMonth.slice(0, 7)),
+        order.appointment_id === appointment.id &&
+        order.input_fingerprint === fingerprint,
     );
     if (activeOrder) {
       summary.alreadyPrepared += 1;
@@ -671,34 +649,34 @@ export async function prepareAutomaticBillingOrders(input: {
       continue;
     }
 
-    const fingerprint = pricingFingerprint({
-      membership,
-      appointment,
-      obligation: obligationRow,
-      amountCents,
-    });
     const snapshotResult = await supabase
       .from("atlas_pricing_snapshots")
       .insert({
-        engine_version: "signed-membership-visit-price-v1",
+        engine_version: "jobber-scheduled-services-v2",
         company_settings_version: `agreement:${membership.agreement_id}`,
         company_settings_hash: fingerprint,
         normalized_inputs: {
-          source: "signed_membership_visit_price",
+          source: "jobber_scheduled_service_price",
           membership_id: membership.id,
           agreement_id: membership.agreement_id,
-          visit_price_cents: amountCents,
+          external_job_id: projection!.external_job_id,
+          external_visit_id: projection!.external_visit_id,
+          jobber_source_payload_hash: projection!.source_payload_hash,
+          billing_unit_key: billingUnitKey,
+          charge_kind: pricingDecision!.chargeKind,
+          job_total_cents: amountCents,
         },
         line_item_output: [
           {
-            kind: "membership_visit",
-            description: "Scheduled SqueegeeKing membership visit",
+            kind: pricingDecision!.chargeKind,
+            description:
+              projection!.title ?? "Scheduled SqueegeeKing Jobber service",
             amount_cents: amountCents,
           },
         ],
         authorized_charge_cents: amountCents,
         membership_id: membership.id,
-        obligation_id: obligation.id,
+        obligation_id: null,
         property_id: membership.property_id,
       })
       .select("id")
@@ -715,7 +693,7 @@ export async function prepareAutomaticBillingOrders(input: {
       .insert({
         membership_id: membership.id,
         property_id: membership.property_id,
-        obligation_id: obligation.id,
+        obligation_id: null,
         appointment_id: appointment.id,
         pricing_snapshot_id: snapshotResult.data.id,
         service_month: bounds.serviceMonth,
@@ -735,11 +713,10 @@ export async function prepareAutomaticBillingOrders(input: {
                 : "discovered_after_first_of_service_month",
             ],
         input_fingerprint: fingerprint,
-        idempotency_key: automaticBillingOperationKey(
+        idempotency_key: automaticJobberBillingOperationKey(
           membership.id,
           bounds.serviceMonth,
-          appointment.external_id!,
-          appointment.scheduled_at,
+          billingUnitKey,
         ),
         due_at: shouldLock ? dueAt : null,
         next_attempt_at: shouldLock ? now : null,
@@ -764,8 +741,13 @@ export async function prepareAutomaticBillingOrders(input: {
         billing_order_id: orderResult.data.id,
         event_type: "created",
         actor: "automatic_billing_truth_gate",
-        reason: "Built from signed price and verified Jobber visit",
-        event_data: { fingerprint },
+        reason: "Built from standing authorization and verified Jobber price",
+        event_data: {
+          fingerprint,
+          external_job_id: projection!.external_job_id,
+          external_visit_id: projection!.external_visit_id,
+          charge_kind: pricingDecision!.chargeKind,
+        },
       },
       {
         billing_order_id: orderResult.data.id,

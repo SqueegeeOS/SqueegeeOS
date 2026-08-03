@@ -57,7 +57,7 @@ describe("membership billing authorization", () => {
   it("changes the terms hash if the version or signed disclosure changes", () => {
     expect(membershipBillingTermsHash()).toMatch(/^[a-f0-9]{64}$/);
     expect(MEMBERSHIP_BILLING_AUTHORIZATION_VERSION).toBe(
-      "membership-first-service-month-v1",
+      "membership-jobber-scheduled-services-v2",
     );
   });
 });

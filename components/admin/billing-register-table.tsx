@@ -219,7 +219,7 @@ function BillingRegisterRowActions({
     agreementWindow.opener = null;
     if (
       !window.confirm(
-        `Review the signed PDF that just opened. Does it authorize charging exactly ${formatCurrency(row.visitPrice)} on the 1st of each scheduled service month for this exact membership and property?`,
+        `Review the signed PDF that just opened. Does it authorize saving the payment method and charging the variable Jobber price of all scheduled services on the 1st of each service month? The signed base membership visit price is ${formatCurrency(row.visitPrice)}.`,
       )
     ) {
       return;
@@ -408,7 +408,8 @@ export function BillingRegisterTable({
               <th className="pb-3 pr-4 font-medium">Homeowner</th>
               <th className="pb-3 pr-4 font-medium">Property</th>
               <th className="pb-3 pr-4 font-medium">Tier</th>
-              <th className="pb-3 pr-4 font-medium">Visit price</th>
+              <th className="pb-3 pr-4 font-medium">Base visit</th>
+              <th className="pb-3 pr-4 font-medium">Next Jobber charge</th>
               <th className="pb-3 pr-4 font-medium">Stripe</th>
               <th className="pb-3 pr-4 font-medium">Card on file</th>
               <th className="pb-3 pr-4 font-medium">Service-month charge</th>
@@ -433,6 +434,11 @@ export function BillingRegisterTable({
                 <td className="py-4 pr-4 tabular-nums">
                   {row.visitPrice != null
                     ? formatCurrency(row.visitPrice)
+                    : "—"}
+                </td>
+                <td className="py-4 pr-4 tabular-nums font-medium text-foreground">
+                  {row.jobberScheduledAmount != null
+                    ? formatCurrency(row.jobberScheduledAmount)
                     : "—"}
                 </td>
                 <td className="py-4 pr-4 text-muted">
@@ -461,15 +467,15 @@ export function BillingRegisterTable({
                       Signed automatic-billing terms need founder verification.
                     </p>
                   ) : null}
-                  {!row.membershipJobClassified ? (
+                  {!row.jobberPropertyPaired ? (
                     <p className="mt-2 max-w-56 text-[11px] leading-relaxed text-amber-200">
-                      Classify the recurring Jobber membership job before any
-                      visit can qualify for billing.
+                      Pair this HomeAtlas property to its Jobber property before
+                      a scheduled service can qualify for billing.
                     </p>
                   ) : !row.verifiedServiceVisitReady ? (
                     <p className="mt-2 max-w-56 text-[11px] leading-relaxed text-muted">
-                      Membership job verified; no upcoming scheduled service
-                      visit is ready yet.
+                      Property paired; no priced, unbilled upcoming Jobber
+                      service is ready yet.
                     </p>
                   ) : null}
                   {row.billingExecutionState ? (

@@ -9,12 +9,14 @@ import { getStripe } from "@/lib/stripe/server";
 import { notifyAutomaticBillingResult } from "./automatic-billing-notifications";
 import {
   automaticBillingBlockingReasons,
+  automaticBillingMonthBounds,
   automaticBillingRetryAt,
   automaticBillingServiceMonth,
   dollarsToBillingCents,
   type AutomaticBillingAppointmentInput,
   type AutomaticBillingMembershipInput,
 } from "./automatic-billing-rules";
+import { jobberScheduledChargeDecision } from "./jobber-scheduled-charge";
 import { membershipBillingAuthorizationIssues } from "./membership-billing-authorization";
 import { recordBillingReconciliationCase } from "./reconciliation";
 import {
@@ -39,7 +41,7 @@ interface ClaimedBillingOrder {
   id: string;
   membership_id: string;
   property_id: string;
-  obligation_id: string;
+  obligation_id: string | null;
   appointment_id: string;
   pricing_snapshot_id: string;
   service_month: string;
@@ -48,6 +50,7 @@ interface ClaimedBillingOrder {
   idempotency_key: string;
   attempt_count: number;
   stripe_payment_intent_id: string | null;
+  input_fingerprint: string;
 }
 
 interface ExecutionMembershipRow {
@@ -81,7 +84,10 @@ interface ExecutionSnapshotRow {
   id: string;
   membership_id: string;
   property_id: string;
-  obligation_id: string;
+  obligation_id: string | null;
+  engine_version: string;
+  company_settings_hash: string;
+  normalized_inputs: Record<string, unknown>;
   authorized_charge_cents: number;
   override_amount_cents: number | null;
 }
@@ -104,17 +110,16 @@ interface ExecutionProjectionRow {
   external_property_id: string;
   scheduled_start: string | null;
   is_complete: boolean;
+  source_payload_hash: string;
+  title: string | null;
+  job_type: string | null;
+  job_billing_type: string | null;
+  job_total_cents: number | null;
+  job_will_auto_charge: boolean;
+  visit_invoice_id: string | null;
+  is_last_scheduled_visit: boolean;
   match_state: string;
   matched_property_id: string | null;
-}
-
-interface ExecutionJobLinkRow {
-  connection_id: string;
-  external_job_id: string;
-  external_property_id: string;
-  membership_id: string;
-  property_id: string;
-  link_state: string;
 }
 
 interface ExecutionPropertyLinkRow {
@@ -209,7 +214,7 @@ function membershipInput(
 
 function appointmentInput(
   row: ExecutionAppointmentRow,
-  membershipJobVerified: boolean,
+  jobberBillingVerified: boolean,
 ): AutomaticBillingAppointmentInput {
   return {
     id: row.id,
@@ -220,7 +225,7 @@ function appointmentInput(
     provenanceState: row.provenance_state,
     verificationState: row.verification_state,
     matchState: row.match_state,
-    membershipJobVerified,
+    jobberBillingVerified,
   };
 }
 
@@ -270,8 +275,8 @@ async function loadExecutionContext(order: ClaimedBillingOrder): Promise<{
   snapshot: ExecutionSnapshotRow;
   agreement: ExecutionAgreementRow | null;
   projection: ExecutionProjectionRow | null;
-  jobLink: ExecutionJobLinkRow | null;
   propertyLink: ExecutionPropertyLinkRow | null;
+  isFirstVisitForJobInServiceMonth: boolean;
   homeowner: HomeownerRow;
   property: PropertyRow;
 }> {
@@ -295,7 +300,7 @@ async function loadExecutionContext(order: ClaimedBillingOrder): Promise<{
       supabase
         .from("atlas_pricing_snapshots")
         .select(
-          "id, membership_id, property_id, obligation_id, authorized_charge_cents, override_amount_cents",
+          "id, membership_id, property_id, obligation_id, engine_version, company_settings_hash, normalized_inputs, authorized_charge_cents, override_amount_cents",
         )
         .eq("id", order.pricing_snapshot_id)
         .single(),
@@ -335,7 +340,7 @@ async function loadExecutionContext(order: ClaimedBillingOrder): Promise<{
         ? supabase
             .from("jobber_visit_projections")
             .select(
-              "connection_id, external_visit_id, external_job_id, external_property_id, scheduled_start, is_complete, match_state, matched_property_id",
+              "connection_id, external_visit_id, external_job_id, external_property_id, scheduled_start, is_complete, source_payload_hash, title, job_type, job_billing_type, job_total_cents, job_will_auto_charge, visit_invoice_id, is_last_scheduled_visit, match_state, matched_property_id",
             )
             .eq("connection_id", JOBBER_CONNECTION_ID)
             .eq("external_visit_id", appointment.external_id)
@@ -347,18 +352,8 @@ async function loadExecutionContext(order: ClaimedBillingOrder): Promise<{
   }
   const projection =
     (projectionResult.data as ExecutionProjectionRow | null) ?? null;
-  const [jobLinkResult, propertyLinkResult] = projection
-    ? await Promise.all([
-        supabase
-          .from("jobber_membership_job_links")
-          .select(
-            "connection_id, external_job_id, external_property_id, membership_id, property_id, link_state",
-          )
-          .eq("connection_id", projection.connection_id)
-          .eq("external_job_id", projection.external_job_id)
-          .eq("link_state", "active")
-          .maybeSingle(),
-        supabase
+  const propertyLinkResult = projection
+    ? await supabase
           .from("jobber_property_links")
           .select(
             "connection_id, external_property_id, membership_id, property_id, link_state",
@@ -368,14 +363,25 @@ async function loadExecutionContext(order: ClaimedBillingOrder): Promise<{
           .eq("membership_id", membership.id)
           .eq("property_id", membership.property_id)
           .eq("link_state", "active")
-          .maybeSingle(),
-      ])
-    : [
-        { data: null, error: null },
-        { data: null, error: null },
-      ];
-  for (const result of [jobLinkResult, propertyLinkResult]) {
-    if (result.error) throw new Error(result.error.message);
+          .maybeSingle()
+    : { data: null, error: null };
+  if (propertyLinkResult.error) throw new Error(propertyLinkResult.error.message);
+  let isFirstVisitForJobInServiceMonth = false;
+  if (projection) {
+    const bounds = automaticBillingMonthBounds(new Date(order.scheduled_service_at));
+    const firstVisitResult = await supabase
+      .from("jobber_visit_projections")
+      .select("external_visit_id")
+      .eq("connection_id", projection.connection_id)
+      .eq("external_job_id", projection.external_job_id)
+      .gte("scheduled_start", bounds.startUtc.toISOString())
+      .lt("scheduled_start", bounds.endUtc.toISOString())
+      .order("scheduled_start", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (firstVisitResult.error) throw new Error(firstVisitResult.error.message);
+    isFirstVisitForJobInServiceMonth =
+      firstVisitResult.data?.external_visit_id === projection.external_visit_id;
   }
   return {
     membership,
@@ -384,9 +390,9 @@ async function loadExecutionContext(order: ClaimedBillingOrder): Promise<{
     agreement:
       (agreementResult.data as ExecutionAgreementRow | null) ?? null,
     projection,
-    jobLink: (jobLinkResult.data as ExecutionJobLinkRow | null) ?? null,
     propertyLink:
       (propertyLinkResult.data as ExecutionPropertyLinkRow | null) ?? null,
+    isFirstVisitForJobInServiceMonth,
     homeowner: homeownerResult.data as HomeownerRow,
     property: propertyResult.data as PropertyRow,
   };
@@ -399,38 +405,46 @@ function contextBlockingReasons(input: {
   snapshot: ExecutionSnapshotRow;
   agreement: ExecutionAgreementRow | null;
   projection: ExecutionProjectionRow | null;
-  jobLink: ExecutionJobLinkRow | null;
   propertyLink: ExecutionPropertyLinkRow | null;
+  isFirstVisitForJobInServiceMonth: boolean;
   maxChargeCents: number;
 }): string[] {
-  const membershipJobVerified = Boolean(
+  const pricingDecision = input.projection
+    ? jobberScheduledChargeDecision({
+        externalJobId: input.projection.external_job_id,
+        externalVisitId: input.projection.external_visit_id,
+        jobType: input.projection.job_type,
+        billingType: input.projection.job_billing_type,
+        jobTotalCents: input.projection.job_total_cents,
+        jobWillAutoCharge: input.projection.job_will_auto_charge,
+        visitInvoiceId: input.projection.visit_invoice_id,
+        isLastScheduledVisit: input.projection.is_last_scheduled_visit,
+        isFirstVisitForJobInServiceMonth:
+          input.isFirstVisitForJobInServiceMonth,
+        serviceMonth: input.order.service_month,
+      })
+    : null;
+  const jobberBillingVerified = Boolean(
     input.projection &&
-      input.jobLink &&
       input.projection.external_visit_id === input.appointment.external_id &&
       input.projection.scheduled_start === input.appointment.scheduled_at &&
       input.projection.is_complete === false &&
       input.projection.match_state === "matched" &&
       input.projection.matched_property_id === input.order.property_id &&
-      input.jobLink.link_state === "active" &&
-      input.jobLink.connection_id === input.projection.connection_id &&
-      input.jobLink.external_job_id === input.projection.external_job_id &&
-      input.jobLink.external_property_id ===
-        input.projection.external_property_id &&
-      input.jobLink.membership_id === input.membership.id &&
-      input.jobLink.property_id === input.membership.property_id &&
       input.propertyLink &&
       input.propertyLink.link_state === "active" &&
       input.propertyLink.connection_id === input.projection.connection_id &&
       input.propertyLink.external_property_id ===
         input.projection.external_property_id &&
       input.propertyLink.membership_id === input.membership.id &&
-      input.propertyLink.property_id === input.membership.property_id,
+      input.propertyLink.property_id === input.membership.property_id &&
+      pricingDecision?.eligible,
   );
   const reasons = automaticBillingBlockingReasons({
     membership: membershipInput(input.membership, input.agreement),
     appointment: appointmentInput(
       input.appointment,
-      membershipJobVerified,
+      jobberBillingVerified,
     ),
     serviceMonth: input.order.service_month,
   });
@@ -446,32 +460,44 @@ function contextBlockingReasons(input: {
   if (input.appointment.property_id !== input.order.property_id) {
     reasons.push("appointment_property_mismatch");
   }
-  if (input.appointment.matched_obligation_id !== input.order.obligation_id) {
-    reasons.push("appointment_obligation_mismatch");
-  }
   if (input.appointment.scheduled_at !== input.order.scheduled_service_at) {
     reasons.push("appointment_time_changed");
   }
   if (
     input.snapshot.membership_id !== input.order.membership_id ||
     input.snapshot.property_id !== input.order.property_id ||
-    input.snapshot.obligation_id !== input.order.obligation_id
+    input.snapshot.obligation_id !== null ||
+    input.order.obligation_id !== null ||
+    input.snapshot.engine_version !== "jobber-scheduled-services-v2" ||
+    input.snapshot.company_settings_hash !== input.order.input_fingerprint
   ) {
     reasons.push("pricing_snapshot_binding_mismatch");
   }
   if (effectiveSnapshotAmount !== input.order.expected_charge_cents) {
     reasons.push("pricing_snapshot_amount_mismatch");
   }
-  if (
-    input.agreement?.authorized_visit_price_cents !==
-    input.order.expected_charge_cents
-  ) {
-    reasons.push("signed_price_order_mismatch");
+  if (!pricingDecision) reasons.push("jobber_projection_missing");
+  else {
+    reasons.push(...pricingDecision.blockers);
+    if (pricingDecision.amountCents !== input.order.expected_charge_cents) {
+      reasons.push("jobber_price_changed");
+    }
+    const normalized = input.snapshot.normalized_inputs;
+    if (
+      normalized.external_job_id !== input.projection?.external_job_id ||
+      normalized.external_visit_id !== input.projection?.external_visit_id ||
+      normalized.jobber_source_payload_hash !==
+        input.projection?.source_payload_hash ||
+      normalized.billing_unit_key !== pricingDecision.billingUnitKey ||
+      normalized.job_total_cents !== pricingDecision.amountCents
+    ) {
+      reasons.push("jobber_pricing_snapshot_changed");
+    }
   }
   if (input.order.expected_charge_cents > input.maxChargeCents) {
     reasons.push("charge_above_founder_cap");
   }
-  return reasons;
+  return [...new Set(reasons)];
 }
 
 function paymentIntentBindingIssues(input: {
@@ -598,10 +624,32 @@ async function upsertPendingCharge(input: {
       "id, status, amount, authorized_amount_cents, stripe_reference, stripe_payment_intent_id, billing_authority_verified_at, billing_authority_verified_by",
     )
     .eq("membership_id", input.order.membership_id)
-    .eq("service_month", input.order.service_month)
+    .eq("appointment_id", input.order.appointment_id)
     .maybeSingle();
   if (existing.error) throw new Error(existing.error.message);
   const row = (existing.data as ExistingChargeRow | null) ?? null;
+  if (!row) {
+    const legacy = await supabase
+      .from("membership_billing_charges")
+      .select(
+        "id, status, amount, authorized_amount_cents, stripe_reference, stripe_payment_intent_id, billing_authority_verified_at, billing_authority_verified_by",
+      )
+      .eq("membership_id", input.order.membership_id)
+      .eq("service_month", input.order.service_month)
+      .is("appointment_id", null)
+      .limit(1)
+      .maybeSingle();
+    if (legacy.error) throw new Error(legacy.error.message);
+    if (legacy.data) {
+      return quarantineExistingCharge({
+        order: input.order,
+        row: legacy.data as ExistingChargeRow,
+        attemptNumber: input.attemptNumber,
+        attemptedAt: input.attemptedAt,
+        issues: ["legacy_monthly_ledger_without_appointment_binding"],
+      });
+    }
+  }
   if (row) {
     const ledgerIssues = existingChargeLedgerIssues(row, input.order);
     if (isVerifiedPaidCharge(row) && ledgerIssues.length === 0) return row;
@@ -629,7 +677,7 @@ async function upsertPendingCharge(input: {
     status: "pending",
     charged_at: null,
     billing_method: "automatic_stripe",
-    notes: "Automatic first-of-service-month membership billing",
+    notes: "Automatic first-of-service-month scheduled-service billing",
     created_by: "billing_automation",
     attempt_count: input.attemptNumber,
     last_attempt_at: input.attemptedAt,
@@ -1072,7 +1120,7 @@ async function executeClaimedOrder(input: {
           payment_method: context.membership.stripe_payment_method_id!,
           confirm: true,
           off_session: true,
-          description: `SqueegeeKing membership visit - ${context.property.address}`,
+          description: `SqueegeeKing scheduled service - ${context.property.address}`,
           metadata: {
             homeatlas_billing_order_id: input.order.id,
             membership_id: input.order.membership_id,
@@ -1314,7 +1362,7 @@ async function voidStaleClaimCandidates(input: {
   const orders = (ordersResult.data ?? []) as Array<{
     id: string;
     appointment_id: string;
-    obligation_id: string;
+    obligation_id: string | null;
     scheduled_service_at: string;
     execution_state: string;
     attempt_count: number;
@@ -1354,7 +1402,6 @@ async function voidStaleClaimCandidates(input: {
         ) &&
         appointment.verification_state === "verified" &&
         appointment.match_state === "matched" &&
-        appointment.matched_obligation_id === order.obligation_id &&
         appointment.scheduled_at === order.scheduled_service_at,
     );
     if (valid) continue;

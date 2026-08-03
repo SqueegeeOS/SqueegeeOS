@@ -5,7 +5,7 @@ import {
 } from "@/lib/agreement/agreement-content";
 
 export const MEMBERSHIP_BILLING_AUTHORIZATION_VERSION =
-  "membership-first-service-month-v1";
+  "membership-jobber-scheduled-services-v2";
 
 export function membershipBillingTermsHash(): string {
   return createHash("sha256")
@@ -13,6 +13,8 @@ export function membershipBillingTermsHash(): string {
       JSON.stringify({
         version: MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
         schedule: "first_of_service_month",
+        scope: "all_scheduled_jobber_services",
+        amountDetermination: "jobber_scheduled_service_price_at_billing_cutoff",
         disclosure: MEMBERSHIP_BILLING_FINE_PRINT,
         acceptance: membershipAgreementCheckboxText(),
       }),

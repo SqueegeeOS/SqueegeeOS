@@ -15,9 +15,12 @@ const visit: JobberVisitNode = {
   title: "Quarterly window care",
   visitStatus: "UPCOMING",
   isComplete: false,
+  clientConfirmed: true,
+  isLastScheduledVisit: false,
   startAt: "2026-08-12T16:00:00Z",
   endAt: "2026-08-12T18:00:00Z",
   completedAt: null,
+  invoice: null,
   client: { id: "client-1", name: "Home Owner" },
   property: {
     id: "jobber-property-1",
@@ -28,6 +31,10 @@ const visit: JobberVisitNode = {
     jobNumber: 42,
     title: "Window care",
     jobStatus: "ACTIVE",
+    jobType: "RECURRING",
+    billingType: "PER_VISIT",
+    total: 275,
+    willClientBeAutomaticallyCharged: false,
   },
 };
 
@@ -41,9 +48,9 @@ describe("complete read-only Jobber visit synchronization", () => {
     expect(JOBBER_VISITS_QUERY).toContain("query HomeAtlasVisits");
     expect(JOBBER_VISITS_QUERY).toContain("after: $after");
     expect(JOBBER_VISITS_QUERY).not.toMatch(/\bmutation\b/i);
-    expect(JOBBER_VISITS_QUERY).not.toMatch(
-      /invoice|payment|price|total|instructions|notes/i,
-    );
+    expect(JOBBER_VISITS_QUERY).toContain("total");
+    expect(JOBBER_VISITS_QUERY).toContain("billingType");
+    expect(JOBBER_VISITS_QUERY).toContain("willClientBeAutomaticallyCharged");
     expect(JOBBER_VISITS_QUERY).toContain("jobberWebUri");
   });
 
@@ -195,6 +202,10 @@ describe("complete read-only Jobber visit synchronization", () => {
       jobber_property_web_uri:
         "https://secure.getjobber.com/properties/jobber-property-1",
       visit_status: "UPCOMING",
+      client_confirmed: true,
+      job_billing_type: "PER_VISIT",
+      job_total_cents: 27500,
+      job_will_auto_charge: false,
       is_complete: false,
     });
     expect(row).not.toHaveProperty("matched_property_id");

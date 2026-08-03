@@ -30,7 +30,7 @@ export interface AutomaticBillingAppointmentInput {
   provenanceState: string;
   verificationState: string;
   matchState: string;
-  membershipJobVerified: boolean;
+  jobberBillingVerified: boolean;
 }
 
 export interface AutomaticBillingObligationInput {
@@ -126,8 +126,8 @@ export function automaticBillingBlockingReasons(input: {
   if (appointment.matchState !== "matched") {
     reasons.push("appointment_not_matched");
   }
-  if (!appointment.membershipJobVerified) {
-    reasons.push("jobber_membership_job_not_verified");
+  if (!appointment.jobberBillingVerified) {
+    reasons.push("jobber_scheduled_service_not_verified");
   }
   if (appointment.status !== "scheduled") {
     reasons.push("appointment_not_scheduled");
@@ -151,6 +151,20 @@ export function automaticBillingOperationKey(
   return `homeatlas:membership:${encodeURIComponent(
     membershipId.trim(),
   )}:service-month:${serviceMonth}:visit:${visitRevision}:automatic-billing:v2`;
+}
+
+export function automaticJobberBillingOperationKey(
+  membershipId: string,
+  serviceMonth: string,
+  billingUnitKey: string,
+): string {
+  const billingUnitRevision = createHash("sha256")
+    .update(billingUnitKey.trim())
+    .digest("hex")
+    .slice(0, 24);
+  return `homeatlas:membership:${encodeURIComponent(
+    membershipId.trim(),
+  )}:service-month:${serviceMonth}:jobber-unit:${billingUnitRevision}:standing-authorization:v2`;
 }
 
 export function findUniqueCoveringObligation(input: {
