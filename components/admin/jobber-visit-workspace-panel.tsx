@@ -25,6 +25,7 @@ interface PropertyLinkPreview {
 interface VisitPreview {
   projectionId: string;
   externalVisitId: string;
+  externalJobId: string;
   externalClientId: string;
   externalPropertyId: string;
   jobberPropertyWebUri: string | null;
@@ -41,8 +42,16 @@ interface VisitPreview {
     | "homeatlas_member_property"
     | "link_attention";
   propertyLink: PropertyLinkPreview | null;
-  visitAuthority: "manual_review";
-  billingEligible: false;
+  visitAuthority: "manual_review" | "membership_job";
+  billingEligible: boolean;
+  membershipJobLink: {
+    linkId: string;
+    membershipId: string;
+    propertyId: string;
+    linkState: "active" | "revoked";
+    updatedAt: string;
+  } | null;
+  membershipJobConflict: boolean;
 }
 
 interface MatchingWorkspace {
@@ -109,15 +118,20 @@ export function JobberVisitWorkspacePanel() {
   const [confirmedProperties, setConfirmedProperties] = useState<
     Record<string, boolean>
   >({});
+  const [confirmedMembershipJobs, setConfirmedMembershipJobs] = useState<
+    Record<string, boolean>
+  >({});
   const [loading, setLoading] = useState(true);
   const [savingProjectionId, setSavingProjectionId] = useState<string | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async (search: string, page: number) => {
     setLoading(true);
     setError(null);
+    setNotice(null);
     try {
       setWorkspace(await requestMatchingWorkspace(search, page));
     } catch (loadError) {
@@ -169,7 +183,7 @@ export function JobberVisitWorkspacePanel() {
     if (
       action === "revoke" &&
       !window.confirm(
-        "Remove this property link? The Jobber work will return to Jobber-only. No history will be deleted.",
+        "Remove this property link? Its membership-job classifications will also be revoked, portal visits will be removed, and they cannot drive billing. No source history will be deleted.",
       )
     ) {
       return;
@@ -177,6 +191,7 @@ export function JobberVisitWorkspacePanel() {
 
     setSavingProjectionId(visit.projectionId);
     setError(null);
+    setNotice(null);
     try {
       const response = await fetch(
         "/api/admin/care-operations/jobber/property-links",
@@ -212,11 +227,84 @@ export function JobberVisitWorkspacePanel() {
         ...current,
         [visit.projectionId]: false,
       }));
+      setNotice(
+        action === "link"
+          ? "Member property confirmed. Its recurring Jobber job still requires separate verification."
+          : "Property link removed. Related membership-job authority is revoked.",
+      );
     } catch (writeError) {
       setError(
         writeError instanceof Error
           ? writeError.message
           : "The property link was not changed",
+      );
+    } finally {
+      setSavingProjectionId(null);
+    }
+  };
+
+  const writeMembershipJobLink = async (
+    visit: VisitPreview,
+    action: "link_job" | "revoke_job",
+  ) => {
+    if (
+      action === "link_job" &&
+      confirmedMembershipJobs[visit.projectionId] !== true
+    ) {
+      return;
+    }
+    if (
+      action === "revoke_job" &&
+      !window.confirm(
+        "Stop treating this recurring Jobber job as membership service? Its visits will leave the member portal and cannot drive billing.",
+      )
+    ) {
+      return;
+    }
+    setSavingProjectionId(visit.projectionId);
+    setError(null);
+    setNotice(null);
+    try {
+      const response = await fetch(
+        "/api/admin/care-operations/jobber/property-links",
+        {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+          body: JSON.stringify({
+            action,
+            projectionId: visit.projectionId,
+            membershipServiceConfirmed:
+              action === "link_job"
+                ? confirmedMembershipJobs[visit.projectionId] === true
+                : undefined,
+            expectedJobLinkUpdatedAt:
+              visit.membershipJobLink?.updatedAt ?? null,
+            search: workspace?.search ?? "",
+            page: workspace?.page ?? 1,
+          }),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as
+        | MatchResponse
+        | null;
+      if (!response.ok || !body?.workspace) {
+        throw new Error(body?.error ?? "The membership job was not changed");
+      }
+      setWorkspace(body.workspace);
+      setConfirmedMembershipJobs((current) => ({
+        ...current,
+        [visit.projectionId]: false,
+      }));
+      setNotice(
+        action === "link_job"
+          ? "Membership job verified. Eligible scheduled visits can now flow to the portal and billing safety checks."
+          : "Membership-job classification removed. Its visits cannot drive billing.",
+      );
+    } catch (writeError) {
+      setError(
+        writeError instanceof Error
+          ? writeError.message
+          : "The membership job was not changed",
       );
     } finally {
       setSavingProjectionId(null);
@@ -279,6 +367,11 @@ export function JobberVisitWorkspacePanel() {
         </p>
       ) : null}
       {error ? <p className="mt-4 text-sm text-red-400">{error}</p> : null}
+      {notice ? (
+        <p className="mt-4 text-sm text-emerald-300" role="status">
+          {notice}
+        </p>
+      ) : null}
 
       {workspace?.visits.length ? (
         <div className="mt-5 space-y-3">
@@ -290,6 +383,8 @@ export function JobberVisitWorkspacePanel() {
               selectedMemberships[visit.projectionId] ?? "";
             const confirmed =
               confirmedProperties[visit.projectionId] === true;
+            const membershipJobConfirmed =
+              confirmedMembershipJobs[visit.projectionId] === true;
             const saving = savingProjectionId === visit.projectionId;
 
             return (
@@ -352,8 +447,11 @@ export function JobberVisitWorkspacePanel() {
                     </p>
                     <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs text-muted">
-                        Property identity only. This visit is not HomeAtlas Care
-                        until an obligation is confirmed later.
+                        {visit.membershipJobConflict
+                          ? "This Jobber job has a conflicting membership classification. Remove that classification and verify the correct job before using it for portal or billing."
+                          : visit.billingEligible
+                          ? "This recurring Jobber job is classified as membership service. Its scheduled visits may appear in the portal and pass the billing truth gate."
+                          : "Property identity only. Classify the recurring Jobber job before its visits can appear as membership care or drive billing."}
                       </p>
                       <button
                         type="button"
@@ -363,6 +461,67 @@ export function JobberVisitWorkspacePanel() {
                       >
                         {saving ? "Removing..." : "Remove property link"}
                       </button>
+                    </div>
+                    <div className="mt-4 border-t border-border/50 pt-4">
+                      {visit.billingEligible || visit.membershipJobConflict ? (
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <span
+                            className={`text-xs ${visit.membershipJobConflict ? "text-red-300" : "text-emerald-300"}`}
+                          >
+                            {visit.membershipJobConflict
+                              ? "Conflicting membership-job classification"
+                              : "Membership job verified"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void writeMembershipJobLink(visit, "revoke_job")
+                            }
+                            disabled={savingProjectionId !== null}
+                            className="rounded-full border border-border px-4 py-2 text-xs text-muted transition hover:text-foreground disabled:opacity-50"
+                          >
+                            {saving
+                              ? "Updating..."
+                              : visit.membershipJobConflict
+                                ? "Remove conflicting classification"
+                                : "Remove membership classification"}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <label className="flex items-start gap-3 text-xs leading-relaxed text-muted">
+                            <input
+                              type="checkbox"
+                              checked={membershipJobConfirmed}
+                              onChange={(event) =>
+                                setConfirmedMembershipJobs((current) => ({
+                                  ...current,
+                                  [visit.projectionId]: event.target.checked,
+                                }))
+                              }
+                              disabled={savingProjectionId !== null}
+                              className="mt-0.5 size-4 accent-[var(--accent)]"
+                            />
+                            I verified that Job #{visit.jobNumber ?? "shown"} is
+                            this member&apos;s recurring window-care membership
+                            service, not an estimate, add-on, gutter job, or
+                            one-time visit.
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void writeMembershipJobLink(visit, "link_job")
+                            }
+                            disabled={
+                              !membershipJobConfirmed ||
+                              savingProjectionId !== null
+                            }
+                            className="rounded-full border border-emerald-400/35 bg-emerald-400/10 px-5 py-2.5 text-sm text-emerald-200 transition hover:bg-emerald-400/15 disabled:opacity-40"
+                          >
+                            {saving ? "Verifying..." : "Verify membership job"}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (

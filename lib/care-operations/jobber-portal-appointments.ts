@@ -55,6 +55,7 @@ interface PropertyLinkRow {
 export interface JobberPortalVisitCandidate {
   id: string;
   external_visit_id: string;
+  external_job_id: string;
   external_client_id: string;
   external_property_id: string;
   title: string | null;
@@ -202,7 +203,6 @@ export function buildJobberPortalAppointmentValues(input: {
     provenance_state: "provider_imported",
     verification_state: "verified",
     match_state: "matched",
-    matched_obligation_id: null,
     source_observed_at: input.visit.source_observed_at,
     source_payload_hash: input.visit.source_payload_hash,
   } as const;
@@ -284,6 +284,10 @@ async function ensureAutomaticPropertyLink(input: {
       ? existing
       : null;
   }
+  // Automatic single-property pairing may create a missing link, but it must
+  // never override an explicit HQ revocation. Relinking requires the supervised
+  // property workflow and a fresh membership-job verification.
+  if (existing?.link_state === "revoked") return null;
 
   const propertyConflict = await supabase
     .from("jobber_property_links")
@@ -323,28 +327,7 @@ async function ensureAutomaticPropertyLink(input: {
     return inserted.data as PropertyLinkRow;
   }
 
-  const updated = await supabase
-    .from("jobber_property_links")
-    .update({
-      property_id: input.member.property.id,
-      membership_id: input.member.membership.id,
-      link_state: "active",
-      linked_by: AUTOMATIC_PROPERTY_LINK_ACTOR,
-      link_reason: AUTOMATIC_PROPERTY_LINK_REASON,
-      linked_at: now,
-      revoked_by: null,
-      revoke_reason: null,
-      revoked_at: null,
-    })
-    .eq("id", existing.id)
-    .eq("link_state", "revoked")
-    .select("id, external_property_id, property_id, membership_id, link_state")
-    .maybeSingle();
-  if (updated.error) {
-    if (updated.error.code === "23505") return null;
-    throw new Error(updated.error.message);
-  }
-  return (updated.data as PropertyLinkRow | null) ?? null;
+  return null;
 }
 
 async function resolveProjectionTargets(input: {
@@ -451,16 +434,33 @@ async function reconcileProjectionTarget(input: {
   referenceDate: Date;
 }): Promise<JobberPortalProjectionResult> {
   const supabase = createServiceRoleSupabaseClient();
-  const visitsResult = await supabase
-    .from("jobber_visit_projections")
-    .select(
-      "id, external_visit_id, external_client_id, external_property_id, title, visit_status, is_complete, scheduled_start, scheduled_end, completed_at, source_observed_at, source_payload_hash",
-    )
+  const jobLinksResult = await supabase
+    .from("jobber_membership_job_links")
+    .select("external_job_id")
     .eq("connection_id", JOBBER_CONNECTION_ID)
-    .eq("external_client_id", input.externalClientId)
     .eq("external_property_id", input.target.link.external_property_id)
-    .not("scheduled_start", "is", null)
-    .order("scheduled_start", { ascending: true });
+    .eq("membership_id", input.target.member.membership.id)
+    .eq("property_id", input.target.member.property.id)
+    .eq("link_state", "active");
+  if (jobLinksResult.error) throw new Error(jobLinksResult.error.message);
+  const externalJobIds = (jobLinksResult.data ?? []).map(
+    (row) => row.external_job_id as string,
+  );
+  const visitsResult = externalJobIds.length
+    ? await supabase
+        .from("jobber_visit_projections")
+        .select(
+          "id, external_visit_id, external_job_id, external_client_id, external_property_id, title, visit_status, is_complete, scheduled_start, scheduled_end, completed_at, source_observed_at, source_payload_hash",
+        )
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .eq("external_client_id", input.externalClientId)
+        .eq("external_property_id", input.target.link.external_property_id)
+        .eq("match_state", "matched")
+        .eq("matched_property_id", input.target.member.property.id)
+        .in("external_job_id", externalJobIds)
+        .not("scheduled_start", "is", null)
+        .order("scheduled_start", { ascending: true })
+    : { data: [], error: null };
   if (visitsResult.error) throw new Error(visitsResult.error.message);
   const visits = (visitsResult.data ?? []) as JobberPortalVisitCandidate[];
   const nearest = selectNearestUpcomingJobberVisit(visits, input.referenceDate);
@@ -479,6 +479,31 @@ async function reconcileProjectionTarget(input: {
     appointments.map((appointment) => [appointment.external_id, appointment]),
   );
   let changed = false;
+  const eligibleExternalVisitIds = new Set(
+    visits.map((visit) => visit.external_visit_id),
+  );
+
+  const noLongerMembershipAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "scheduled" &&
+      appointment.service_type === MEMBERSHIP_APPOINTMENT_TYPE &&
+      !eligibleExternalVisitIds.has(appointment.external_id),
+  );
+  if (noLongerMembershipAppointments.length > 0) {
+    const demoted = await supabase
+      .from("member_appointments")
+      .update({
+        status: "cancelled",
+        verification_state: "unverified",
+        completed_at: null,
+      })
+      .in(
+        "id",
+        noLongerMembershipAppointments.map((appointment) => appointment.id),
+      );
+    if (demoted.error) throw new Error(demoted.error.message);
+    changed = true;
+  }
 
   for (const visit of visits) {
     const existing = appointmentByExternalId.get(visit.external_visit_id);
@@ -520,7 +545,9 @@ async function reconcileProjectionTarget(input: {
       externalVisitId: null,
       scheduledAt: null,
       propertyLinkCreated: input.target.propertyLinkCreated,
-      message: "Customer paired; Jobber has no future scheduled visit yet.",
+      message: externalJobIds.length
+        ? "Customer paired; the classified membership job has no future scheduled visit yet."
+        : "Customer paired; classify the recurring Jobber membership job before a visit is shown.",
     };
   }
 

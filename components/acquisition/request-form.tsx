@@ -15,7 +15,7 @@ import {
   serviceOptions,
   type LeadIntakeFormData,
 } from "@/lib/acquisition/types";
-import { CUSTOMER_CTAS } from "@/lib/brand/customer";
+import { CUSTOMER_CONTACT, CUSTOMER_CTAS } from "@/lib/brand/customer";
 import {
   buildSqueegeeKingTierQuote,
   formatTierPeriodPrice,
@@ -475,8 +475,30 @@ function RequestFormFields() {
                     <span className="text-[11px] leading-relaxed text-muted/80">
                       I agree to receive transactional texts from SqueegeeKing
                       about this request, appointments, and service updates.
-                      Message and data rates may apply. Reply STOP to opt out.
-                      Consent is not a condition of purchase.
+                      Message frequency varies. Message and data rates may
+                      apply. Reply STOP to opt out or HELP for help. You can
+                      also call{" "}
+                      <a
+                        href={CUSTOMER_CONTACT.phoneHref}
+                        className="text-foreground underline underline-offset-2"
+                      >
+                        {CUSTOMER_CONTACT.phoneDisplay}
+                      </a>
+                      . Consent is not a condition of purchase. See our{" "}
+                      <Link
+                        href="/privacy"
+                        className="text-foreground underline underline-offset-2"
+                      >
+                        Privacy Policy
+                      </Link>{" "}
+                      and{" "}
+                      <Link
+                        href="/terms"
+                        className="text-foreground underline underline-offset-2"
+                      >
+                        Terms
+                      </Link>
+                      .
                     </span>
                   </label>
                 ) : null}

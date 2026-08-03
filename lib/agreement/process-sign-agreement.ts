@@ -1,4 +1,9 @@
 import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
+import {
+  membershipBillingTermsHash,
+  MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
+} from "@/lib/billing/membership-billing-authorization";
+import { dollarsToBillingCents } from "@/lib/billing/automatic-billing-rules";
 import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import { sendAgreementEmail } from "@/lib/agreement/send-agreement-email";
@@ -55,13 +60,15 @@ function parsePriceNumber(price?: number): number | undefined {
 export async function processSignAgreement(
   input: SignAgreementRequest,
 ): Promise<SignAgreementResult> {
+  const agreementKind =
+    input.agreementKind ?? agreementKindForPlan(input.planId);
   const pdfBytes = await generateSignedPDF({
     memberName: input.memberName,
     signedAt: input.signedAt,
     signatureDataUrl: input.signatureDataUrl,
     tier: input.planName,
     agreementTier: input.agreementTier,
-    agreementKind: input.agreementKind ?? agreementKindForPlan(input.planId),
+    agreementKind,
     propertyName: input.propertyName,
     monthlyPrice: parsePriceNumber(input.monthlyPrice),
     homeSqft: input.homeSqft,
@@ -107,6 +114,17 @@ export async function processSignAgreement(
       signature_image_storage_path: storedSignature?.storagePath ?? null,
       status: "complete",
       storage_backend: storedPdf.backend === "supabase" ? "supabase" : "session",
+      ...(agreementKind === "membership" && input.monthlyPrice
+        ? {
+            billing_authorization_version:
+              MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
+            billing_authorized_at: input.signedAt,
+            authorized_visit_price_cents: dollarsToBillingCents(
+              input.monthlyPrice,
+            ),
+            billing_terms_hash: membershipBillingTermsHash(),
+          }
+        : {}),
     })
     .select("id")
     .single();

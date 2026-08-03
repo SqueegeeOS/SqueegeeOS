@@ -7,10 +7,10 @@ import {
 import { isPaidBillingStatus } from "@/lib/admin/billing-ledger";
 import type {
   BillingRegisterRow,
+  BillingExecutionState,
   BillingStatus,
   BillingWorkspaceData,
   BillingWorkspaceOverview,
-  StripePaymentStatus,
 } from "@/lib/admin/billing-workspace-types";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import {
@@ -33,6 +33,12 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
 } from "@/lib/care-operations/model";
+import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
+import {
+  automaticBillingServiceMonth,
+  dollarsToBillingCents,
+} from "@/lib/billing/automatic-billing-rules";
+import { isMembershipBillingAuthorized } from "@/lib/billing/membership-billing-authorization";
 
 interface MembershipBillingRow {
   id: string;
@@ -48,6 +54,7 @@ interface MembershipBillingRow {
   stripe_customer_id: string | null;
   stripe_payment_method_id: string | null;
   agreement_id: string | null;
+  automatic_billing_enabled: boolean;
 }
 
 interface HomeownerBillingRow {
@@ -80,12 +87,53 @@ interface ChargeBillingRow {
 interface AgreementBillingRow {
   id: string;
   agreement_pdf_url: string | null;
+  status: string;
+  membership_id: string | null;
+  property_id: string | null;
+  billing_authorization_version: string | null;
+  billing_authorized_at: string | null;
+  authorized_visit_price_cents: number | null;
+  billing_terms_hash: string | null;
 }
 
 interface AppointmentBillingRow {
   id: string;
   property_id: string;
+  external_id: string;
   scheduled_at: string;
+}
+
+interface JobberVisitProjectionBillingRow {
+  external_visit_id: string;
+  external_job_id: string;
+  external_property_id: string;
+  match_state: string;
+  matched_property_id: string | null;
+}
+
+interface MembershipJobLinkBillingRow {
+  external_job_id: string;
+  external_property_id: string;
+  membership_id: string;
+  property_id: string;
+}
+
+interface JobberPropertyLinkBillingRow {
+  external_property_id: string;
+  membership_id: string;
+  property_id: string;
+}
+
+interface BillingOrderWorkspaceRow {
+  id: string;
+  membership_id: string;
+  service_month: string;
+  execution_state: BillingExecutionState;
+  failure_code: string | null;
+  failure_message: string | null;
+  attempt_count: number;
+  next_attempt_at: string | null;
+  created_at: string;
 }
 
 const EMPTY_OVERVIEW: BillingWorkspaceOverview = {
@@ -162,7 +210,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   const { data: memberships, error: membershipError } = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, status, sales_tier, visit_price, membership_enrollment_savings, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id",
+      "id, homeowner_id, property_id, status, sales_tier, visit_price, membership_enrollment_savings, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id, automatic_billing_enabled",
     )
     .in("status", ["active", "pending_payment", "paused"])
     .order("started_at", { ascending: true });
@@ -199,6 +247,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     chargesRes,
     agreementsRes,
     appointmentsRes,
+    billingOrdersRes,
+    membershipJobLinksRes,
+    propertyLinksRes,
   ] = await Promise.all([
     supabase
       .from("homeowners")
@@ -223,12 +274,14 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     agreementIds.length > 0
       ? supabase
           .from("signed_agreements")
-          .select("id, agreement_pdf_url")
+          .select(
+            "id, agreement_pdf_url, status, membership_id, property_id, billing_authorization_version, billing_authorized_at, authorized_visit_price_cents, billing_terms_hash",
+          )
           .in("id", agreementIds)
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("member_appointments")
-      .select("id, property_id, scheduled_at")
+      .select("id, property_id, external_id, scheduled_at")
       .in("property_id", propertyIds)
       .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
       .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
@@ -236,6 +289,28 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
       .eq("status", "scheduled")
       .order("scheduled_at", { ascending: true }),
+    supabase
+      .from("billing_orders")
+      .select(
+        "id, membership_id, service_month, execution_state, failure_code, failure_message, attempt_count, next_attempt_at, created_at",
+      )
+      .in("membership_id", membershipIds)
+      .neq("execution_state", "void")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("jobber_membership_job_links")
+      .select(
+        "external_job_id, external_property_id, membership_id, property_id",
+      )
+      .in("membership_id", membershipIds)
+      .eq("connection_id", JOBBER_CONNECTION_ID)
+      .eq("link_state", "active"),
+    supabase
+      .from("jobber_property_links")
+      .select("external_property_id, membership_id, property_id")
+      .in("membership_id", membershipIds)
+      .eq("connection_id", JOBBER_CONNECTION_ID)
+      .eq("link_state", "active"),
   ]);
 
   if (homeownersRes.error) throw new Error(homeownersRes.error.message);
@@ -248,6 +323,28 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   }
   if (agreementsRes.error) throw new Error(agreementsRes.error.message);
   if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
+  if (billingOrdersRes.error) throw new Error(billingOrdersRes.error.message);
+  if (membershipJobLinksRes.error) {
+    throw new Error(membershipJobLinksRes.error.message);
+  }
+  if (propertyLinksRes.error) throw new Error(propertyLinksRes.error.message);
+
+  const appointmentRows = (appointmentsRes.data ?? []) as AppointmentBillingRow[];
+  const appointmentExternalIds = [
+    ...new Set(appointmentRows.map((appointment) => appointment.external_id)),
+  ];
+  const visitProjectionsRes = appointmentExternalIds.length
+    ? await supabase
+        .from("jobber_visit_projections")
+        .select(
+          "external_visit_id, external_job_id, external_property_id, match_state, matched_property_id",
+        )
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .in("external_visit_id", appointmentExternalIds)
+    : { data: [], error: null };
+  if (visitProjectionsRes.error) {
+    throw new Error(visitProjectionsRes.error.message);
+  }
 
   const homeownerById = new Map(
     ((homeownersRes.data ?? []) as HomeownerBillingRow[]).map((row) => [
@@ -281,11 +378,39 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       row,
     ]),
   );
-  const appointmentByProperty = new Map<string, AppointmentBillingRow>();
-  for (const appointment of (appointmentsRes.data ?? []) as AppointmentBillingRow[]) {
-    if (!appointmentByProperty.has(appointment.property_id)) {
-      appointmentByProperty.set(appointment.property_id, appointment);
-    }
+  const appointmentsByProperty = new Map<string, AppointmentBillingRow[]>();
+  for (const appointment of appointmentRows) {
+    const list = appointmentsByProperty.get(appointment.property_id) ?? [];
+    list.push(appointment);
+    appointmentsByProperty.set(appointment.property_id, list);
+  }
+  const projectionByExternalVisitId = new Map(
+    ((visitProjectionsRes.data ?? []) as JobberVisitProjectionBillingRow[]).map(
+      (projection) => [projection.external_visit_id, projection],
+    ),
+  );
+  const activePropertyLinkKeys = new Set(
+    ((propertyLinksRes.data ?? []) as JobberPropertyLinkBillingRow[]).map(
+      (link) =>
+        `${link.membership_id}:${link.property_id}:${link.external_property_id}`,
+    ),
+  );
+  const membershipJobLinksByMembership = new Map<
+    string,
+    MembershipJobLinkBillingRow[]
+  >();
+  for (const link of (membershipJobLinksRes.data ?? []) as MembershipJobLinkBillingRow[]) {
+    const propertyLinkKey = `${link.membership_id}:${link.property_id}:${link.external_property_id}`;
+    if (!activePropertyLinkKeys.has(propertyLinkKey)) continue;
+    const list = membershipJobLinksByMembership.get(link.membership_id) ?? [];
+    list.push(link);
+    membershipJobLinksByMembership.set(link.membership_id, list);
+  }
+  const billingOrdersByMembership = new Map<string, BillingOrderWorkspaceRow[]>();
+  for (const order of (billingOrdersRes.data ?? []) as BillingOrderWorkspaceRow[]) {
+    const list = billingOrdersByMembership.get(order.membership_id) ?? [];
+    list.push(order);
+    billingOrdersByMembership.set(order.membership_id, list);
   }
 
   const allCharges: ChargeBillingRow[] = chargesAvailable
@@ -316,11 +441,45 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       status: row.status as "paid" | "charged" | "failed" | "pending",
       chargedAt: row.charged_at,
     }));
-    const billingPeriod = resolveNextChargeDate(
+    const membershipJobLinks =
+      membershipJobLinksByMembership.get(membership.id) ?? [];
+    const nextAppointment = (
+      appointmentsByProperty.get(membership.property_id) ?? []
+    ).find((appointment) => {
+      const projection = projectionByExternalVisitId.get(
+        appointment.external_id,
+      );
+      return Boolean(
+        projection &&
+          projection.match_state === AUTHORITATIVE_APPOINTMENT_MATCH_STATE &&
+          projection.matched_property_id === membership.property_id &&
+          membershipJobLinks.some(
+            (link) =>
+              link.property_id === membership.property_id &&
+              link.external_job_id === projection.external_job_id &&
+              link.external_property_id === projection.external_property_id,
+          ),
+      );
+    });
+    const appointmentBillingPeriod = nextAppointment
+      ? automaticBillingServiceMonth(nextAppointment.scheduled_at)
+      : null;
+    const membershipBillingOrders =
+      billingOrdersByMembership.get(membership.id) ?? [];
+    const currentActionableOrder = membershipBillingOrders.find(
+      (order) =>
+        order.service_month.startsWith(referenceYm) &&
+        order.execution_state !== "succeeded",
+    );
+    const obligationBillingPeriod = resolveNextChargeDate(
       obligationInputs,
       referenceDate,
       paidServiceMonths,
     );
+    const billingPeriod =
+      currentActionableOrder?.service_month ??
+      appointmentBillingPeriod ??
+      obligationBillingPeriod;
     const nextChargeDate = billingPeriod;
     const lastChargeDate = resolveLastChargeDate(chargeInputs);
     const paymentOnFile = hasPaymentMethodOnFile(membership);
@@ -338,6 +497,13 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       ? isPaidBillingStatus(periodCharge.status)
       : false;
     const latestChargeForMonth = periodCharge?.status ?? null;
+    const billingOrder =
+      currentActionableOrder ??
+      (billingPeriod
+        ? membershipBillingOrders.find((order) =>
+            order.service_month.startsWith(billingPeriod.slice(0, 7)),
+          ) ?? null
+        : null);
 
     let billingStatus: BillingStatus = deriveBillingStatus({
       membershipActive,
@@ -351,6 +517,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
         | null,
       referenceDate,
     });
+    if (!nextAppointment && billingStatus === "ready_to_charge") {
+      billingStatus = "upcoming";
+    }
 
     const chargedThisMonth = charges.find((row) => {
       if (!isPaidBillingStatus(row.status)) return false;
@@ -360,6 +529,20 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     });
     if (chargedThisMonth) {
       billingStatus = "charged";
+    } else if (billingOrder?.execution_state === "succeeded") {
+      billingStatus = "charged";
+    } else if (
+      billingOrder &&
+      [
+        "failed_retryable",
+        "needs_action",
+        "permanently_failed",
+        "reconciliation_required",
+      ].includes(
+        billingOrder.execution_state,
+      )
+    ) {
+      billingStatus = "failed";
     }
 
     const cardOnFileLabel = paymentOnFile
@@ -372,6 +555,24 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     const agreementPdfUrl = agreement?.agreement_pdf_url
       ? await resolveAgreementPdfAccessUrl(agreement.agreement_pdf_url)
       : null;
+    const billingAuthorizationReady = isMembershipBillingAuthorized({
+      agreementId: membership.agreement_id,
+      agreementStatus: agreement?.status ?? null,
+      agreementMembershipId: agreement?.membership_id ?? null,
+      agreementPropertyId: agreement?.property_id ?? null,
+      billingAuthorizationVersion:
+        agreement?.billing_authorization_version ?? null,
+      billingAuthorizedAt: agreement?.billing_authorized_at ?? null,
+      billingTermsHash: agreement?.billing_terms_hash ?? null,
+      authorizedVisitPriceCents:
+        agreement?.authorized_visit_price_cents ?? null,
+      membershipId: membership.id,
+      propertyId: membership.property_id,
+      currentVisitPriceCents:
+        membership.visit_price === null
+          ? null
+          : dollarsToBillingCents(Number(membership.visit_price)),
+    });
 
     const tierId = normalizeToSqueegeeKingTier(
       membership.sales_tier ?? "quarterly",
@@ -391,9 +592,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
           ? Number(membership.membership_enrollment_savings)
           : null,
       nextAppointmentId:
-        appointmentByProperty.get(membership.property_id)?.id ?? null,
+        nextAppointment?.id ?? null,
       nextAppointmentDate:
-        appointmentByProperty.get(membership.property_id)?.scheduled_at ?? null,
+        nextAppointment?.scheduled_at ?? null,
       stripePaymentStatus: resolveStripePaymentStatus(membership),
       cardOnFileLabel,
       stripeCustomerId: membership.stripe_customer_id,
@@ -404,12 +605,23 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       canRecordCharge:
         membershipActive &&
         paymentOnFile &&
+        Boolean(nextAppointment) &&
         !periodAlreadyPaid &&
         (billingStatus === "ready_to_charge" || billingStatus === "failed"),
       billingStatus,
       agreementId: membership.agreement_id,
       agreementPdfUrl,
       chargeAction: "complete_and_charge",
+      automaticBillingEnabled: membership.automatic_billing_enabled,
+      billingAuthorizationReady,
+      membershipJobClassified: membershipJobLinks.length > 0,
+      verifiedServiceVisitReady: Boolean(nextAppointment),
+      billingOrderId: billingOrder?.id ?? null,
+      billingExecutionState: billingOrder?.execution_state ?? null,
+      billingFailureCode: billingOrder?.failure_code ?? null,
+      billingFailureMessage: billingOrder?.failure_message ?? null,
+      billingAttemptCount: billingOrder?.attempt_count ?? 0,
+      billingNextAttemptAt: billingOrder?.next_attempt_at ?? null,
     });
   }
 

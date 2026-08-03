@@ -74,6 +74,22 @@ function inputToRow(
     sms_consent_status: input.smsConsentStatus,
     sms_consent_recorded_at:
       input.smsConsentStatus === "opted_in" ? submittedAt : null,
+    sms_consent_disclosure_version:
+      input.smsConsentStatus === "opted_in"
+        ? input.smsConsentDisclosureVersion ?? null
+        : null,
+    sms_consent_source_path:
+      input.smsConsentStatus === "opted_in"
+        ? input.smsConsentSourcePath ?? null
+        : null,
+    sms_consent_ip_address:
+      input.smsConsentStatus === "opted_in"
+        ? input.smsConsentIpAddress ?? null
+        : null,
+    sms_consent_user_agent:
+      input.smsConsentStatus === "opted_in"
+        ? input.smsConsentUserAgent ?? null
+        : null,
     notes: input.notes,
     membership_tier: input.membershipTier,
     square_footage: input.squareFootage,

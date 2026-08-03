@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import {
   linkJobberProperty,
+  linkJobberMembershipJob,
   loadJobberPropertyMatchingWorkspace,
   revokeJobberPropertyLink,
+  revokeJobberMembershipJob,
   SupervisedPropertyMatchError,
 } from "@/lib/care-operations/jobber-property-matching";
 
@@ -45,11 +47,13 @@ export async function POST(request: Request) {
     return unauthorized();
   }
   let body: {
-    action?: "link" | "revoke";
+    action?: "link" | "revoke" | "link_job" | "revoke_job";
     projectionId?: string;
     membershipId?: string;
     samePhysicalPropertyConfirmed?: boolean;
+    membershipServiceConfirmed?: boolean;
     expectedLinkUpdatedAt?: string | null;
+    expectedJobLinkUpdatedAt?: string | null;
     search?: string;
     page?: number;
   };
@@ -103,8 +107,50 @@ export async function POST(request: Request) {
       });
     }
 
+    if (body.action === "link_job") {
+      if (!body.projectionId) {
+        throw new SupervisedPropertyMatchError(
+          "Select a Jobber visit before classifying its recurring job.",
+          400,
+        );
+      }
+      const outcome = await linkJobberMembershipJob({
+        projectionId: body.projectionId,
+        membershipServiceConfirmed:
+          body.membershipServiceConfirmed === true,
+        expectedJobLinkUpdatedAt: body.expectedJobLinkUpdatedAt,
+      });
+      return NextResponse.json({
+        outcome,
+        workspace: await loadJobberPropertyMatchingWorkspace({
+          search: body.search,
+          page: body.page,
+        }),
+      });
+    }
+
+    if (body.action === "revoke_job") {
+      if (!body.projectionId || !body.expectedJobLinkUpdatedAt) {
+        throw new SupervisedPropertyMatchError(
+          "Refresh the membership job before removing its classification.",
+          400,
+        );
+      }
+      const outcome = await revokeJobberMembershipJob({
+        projectionId: body.projectionId,
+        expectedJobLinkUpdatedAt: body.expectedJobLinkUpdatedAt,
+      });
+      return NextResponse.json({
+        outcome,
+        workspace: await loadJobberPropertyMatchingWorkspace({
+          search: body.search,
+          page: body.page,
+        }),
+      });
+    }
+
     return NextResponse.json(
-      { error: "Choose link or revoke." },
+      { error: "Choose a property or membership-job action." },
       { status: 400 },
     );
   } catch (error) {
@@ -116,10 +162,13 @@ export async function POST(request: Request) {
     }
     const message = error instanceof Error ? error.message : "Write failed";
     console.error("[jobber-property-links] supervised write failed:", message);
+    const membershipJobAction =
+      body.action === "link_job" || body.action === "revoke_job";
     return NextResponse.json(
       {
-        error:
-          "The property link was not changed. Refresh and verify both properties before trying again.",
+        error: membershipJobAction
+          ? "The membership-job classification was not changed. Refresh and verify the exact recurring Jobber job before trying again."
+          : "The property link was not changed. Refresh and verify both properties before trying again.",
       },
       { status: 503 },
     );

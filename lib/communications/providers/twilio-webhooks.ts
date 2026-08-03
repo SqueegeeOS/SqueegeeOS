@@ -43,9 +43,34 @@ function readFormValue(input: TwilioFormInput, key: string): string | null {
 }
 
 export function classifySmsConsentKeyword(body: string): SmsConsentKeyword {
-  const normalized = body.trim().toUpperCase();
+  const normalized = body
+    .trim()
+    .toUpperCase()
+    .replace(/[.!?,;:]+$/g, "")
+    .replace(/\s+/g, " ");
   if (STOP_KEYWORDS.has(normalized)) return "stop";
   if (START_KEYWORDS.has(normalized)) return "start";
+
+  // Do not require customers to remember a machine-perfect keyword. Clear,
+  // ordinary-language revocations must stop Atlas sends too. These patterns
+  // are intentionally specific so messages such as "don't stop by today" do
+  // not accidentally change consent.
+  if (
+    /\b(?:PLEASE\s+)?(?:STOP|QUIT|END|CANCEL)\s+(?:TEXT(?:ING|S)?|MESSAG(?:E|ES|ING)|SMS|CONTACT(?:ING)?|SENDING)\b/.test(
+      normalized,
+    ) ||
+    /^(?:PLEASE\s+)?(?:DO NOT|DON'T|DONT)\s+(?:TEXT|MESSAGE|CONTACT)(?:\s+(?:ME|US|THIS NUMBER|AGAIN|ANYMORE))?(?:\s+PLEASE)?$/.test(
+      normalized,
+    ) ||
+    /\b(?:DO NOT|DON'T|DONT)\s+SEND\s+(?:ME\s+)?(?:TEXTS?|MESSAGES?|SMS)\b/.test(
+      normalized,
+    ) ||
+    /\b(?:REMOVE|TAKE)\s+ME\s+(?:OFF|FROM)\b/.test(normalized) ||
+    /\bNO\s+MORE\s+(?:TEXTS?|MESSAGES?|SMS)\b/.test(normalized) ||
+    /\bUNSUBSCRIBE\s+ME\b/.test(normalized)
+  ) {
+    return "stop";
+  }
   return "none";
 }
 

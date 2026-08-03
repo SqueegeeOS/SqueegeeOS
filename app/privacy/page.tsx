@@ -19,7 +19,10 @@ export default function PrivacyPolicyPage() {
           customer records, and operate this website. We collect information
           you submit, such as your name, contact details, property information,
           requested services, and communication preferences, so we can answer
-          you and provide service.
+          you and provide service. When you opt in to text messages, we also
+          retain the disclosure version and limited request context, such as
+          the page, timestamp, IP address, and browser user agent, as evidence
+          of that choice.
         </p>
 
         <section>
@@ -64,6 +67,13 @@ export default function PrivacyPolicyPage() {
             service, meet legal obligations, resolve disputes, and maintain the
             history customers expect in HomeAtlas.
           </p>
+          <p className="mt-3">
+            Mobile phone information, text-message opt-in records, and consent
+            are not sold or shared with third parties or affiliates for their
+            marketing or promotional purposes. We share them only with vendors
+            needed to deliver the messages you requested and operate the
+            service.
+          </p>
         </section>
 
         <section>
@@ -72,6 +82,8 @@ export default function PrivacyPolicyPage() {
             You may ask to review, correct, or delete information you provided,
             subject to records we must keep. You can also opt out of marketing
             messages using the instructions in the message or by contacting us.
+            For transactional texts, reply STOP to opt out or HELP for help;
+            message and data rates may apply and message frequency varies.
           </p>
         </section>
 

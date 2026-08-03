@@ -1,4 +1,10 @@
 import { enrollmentSavingsForPresentation } from "@/lib/presentations/calculations";
+import {
+  isMembershipBillingAuthorized,
+  membershipBillingTermsHash,
+  MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
+} from "@/lib/billing/membership-billing-authorization";
+import { dollarsToBillingCents } from "@/lib/billing/automatic-billing-rules";
 import type { AgreementEmailResult } from "@/lib/agreement/agreement-email-types";
 import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
@@ -324,7 +330,9 @@ export async function completeSignOnboarding(
 
   const { data: existingAgreement } = await supabase
     .from("signed_agreements")
-    .select("id, agreement_pdf_url, storage_backend")
+    .select(
+      "id, agreement_pdf_url, storage_backend, status, membership_id, property_id, billing_authorization_version, billing_authorized_at, authorized_visit_price_cents, billing_terms_hash",
+    )
     .eq("presentation_id", presentation.id)
     .eq("status", "complete")
     .order("signed_at", { ascending: false })
@@ -337,6 +345,9 @@ export async function completeSignOnboarding(
   let pdfBackend: "supabase" | "data_url";
   let pdfBytesForEmail: Uint8Array | null = null;
   let pdfFileNameForEmail: string | null = null;
+  const authorizedVisitPriceCents = dollarsToBillingCents(input.visitPrice);
+  const billingTermsHash = membershipBillingTermsHash();
+  let agreementBillingAuthorized = false;
 
   if (existingAgreement?.id) {
     agreementId = existingAgreement.id as string;
@@ -344,6 +355,27 @@ export async function completeSignOnboarding(
     pdfAccessUrl = pdfStorageRef;
     pdfBackend =
       existingAgreement.storage_backend === "supabase" ? "supabase" : "data_url";
+    agreementBillingAuthorized = isMembershipBillingAuthorized({
+      agreementId,
+      agreementStatus: existingAgreement.status as string | null,
+      agreementMembershipId:
+        (existingAgreement.membership_id as string | null) ?? null,
+      agreementPropertyId:
+        (existingAgreement.property_id as string | null) ?? null,
+      billingAuthorizationVersion:
+        (existingAgreement.billing_authorization_version as string | null) ??
+        null,
+      billingAuthorizedAt:
+        (existingAgreement.billing_authorized_at as string | null) ?? null,
+      billingTermsHash:
+        (existingAgreement.billing_terms_hash as string | null) ?? null,
+      authorizedVisitPriceCents:
+        (existingAgreement.authorized_visit_price_cents as number | null) ??
+        null,
+      membershipId,
+      propertyId: property.id as string,
+      currentVisitPriceCents: authorizedVisitPriceCents,
+    });
   } else {
     const pdfBytes = await generateSignedPDF({
       memberName: presentation.clientName,
@@ -402,6 +434,11 @@ export async function completeSignOnboarding(
         signature_image_storage_path: storedSignature?.storagePath ?? null,
         status: "complete",
         storage_backend: "supabase",
+        billing_authorization_version:
+          MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
+        billing_authorized_at: input.signedAt,
+        authorized_visit_price_cents: authorizedVisitPriceCents,
+        billing_terms_hash: billingTermsHash,
       })
       .select("id")
       .single();
@@ -414,6 +451,55 @@ export async function completeSignOnboarding(
     }
 
     agreementId = agreement.id as string;
+    agreementBillingAuthorized = true;
+  }
+
+  if (agreementBillingAuthorized) {
+    const authorizationEvidence = {
+      membership_id: membershipId,
+      agreement_id: agreementId,
+      authorization_version: MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
+      authorized_visit_price_cents: authorizedVisitPriceCents,
+      billing_terms_hash: billingTermsHash,
+      actor: "customer_signature",
+      evidence_source: "customer_signature",
+      occurred_at:
+        (existingAgreement?.billing_authorized_at as string | null) ??
+        input.signedAt,
+    };
+    const authorizationEvent = await supabase
+      .from("membership_billing_authorization_events")
+      .upsert(authorizationEvidence, {
+        onConflict:
+          "membership_id,agreement_id,authorization_version,evidence_source",
+        ignoreDuplicates: true,
+      });
+    if (authorizationEvent.error) {
+      throw new SignOnboardingError(
+        `Agreement saved but billing authorization audit failed: ${authorizationEvent.error.message}`,
+        { membershipId, agreementId, onboardingStatus: "pending_payment" },
+      );
+    }
+    const storedEvidence = await supabase
+      .from("membership_billing_authorization_events")
+      .select("authorized_visit_price_cents, billing_terms_hash")
+      .eq("membership_id", membershipId)
+      .eq("agreement_id", agreementId)
+      .eq("authorization_version", MEMBERSHIP_BILLING_AUTHORIZATION_VERSION)
+      .eq("evidence_source", "customer_signature")
+      .maybeSingle();
+    if (
+      storedEvidence.error ||
+      !storedEvidence.data ||
+      storedEvidence.data.authorized_visit_price_cents !==
+        authorizedVisitPriceCents ||
+      storedEvidence.data.billing_terms_hash !== billingTermsHash
+    ) {
+      throw new SignOnboardingError(
+        `Agreement saved but billing authorization evidence could not be verified: ${storedEvidence.error?.message ?? "evidence mismatch"}`,
+        { membershipId, agreementId, onboardingStatus: "pending_payment" },
+      );
+    }
   }
 
   const { error: membershipLinkError } = await supabase
@@ -421,6 +507,13 @@ export async function completeSignOnboarding(
     .update({
       agreement_id: agreementId,
       presentation_id: presentation.id,
+      automatic_billing_enabled: agreementBillingAuthorized,
+      automatic_billing_paused_at: agreementBillingAuthorized
+        ? null
+        : new Date().toISOString(),
+      automatic_billing_pause_reason: agreementBillingAuthorized
+        ? null
+        : "Signed agreement requires billing-authorization review",
     })
     .eq("id", membershipId);
 

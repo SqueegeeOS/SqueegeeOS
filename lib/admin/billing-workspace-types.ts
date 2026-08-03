@@ -11,6 +11,17 @@ export type StripePaymentStatus =
   | "payment_pending"
   | "not_configured";
 
+export type BillingExecutionState =
+  | "disabled"
+  | "pending"
+  | "processing"
+  | "succeeded"
+  | "failed_retryable"
+  | "needs_action"
+  | "permanently_failed"
+  | "reconciliation_required"
+  | "void";
+
 export interface BillingWorkspaceOverview {
   readyToBillCount: number;
   expectedRevenueThisMonth: number;
@@ -42,6 +53,16 @@ export interface BillingRegisterRow {
   agreementId: string | null;
   agreementPdfUrl: string | null;
   chargeAction: "complete_and_charge" | "manual_charge";
+  automaticBillingEnabled: boolean;
+  billingAuthorizationReady: boolean;
+  membershipJobClassified: boolean;
+  verifiedServiceVisitReady: boolean;
+  billingOrderId: string | null;
+  billingExecutionState: BillingExecutionState | null;
+  billingFailureCode: string | null;
+  billingFailureMessage: string | null;
+  billingAttemptCount: number;
+  billingNextAttemptAt: string | null;
 }
 
 export interface BillingWorkspaceData {

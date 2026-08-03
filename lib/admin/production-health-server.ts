@@ -127,6 +127,24 @@ async function runSchemaChecks(
       "signature_image_storage_path",
     ),
     probeTableColumn(supabase, "signed_agreements", "agreement_pdf_url"),
+    probeTableColumn(
+      supabase,
+      "signed_agreements",
+      "authorized_visit_price_cents",
+    ),
+    probeTableColumn(supabase, "memberships", "automatic_billing_enabled"),
+    probeTableColumn(supabase, "billing_automation_settings"),
+    probeTableColumn(supabase, "jobber_membership_job_links"),
+    probeTableColumn(
+      supabase,
+      "lead_intakes",
+      "sms_consent_disclosure_version",
+    ),
+    probeTableColumn(supabase, "customer_contact_consent_events"),
+    probeTableColumn(
+      supabase,
+      "customer_communication_provider_verifications",
+    ),
   ]);
 
   const labels = [
@@ -138,6 +156,13 @@ async function runSchemaChecks(
     "obligation_events",
     "signed_agreements.signature_image_storage_path",
     "signed_agreements.agreement_pdf_url",
+    "signed_agreements.authorized_visit_price_cents",
+    "memberships.automatic_billing_enabled",
+    "billing_automation_settings",
+    "jobber_membership_job_links",
+    "lead_intakes.sms_consent_disclosure_version",
+    "customer_contact_consent_events",
+    "customer_communication_provider_verifications",
   ];
 
   const checks = probes.map((probe, index) =>
@@ -211,6 +236,7 @@ function runStripeChecks(): ProductionHealthSection {
   const liveMode = isStripeLiveMode();
   const mockEnabled = allowsMockWebsiteMembershipSales();
   const setupRouteReady = isSupabaseConfigured() && stripeEnabled;
+  const webhookReady = Boolean(process.env.STRIPE_WEBHOOK_SECRET?.trim());
 
   const checks: ProductionHealthCheck[] = [
     check(
@@ -238,6 +264,14 @@ function runStripeChecks(): ProductionHealthSection {
       setupRouteReady
         ? "/api/stripe/setup-intent prerequisites satisfied"
         : "SetupIntent route will return 503",
+    ),
+    check(
+      "stripe-billing-webhook",
+      "Automatic billing webhook",
+      webhookReady ? "green" : "yellow",
+      webhookReady
+        ? "Webhook signing secret is loaded; confirm a signed delivery in Billing Control before arming"
+        : "STRIPE_WEBHOOK_SECRET missing — automatic billing stays unavailable",
     ),
     check(
       "stripe-mock-mode",

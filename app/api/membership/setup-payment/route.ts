@@ -20,6 +20,7 @@ import { recordWebsiteMembershipSale } from "@/lib/admin/record-website-membersh
 import type { WebsiteMembershipSaleActivationMode } from "@/lib/admin/website-membership-sales-types";
 import { persistMembershipEnrollmentSavings } from "@/lib/membership/persist-membership-enrollment-savings";
 import { authorizeMembershipAction } from "@/lib/membership/authorize-membership-action";
+import { automaticBillingServiceMonth } from "@/lib/billing/automatic-billing-rules";
 
 type ActivationRepairStep =
   | "obligations"
@@ -27,6 +28,52 @@ type ActivationRepairStep =
   | "enrollment_savings"
   | "presentation_status"
   | "welcome_email";
+
+async function recordActiveMemberCardUpdate(
+  supabase: SupabaseClient,
+  membershipId: string,
+): Promise<{ billingRetryRequired: boolean; affectedOrderCount: number }> {
+  const serviceMonth = automaticBillingServiceMonth(new Date());
+  if (!serviceMonth) {
+    return { billingRetryRequired: false, affectedOrderCount: 0 };
+  }
+  try {
+    const orders = await supabase
+      .from("billing_orders")
+      .select("id")
+      .eq("membership_id", membershipId)
+      .eq("service_month", serviceMonth)
+      .eq("execution_state", "needs_action")
+      .neq("preview_state", "void");
+    if (orders.error) throw new Error(orders.error.message);
+    const orderIds = (orders.data ?? []).map((order) => order.id as string);
+    if (orderIds.length > 0) {
+      const events = await supabase.from("billing_order_events").insert(
+        orderIds.map((billingOrderId) => ({
+          billing_order_id: billingOrderId,
+          event_type: "inputs_changed",
+          actor: "member_card_update",
+          reason:
+            "Member saved a new card; the failed charge still requires an explicit founder retry",
+          event_data: { service_month: serviceMonth },
+        })),
+      );
+      if (events.error) throw new Error(events.error.message);
+    }
+    return {
+      billingRetryRequired: orderIds.length > 0,
+      affectedOrderCount: orderIds.length,
+    };
+  } catch (error) {
+    // The card is already safely stored in Stripe and on the membership. Do not
+    // report that operation as failed because a non-financial HQ audit note did.
+    console.warn("[setup-payment] card-update billing audit skipped", {
+      membershipId,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return { billingRetryRequired: false, affectedOrderCount: 0 };
+  }
+}
 
 function publicWelcomeResult(result: AgreementEmailResult) {
   return {
@@ -238,13 +285,19 @@ export async function POST(req: NextRequest) {
     }
 
     const paymentCompletedAt = membership.payment_setup_completed_at;
-    if (
+    const membershipAlreadyActive = Boolean(
       paymentCompletedAt &&
-      isMembershipActive({
-        status: membership.status,
-        payment_setup_completed_at: paymentCompletedAt,
-      })
+        isMembershipActive({
+          status: membership.status,
+          payment_setup_completed_at: paymentCompletedAt,
+        }),
+    );
+    if (
+      membershipAlreadyActive &&
+      !paymentMethodId &&
+      !setupIntentId
     ) {
+      const activePaymentCompletedAt = paymentCompletedAt!;
       const portalUrl = await getPortalAccessUrlForMembership(
         membership.id,
         req.nextUrl.origin,
@@ -252,8 +305,8 @@ export async function POST(req: NextRequest) {
       const activation = await finishActivationSideEffects({
         supabase,
         membership,
-        paymentSetupCompletedAt: paymentCompletedAt,
-        startedAt: membership.started_at ?? paymentCompletedAt,
+        paymentSetupCompletedAt: activePaymentCompletedAt,
+        startedAt: membership.started_at ?? activePaymentCompletedAt,
         presentationId: membership.presentation_id,
         activationMode: isStripeServerEnabled() ? "stripe" : "mock",
         portalUrl,
@@ -345,6 +398,39 @@ export async function POST(req: NextRequest) {
         { error: "Stripe is not configured — cannot save payment method" },
         { status: 400 },
       );
+    }
+
+    if (membershipAlreadyActive && stripeEnabled) {
+      const { error: updatePaymentMethodError } = await supabase
+        .from("memberships")
+        .update({
+          stripe_customer_id: stripeCustomerId,
+          stripe_payment_method_id: stripePaymentMethodId,
+        })
+        .eq("id", membership.id);
+      if (updatePaymentMethodError) {
+        throw new Error(updatePaymentMethodError.message);
+      }
+      const portalUrl = await getPortalAccessUrlForMembership(
+        membership.id,
+        req.nextUrl.origin,
+      );
+      const billingFollowUp = await recordActiveMemberCardUpdate(
+        supabase,
+        membership.id,
+      );
+      return NextResponse.json({
+        membershipId: membership.id,
+        presentationId: membership.presentation_id,
+        status: "active",
+        onboardingStatus: "complete",
+        mode: "stripe",
+        alreadyActive: true,
+        paymentMethodUpdated: true,
+        billingRetryRequired: billingFollowUp.billingRetryRequired,
+        affectedBillingOrderCount: billingFollowUp.affectedOrderCount,
+        portalUrl,
+      });
     }
 
     const now = new Date().toISOString();

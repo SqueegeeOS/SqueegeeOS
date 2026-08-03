@@ -241,6 +241,49 @@ function bestContactPoint(
   );
 }
 
+/**
+ * Prefer an explicitly managed email contact point. If a delivery webhook has
+ * marked the homeowner's raw email invalid, preserve that suppression instead
+ * of silently falling back to the same address as an unverified destination.
+ */
+export function resolveHomeownerEmailDestination(
+  points: CustomerContactPoint[],
+  homeownerEmail: string | null,
+): CommunicationDestination | null {
+  const preferred = bestContactPoint(points, "email");
+  if (preferred) {
+    return {
+      address: preferred.addressNormalized,
+      contactPointId: preferred.id,
+      consentStatus: preferred.consentStatus,
+      verificationStatus: preferred.verificationStatus,
+    };
+  }
+  if (!homeownerEmail) return null;
+
+  const invalidRawAddress = points.find(
+    (point) =>
+      point.channel === "email" &&
+      point.verificationStatus === "invalid" &&
+      normalizeEmailDestination(point.addressNormalized) === homeownerEmail,
+  );
+  if (invalidRawAddress) {
+    return {
+      address: homeownerEmail,
+      contactPointId: invalidRawAddress.id,
+      consentStatus: invalidRawAddress.consentStatus,
+      verificationStatus: "invalid",
+    };
+  }
+
+  return {
+    address: homeownerEmail,
+    contactPointId: null,
+    consentStatus: "unknown",
+    verificationStatus: "unverified",
+  };
+}
+
 export function normalizeCustomerPhone(value: string | null | undefined): string | null {
   const direct = normalizeE164(value);
   if (direct) return direct;
@@ -248,6 +291,39 @@ export function normalizeCustomerPhone(value: string | null | undefined): string
   if (digits.length === 10) return `+1${digits}`;
   if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
   return null;
+}
+
+/**
+ * A managed SMS contact point is valid for outbound use only while it matches
+ * the homeowner's current phone field. Editing the customer phone therefore
+ * fails closed until HQ records explicit consent for that exact new number.
+ */
+export function resolveHomeownerSmsDestination(
+  points: CustomerContactPoint[],
+  homeownerPhone: string | null,
+): CommunicationDestination | null {
+  if (!homeownerPhone) return null;
+  const exactPoint = bestContactPoint(
+    points.filter(
+      (point) =>
+        point.channel === "sms" &&
+        normalizeCustomerPhone(point.addressNormalized) === homeownerPhone,
+    ),
+    "sms",
+  );
+  return exactPoint
+    ? {
+        address: homeownerPhone,
+        contactPointId: exactPoint.id,
+        consentStatus: exactPoint.consentStatus,
+        verificationStatus: exactPoint.verificationStatus,
+      }
+    : {
+        address: homeownerPhone,
+        contactPointId: null,
+        consentStatus: "unknown",
+        verificationStatus: "unverified",
+      };
 }
 
 export function maskCommunicationAddress(
@@ -435,29 +511,13 @@ export async function loadCommunicationConversationContexts(
     const points = conversation.homeownerId
       ? pointsByHomeowner.get(conversation.homeownerId) ?? []
       : [];
-    const emailPoint = bestContactPoint(points, "email");
-    const smsPoint = bestContactPoint(points, "sms");
     const homeownerEmail = normalizeEmailDestination(homeowner?.email);
     const homeownerPhone = normalizeCustomerPhone(homeowner?.phone);
     const leadEmail = normalizeEmailDestination(lead?.email);
     const leadPhone = normalizeCustomerPhone(lead?.phone);
 
     const email: CommunicationDestination | null = homeowner
-      ? emailPoint
-        ? {
-            address: emailPoint.addressNormalized,
-            contactPointId: emailPoint.id,
-            consentStatus: emailPoint.consentStatus,
-            verificationStatus: emailPoint.verificationStatus,
-          }
-        : homeownerEmail
-          ? {
-              address: homeownerEmail,
-              contactPointId: null,
-              consentStatus: "unknown",
-              verificationStatus: "unverified",
-            }
-          : null
+      ? resolveHomeownerEmailDestination(points, homeownerEmail)
       : leadEmail
         ? {
             address: leadEmail,
@@ -474,21 +534,7 @@ export async function loadCommunicationConversationContexts(
         : null;
 
     const sms: CommunicationDestination | null = homeowner
-      ? smsPoint
-        ? {
-            address: normalizeCustomerPhone(smsPoint.addressNormalized) ?? smsPoint.addressNormalized,
-            contactPointId: smsPoint.id,
-            consentStatus: smsPoint.consentStatus,
-            verificationStatus: smsPoint.verificationStatus,
-          }
-        : homeownerPhone
-          ? {
-              address: homeownerPhone,
-              contactPointId: null,
-              consentStatus: "unknown",
-              verificationStatus: "unverified",
-            }
-          : null
+      ? resolveHomeownerSmsDestination(points, homeownerPhone)
       : leadPhone
         ? {
             address: leadPhone,
