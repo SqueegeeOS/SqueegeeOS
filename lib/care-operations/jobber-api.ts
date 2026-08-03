@@ -30,6 +30,7 @@ export interface JobberVisitNode {
   endAt: string | null;
   completedAt: string | null;
   invoice: { id: string; invoiceStatus: string } | null;
+  invoiceReadState: "available" | "permission_hidden";
   client: { id: string; name: string };
   property: { id: string; jobberWebUri: string };
   job: {
@@ -127,6 +128,37 @@ export const JOBBER_VISITS_QUERY = `
         endAt
         completedAt
         invoice { id invoiceStatus }
+        client { id name }
+        property { id jobberWebUri }
+        job {
+          id
+          jobNumber
+          title
+          jobStatus
+          jobType
+          billingType
+          total
+          willClientBeAutomaticallyCharged
+        }
+      }
+      pageInfo { endCursor hasNextPage }
+    }
+  }
+`;
+
+export const JOBBER_VISITS_WITHOUT_INVOICE_QUERY = `
+  query HomeAtlasVisitsWithoutInvoice($first: Int!, $after: String) {
+    visits(first: $first, after: $after) {
+      nodes {
+        id
+        title
+        visitStatus
+        isComplete
+        clientConfirmed
+        isLastScheduledVisit
+        startAt
+        endAt
+        completedAt
         client { id name }
         property { id jobberWebUri }
         job {
@@ -436,16 +468,51 @@ export async function fetchJobberVisitPage(
 ): Promise<JobberVisitPage> {
   const first = options.first ?? JOBBER_PAGE_SIZE;
   validatePageSize(first);
-  const data = await fetchJobberGraphql<{ visits?: JobberVisitPage }>(
-    accessToken,
-    JOBBER_VISITS_QUERY,
-    { first, after: options.after ?? null },
-    "visit",
-  );
-  if (!data.visits) {
-    throw new Error("Jobber visit query returned no visit connection");
+  const variables = { first, after: options.after ?? null };
+  type VisitWithInvoice = Omit<JobberVisitNode, "invoiceReadState">;
+  type VisitWithoutInvoice = Omit<VisitWithInvoice, "invoice">;
+  type VisitPage<T> = Omit<JobberVisitPage, "nodes"> & { nodes: T[] };
+
+  try {
+    const data = await fetchJobberGraphql<{
+      visits?: VisitPage<VisitWithInvoice>;
+    }>(accessToken, JOBBER_VISITS_QUERY, variables, "visit");
+    if (!data.visits) {
+      throw new Error("Jobber visit query returned no visit connection");
+    }
+    return {
+      ...data.visits,
+      nodes: data.visits.nodes.map((visit) => ({
+        ...visit,
+        invoiceReadState: "available" as const,
+      })),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/object of type invoice was hidden due to permissions/i.test(message)) {
+      throw error;
+    }
   }
-  return data.visits;
+
+  const fallback = await fetchJobberGraphql<{
+    visits?: VisitPage<VisitWithoutInvoice>;
+  }>(
+    accessToken,
+    JOBBER_VISITS_WITHOUT_INVOICE_QUERY,
+    variables,
+    "visit without invoice visibility",
+  );
+  if (!fallback.visits) {
+    throw new Error("Jobber visit fallback query returned no visit connection");
+  }
+  return {
+    ...fallback.visits,
+    nodes: fallback.visits.nodes.map((visit) => ({
+      ...visit,
+      invoice: null,
+      invoiceReadState: "permission_hidden" as const,
+    })),
+  };
 }
 
 export async function fetchJobberClientPage(
