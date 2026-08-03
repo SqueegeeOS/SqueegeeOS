@@ -38,6 +38,7 @@ export interface BillingRegisterRow {
   propertyLabel: string;
   tierLabel: string;
   visitPrice: number | null;
+  jobberScheduledAmount: number | null;
   enrollmentSavingsPerVisit: number | null;
   nextAppointmentId: string | null;
   nextAppointmentDate: string | null;
@@ -55,7 +56,7 @@ export interface BillingRegisterRow {
   chargeAction: "complete_and_charge" | "manual_charge";
   automaticBillingEnabled: boolean;
   billingAuthorizationReady: boolean;
-  membershipJobClassified: boolean;
+  jobberPropertyPaired: boolean;
   verifiedServiceVisitReady: boolean;
   billingOrderId: string | null;
   billingExecutionState: BillingExecutionState | null;

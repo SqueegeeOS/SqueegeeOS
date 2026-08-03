@@ -179,6 +179,11 @@ export function hashJobberVisitPayload(visit: JobberVisitNode): string {
   return createHash("sha256").update(JSON.stringify(visit)).digest("hex");
 }
 
+export function jobberMoneyToCents(amount: number): number | null {
+  if (!Number.isFinite(amount) || amount < 0) return null;
+  return Math.round((amount + Number.EPSILON) * 100);
+}
+
 export function toJobberVisitProjectionRow(
   visit: JobberVisitNode,
   observedAt: string,
@@ -196,6 +201,14 @@ export function toJobberVisitProjectionRow(
     client_name: visit.client.name,
     visit_status: visit.visitStatus,
     job_status: visit.job.jobStatus,
+    client_confirmed: visit.clientConfirmed,
+    is_last_scheduled_visit: visit.isLastScheduledVisit,
+    job_type: visit.job.jobType,
+    job_billing_type: visit.job.billingType,
+    job_total_cents: jobberMoneyToCents(visit.job.total),
+    job_will_auto_charge: visit.job.willClientBeAutomaticallyCharged === true,
+    visit_invoice_id: visit.invoice?.id ?? null,
+    visit_invoice_status: visit.invoice?.invoiceStatus ?? null,
     is_complete: visit.isComplete,
     scheduled_start: visit.startAt,
     scheduled_end: visit.endAt,

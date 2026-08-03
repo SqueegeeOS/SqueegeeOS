@@ -66,7 +66,11 @@ export const MEMBERSHIP_BILLING_FINE_PRINT = `BILLING & PAYMENT
 
 ${MEMBERSHIP_BILLING_PHILOSOPHY}
 
-Your payment method on file will be charged on the 1st day of each month in which your membership visit is scheduled. Service is completed during that same calendar month. Payment is not collected at the door.
+By signing this agreement and adding a payment method, Member authorizes SqueegeeKing to keep that payment method on file and initiate one or more off-session charges on the 1st day of each month for the total price of all SqueegeeKing jobs and visits scheduled for Member in Jobber during that calendar month. This standing authorization includes membership visits and additional scheduled services or add-ons, including pressure washing, interior window cleaning, screen cleaning, cobweb removal, and similar home-care services. A separate contract is not required for each additional scheduled service.
+
+The amount may vary each month. Each charge is determined by the prices, applicable taxes, discounts, and credits recorded in Jobber for the scheduled services at the time HomeAtlas prepares the first-of-month charge. Multiple scheduled jobs or visits may result in multiple itemized charges. Member may contact SqueegeeKing before the 1st day of the service month to correct or cancel a scheduled service. Payment is not collected at the door.
+
+This authorization remains active until Member revokes it or the membership ends, subject to the Membership Agreement cancellation policy. Revocation does not affect charges already initiated for services scheduled before SqueegeeKing received the revocation.
 
 If a charge fails, scheduling and member benefits (including add-on discounts) may be suspended until payment is resolved.`;
 
@@ -91,7 +95,7 @@ export const MEMBERSHIP_SUMMARY_POINTS = [
 ] as const;
 
 export function membershipAgreementCheckboxText(): string {
-  return "I have read and agree to the SqueegeeKing Membership Agreement, including billing on the 1st of each scheduled service month with no payment collected at the door. I understand this is a legally binding signature.";
+  return "I authorize SqueegeeKing to save my payment method and automatically charge the variable total of all SqueegeeKing jobs and visits scheduled for me in Jobber on the 1st day of each service month. I have read and agree to the Membership Agreement and understand this is a legally binding signature.";
 }
 
 export function oneTimeAgreementCheckboxText(): string {

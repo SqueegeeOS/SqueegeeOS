@@ -31,7 +31,7 @@ const appointment = {
   provenanceState: "provider_imported",
   verificationState: "verified",
   matchState: "matched",
-  membershipJobVerified: true,
+  jobberBillingVerified: true,
 };
 
 describe("automatic membership billing rules", () => {

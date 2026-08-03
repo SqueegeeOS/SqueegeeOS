@@ -77,6 +77,7 @@ interface ObligationBillingRow {
 
 interface ChargeBillingRow {
   membership_id: string;
+  appointment_id: string | null;
   service_month: string;
   status: string;
   charged_at: string | null;
@@ -109,13 +110,9 @@ interface JobberVisitProjectionBillingRow {
   external_property_id: string;
   match_state: string;
   matched_property_id: string | null;
-}
-
-interface MembershipJobLinkBillingRow {
-  external_job_id: string;
-  external_property_id: string;
-  membership_id: string;
-  property_id: string;
+  job_total_cents: number | null;
+  job_will_auto_charge: boolean;
+  visit_invoice_id: string | null;
 }
 
 interface JobberPropertyLinkBillingRow {
@@ -174,7 +171,8 @@ function buildOverview(
     if (row.billingStatus === "ready_to_charge") {
       readyToBillCount += 1;
       if (row.visitPrice != null) {
-        expectedRevenueThisMonth += row.visitPrice;
+        expectedRevenueThisMonth +=
+          row.jobberScheduledAmount ?? row.visitPrice;
       }
     }
     if (row.billingStatus === "upcoming") {
@@ -248,7 +246,6 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     agreementsRes,
     appointmentsRes,
     billingOrdersRes,
-    membershipJobLinksRes,
     propertyLinksRes,
   ] = await Promise.all([
     supabase
@@ -267,7 +264,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     supabase
       .from("membership_billing_charges")
       .select(
-        "membership_id, service_month, status, charged_at, amount, amount_collected",
+        "membership_id, appointment_id, service_month, status, charged_at, amount, amount_collected",
       )
       .in("membership_id", membershipIds)
       .order("service_month", { ascending: false }),
@@ -298,14 +295,6 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       .neq("execution_state", "void")
       .order("created_at", { ascending: false }),
     supabase
-      .from("jobber_membership_job_links")
-      .select(
-        "external_job_id, external_property_id, membership_id, property_id",
-      )
-      .in("membership_id", membershipIds)
-      .eq("connection_id", JOBBER_CONNECTION_ID)
-      .eq("link_state", "active"),
-    supabase
       .from("jobber_property_links")
       .select("external_property_id, membership_id, property_id")
       .in("membership_id", membershipIds)
@@ -324,9 +313,6 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   if (agreementsRes.error) throw new Error(agreementsRes.error.message);
   if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
   if (billingOrdersRes.error) throw new Error(billingOrdersRes.error.message);
-  if (membershipJobLinksRes.error) {
-    throw new Error(membershipJobLinksRes.error.message);
-  }
   if (propertyLinksRes.error) throw new Error(propertyLinksRes.error.message);
 
   const appointmentRows = (appointmentsRes.data ?? []) as AppointmentBillingRow[];
@@ -337,7 +323,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     ? await supabase
         .from("jobber_visit_projections")
         .select(
-          "external_visit_id, external_job_id, external_property_id, match_state, matched_property_id",
+          "external_visit_id, external_job_id, external_property_id, match_state, matched_property_id, job_total_cents, job_will_auto_charge, visit_invoice_id",
         )
         .eq("connection_id", JOBBER_CONNECTION_ID)
         .in("external_visit_id", appointmentExternalIds)
@@ -395,17 +381,6 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
         `${link.membership_id}:${link.property_id}:${link.external_property_id}`,
     ),
   );
-  const membershipJobLinksByMembership = new Map<
-    string,
-    MembershipJobLinkBillingRow[]
-  >();
-  for (const link of (membershipJobLinksRes.data ?? []) as MembershipJobLinkBillingRow[]) {
-    const propertyLinkKey = `${link.membership_id}:${link.property_id}:${link.external_property_id}`;
-    if (!activePropertyLinkKeys.has(propertyLinkKey)) continue;
-    const list = membershipJobLinksByMembership.get(link.membership_id) ?? [];
-    list.push(link);
-    membershipJobLinksByMembership.set(link.membership_id, list);
-  }
   const billingOrdersByMembership = new Map<string, BillingOrderWorkspaceRow[]>();
   for (const order of (billingOrdersRes.data ?? []) as BillingOrderWorkspaceRow[]) {
     const list = billingOrdersByMembership.get(order.membership_id) ?? [];
@@ -441,8 +416,6 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       status: row.status as "paid" | "charged" | "failed" | "pending",
       chargedAt: row.charged_at,
     }));
-    const membershipJobLinks =
-      membershipJobLinksByMembership.get(membership.id) ?? [];
     const nextAppointment = (
       appointmentsByProperty.get(membership.property_id) ?? []
     ).find((appointment) => {
@@ -453,16 +426,20 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
         projection &&
           projection.match_state === AUTHORITATIVE_APPOINTMENT_MATCH_STATE &&
           projection.matched_property_id === membership.property_id &&
-          membershipJobLinks.some(
-            (link) =>
-              link.property_id === membership.property_id &&
-              link.external_job_id === projection.external_job_id &&
-              link.external_property_id === projection.external_property_id,
+          projection.job_total_cents !== null &&
+          projection.job_total_cents > 0 &&
+          projection.job_will_auto_charge === false &&
+          projection.visit_invoice_id === null &&
+          activePropertyLinkKeys.has(
+            `${membership.id}:${membership.property_id}:${projection.external_property_id}`,
           ),
       );
     });
     const appointmentBillingPeriod = nextAppointment
       ? automaticBillingServiceMonth(nextAppointment.scheduled_at)
+      : null;
+    const nextProjection = nextAppointment
+      ? projectionByExternalVisitId.get(nextAppointment.external_id) ?? null
       : null;
     const membershipBillingOrders =
       billingOrdersByMembership.get(membership.id) ?? [];
@@ -489,8 +466,10 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       ? `${billingPeriod.slice(0, 7)}-01`
       : null;
     const periodCharge = serviceMonthKey
-      ? charges.find((row) =>
-          row.service_month.startsWith(serviceMonthKey.slice(0, 7)),
+      ? charges.find(
+          (row) =>
+            row.service_month.startsWith(serviceMonthKey.slice(0, 7)) &&
+            (!nextAppointment || row.appointment_id === nextAppointment.id),
         )
       : null;
     const periodAlreadyPaid = periodCharge
@@ -523,6 +502,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
 
     const chargedThisMonth = charges.find((row) => {
       if (!isPaidBillingStatus(row.status)) return false;
+      if (nextAppointment && row.appointment_id !== nextAppointment.id) {
+        return false;
+      }
       const chargedYm =
         row.charged_at?.slice(0, 7) ?? row.service_month.slice(0, 7);
       return chargedYm === referenceYm;
@@ -587,6 +569,10 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       tierLabel: squeegeeKingTierLabel(tierId),
       visitPrice:
         membership.visit_price != null ? Number(membership.visit_price) : null,
+      jobberScheduledAmount:
+        nextProjection?.job_total_cents == null
+          ? null
+          : nextProjection.job_total_cents / 100,
       enrollmentSavingsPerVisit:
         membership.membership_enrollment_savings != null
           ? Number(membership.membership_enrollment_savings)
@@ -614,7 +600,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       chargeAction: "complete_and_charge",
       automaticBillingEnabled: membership.automatic_billing_enabled,
       billingAuthorizationReady,
-      membershipJobClassified: membershipJobLinks.length > 0,
+      jobberPropertyPaired: [...activePropertyLinkKeys].some((key) =>
+        key.startsWith(`${membership.id}:${membership.property_id}:`),
+      ),
       verifiedServiceVisitReady: Boolean(nextAppointment),
       billingOrderId: billingOrder?.id ?? null,
       billingExecutionState: billingOrder?.execution_state ?? null,

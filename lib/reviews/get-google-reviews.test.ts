@@ -83,6 +83,7 @@ describe("Google reviews source selection", () => {
         totalCount: 128,
         coverage: "complete",
         provider: "google_business_profile",
+        fetchedAt: new Date().toISOString(),
       }),
     );
 

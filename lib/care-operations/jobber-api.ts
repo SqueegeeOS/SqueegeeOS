@@ -24,9 +24,12 @@ export interface JobberVisitNode {
   title: string | null;
   visitStatus: string;
   isComplete: boolean;
+  clientConfirmed: boolean;
+  isLastScheduledVisit: boolean;
   startAt: string | null;
   endAt: string | null;
   completedAt: string | null;
+  invoice: { id: string; invoiceStatus: string } | null;
   client: { id: string; name: string };
   property: { id: string; jobberWebUri: string };
   job: {
@@ -34,6 +37,10 @@ export interface JobberVisitNode {
     jobNumber: number;
     title: string | null;
     jobStatus: string;
+    jobType: string;
+    billingType: string;
+    total: number;
+    willClientBeAutomaticallyCharged: boolean | null;
   };
 }
 
@@ -114,12 +121,24 @@ export const JOBBER_VISITS_QUERY = `
         title
         visitStatus
         isComplete
+        clientConfirmed
+        isLastScheduledVisit
         startAt
         endAt
         completedAt
+        invoice { id invoiceStatus }
         client { id name }
         property { id jobberWebUri }
-        job { id jobNumber title jobStatus }
+        job {
+          id
+          jobNumber
+          title
+          jobStatus
+          jobType
+          billingType
+          total
+          willClientBeAutomaticallyCharged
+        }
       }
       pageInfo { endCursor hasNextPage }
     }

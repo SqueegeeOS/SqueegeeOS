@@ -2,18 +2,26 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { membershipBillingTermsHash } from "./membership-billing-authorization";
 
-const migration = readFileSync(
+const legacyMigration = readFileSync(
   new URL(
     "../persistence/supabase/migrations/043_automatic_membership_billing.sql",
     import.meta.url,
   ),
   "utf8",
 );
+const currentMigration = readFileSync(
+  new URL(
+    "../persistence/supabase/migrations/046_jobber_scheduled_service_billing.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const migration = `${legacyMigration}\n${currentMigration}`;
 
 describe("automatic billing schema contract", () => {
   it("pins the approved billing disclosure hash in application and SQL", () => {
     const approvedHash =
-      "282bdc404a21df6c3600b13821e67faa3c1e17b46d8368bf3979a4fc08cec28b";
+      "ecced95eb6e32781764dccb83d1d33d5d9b1b86b2494a289ed5a0b1c6fd3b0fd";
     expect(membershipBillingTermsHash()).toBe(approvedHash);
     expect(migration.match(new RegExp(approvedHash, "g"))?.length).toBeGreaterThanOrEqual(5);
   });
@@ -63,23 +71,31 @@ describe("automatic billing schema contract", () => {
     );
   });
 
-  it("keeps one active order per member and service month", () => {
-    expect(migration).toContain(
-      "billing_orders_active_membership_month_unique",
+  it("allows multiple monthly services but only one active order per appointment", () => {
+    expect(currentMigration).toContain(
+      "drop index if exists public.billing_orders_active_membership_month_unique",
     );
-    expect(migration).toContain(
+    expect(currentMigration).toContain(
+      "billing_orders_active_appointment_unique",
+    );
+    expect(currentMigration).toContain(
       "where preview_state <> 'void' and execution_state <> 'void'",
     );
   });
 
-  it("requires a classified current Jobber membership job", () => {
-    expect(migration).toContain("jobber_membership_job_links");
-    expect(migration).toContain("projection.is_complete = false");
-    expect(migration).toContain("projection.match_state = 'matched'");
-    expect(migration).toContain(
+  it("requires an unbilled priced Jobber service at the paired property", () => {
+    expect(currentMigration).not.toContain("join public.jobber_membership_job_links");
+    expect(currentMigration).toContain("projection.is_complete = false");
+    expect(currentMigration).toContain("projection.match_state = 'matched'");
+    expect(currentMigration).toContain(
       "projection.matched_property_id = billing_order.property_id",
     );
-    expect(migration).not.toContain("connection_id = 'primary'");
+    expect(currentMigration).toContain(
+      "projection.job_total_cents = billing_order.expected_charge_cents",
+    );
+    expect(currentMigration).toContain("projection.job_will_auto_charge = false");
+    expect(currentMigration).toContain("projection.visit_invoice_id is null");
+    expect(currentMigration).toContain("property_link.link_state = 'active'");
   });
 
   it("claims due work, lease recovery, and its attempt row atomically", () => {
@@ -102,7 +118,7 @@ describe("automatic billing schema contract", () => {
       "settings.stripe_webhook_secret_fingerprint = p_webhook_secret_fingerprint",
     );
     expect(
-      migration.match(
+      currentMigration.match(
         /billing_order\.execution_state = 'processing'\s+and billing_order\.stripe_payment_intent_id is not null\s+and billing_order\.lease_expires_at <= p_now/g,
       ),
     ).toHaveLength(2);
