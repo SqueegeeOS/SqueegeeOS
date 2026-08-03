@@ -173,6 +173,17 @@ interface AppointmentRow {
   completed_at: string | null;
 }
 
+interface JobberPropertyLinkRow {
+  connection_id: string;
+  external_property_id: string;
+}
+
+interface JobberVisitProjectionRow {
+  external_visit_id: string;
+  scheduled_start: string;
+  title: string | null;
+}
+
 interface SavingsRow {
   saved_cents: number;
   regular_price_cents: number;
@@ -207,6 +218,76 @@ function mapAppointment(row: AppointmentRow): MemberAppointmentSummary {
     technician: row.technician_name,
     notes: row.notes,
     status: row.status,
+  };
+}
+
+async function loadNextPairedJobberAppointment(
+  supabase: ReturnType<typeof createPrivilegedServerSupabaseClient>,
+  propertyId: string,
+  nowIso: string,
+): Promise<MemberAppointmentSummary | null> {
+  const linkResult = await supabase
+    .from("jobber_property_links")
+    .select("connection_id, external_property_id")
+    .eq("property_id", propertyId)
+    .eq("link_state", "active")
+    .maybeSingle();
+
+  if (linkResult.error || !linkResult.data) {
+    logProtectedQueryResult(
+      {
+        surface: "member-portal.jobber-property-link",
+        table: "jobber_property_links",
+        propertyId,
+      },
+      { count: 0, error: linkResult.error },
+    );
+    return null;
+  }
+
+  const link = linkResult.data as JobberPropertyLinkRow;
+  const visitResult = await supabase
+    .from("jobber_visit_projections")
+    .select("external_visit_id, scheduled_start, title")
+    .eq("connection_id", link.connection_id)
+    .eq("external_property_id", link.external_property_id)
+    .eq("is_complete", false)
+    .neq("visit_status", "REMOVED")
+    .gte("scheduled_start", nowIso)
+    .order("scheduled_start", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (visitResult.error || !visitResult.data) {
+    logProtectedQueryResult(
+      {
+        surface: "member-portal.jobber-next-visit",
+        table: "jobber_visit_projections",
+        propertyId,
+      },
+      { count: 0, error: visitResult.error },
+    );
+    return null;
+  }
+
+  const visit = visitResult.data as JobberVisitProjectionRow;
+  logProtectedQueryResult(
+    {
+      surface: "member-portal.jobber-next-visit",
+      table: "jobber_visit_projections",
+      propertyId,
+    },
+    { count: 1 },
+  );
+
+  return {
+    id: `jobber-${visit.external_visit_id}`,
+    date: visit.scheduled_start,
+    serviceType: visit.title?.trim() || "Scheduled SqueegeeKing service",
+    technician: null,
+    notes:
+      "Scheduled in Jobber. Billing remains subject to separate HomeAtlas verification.",
+    status: "scheduled",
   };
 }
 
@@ -442,17 +523,25 @@ export async function getMemberPortalDataBySlugs(
     );
   }
 
-  const appointments = ((appointmentRows ?? []) as AppointmentRow[]).map(
+  const authoritativeAppointments = ((appointmentRows ?? []) as AppointmentRow[]).map(
     mapAppointment,
   );
 
   const today = new Date().toISOString();
-  const nextAppointment =
-    appointments.find(
+  const authoritativeNextAppointment =
+    authoritativeAppointments.find(
       (a) => a.status === "scheduled" && a.date >= today,
     ) ??
-    appointments.find((a) => a.status === "scheduled") ??
+    authoritativeAppointments.find((a) => a.status === "scheduled") ??
     null;
+  const pairedJobberNextAppointment = authoritativeNextAppointment
+    ? null
+    : await loadNextPairedJobberAppointment(supabase, propertyRow.id, today);
+  const nextAppointment =
+    authoritativeNextAppointment ?? pairedJobberNextAppointment;
+  const appointments = pairedJobberNextAppointment
+    ? [...authoritativeAppointments, pairedJobberNextAppointment]
+    : authoritativeAppointments;
 
   const yearStart = `${new Date().getFullYear()}-01-01T00:00:00Z`;
 

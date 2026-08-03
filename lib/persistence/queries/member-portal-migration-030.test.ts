@@ -19,6 +19,16 @@ const EXISTING_APPOINTMENT = {
 
 const insertSpy = vi.fn();
 const upsertSpy = vi.fn();
+let appointmentRowsFixture = [EXISTING_APPOINTMENT];
+let propertyLinkFixture: {
+  connection_id: string;
+  external_property_id: string;
+} | null = null;
+let jobberVisitFixture: {
+  external_visit_id: string;
+  scheduled_start: string;
+  title: string | null;
+} | null = null;
 
 function chain(result: { data?: unknown; error?: unknown; count?: number }) {
   const promise = Promise.resolve(result);
@@ -28,6 +38,7 @@ function chain(result: { data?: unknown; error?: unknown; count?: number }) {
     "eq",
     "in",
     "gte",
+    "neq",
     "order",
     "limit",
     "update",
@@ -107,7 +118,11 @@ function mockSupabaseFrom(table: string) {
     case "signed_agreements":
       return chain({ data: null });
     case "member_appointments":
-      return chain({ data: [EXISTING_APPOINTMENT] });
+      return chain({ data: appointmentRowsFixture });
+    case "jobber_property_links":
+      return chain({ data: propertyLinkFixture });
+    case "jobber_visit_projections":
+      return chain({ data: jobberVisitFixture });
     case "service_observations":
       return chain({ data: [] });
     case "member_addon_transactions":
@@ -164,6 +179,9 @@ describe("migration 030 portal appointment regression", () => {
   afterEach(() => {
     insertSpy.mockClear();
     upsertSpy.mockClear();
+    appointmentRowsFixture = [EXISTING_APPOINTMENT];
+    propertyLinkFixture = null;
+    jobberVisitFixture = null;
     vi.clearAllMocks();
   });
 
@@ -201,5 +219,52 @@ describe("migration 030 portal appointment regression", () => {
 
     expect(insertSpy).not.toHaveBeenCalled();
     expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows the next Jobber visit when the member property is paired", async () => {
+    appointmentRowsFixture = [];
+    propertyLinkFixture = {
+      connection_id: "squeegeeking-jobber",
+      external_property_id: "jobber-property-1",
+    };
+    jobberVisitFixture = {
+      external_visit_id: "jobber-visit-1",
+      scheduled_start: "2099-08-06T16:00:00.000Z",
+      title: "Solar panel cleaning",
+    };
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.nextAppointment).toMatchObject({
+      id: "jobber-jobber-visit-1",
+      date: "2099-08-06T16:00:00.000Z",
+      serviceType: "Solar panel cleaning",
+      status: "scheduled",
+    });
+    expect(data?.appointments).toContainEqual(data?.nextAppointment);
+    expect(insertSpy).not.toHaveBeenCalled();
+    expect(upsertSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not expose an unpaired Jobber visit in the portal", async () => {
+    appointmentRowsFixture = [];
+    jobberVisitFixture = {
+      external_visit_id: "unpaired-visit",
+      scheduled_start: "2099-08-06T16:00:00.000Z",
+      title: "Unpaired service",
+    };
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.nextAppointment).toBeNull();
+    expect(data?.appointments).toEqual([]);
   });
 });
