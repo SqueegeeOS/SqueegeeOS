@@ -6,7 +6,13 @@ import { useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
-export function NewPresentationPage() {
+export function NewPresentationPage({
+  createdBy = "Team",
+  backHref = "/presentations",
+}: {
+  createdBy?: string;
+  backHref?: string;
+}) {
   const router = useRouter();
   const [unlocked, setUnlocked] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -23,7 +29,7 @@ export function NewPresentationPage() {
       const response = await fetch("/api/presentations", {
         method: "POST",
         headers: getAdminRequestHeaders(),
-        body: JSON.stringify({ createdBy: "Team" }),
+        body: JSON.stringify({ createdBy }),
       });
       const body = (await response.json().catch(() => null)) as {
         presentation?: { id: string };
@@ -63,10 +69,10 @@ export function NewPresentationPage() {
           {creating ? "Creating…" : "Create presentation"}
         </button>
         <Link
-          href="/presentations"
+          href={backHref}
           className="mt-4 inline-flex min-h-[44px] items-center text-xs text-white/50 hover:text-white/80"
         >
-          Back to clients
+          {backHref === "/presentations" ? "Back to clients" : "Back to field desk"}
         </Link>
       </div>
     </div>
