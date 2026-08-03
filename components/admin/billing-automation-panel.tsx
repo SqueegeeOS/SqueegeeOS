@@ -186,10 +186,11 @@ export function BillingAutomationPanel({
             </span>
           </div>
           <p className="mt-3 text-sm leading-relaxed text-muted">
-            Atlas charges the signed visit price only when the current month has
-            a verified visit from the explicitly classified Jobber membership
-            job, a unique service obligation, a saved card, and no prior
-            payment. Deployment never turns this on by itself.
+            Atlas charges an eligible service from the member&apos;s paired Jobber
+            property on the first of its service month only when Jobber supplies
+            a supported price, the member has signed the current authorization,
+            a saved card exists, and Jobber is not already invoicing or
+            auto-charging it. Deployment never turns this on by itself.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
