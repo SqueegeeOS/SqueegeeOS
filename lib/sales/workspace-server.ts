@@ -8,10 +8,18 @@ import {
 import type {
   CreateSalesActivityInput,
   CreateSalesLeadInput,
+  SalesActivityReceipt,
+  SalesActivityReversalReceipt,
+  SalesActivityType,
   SalesLeadStatus,
   SalesRepLead,
   SalesWorkspacePayload,
 } from "./workspace-types";
+import {
+  getSalesActivityUndoExpiresAt,
+  isReversibleSalesActivityType,
+  isSalesActivityUndoAvailable,
+} from "./activity-reversal";
 import { getBusinessCalendarDayUtcBounds } from "@/lib/admin/company-business-timezone";
 import {
   createPrivilegedServerSupabaseClient,
@@ -48,6 +56,18 @@ interface SalesActivityRow {
   quantity: number;
 }
 
+interface CreatedSalesActivityRow {
+  id: string;
+  event_type: SalesActivityType;
+  quantity: number;
+  occurred_at: string;
+}
+
+interface ReversibleSalesActivityRow extends CreatedSalesActivityRow {
+  lead_id: string | null;
+  reversed_at: string | null;
+}
+
 interface SalesAttributionRow {
   qualification_status: "pending" | "active" | "qualified" | "cancelled";
 }
@@ -56,6 +76,16 @@ export class SalesWorkspaceUnavailableError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "SalesWorkspaceUnavailableError";
+  }
+}
+
+export class SalesWorkspaceActionError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status = 409) {
+    super(message);
+    this.name = "SalesWorkspaceActionError";
+    this.status = status;
   }
 }
 
@@ -71,6 +101,8 @@ function readableStorageError(message: string): string {
   if (
     message.includes("sales_reps") ||
     message.includes("sales_rep_leads") ||
+    message.includes("reversed_at") ||
+    message.includes("PGRST204") ||
     message.includes("PGRST205")
   ) {
     return "The sales workspace database upgrade has not been applied yet.";
@@ -156,6 +188,7 @@ export async function loadSalesWorkspace(
       .from("sales_rep_activity_events")
       .select("event_type, quantity")
       .eq("rep_id", rep.id)
+      .is("reversed_at", null)
       .gte("occurred_at", startUtc.toISOString())
       .lt("occurred_at", endUtc.toISOString()),
     supabase
@@ -282,7 +315,7 @@ export async function createSalesActivity(
   input: Required<Omit<CreateSalesActivityInput, "leadId">> & {
     leadId: string | null;
   },
-): Promise<void> {
+): Promise<SalesActivityReceipt> {
   const rep = await loadRepRow(slug);
   const supabase = createPrivilegedServerSupabaseClient();
 
@@ -298,15 +331,110 @@ export async function createSalesActivity(
     }
   }
 
-  const { error } = await supabase.from("sales_rep_activity_events").insert({
-    rep_id: rep.id,
-    lead_id: input.leadId,
-    event_type: input.activityType,
-    quantity: input.quantity,
-    source_path: profileFromRow(rep).workspacePath,
-  });
+  const { data, error } = await supabase
+    .from("sales_rep_activity_events")
+    .insert({
+      rep_id: rep.id,
+      lead_id: input.leadId,
+      event_type: input.activityType,
+      quantity: input.quantity,
+      source_path: profileFromRow(rep).workspacePath,
+    })
+    .select("id, event_type, quantity, occurred_at")
+    .single();
+
+  if (error || !data) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(error?.message ?? "Activity insert failed"),
+    );
+  }
+
+  const activity = data as CreatedSalesActivityRow;
+  const undoExpiresAt =
+    input.leadId === null && isReversibleSalesActivityType(activity.event_type)
+      ? getSalesActivityUndoExpiresAt(activity.occurred_at)
+      : null;
+
+  return {
+    id: activity.id,
+    activityType: activity.event_type,
+    quantity: Number(activity.quantity) || input.quantity,
+    occurredAt: activity.occurred_at,
+    undoExpiresAt,
+  };
+}
+
+export async function reverseSalesActivity(
+  slug: string,
+  activityId: string,
+  referenceDate = new Date(),
+): Promise<SalesActivityReversalReceipt> {
+  const rep = await loadRepRow(slug);
+  const supabase = createPrivilegedServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("sales_rep_activity_events")
+    .select("id, event_type, quantity, occurred_at, lead_id, reversed_at")
+    .eq("id", activityId)
+    .eq("rep_id", rep.id)
+    .maybeSingle();
 
   if (error) {
     throw new SalesWorkspaceUnavailableError(readableStorageError(error.message));
   }
+  if (!data) {
+    throw new SalesWorkspaceActionError(
+      "That field activity is not available to undo.",
+      404,
+    );
+  }
+
+  const activity = data as ReversibleSalesActivityRow;
+  if (
+    !isSalesActivityUndoAvailable(
+      {
+        eventType: activity.event_type,
+        leadId: activity.lead_id,
+        occurredAt: activity.occurred_at,
+        reversedAt: activity.reversed_at,
+      },
+      referenceDate,
+    )
+  ) {
+    throw new SalesWorkspaceActionError(
+      "That activity can no longer be undone. Recent quick actions have a ten-minute undo window.",
+    );
+  }
+
+  const reversedAt = referenceDate.toISOString();
+  const { data: reversed, error: reverseError } = await supabase
+    .from("sales_rep_activity_events")
+    .update({
+      reversed_at: reversedAt,
+      reversed_by: "hq_admin_session",
+      reversal_reason: "operator_undo",
+    })
+    .eq("id", activity.id)
+    .eq("rep_id", rep.id)
+    .is("reversed_at", null)
+    .select("id, event_type, quantity, occurred_at, reversed_at")
+    .maybeSingle();
+
+  if (reverseError) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(reverseError.message),
+    );
+  }
+  if (!reversed?.reversed_at) {
+    throw new SalesWorkspaceActionError(
+      "That field activity was already corrected.",
+    );
+  }
+
+  return {
+    id: reversed.id,
+    activityType: reversed.event_type as SalesActivityType,
+    quantity: Number(reversed.quantity) || activity.quantity,
+    occurredAt: reversed.occurred_at,
+    reversedAt: reversed.reversed_at,
+  };
 }

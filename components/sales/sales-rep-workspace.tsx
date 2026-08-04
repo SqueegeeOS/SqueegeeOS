@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { AtlasMark } from "@/components/theme/atlas-mark";
@@ -14,6 +14,7 @@ import {
 } from "@/lib/sales/rep-config";
 import type {
   CreateSalesLeadInput,
+  SalesActivityReceipt,
   SalesActivityType,
   SalesRepLead,
   SalesWorkspaceMetrics,
@@ -36,6 +37,12 @@ interface BeforeInstallPromptEvent extends Event {
 
 interface SalesRepWorkspaceProps {
   repSlug: string;
+}
+
+interface ActivityMutationResponse {
+  activity?: SalesActivityReceipt;
+  error?: string;
+  message?: string;
 }
 
 const EMPTY_METRICS: SalesWorkspaceMetrics = {
@@ -145,6 +152,10 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [activityPending, setActivityPending] = useState<SalesActivityType | null>(null);
+  const [undoableActivity, setUndoableActivity] = useState<SalesActivityReceipt | null>(null);
+  const [undoPending, setUndoPending] = useState(false);
+  const [signedConfirmOpen, setSignedConfirmOpen] = useState(false);
+  const signedDialogRef = useRef<HTMLDivElement>(null);
   const [leadFormOpen, setLeadFormOpen] = useState(false);
   const [leadForm, setLeadForm] = useState<CreateSalesLeadInput>(EMPTY_LEAD_FORM);
   const [leadSaving, setLeadSaving] = useState(false);
@@ -216,6 +227,64 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!signedConfirmOpen) return;
+
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleDialogKeys = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSignedConfirmOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = signedDialogRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable?.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      signedDialogRef.current
+        ?.querySelector<HTMLElement>("[data-initial-focus]")
+        ?.focus();
+    });
+    document.addEventListener("keydown", handleDialogKeys);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleDialogKeys);
+      previousFocus?.focus();
+    };
+  }, [signedConfirmOpen]);
+
+  useEffect(() => {
+    if (!undoableActivity) return;
+
+    if (!undoableActivity.undoExpiresAt) return;
+    const expiresAt = Date.parse(undoableActivity.undoExpiresAt);
+    if (!Number.isFinite(expiresAt)) return;
+    const remaining = expiresAt - Date.now();
+    const timeout = window.setTimeout(
+      () => setUndoableActivity(null),
+      Math.max(0, remaining),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [undoableActivity]);
+
   const installWorkspace = async () => {
     setInstallHelp(null);
     if (installPrompt) {
@@ -236,7 +305,7 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
 
   const recordActivity = async (activityType: SalesActivityType) => {
     setActivityPending(activityType);
-    setNotice(null);
+    if (!undoableActivity) setNotice(null);
     setError(null);
     try {
       const response = await fetch(
@@ -250,11 +319,9 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
           }),
         },
       );
-      const body = (await response.json().catch(() => null)) as {
-        error?: string;
-        message?: string;
-      } | null;
+      const body = (await response.json().catch(() => null)) as ActivityMutationResponse | null;
       if (!response.ok) throw new Error(body?.error ?? "Could not record activity.");
+      setUndoableActivity(body?.activity ?? null);
       setNotice(body?.message ?? "Field activity recorded.");
       await loadWorkspace();
     } catch (activityError) {
@@ -268,9 +335,53 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     }
   };
 
+  const undoLastActivity = async () => {
+    if (!undoableActivity) return;
+
+    const activityId = undoableActivity.id;
+    setUndoPending(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/sales/${encodeURIComponent(repSlug)}/workspace`,
+        {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+          body: JSON.stringify({ kind: "undo_activity", activityId }),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+      } | null;
+      if (!response.ok) throw new Error(body?.error ?? "Could not undo that activity.");
+      setUndoableActivity(null);
+      setNotice(body?.message ?? "Last activity undone. Today's total is corrected.");
+      await loadWorkspace();
+    } catch (undoError) {
+      setError(
+        undoError instanceof Error
+          ? undoError.message
+          : "Could not undo that activity.",
+      );
+    } finally {
+      setUndoPending(false);
+    }
+  };
+
+  const handleQuickAction = (activityType: SalesActivityType) => {
+    if (activityType === "membership_signed") {
+      setSignedConfirmOpen(true);
+      return;
+    }
+
+    void recordActivity(activityType);
+  };
+
   const saveLead = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setLeadSaving(true);
+    setUndoableActivity(null);
     setNotice(null);
     setError(null);
     try {
@@ -432,9 +543,21 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
               <button
                 key={action.type}
                 type="button"
-                disabled={activityPending !== null || Boolean(error && !workspace)}
-                onClick={() => void recordActivity(action.type)}
-                className="group min-h-28 rounded-[1.4rem] border border-white/[0.08] bg-white/[0.035] p-4 text-left shadow-[0_14px_40px_rgba(0,0,0,0.16)] transition-[transform,border-color,background-color] hover:border-accent/25 hover:bg-accent/[0.045] active:scale-[0.985] disabled:opacity-45"
+                disabled={
+                  activityPending !== null ||
+                  undoPending ||
+                  Boolean(error && !workspace)
+                }
+                onClick={() => handleQuickAction(action.type)}
+                aria-haspopup={
+                  action.type === "membership_signed" ? "dialog" : undefined
+                }
+                aria-label={
+                  action.type === "membership_signed"
+                    ? "Confirm a signed membership"
+                    : `Record one ${action.detail.toLowerCase()}`
+                }
+                className="group min-h-28 rounded-[1.4rem] border border-white/[0.08] bg-white/[0.035] p-4 text-left shadow-[0_14px_40px_rgba(0,0,0,0.16)] transition-[transform,border-color,background-color] hover:border-accent/25 hover:bg-accent/[0.045] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/80 active:scale-[0.985] disabled:opacity-45"
               >
                 <span className="flex items-center justify-between">
                   <span className="text-[10px] uppercase tracking-[0.2em] text-accent">
@@ -448,13 +571,31 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
               </button>
             ))}
           </div>
+          <p className="mt-3 text-[10px] leading-5 text-muted/70 sm:text-xs">
+            Door, Talk, and Pitch save instantly. Signed asks for confirmation,
+            and the latest entry can be undone.
+          </p>
         </section>
 
-        <div aria-live="polite" className="mt-5">
+        <div className="mt-5">
           {notice ? (
-            <p className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] px-4 py-3 text-sm text-emerald-100">
-              {notice}
-            </p>
+            <div
+              className="flex flex-col gap-3 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] px-4 py-3 text-sm text-emerald-100 sm:flex-row sm:items-center sm:justify-between"
+              role="status"
+            >
+              <p>{notice}</p>
+              {undoableActivity ? (
+                <button
+                  type="button"
+                  onClick={() => void undoLastActivity()}
+                  disabled={undoPending || activityPending !== null}
+                  aria-label="Undo the last field pulse entry"
+                  className="min-h-10 shrink-0 rounded-full border border-emerald-200/25 bg-black/15 px-4 text-[10px] font-medium uppercase tracking-[0.16em] text-emerald-50 transition-colors hover:bg-emerald-100/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-100 disabled:opacity-50"
+                >
+                  {undoPending ? "Undoing…" : "Undo last entry"}
+                </button>
+              ) : null}
+            </div>
           ) : null}
           {error ? (
             <p className="rounded-2xl border border-red-300/20 bg-red-300/[0.06] px-4 py-3 text-sm text-red-200" role="alert">
@@ -627,6 +768,58 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
           </Link>
         </div>
       </nav>
+
+      {signedConfirmOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/75 px-3 py-4 backdrop-blur-md sm:items-center sm:justify-center sm:px-6 sm:py-10">
+          <div
+            ref={signedDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-signed-title"
+            aria-describedby="confirm-signed-description"
+            className="w-full max-w-md"
+          >
+            <GlassCard tone="elevated" padding="lg" className="!bg-[#0d0b08]">
+              <p className={craftEyebrow}>Final checkpoint</p>
+              <h2 id="confirm-signed-title" className={`mt-3 text-3xl ${craftHeading}`}>
+                Did they sign the membership?
+              </h2>
+              <p
+                id="confirm-signed-description"
+                className="mt-4 text-sm leading-6 text-muted"
+              >
+                Confirm only after the customer has completed the agreement. This
+                adds one signed member to today&apos;s total.
+              </p>
+              <div className="mt-5 rounded-2xl border border-amber-200/15 bg-amber-200/[0.05] px-4 py-3 text-xs leading-5 text-amber-100/80">
+                You can undo this entry immediately if anything looks wrong.
+              </div>
+              <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSignedConfirmOpen(false)}
+                  disabled={activityPending !== null}
+                  className={craftSecondaryButton}
+                  data-initial-focus
+                >
+                  Not yet
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignedConfirmOpen(false);
+                    void recordActivity("membership_signed");
+                  }}
+                  disabled={activityPending !== null}
+                  className={craftPrimaryButton}
+                >
+                  Yes, membership signed
+                </button>
+              </div>
+            </GlassCard>
+          </div>
+        </div>
+      ) : null}
 
       {leadFormOpen ? (
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/70 px-3 py-4 backdrop-blur-md sm:px-6 sm:py-10">

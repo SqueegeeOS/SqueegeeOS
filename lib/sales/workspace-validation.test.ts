@@ -3,6 +3,7 @@ import {
   normalizeNorthAmericanPhone,
   validateCreateSalesActivity,
   validateCreateSalesLead,
+  validateUndoSalesActivity,
 } from "./workspace-validation";
 
 describe("sales workspace validation", () => {
@@ -68,6 +69,19 @@ describe("sales workspace validation", () => {
     ).toEqual({
       ok: false,
       error: "Activity count must be between 1 and 100.",
+    });
+  });
+
+  it("requires an exact activity UUID before undo", () => {
+    expect(
+      validateUndoSalesActivity("00000000-0000-4000-8000-000000000001"),
+    ).toEqual({
+      ok: true,
+      value: { activityId: "00000000-0000-4000-8000-000000000001" },
+    });
+    expect(validateUndoSalesActivity("not-an-activity")).toEqual({
+      ok: false,
+      error: "Activity reference is invalid.",
     });
   });
 });

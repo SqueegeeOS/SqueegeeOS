@@ -6,6 +6,7 @@ import {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 function cleanText(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -115,9 +116,20 @@ export function validateCreateSalesActivity(input: unknown):
   }
 
   const leadId = cleanText(raw.leadId, 80) || null;
-  if (leadId && !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(leadId)) {
+  if (leadId && !UUID_PATTERN.test(leadId)) {
     return { ok: false, error: "Lead reference is invalid." };
   }
 
   return { ok: true, value: { activityType, quantity, leadId } };
+}
+
+export function validateUndoSalesActivity(input: unknown):
+  | { ok: true; value: { activityId: string } }
+  | { ok: false; error: string } {
+  const activityId = cleanText(input, 80);
+  if (!UUID_PATTERN.test(activityId)) {
+    return { ok: false, error: "Activity reference is invalid." };
+  }
+
+  return { ok: true, value: { activityId } };
 }

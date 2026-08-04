@@ -76,6 +76,23 @@ export interface CreateSalesActivityInput {
   leadId?: string | null;
 }
 
+export interface SalesActivityReceipt {
+  id: string;
+  activityType: SalesActivityType;
+  quantity: number;
+  occurredAt: string;
+  undoExpiresAt: string | null;
+}
+
+export interface SalesActivityReversalReceipt {
+  id: string;
+  activityType: SalesActivityType;
+  quantity: number;
+  occurredAt: string;
+  reversedAt: string;
+}
+
 export type SalesWorkspaceCommand =
   | { kind: "lead"; lead: CreateSalesLeadInput }
-  | { kind: "activity"; activity: CreateSalesActivityInput };
+  | { kind: "activity"; activity: CreateSalesActivityInput }
+  | { kind: "undo_activity"; activityId: string };
