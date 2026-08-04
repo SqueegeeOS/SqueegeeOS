@@ -19,7 +19,14 @@ export interface FloatingBackConfig {
 }
 
 const EMPLOYEE_PREFIXES = ["/employee", "/properties", "/presentations", "/tech"];
-const HIDDEN_PREFIXES = ["/hq", "/admin", "/night", "/day"];
+const HIDDEN_PREFIXES = [
+  "/hq",
+  "/admin",
+  "/night",
+  "/day",
+  "/david",
+  "/sales",
+];
 
 function matchesPathPrefix(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);

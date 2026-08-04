@@ -7,25 +7,15 @@ const workspace = readFileSync(
 );
 
 describe("sales representative workspace activity safety", () => {
-  it("requires a deliberate second step before recording a signed membership", () => {
-    const quickActionHandler = workspace.match(
-      /const handleQuickAction[\s\S]*?\n  };/,
-    )?.[0];
-
-    expect(quickActionHandler).toContain(
-      'if (activityType === "membership_signed")',
+  it("never exposes a manual signed-membership counter", () => {
+    expect(workspace).not.toContain('type: "membership_signed"');
+    expect(workspace).not.toContain('recordActivity("membership_signed")');
+    expect(workspace).not.toContain("Yes, membership signed");
+    expect(workspace).toContain("Signed memberships &middot; automatic");
+    expect(workspace).toContain(
+      "Completed HomeAtlas agreements credit {profile.displayName} automatically.",
     );
-    expect(quickActionHandler).toContain("setSignedConfirmOpen(true)");
-    expect(quickActionHandler).toMatch(
-      /setSignedConfirmOpen\(true\);\s*return;[\s\S]*recordActivity\(activityType\)/,
-    );
-
-    expect(workspace).toContain('role="dialog"');
-    expect(workspace).toContain('aria-modal="true"');
-    expect(workspace).toContain("Did they sign the membership?");
-    expect(workspace).toContain("Confirm only after the customer has completed the agreement.");
-    expect(workspace).toContain("Yes, membership signed");
-    expect(workspace).toContain('void recordActivity("membership_signed")');
+    expect(workspace).toContain("metrics.closedArrTodayCents");
   });
 
   it("offers undo only from the server-issued receipt for the latest entry", () => {
@@ -35,21 +25,63 @@ describe("sales representative workspace activity safety", () => {
       "Date.parse(undoableActivity.undoExpiresAt)",
     );
     expect(workspace).toContain("window.clearTimeout(timeout)");
-    expect(workspace).toContain("const activityId = undoableActivity.id");
+    expect(workspace).toContain("const activityId = activity.id");
     expect(workspace).toContain(
       'body: JSON.stringify({ kind: "undo_activity", activityId })',
     );
-    expect(workspace).toContain("setUndoableActivity(null)");
+    expect(workspace).toContain("current?.id === activityId ? null : current");
     expect(workspace).toContain("{undoableActivity ? (");
-    expect(workspace).toContain("Undo last entry");
+    expect(workspace).toContain('aria-label="Undo the last field pulse entry"');
   });
 
-  it("explains the recovery behavior before the operator records activity", () => {
+  it("keeps weak-network pulses device-local until an idempotent sync succeeds", () => {
+    expect(workspace).toContain("OFFLINE_PULSE_STORAGE_KEY");
+    expect(workspace).toContain("const clientEventId = crypto.randomUUID()");
+    expect(workspace).toContain("requestController.abort()");
+    expect(workspace).toContain("4_000");
+    expect(workspace).toContain("occurredAt: offlineEntry.createdAt");
+    expect(workspace).toContain("Not synced to HomeAtlas yet.");
+    expect(workspace).toContain("Remove last");
+    expect(workspace).toContain('window.addEventListener("online", handleOnline)');
+    expect(workspace).toContain("return true;");
+    expect(workspace).toContain("return false;");
+    expect(workspace).toContain("if (!commitOfflineQueue(next))");
+    expect(workspace).toContain("offlineQueueRef.current.filter(");
+    expect(workspace).toContain("discardOldestQueuedActivity");
+    expect(workspace).toContain("Discard oldest");
     expect(workspace).toContain(
-      "Signed asks for confirmation,\n            and the latest entry can be undone.",
+      "current?.clientEventId === entry.clientEventId",
+    );
+    expect(workspace).toContain("Sync needs attention.");
+    expect(workspace).toContain("safe idempotent retry");
+  });
+
+  it("provides a high-contrast, one-hand field surface", () => {
+    expect(workspace).toContain("FIELD_DISPLAY_STORAGE_KEY");
+    expect(workspace).toContain('aria-pressed={sunlightMode}');
+    expect(workspace).toContain("One-hand field pulse");
+    expect(workspace).toContain("Next door");
+    expect(workspace).toContain("fixed inset-x-0 bottom-0");
+    expect(workspace).toContain('recordActivity("door_knock", "fixed-door")');
+    expect(workspace).toContain("fixedDoorFeedback");
+    expect(workspace).toContain("Phone-only field totals");
+    expect(workspace).toContain("Partial field totals");
+    expect(workspace).toContain("min-[480px]:flex-row");
+    expect(workspace).toContain("&lead=${encodeURIComponent(lead.id)}");
+    expect(workspace).toContain("Pitch this homeowner");
+  });
+
+  it("only exposes native contact actions when the relevant consent is opted in", () => {
+    expect(workspace).toContain(
+      'phone.length > 0 && lead.smsConsentStatus === "opted_in"',
     );
     expect(workspace).toContain(
-      "You can undo this entry immediately if anything looks wrong.",
+      'lead.emailConsentStatus === "opted_in"',
+    );
+    expect(workspace).toContain('href={`tel:${phone}`}');
+    expect(workspace).toContain('href={`sms:${phone}`}');
+    expect(workspace).toContain(
+      'href={`mailto:${encodeURIComponent(lead.email ?? "")}`}',
     );
   });
 });

@@ -42,7 +42,12 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = (await req.json()) as Partial<PresentationData>;
-    const presentation = await patchPresentation(id, body);
+    // Sales ownership is assigned only while creating the presentation from a
+    // server-resolved rep slug; ordinary editor saves cannot reassign it.
+    const editableBody = { ...body };
+    delete editableBody.salesRepId;
+    delete editableBody.salesRepLeadId;
+    const presentation = await patchPresentation(id, editableBody);
     if (!presentation) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }

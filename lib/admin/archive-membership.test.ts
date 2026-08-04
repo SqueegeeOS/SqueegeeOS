@@ -8,6 +8,7 @@ const mockUpdate = vi.fn();
 const mockEq = vi.fn();
 const mockSelect = vi.fn();
 const mockFrom = vi.fn();
+const mockSyncAttributionLifecycle = vi.fn();
 
 vi.mock("@/lib/persistence/config", () => ({
   isCloudPersistenceConnected: () => true,
@@ -19,9 +20,22 @@ vi.mock("@/lib/persistence/supabase/client", () => ({
   }),
 }));
 
+vi.mock("@/lib/sales/attribution-lifecycle-server", () => ({
+  syncMembershipSalesAttributionLifecycle: (...args: unknown[]) =>
+    mockSyncAttributionLifecycle(...args),
+}));
+
 describe("archiveMembership", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+
+    mockSyncAttributionLifecycle.mockResolvedValue({
+      membershipId: "mem-1",
+      attributionId: null,
+      status: "not_attributed",
+      changed: false,
+      leadMarkedWon: false,
+    });
 
     mockMaybeSingle.mockResolvedValue({
       data: {
@@ -101,12 +115,30 @@ describe("archiveMembership", () => {
     expect(result.membershipId).toBe("mem-1");
     expect(result.previousStatus).toBe("active");
     expect(result.obligationsVoided).toBe(1);
+    expect(result.salesAttributionRepairRequired).toBe(false);
+    expect(mockSyncAttributionLifecycle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        membershipId: "mem-1",
+        supabase: expect.any(Object),
+      }),
+    );
     expect(mockUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         status: "cancelled",
         cancelled_at: expect.any(String),
       }),
     );
+  });
+
+  it("preserves the archive when attribution cancellation needs repair", async () => {
+    mockSyncAttributionLifecycle.mockRejectedValueOnce(
+      new Error("temporary attribution failure"),
+    );
+
+    const result = await archiveMembership({ membershipId: "mem-1" });
+
+    expect(result.membershipId).toBe("mem-1");
+    expect(result.salesAttributionRepairRequired).toBe(true);
   });
 
   it("rejects already archived memberships", async () => {

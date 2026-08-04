@@ -5,6 +5,7 @@ import { processVerifiedAppointmentReminders } from "@/lib/communications/remind
 import { processDueScheduledCommunications } from "@/lib/communications/service";
 import { markJobberWebhookEventsReconciled } from "@/lib/integrations/jobber-webhook";
 import { runAutomaticMembershipBilling } from "@/lib/billing/automatic-billing-executor";
+import { qualifyDueSalesAttributions } from "@/lib/sales/attribution-lifecycle-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,18 @@ export async function GET(request: Request) {
   const requestStartedAt = Date.now();
   const snapshotStartedAt = new Date(requestStartedAt).toISOString();
   try {
+    const retentionQualifications = await qualifyDueSalesAttributions({
+      referenceDate: new Date(requestStartedAt),
+    }).catch((error) => {
+      console.error("[jobber-reconcile-cron] sales retention qualification failed", {
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+      return {
+        status: "failed" as const,
+        error:
+          "Sales retention qualification failed; Jobber reconciliation continued.",
+      };
+    });
     const scheduledCommunications = await processDueScheduledCommunications().catch(
       (error) => {
         console.error("[jobber-reconcile-cron] scheduled communications failed", {
@@ -66,6 +79,7 @@ export async function GET(request: Request) {
         sync,
         webhookInbox,
         scheduledCommunications,
+        retentionQualifications,
         billing,
         reminders,
       },

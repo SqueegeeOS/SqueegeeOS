@@ -98,7 +98,16 @@ export function validateCreateSalesLead(input: unknown):
 }
 
 export function validateCreateSalesActivity(input: unknown):
-  | { ok: true; value: { activityType: SalesActivityType; quantity: number; leadId: string | null } }
+  | {
+      ok: true;
+      value: {
+        activityType: SalesActivityType;
+        quantity: number;
+        leadId: string | null;
+        clientEventId: string | null;
+        occurredAt: string | null;
+      };
+    }
   | { ok: false; error: string } {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return { ok: false, error: "Activity details are required." };
@@ -108,6 +117,12 @@ export function validateCreateSalesActivity(input: unknown):
   const activityType = cleanText(raw.activityType, 80) as SalesActivityType;
   if (!SALES_ACTIVITY_TYPES.includes(activityType)) {
     return { ok: false, error: "Choose a valid field activity." };
+  }
+  if (activityType === "membership_signed") {
+    return {
+      ok: false,
+      error: "Signed memberships are recorded automatically from the agreement.",
+    };
   }
 
   const quantity = Number(raw.quantity ?? 1);
@@ -120,7 +135,34 @@ export function validateCreateSalesActivity(input: unknown):
     return { ok: false, error: "Lead reference is invalid." };
   }
 
-  return { ok: true, value: { activityType, quantity, leadId } };
+  const clientEventId = cleanText(raw.clientEventId, 80) || null;
+  if (clientEventId && !UUID_PATTERN.test(clientEventId)) {
+    return { ok: false, error: "Activity retry reference is invalid." };
+  }
+
+  let occurredAt: string | null = null;
+  if (raw.occurredAt) {
+    const parsed = new Date(String(raw.occurredAt));
+    const now = Date.now();
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: "Activity time is invalid." };
+    }
+    if (parsed.getTime() < now - 24 * 60 * 60 * 1000) {
+      return {
+        ok: false,
+        error: "Queued field activity must be less than 24 hours old.",
+      };
+    }
+    if (parsed.getTime() > now + 60 * 1000) {
+      return { ok: false, error: "Activity time cannot be in the future." };
+    }
+    occurredAt = parsed.toISOString();
+  }
+
+  return {
+    ok: true,
+    value: { activityType, quantity, leadId, clientEventId, occurredAt },
+  };
 }
 
 export function validateUndoSalesActivity(input: unknown):

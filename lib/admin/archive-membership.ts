@@ -1,5 +1,6 @@
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import { syncMembershipSalesAttributionLifecycle } from "@/lib/sales/attribution-lifecycle-server";
 
 export interface ArchiveMembershipInput {
   membershipId: string;
@@ -11,6 +12,7 @@ export interface ArchiveMembershipResult {
   archivedAt: string;
   previousStatus: string;
   obligationsVoided: number;
+  salesAttributionRepairRequired: boolean;
 }
 
 interface MembershipArchiveRow {
@@ -91,6 +93,28 @@ export async function archiveMembership(
     throw new Error("Membership archive did not persist");
   }
 
+  let salesAttributionRepairRequired = false;
+  try {
+    const attribution = await syncMembershipSalesAttributionLifecycle({
+      supabase,
+      membershipId,
+      referenceDate: new Date(archivedAt),
+    });
+    if (attribution.status !== "not_attributed") {
+      console.info("[archive-membership] sales attribution lifecycle synced", {
+        membershipId,
+        attributionId: attribution.attributionId,
+        status: attribution.status,
+      });
+    }
+  } catch (error) {
+    salesAttributionRepairRequired = true;
+    console.error("[archive-membership] sales attribution cancellation failed", {
+      membershipId,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+  }
+
   let obligationsVoided = 0;
   const { data: voidedObligations, error: obligationError } = await supabase
     .from("obligations")
@@ -123,6 +147,7 @@ export async function archiveMembership(
     propertyId: row.property_id,
     agreementId: row.agreement_id,
     obligationsVoided,
+    salesAttributionRepairRequired,
   });
 
   return {
@@ -130,5 +155,6 @@ export async function archiveMembership(
     archivedAt,
     previousStatus: row.status,
     obligationsVoided,
+    salesAttributionRepairRequired,
   };
 }

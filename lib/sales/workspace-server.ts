@@ -6,7 +6,6 @@ import {
   type SalesRepProfile,
 } from "./rep-config";
 import type {
-  CreateSalesActivityInput,
   CreateSalesLeadInput,
   SalesActivityReceipt,
   SalesActivityReversalReceipt,
@@ -26,6 +25,7 @@ import {
   isServiceRoleConfigured,
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
+import { reconcileSignedMembershipAttributionsForRep } from "./signed-attribution-server";
 
 interface SalesRepRow {
   id: string;
@@ -33,6 +33,20 @@ interface SalesRepRow {
   display_name: string;
   role_title: string;
   compensation_plan: "founding_david" | "standard_commission";
+}
+
+export interface ActiveSalesRepIdentity {
+  id: string;
+  slug: string;
+  displayName: string;
+  compensationPlan: "founding_david" | "standard_commission";
+}
+
+export interface PresentationSalesLeadPrefill {
+  id: string;
+  fullName: string;
+  propertyAddress: string;
+  email: string | null;
 }
 
 interface SalesLeadRow {
@@ -61,6 +75,8 @@ interface CreatedSalesActivityRow {
   event_type: SalesActivityType;
   quantity: number;
   occurred_at: string;
+  lead_id: string | null;
+  client_event_id: string | null;
 }
 
 interface ReversibleSalesActivityRow extends CreatedSalesActivityRow {
@@ -70,6 +86,8 @@ interface ReversibleSalesActivityRow extends CreatedSalesActivityRow {
 
 interface SalesAttributionRow {
   qualification_status: "pending" | "active" | "qualified" | "cancelled";
+  attributed_arr_cents: number;
+  attributed_at: string;
 }
 
 export class SalesWorkspaceUnavailableError extends Error {
@@ -102,6 +120,7 @@ function readableStorageError(message: string): string {
     message.includes("sales_reps") ||
     message.includes("sales_rep_leads") ||
     message.includes("reversed_at") ||
+    message.includes("client_event_id") ||
     message.includes("PGRST204") ||
     message.includes("PGRST205")
   ) {
@@ -166,6 +185,64 @@ export async function loadSalesRepProfile(slug: string): Promise<SalesRepProfile
   return profileFromRow(await loadRepRow(slug));
 }
 
+export async function loadActiveSalesRepIdentity(
+  slug: string,
+): Promise<ActiveSalesRepIdentity> {
+  const rep = await loadRepRow(slug);
+  return {
+    id: rep.id,
+    slug: rep.slug,
+    displayName: rep.display_name,
+    compensationPlan: rep.compensation_plan,
+  };
+}
+
+export async function resolvePresentationSalesLineage(
+  slug: string,
+  leadId: string | null,
+): Promise<
+  ActiveSalesRepIdentity & {
+    leadId: string | null;
+    lead: PresentationSalesLeadPrefill | null;
+  }
+> {
+  const rep = await loadRepRow(slug);
+  let leadPrefill: PresentationSalesLeadPrefill | null = null;
+  if (leadId) {
+    const supabase = createPrivilegedServerSupabaseClient();
+    const { data, error } = await supabase
+      .from("sales_rep_leads")
+      .select("id, full_name, property_address, email_normalized")
+      .eq("id", leadId)
+      .eq("rep_id", rep.id)
+      .maybeSingle();
+    if (error || !data) {
+      throw new SalesWorkspaceActionError(
+        "That lead does not belong to this sales workspace.",
+        400,
+      );
+    }
+    leadPrefill = {
+      id: String(data.id),
+      fullName: String(data.full_name),
+      propertyAddress: String(data.property_address),
+      email:
+        typeof data.email_normalized === "string"
+          ? data.email_normalized
+          : null,
+    };
+  }
+
+  return {
+    id: rep.id,
+    slug: rep.slug,
+    displayName: rep.display_name,
+    compensationPlan: rep.compensation_plan,
+    leadId,
+    lead: leadPrefill,
+  };
+}
+
 export async function loadSalesWorkspace(
   slug: string,
   referenceDate = new Date(),
@@ -173,6 +250,13 @@ export async function loadSalesWorkspace(
   const rep = await loadRepRow(slug);
   const supabase = createPrivilegedServerSupabaseClient();
   const { startUtc, endUtc } = getBusinessCalendarDayUtcBounds(referenceDate);
+
+  try {
+    await reconcileSignedMembershipAttributionsForRep(rep.id, 5);
+  } catch (error) {
+    // Sales reporting repair must never make the field workspace unavailable.
+    console.error("[sales-workspace] nonfatal attribution reconciliation failure", error);
+  }
 
   const [leadsResult, activityResult, attributionResult] = await Promise.all([
     supabase
@@ -193,7 +277,7 @@ export async function loadSalesWorkspace(
       .lt("occurred_at", endUtc.toISOString()),
     supabase
       .from("sales_rep_attributions")
-      .select("qualification_status")
+      .select("qualification_status, attributed_arr_cents, attributed_at")
       .eq("rep_id", rep.id),
   ]);
 
@@ -212,8 +296,15 @@ export async function loadSalesWorkspace(
       0,
     );
   const openLeads = leads.filter(
-    (lead) => !["won", "lost"].includes(lead.status),
+    (lead) => !["signed", "won", "lost"].includes(lead.status),
   );
+  const closedAttributions = attributions.filter(
+    (attribution) => attribution.qualification_status !== "cancelled",
+  );
+  const attributionsToday = closedAttributions.filter((attribution) => {
+    const attributedAt = new Date(attribution.attributed_at);
+    return attributedAt >= startUtc && attributedAt < endUtc;
+  });
 
   return {
     profile: profileFromRow(rep),
@@ -225,7 +316,17 @@ export async function loadSalesWorkspace(
         const createdAt = new Date(lead.createdAt);
         return createdAt >= startUtc && createdAt < endUtc;
       }).length,
-      signedToday: activityCount("membership_signed"),
+      signedToday: attributionsToday.length,
+      closedArrTodayCents: attributionsToday.reduce(
+        (total, attribution) =>
+          total + (Number(attribution.attributed_arr_cents) || 0),
+        0,
+      ),
+      closedArrCents: closedAttributions.reduce(
+        (total, attribution) =>
+          total + (Number(attribution.attributed_arr_cents) || 0),
+        0,
+      ),
       openPipelineCount: openLeads.length,
       pipelineArrCents: openLeads.reduce(
         (total, lead) => total + lead.estimatedArrCents,
@@ -312,8 +413,12 @@ export async function createSalesLead(
 
 export async function createSalesActivity(
   slug: string,
-  input: Required<Omit<CreateSalesActivityInput, "leadId">> & {
+  input: {
+    activityType: SalesActivityType;
+    quantity: number;
     leadId: string | null;
+    clientEventId: string | null;
+    occurredAt: string | null;
   },
 ): Promise<SalesActivityReceipt> {
   const rep = await loadRepRow(slug);
@@ -331,25 +436,62 @@ export async function createSalesActivity(
     }
   }
 
-  const { data, error } = await supabase
-    .from("sales_rep_activity_events")
-    .insert({
-      rep_id: rep.id,
-      lead_id: input.leadId,
-      event_type: input.activityType,
-      quantity: input.quantity,
-      source_path: profileFromRow(rep).workspacePath,
-    })
-    .select("id, event_type, quantity, occurred_at")
-    .single();
+  const activityPayload = {
+    rep_id: rep.id,
+    lead_id: input.leadId,
+    event_type: input.activityType,
+    quantity: input.quantity,
+    source_path: profileFromRow(rep).workspacePath,
+    client_event_id: input.clientEventId,
+    ...(input.occurredAt ? { occurred_at: input.occurredAt } : {}),
+  };
+  const activityQuery = input.clientEventId
+    ? supabase.from("sales_rep_activity_events").upsert(activityPayload, {
+        onConflict: "rep_id,client_event_id",
+        ignoreDuplicates: true,
+      })
+    : supabase.from("sales_rep_activity_events").insert(activityPayload);
+  const inserted = await activityQuery
+    .select("id, event_type, quantity, occurred_at, lead_id, client_event_id")
+    .maybeSingle();
 
-  if (error || !data) {
+  if (inserted.error) {
     throw new SalesWorkspaceUnavailableError(
-      readableStorageError(error?.message ?? "Activity insert failed"),
+      readableStorageError(inserted.error.message),
     );
   }
 
-  const activity = data as CreatedSalesActivityRow;
+  const existing =
+    !inserted.data && input.clientEventId
+      ? await supabase
+          .from("sales_rep_activity_events")
+          .select(
+            "id, event_type, quantity, occurred_at, lead_id, client_event_id",
+          )
+          .eq("rep_id", rep.id)
+          .eq("client_event_id", input.clientEventId)
+          .maybeSingle()
+      : inserted;
+
+  if (existing.error || !existing.data) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(existing.error?.message ?? "Activity insert failed"),
+    );
+  }
+
+  const activity = existing.data as CreatedSalesActivityRow;
+  if (
+    activity.event_type !== input.activityType ||
+    Number(activity.quantity) !== input.quantity ||
+    activity.lead_id !== input.leadId ||
+    (input.occurredAt !== null &&
+      new Date(activity.occurred_at).getTime() !==
+        new Date(input.occurredAt).getTime())
+  ) {
+    throw new SalesWorkspaceActionError(
+      "That field retry reference was already used for a different activity.",
+    );
+  }
   const undoExpiresAt =
     input.leadId === null && isReversibleSalesActivityType(activity.event_type)
       ? getSalesActivityUndoExpiresAt(activity.occurred_at)
