@@ -46,6 +46,8 @@ export interface SalesWorkspaceMetrics {
   presentationsToday: number;
   leadsToday: number;
   signedToday: number;
+  closedArrTodayCents: number;
+  closedArrCents: number;
   openPipelineCount: number;
   pipelineArrCents: number;
   qualifiedRetainedMembers: number;
@@ -74,8 +76,29 @@ export interface CreateSalesActivityInput {
   activityType: SalesActivityType;
   quantity?: number;
   leadId?: string | null;
+  /** Device-generated UUID used to make weak-network retries idempotent. */
+  clientEventId?: string | null;
+  /** Device event time; accepted only inside the bounded field queue window. */
+  occurredAt?: string | null;
+}
+
+export interface SalesActivityReceipt {
+  id: string;
+  activityType: SalesActivityType;
+  quantity: number;
+  occurredAt: string;
+  undoExpiresAt: string | null;
+}
+
+export interface SalesActivityReversalReceipt {
+  id: string;
+  activityType: SalesActivityType;
+  quantity: number;
+  occurredAt: string;
+  reversedAt: string;
 }
 
 export type SalesWorkspaceCommand =
   | { kind: "lead"; lead: CreateSalesLeadInput }
-  | { kind: "activity"; activity: CreateSalesActivityInput };
+  | { kind: "activity"; activity: CreateSalesActivityInput }
+  | { kind: "undo_activity"; activityId: string };

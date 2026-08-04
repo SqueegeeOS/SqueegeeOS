@@ -9,9 +9,13 @@ import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 export function NewPresentationPage({
   createdBy = "Team",
   backHref = "/presentations",
+  repSlug = null,
+  salesRepLeadId = null,
 }: {
   createdBy?: string;
   backHref?: string;
+  repSlug?: string | null;
+  salesRepLeadId?: string | null;
 }) {
   const router = useRouter();
   const [unlocked, setUnlocked] = useState(false);
@@ -29,7 +33,7 @@ export function NewPresentationPage({
       const response = await fetch("/api/presentations", {
         method: "POST",
         headers: getAdminRequestHeaders(),
-        body: JSON.stringify({ createdBy }),
+        body: JSON.stringify({ repSlug, salesRepLeadId }),
       });
       const body = (await response.json().catch(() => null)) as {
         presentation?: { id: string };
@@ -59,6 +63,11 @@ export function NewPresentationPage({
         <p className="mt-3 text-sm leading-relaxed text-white/50">
           This creates a private draft, then opens the details and pricing editor.
         </p>
+        {repSlug ? (
+          <p className="mt-3 text-xs font-medium text-[#c9a96e]">
+            Assigned to {createdBy}
+          </p>
+        ) : null}
         {error ? <p className="mt-5 text-sm text-red-300">{error}</p> : null}
         <button
           type="button"

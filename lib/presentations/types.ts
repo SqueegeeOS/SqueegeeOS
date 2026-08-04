@@ -110,6 +110,10 @@ export function getPresentationSlides(
 export interface PresentationData {
   id: string;
   createdBy: string;
+  /** Server-resolved field-sales owner. Never trust a browser creator label. */
+  salesRepId: string | null;
+  /** Optional originating lead; database constraints keep it owned by salesRepId. */
+  salesRepLeadId: string | null;
   clientName: string;
   clientAddress: string;
   clientEmail: string;

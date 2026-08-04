@@ -21,12 +21,14 @@ import type { WebsiteMembershipSaleActivationMode } from "@/lib/admin/website-me
 import { persistMembershipEnrollmentSavings } from "@/lib/membership/persist-membership-enrollment-savings";
 import { authorizeMembershipAction } from "@/lib/membership/authorize-membership-action";
 import { automaticBillingServiceMonth } from "@/lib/billing/automatic-billing-rules";
+import { syncMembershipSalesAttributionLifecycle } from "@/lib/sales/attribution-lifecycle-server";
 
 type ActivationRepairStep =
   | "obligations"
   | "website_sale"
   | "enrollment_savings"
   | "presentation_status"
+  | "sales_attribution"
   | "welcome_email";
 
 async function recordActiveMemberCardUpdate(
@@ -176,6 +178,33 @@ async function lockEnrollmentSavings(
   }
 }
 
+async function activateSalesAttribution(
+  supabase: SupabaseClient,
+  membershipId: string,
+): Promise<ActivationRepairStep | null> {
+  try {
+    const result = await syncMembershipSalesAttributionLifecycle({
+      supabase,
+      membershipId,
+    });
+    if (result.status !== "not_attributed") {
+      console.info("[setup-payment] sales attribution lifecycle synced", {
+        membershipId,
+        attributionId: result.attributionId,
+        status: result.status,
+        leadMarkedWon: result.leadMarkedWon,
+      });
+    }
+    return null;
+  } catch (error) {
+    console.error("[setup-payment] sales attribution activation failed", {
+      membershipId,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return "sales_attribution";
+  }
+}
+
 async function finishActivationSideEffects(input: {
   supabase: SupabaseClient;
   membership: MembershipRowForPayment;
@@ -206,6 +235,7 @@ async function finishActivationSideEffects(input: {
         input.membership.id,
         input.presentationId,
       ),
+      activateSalesAttribution(input.supabase, input.membership.id),
     ])
   ).filter((step): step is ActivationRepairStep => step !== null);
 
@@ -415,10 +445,10 @@ export async function POST(req: NextRequest) {
         membership.id,
         req.nextUrl.origin,
       );
-      const billingFollowUp = await recordActiveMemberCardUpdate(
-        supabase,
-        membership.id,
-      );
+      const [billingFollowUp, attributionRepair] = await Promise.all([
+        recordActiveMemberCardUpdate(supabase, membership.id),
+        activateSalesAttribution(supabase, membership.id),
+      ]);
       return NextResponse.json({
         membershipId: membership.id,
         presentationId: membership.presentation_id,
@@ -429,6 +459,8 @@ export async function POST(req: NextRequest) {
         paymentMethodUpdated: true,
         billingRetryRequired: billingFollowUp.billingRetryRequired,
         affectedBillingOrderCount: billingFollowUp.affectedOrderCount,
+        salesAttributionRepairRequired: attributionRepair !== null,
+        repairNeeded: attributionRepair ? [attributionRepair] : [],
         portalUrl,
       });
     }

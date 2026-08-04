@@ -27,6 +27,7 @@ import {
   hasCompleteClientAddress,
   parseClientAddress,
 } from "@/lib/presentations/parse-client-address";
+import { recordSignedMembershipAttribution } from "@/lib/sales/signed-attribution-server";
 
 function tierToPlanId(): MembershipPlanId {
   return "preferred";
@@ -181,6 +182,23 @@ export async function POST(req: NextRequest) {
         ipAddress: req.headers.get("x-forwarded-for"),
         userAgent: req.headers.get("user-agent"),
       });
+
+      // The agreement and membership are already authoritative at this point.
+      // Sales reporting is intentionally non-fatal, and the unique membership
+      // attribution makes retries safe when a client repeats the sign request.
+      try {
+        await recordSignedMembershipAttribution({
+          presentationId: presentation.id,
+          membershipId: result.membershipId,
+          agreementId: result.agreementId,
+          signedAt,
+        });
+      } catch (trackingError) {
+        console.error(
+          "[sign-agreement] nonfatal sales attribution failure",
+          trackingError,
+        );
+      }
 
       return NextResponse.json({
         pdfUrl: result.pdfUrl,

@@ -22,6 +22,8 @@ import { normalizePresentationTier, type VisitRateOverrides } from "./types";
 interface PresentationRow {
   id: string;
   created_by: string | null;
+  sales_rep_id?: string | null;
+  sales_rep_lead_id?: string | null;
   client_name: string;
   client_address: string | null;
   client_email: string | null;
@@ -67,6 +69,8 @@ function normalizePresentation(data: PresentationData): PresentationData {
 
   return {
     ...data,
+    salesRepId: data.salesRepId ?? null,
+    salesRepLeadId: data.salesRepLeadId ?? null,
     twoStory,
     includeScreens,
     includeInterior,
@@ -125,6 +129,8 @@ function rowToPresentation(row: PresentationRow): PresentationData {
   return normalizePresentation({
     id: row.id,
     createdBy: row.created_by ?? "Team",
+    salesRepId: row.sales_rep_id ?? null,
+    salesRepLeadId: row.sales_rep_lead_id ?? null,
     clientName: row.client_name,
     clientAddress: row.client_address ?? "",
     clientEmail: row.client_email ?? "",
@@ -160,6 +166,8 @@ function rowToPresentation(row: PresentationRow): PresentationData {
 function presentationToRow(data: PresentationData): Record<string, unknown> {
   return {
     created_by: data.createdBy,
+    sales_rep_id: data.salesRepId,
+    sales_rep_lead_id: data.salesRepLeadId,
     client_name: data.clientName,
     client_address: data.clientAddress,
     client_email: data.clientEmail || null,
@@ -254,7 +262,8 @@ async function saveToSupabase(data: PresentationData): Promise<PresentationData>
     isMissingColumnError(attempt.error.message, "enrollment_savings") &&
     "enrollment_savings" in row
   ) {
-    const { enrollment_savings: _removed, ...rowWithoutEnrollment } = row;
+    const rowWithoutEnrollment = { ...row };
+    delete rowWithoutEnrollment.enrollment_savings;
     const retry = await supabase
       .from("presentations")
       .upsert(rowWithoutEnrollment, { onConflict: "id" })
@@ -273,7 +282,11 @@ function isMissingColumnError(message: string, column: string): boolean {
 
 export function createDefaultPresentation(input?: {
   clientName?: string;
+  clientAddress?: string;
+  clientEmail?: string;
   createdBy?: string;
+  salesRepId?: string | null;
+  salesRepLeadId?: string | null;
   tier?: PresentationTier;
   homeSqft?: number;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
@@ -286,9 +299,11 @@ export function createDefaultPresentation(input?: {
   return {
     id: newPresentationId(),
     createdBy: input?.createdBy ?? "Team",
+    salesRepId: input?.salesRepId ?? null,
+    salesRepLeadId: input?.salesRepLeadId ?? null,
     clientName: input?.clientName ?? "New Client",
-    clientAddress: "",
-    clientEmail: "",
+    clientAddress: input?.clientAddress ?? "",
+    clientEmail: input?.clientEmail ?? "",
     homeSqft,
     twoStory: input?.quoteSnapshot?.twoStory ?? false,
     includeScreens: input?.quoteSnapshot?.includeScreens ?? false,
@@ -357,6 +372,9 @@ export async function savePresentation(
     try {
       return normalizePresentation(await saveToSupabase(merged));
     } catch (error) {
+      // A rep-linked field presentation must never silently fall back to a
+      // device-local draft and lose its authoritative attribution lineage.
+      if (merged.salesRepId) throw error;
       logCloudFallback("save", error);
     }
   }
@@ -366,7 +384,11 @@ export async function savePresentation(
 
 export async function createPresentation(input?: {
   clientName?: string;
+  clientAddress?: string;
+  clientEmail?: string;
   createdBy?: string;
+  salesRepId?: string | null;
+  salesRepLeadId?: string | null;
   tier?: PresentationTier;
   homeSqft?: number;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
@@ -389,6 +411,8 @@ export async function patchPresentation(
     existing ??
     createDefaultPresentation({
       createdBy: patch.createdBy ?? "Team",
+      salesRepId: patch.salesRepId ?? null,
+      salesRepLeadId: patch.salesRepLeadId ?? null,
       clientName: patch.clientName,
       tier: patch.tier,
       homeSqft: patch.homeSqft,

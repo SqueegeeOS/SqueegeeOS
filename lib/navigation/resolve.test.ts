@@ -18,6 +18,11 @@ describe("getNavigationMode", () => {
     expect(getNavigationMode("/employee")).toBe("employee");
     expect(getNavigationMode("/employee/requests")).toBe("employee");
   });
+
+  it("lets dedicated field workspaces own their phone chrome", () => {
+    expect(getNavigationMode("/david")).toBe("hidden");
+    expect(getNavigationMode("/sales/alex")).toBe("hidden");
+  });
 });
 
 describe("shouldUseOverlayNav", () => {

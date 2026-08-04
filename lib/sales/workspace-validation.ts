@@ -6,6 +6,7 @@ import {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 function cleanText(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -97,7 +98,16 @@ export function validateCreateSalesLead(input: unknown):
 }
 
 export function validateCreateSalesActivity(input: unknown):
-  | { ok: true; value: { activityType: SalesActivityType; quantity: number; leadId: string | null } }
+  | {
+      ok: true;
+      value: {
+        activityType: SalesActivityType;
+        quantity: number;
+        leadId: string | null;
+        clientEventId: string | null;
+        occurredAt: string | null;
+      };
+    }
   | { ok: false; error: string } {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
     return { ok: false, error: "Activity details are required." };
@@ -108,6 +118,12 @@ export function validateCreateSalesActivity(input: unknown):
   if (!SALES_ACTIVITY_TYPES.includes(activityType)) {
     return { ok: false, error: "Choose a valid field activity." };
   }
+  if (activityType === "membership_signed") {
+    return {
+      ok: false,
+      error: "Signed memberships are recorded automatically from the agreement.",
+    };
+  }
 
   const quantity = Number(raw.quantity ?? 1);
   if (!Number.isInteger(quantity) || quantity < 1 || quantity > 100) {
@@ -115,9 +131,47 @@ export function validateCreateSalesActivity(input: unknown):
   }
 
   const leadId = cleanText(raw.leadId, 80) || null;
-  if (leadId && !/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(leadId)) {
+  if (leadId && !UUID_PATTERN.test(leadId)) {
     return { ok: false, error: "Lead reference is invalid." };
   }
 
-  return { ok: true, value: { activityType, quantity, leadId } };
+  const clientEventId = cleanText(raw.clientEventId, 80) || null;
+  if (clientEventId && !UUID_PATTERN.test(clientEventId)) {
+    return { ok: false, error: "Activity retry reference is invalid." };
+  }
+
+  let occurredAt: string | null = null;
+  if (raw.occurredAt) {
+    const parsed = new Date(String(raw.occurredAt));
+    const now = Date.now();
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: "Activity time is invalid." };
+    }
+    if (parsed.getTime() < now - 24 * 60 * 60 * 1000) {
+      return {
+        ok: false,
+        error: "Queued field activity must be less than 24 hours old.",
+      };
+    }
+    if (parsed.getTime() > now + 60 * 1000) {
+      return { ok: false, error: "Activity time cannot be in the future." };
+    }
+    occurredAt = parsed.toISOString();
+  }
+
+  return {
+    ok: true,
+    value: { activityType, quantity, leadId, clientEventId, occurredAt },
+  };
+}
+
+export function validateUndoSalesActivity(input: unknown):
+  | { ok: true; value: { activityId: string } }
+  | { ok: false; error: string } {
+  const activityId = cleanText(input, 80);
+  if (!UUID_PATTERN.test(activityId)) {
+    return { ok: false, error: "Activity reference is invalid." };
+  }
+
+  return { ok: true, value: { activityId } };
 }

@@ -4,12 +4,15 @@ import {
   createSalesActivity,
   createSalesLead,
   loadSalesWorkspace,
+  reverseSalesActivity,
+  SalesWorkspaceActionError,
   SalesWorkspaceUnavailableError,
 } from "@/lib/sales/workspace-server";
 import type { SalesWorkspaceCommand } from "@/lib/sales/workspace-types";
 import {
   validateCreateSalesActivity,
   validateCreateSalesLead,
+  validateUndoSalesActivity,
 } from "@/lib/sales/workspace-validation";
 
 function unauthorized() {
@@ -17,6 +20,9 @@ function unauthorized() {
 }
 
 function workspaceError(error: unknown) {
+  if (error instanceof SalesWorkspaceActionError) {
+    return NextResponse.json({ error: error.message }, { status: error.status });
+  }
   if (error instanceof SalesWorkspaceUnavailableError) {
     const status = error.message.includes("not active") ? 404 : 503;
     return NextResponse.json({ error: error.message }, { status });
@@ -77,11 +83,26 @@ export async function POST(
       if (!validation.ok) {
         return NextResponse.json({ error: validation.error }, { status: 400 });
       }
-      await createSalesActivity(repSlug, validation.value);
+      const activity = await createSalesActivity(repSlug, validation.value);
       return NextResponse.json(
-        { message: "Field activity recorded." },
+        { activity, message: "Field activity recorded." },
         { status: 201 },
       );
+    }
+
+    if (command?.kind === "undo_activity") {
+      const validation = validateUndoSalesActivity(command.activityId);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      const reversal = await reverseSalesActivity(
+        repSlug,
+        validation.value.activityId,
+      );
+      return NextResponse.json({
+        reversal,
+        message: "Field activity corrected. The audit record was preserved.",
+      });
     }
 
     return NextResponse.json(

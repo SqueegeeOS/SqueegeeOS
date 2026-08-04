@@ -333,6 +333,8 @@ async function backfillPortalHomeCarePlan(
     const syntheticPresentation: PresentationData = {
       id: context.presentation_id ?? `backfill-${context.property_id}`,
       createdBy: "System",
+      salesRepId: null,
+      salesRepLeadId: null,
       clientName: context.homeowner_full_name,
       clientAddress: formatPortalPropertyAddress({
         address: context.property_address,
@@ -341,9 +343,9 @@ async function backfillPortalHomeCarePlan(
       }),
       clientEmail: "",
       homeSqft: context.square_feet ?? 0,
-          twoStory: false,
-          includeScreens: false,
-          includeInterior: false,
+      twoStory: false,
+      includeScreens: false,
+      includeInterior: false,
       tier,
       monthlyRate: visitPrice,
       annualRate: visitPrice * (tier === "quarterly" ? 4 : 2),
