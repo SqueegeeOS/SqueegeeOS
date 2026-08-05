@@ -2,6 +2,7 @@ import { createHmac } from "crypto";
 import { describe, expect, it } from "vitest";
 import {
   verifyJobberWebhookSignature,
+  verifyMetaWebhookSignature,
   verifySvixWebhookSignature,
 } from "./webhook-signatures";
 
@@ -24,6 +25,20 @@ describe("Jobber webhook signatures", () => {
       .digest("base64");
     expect(
       verifyJobberWebhookSignature({ payload: "changed", signature, secret }),
+    ).toBe(false);
+  });
+});
+
+describe("Meta webhook signatures", () => {
+  it("accepts the sha256-prefixed HMAC over the raw payload", () => {
+    const payload = '{"object":"page","entry":[]}';
+    const secret = "meta-app-secret";
+    const signature = `sha256=${createHmac("sha256", secret)
+      .update(payload)
+      .digest("hex")}`;
+    expect(verifyMetaWebhookSignature({ payload, signature, secret })).toBe(true);
+    expect(
+      verifyMetaWebhookSignature({ payload: `${payload} `, signature, secret }),
     ).toBe(false);
   });
 });

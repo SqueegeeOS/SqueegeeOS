@@ -70,7 +70,17 @@ export async function updateLeadIntakeFields(
     preferredStartWindow: data.preferred_start_window as string | null,
     status: data.status as LeadIntakeRecord["status"],
     submittedAt: data.submitted_at as string,
-    source: "request_form",
+    source:
+      data.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+    externalLeadId: (data.external_lead_id as string | null) ?? null,
+    sourcePageId: (data.source_page_id as string | null) ?? null,
+    sourceFormId: (data.source_form_id as string | null) ?? null,
+    sourceCampaignId: (data.source_campaign_id as string | null) ?? null,
+    sourceCampaignName: (data.source_campaign_name as string | null) ?? null,
+    sourceAdsetId: (data.source_adset_id as string | null) ?? null,
+    sourceAdsetName: (data.source_adset_name as string | null) ?? null,
+    sourceAdId: (data.source_ad_id as string | null) ?? null,
+    sourceAdName: (data.source_ad_name as string | null) ?? null,
   };
 }
 

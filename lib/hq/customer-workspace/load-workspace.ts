@@ -93,7 +93,17 @@ function mapLeadRow(row: Record<string, unknown>): LeadIntakeRecord {
     preferredStartWindow: row.preferred_start_window as string | null,
     status: row.status as LeadIntakeRecord["status"],
     submittedAt: row.submitted_at as string,
-    source: "request_form",
+    source:
+      row.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+    externalLeadId: (row.external_lead_id as string | null) ?? null,
+    sourcePageId: (row.source_page_id as string | null) ?? null,
+    sourceFormId: (row.source_form_id as string | null) ?? null,
+    sourceCampaignId: (row.source_campaign_id as string | null) ?? null,
+    sourceCampaignName: (row.source_campaign_name as string | null) ?? null,
+    sourceAdsetId: (row.source_adset_id as string | null) ?? null,
+    sourceAdsetName: (row.source_adset_name as string | null) ?? null,
+    sourceAdId: (row.source_ad_id as string | null) ?? null,
+    sourceAdName: (row.source_ad_name as string | null) ?? null,
   };
 }
 
