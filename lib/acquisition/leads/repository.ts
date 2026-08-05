@@ -24,6 +24,15 @@ interface LeadIntakeRow {
   status: string;
   submitted_at: string;
   source: string;
+  external_lead_id?: string | null;
+  source_page_id?: string | null;
+  source_form_id?: string | null;
+  source_campaign_id?: string | null;
+  source_campaign_name?: string | null;
+  source_adset_id?: string | null;
+  source_adset_name?: string | null;
+  source_ad_id?: string | null;
+  source_ad_name?: string | null;
 }
 
 function newLeadId(): string {
@@ -54,7 +63,17 @@ function rowToRecord(row: LeadIntakeRow): LeadIntakeRecord {
     preferredStartWindow: row.preferred_start_window,
     status: row.status as LeadIntakeRecord["status"],
     submittedAt: row.submitted_at,
-    source: "request_form",
+    source:
+      row.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+    externalLeadId: row.external_lead_id ?? null,
+    sourcePageId: row.source_page_id ?? null,
+    sourceFormId: row.source_form_id ?? null,
+    sourceCampaignId: row.source_campaign_id ?? null,
+    sourceCampaignName: row.source_campaign_name ?? null,
+    sourceAdsetId: row.source_adset_id ?? null,
+    sourceAdsetName: row.source_adset_name ?? null,
+    sourceAdId: row.source_ad_id ?? null,
+    sourceAdName: row.source_ad_name ?? null,
   };
 }
 
@@ -97,7 +116,16 @@ function inputToRow(
     preferred_start_window: input.preferredStartWindow,
     status: "new",
     submitted_at: submittedAt,
-    source: "request_form",
+    source: input.source ?? "request_form",
+    external_lead_id: input.externalLeadId ?? null,
+    source_page_id: input.sourcePageId ?? null,
+    source_form_id: input.sourceFormId ?? null,
+    source_campaign_id: input.sourceCampaignId ?? null,
+    source_campaign_name: input.sourceCampaignName ?? null,
+    source_adset_id: input.sourceAdsetId ?? null,
+    source_adset_name: input.sourceAdsetName ?? null,
+    source_ad_id: input.sourceAdId ?? null,
+    source_ad_name: input.sourceAdName ?? null,
   };
 }
 
@@ -167,7 +195,11 @@ export async function updateLeadIntakeStatus(
 
 export async function createLeadIntake(
   input: CreateLeadIntakeInput,
-): Promise<{ record: LeadIntakeRecord; storage: "supabase" | "local" }> {
+): Promise<{
+  record: LeadIntakeRecord;
+  storage: "supabase" | "local";
+  duplicate: boolean;
+}> {
   const id = newLeadId();
   const submittedAt = new Date().toISOString();
 
@@ -189,11 +221,38 @@ export async function createLeadIntake(
     preferredStartWindow: input.preferredStartWindow,
     status: "new",
     submittedAt,
-    source: "request_form",
+    source: input.source ?? "request_form",
+    externalLeadId: input.externalLeadId ?? null,
+    sourcePageId: input.sourcePageId ?? null,
+    sourceFormId: input.sourceFormId ?? null,
+    sourceCampaignId: input.sourceCampaignId ?? null,
+    sourceCampaignName: input.sourceCampaignName ?? null,
+    sourceAdsetId: input.sourceAdsetId ?? null,
+    sourceAdsetName: input.sourceAdsetName ?? null,
+    sourceAdId: input.sourceAdId ?? null,
+    sourceAdName: input.sourceAdName ?? null,
   };
 
   if (isCloudPersistenceConnected()) {
     const supabase = createServerSupabaseClient();
+    if (input.externalLeadId?.trim()) {
+      const existing = await supabase
+        .from("lead_intakes")
+        .select("*")
+        .eq("source", input.source ?? "request_form")
+        .eq("external_lead_id", input.externalLeadId.trim())
+        .maybeSingle();
+      if (existing.error) {
+        throw new Error(`Failed to check lead intake: ${existing.error.message}`);
+      }
+      if (existing.data) {
+        return {
+          record: rowToRecord(existing.data as LeadIntakeRow),
+          storage: "supabase",
+          duplicate: true,
+        };
+      }
+    }
     const { data, error } = await supabase
       .from("lead_intakes")
       .insert(inputToRow(id, input, submittedAt))
@@ -201,14 +260,33 @@ export async function createLeadIntake(
       .single();
 
     if (error || !data) {
+      if (input.externalLeadId?.trim() && error?.code === "23505") {
+        const raced = await supabase
+          .from("lead_intakes")
+          .select("*")
+          .eq("source", input.source ?? "request_form")
+          .eq("external_lead_id", input.externalLeadId.trim())
+          .maybeSingle();
+        if (raced.data) {
+          return {
+            record: rowToRecord(raced.data as LeadIntakeRow),
+            storage: "supabase",
+            duplicate: true,
+          };
+        }
+      }
       throw new Error(
         `Failed to save lead intake: ${error?.message ?? "unknown error"}`,
       );
     }
 
-    return { record: rowToRecord(data as LeadIntakeRow), storage: "supabase" };
+    return {
+      record: rowToRecord(data as LeadIntakeRow),
+      storage: "supabase",
+      duplicate: false,
+    };
   }
 
   const saved = await saveLocalLeadIntake(record);
-  return { record: saved, storage: "local" };
+  return { record: saved, storage: "local", duplicate: false };
 }

@@ -46,9 +46,11 @@ export async function runLeadAcknowledgementAutomation(
   reason?: string;
   smsReason?: string;
 }> {
+  const sourceLabel =
+    lead.source === "facebook_lead_ad" ? "Facebook lead" : "Website request";
   const conversation = await ensureLeadConversation({
     leadIntakeId: lead.id,
-    subject: `Website request · ${lead.name}`,
+    subject: `${sourceLabel} · ${lead.name}`,
   });
   const [emailRule, smsRule] = await Promise.all([
     loadAutomationRule("lead_acknowledgement", "email"),
@@ -77,7 +79,10 @@ export async function runLeadAcknowledgementAutomation(
         body: emailPlan.text,
         idempotencyKey: emailPlan.idempotencyKey,
         metadata: {
-          source: "website_lead_automation",
+          source:
+            lead.source === "facebook_lead_ad"
+              ? "facebook_lead_automation"
+              : "website_lead_automation",
           automationKind: emailPlan.kind,
         },
       });
@@ -103,6 +108,7 @@ export async function runLeadAcknowledgementAutomation(
           ? lead.smsConsentRecordedAt
           : null,
     },
+    source: lead.source,
   });
   let smsSent = false;
   let smsScheduled = false;
@@ -115,7 +121,10 @@ export async function runLeadAcknowledgementAutomation(
   } else {
     const allowUnverifiedSms = !smsRule.verifiedContactRequired;
     const metadata = {
-      source: "website_lead_automation",
+      source:
+        lead.source === "facebook_lead_ad"
+          ? "facebook_lead_automation"
+          : "website_lead_automation",
       automationKind: smsPlan.kind,
       ...(allowUnverifiedSms
         ? { verificationOverride: "lead_form_explicit_consent" }

@@ -23,6 +23,24 @@ export function verifyJobberWebhookSignature(input: {
   return safeEqual(expected, provided);
 }
 
+export function verifyMetaWebhookSignature(input: {
+  payload: string;
+  signature: string | null;
+  secret: string;
+}): boolean {
+  if (!input.signature || !input.secret) return false;
+  const match = /^sha256=([0-9a-f]{64})$/i.exec(input.signature.trim());
+  if (!match) return false;
+  const expected = createHmac("sha256", input.secret)
+    .update(input.payload, "utf8")
+    .digest();
+  try {
+    return safeEqual(expected, Buffer.from(match[1], "hex"));
+  } catch {
+    return false;
+  }
+}
+
 export function verifySvixWebhookSignature(input: {
   payload: string;
   messageId: string | null;

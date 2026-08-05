@@ -75,7 +75,7 @@ export async function sendLeadNotificationEmail(
     body: JSON.stringify({
       from,
       to: recipients,
-      subject: `New Home Care request — ${record.name}`,
+      subject: `${record.source === "facebook_lead_ad" ? "New Facebook lead" : "New Home Care request"} — ${record.name}`,
       html: `
         <div style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto; color: #1a1a1a;">
           <h2>New request from ${escapeHtml(record.name)}</h2>

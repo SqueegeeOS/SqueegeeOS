@@ -176,7 +176,7 @@ describe("communications automation", () => {
     });
   });
 
-  describe("lead first-touch SMS", () => {
+describe("lead first-touch SMS", () => {
     it("requires explicit active consent and an SMS-compatible preference", () => {
       const base = {
         leadId: "lead-123",
@@ -233,6 +233,24 @@ describe("communications automation", () => {
       });
       expect(plan?.text).toContain("Reply STOP to opt out.");
       expect(plan?.text).not.toContain("\n");
+    });
+
+    it("uses the richer two-way HomeAtlas welcome for an opted-in Facebook lead", () => {
+      const plan = buildLeadFirstTouchSmsPlan({
+        leadId: "facebook-lead-123",
+        customerName: "Morgan Lee",
+        phone: "+15555550123",
+        services: [],
+        requestedAt: "2026-07-10T18:30:00.000Z",
+        preferredChannel: "Text",
+        smsConsent: CONSENT,
+        source: "facebook_lead_ad",
+      });
+
+      expect(plan?.text).toContain("bi-annual and quarterly");
+      expect(plan?.text).toContain("HomeAtlas portal");
+      expect(plan?.text).toContain("reply here with questions");
+      expect(plan?.text).toContain("Reply STOP to opt out.");
     });
 
     it("normalizes public form preferences and validates consent timestamps", () => {

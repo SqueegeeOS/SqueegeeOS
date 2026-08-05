@@ -3,6 +3,7 @@ import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 
 export type LeadIntakeStatus = "new" | "contacted" | "scheduled" | "archived";
 export type SmsConsentStatus = "unknown" | "opted_in" | "opted_out";
+export type LeadIntakeSource = "request_form" | "facebook_lead_ad";
 
 export const SMS_CONSENT_DISCLOSURE_VERSION =
   "request-form-transactional-v1";
@@ -33,7 +34,16 @@ export interface LeadIntakeRecord {
   preferredStartWindow: string | null;
   status: LeadIntakeStatus;
   submittedAt: string;
-  source: "request_form";
+  source: LeadIntakeSource;
+  externalLeadId: string | null;
+  sourcePageId: string | null;
+  sourceFormId: string | null;
+  sourceCampaignId: string | null;
+  sourceCampaignName: string | null;
+  sourceAdsetId: string | null;
+  sourceAdsetName: string | null;
+  sourceAdId: string | null;
+  sourceAdName: string | null;
 }
 
 export interface CreateLeadIntakeInput {
@@ -53,4 +63,14 @@ export interface CreateLeadIntakeInput {
   squareFootage: number | null;
   estimatedVisitPrice: number | null;
   preferredStartWindow: string | null;
+  source?: LeadIntakeSource;
+  externalLeadId?: string | null;
+  sourcePageId?: string | null;
+  sourceFormId?: string | null;
+  sourceCampaignId?: string | null;
+  sourceCampaignName?: string | null;
+  sourceAdsetId?: string | null;
+  sourceAdsetName?: string | null;
+  sourceAdId?: string | null;
+  sourceAdName?: string | null;
 }
