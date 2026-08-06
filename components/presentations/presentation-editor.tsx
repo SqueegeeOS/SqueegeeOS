@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
@@ -36,14 +36,24 @@ import {
 
 export function PresentationEditor({
   presentation: initial,
+  recoveredDraft = false,
 }: {
   presentation: PresentationData;
+  recoveredDraft?: boolean;
 }) {
   const router = useRouter();
   const [data, setData] = useState(initial);
+  const dataRef = useRef(initial);
+  const editRevisionRef = useRef(0);
   const [saving, setSaving] = useState(false);
   const [presenting, setPresenting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(recoveredDraft);
+  const [showRecoveredNotice, setShowRecoveredNotice] =
+    useState(recoveredDraft);
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(
+    recoveredDraft ? null : initial.updatedAt,
+  );
 
   const slides = useMemo(() => getPresentationSlides(data), [data]);
   const editableSlides = useMemo(
@@ -58,6 +68,17 @@ export function PresentationEditor({
   useEffect(() => {
     cachePresentation(data);
   }, [data]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+
+    const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [isDirty]);
 
   const twoStory = data.twoStory;
   const includeScreens = data.includeScreens;
@@ -74,6 +95,20 @@ export function PresentationEditor({
     };
   };
 
+  const commitEdit = (
+    updater: (current: PresentationData) => PresentationData,
+  ) => {
+    const next = {
+      ...updater(dataRef.current),
+      updatedAt: new Date().toISOString(),
+    };
+    dataRef.current = next;
+    editRevisionRef.current += 1;
+    setData(next);
+    setIsDirty(true);
+    setError(null);
+  };
+
   const setPricingOption = (
     patch: Partial<{
       twoStory: boolean;
@@ -81,7 +116,7 @@ export function PresentationEditor({
       includeInterior: boolean;
     }>,
   ) => {
-    setData((prev) =>
+    commitEdit((prev) =>
       recalculateVisitRate(prev, {
         twoStory: patch.twoStory ?? prev.twoStory,
         includeScreens: patch.includeScreens ?? prev.includeScreens,
@@ -106,7 +141,7 @@ export function PresentationEditor({
     field: K,
     value: PresentationData[K],
   ) => {
-    setData((prev) => {
+    commitEdit((prev) => {
       if (field === "tier") {
         const nextTier = value as PresentationData["tier"];
         return recalculateVisitRate(prev, {
@@ -142,23 +177,28 @@ export function PresentationEditor({
     field: keyof SlideOverride,
     value: string,
   ) => {
-    update("slideOverrides", {
-      ...data.slideOverrides,
-      [slideId]: {
-        ...data.slideOverrides?.[slideId as SlideType],
-        [field]: value,
+    commitEdit((prev) => ({
+      ...prev,
+      slideOverrides: {
+        ...prev.slideOverrides,
+        [slideId]: {
+          ...prev.slideOverrides?.[slideId],
+          [field]: value,
+        },
       },
-    });
+    }));
   };
 
   const save = async (): Promise<boolean> => {
+    const snapshot = dataRef.current;
+    const editRevision = editRevisionRef.current;
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(`/api/presentations/${data.id}`, {
+      const res = await fetch(`/api/presentations/${snapshot.id}`, {
         method: "PATCH",
         headers: getAdminRequestHeaders(),
-        body: JSON.stringify(data),
+        body: JSON.stringify(snapshot),
       });
       if (!res.ok) {
         const body = (await res.json().catch(() => null)) as {
@@ -168,8 +208,19 @@ export function PresentationEditor({
         return false;
       }
       const json = (await res.json()) as { presentation: PresentationData };
+      if (editRevisionRef.current !== editRevision) {
+        // The request saved its snapshot, but the user typed again while it was
+        // in flight. Never replace those newer edits with the older response.
+        cachePresentation(dataRef.current);
+        setIsDirty(true);
+        return false;
+      }
+      dataRef.current = json.presentation;
       setData(json.presentation);
       cachePresentation(json.presentation);
+      setIsDirty(false);
+      setShowRecoveredNotice(false);
+      setLastSavedAt(json.presentation.updatedAt);
       return true;
     } catch {
       setError("Could not save. Check your connection and try again.");
@@ -183,10 +234,10 @@ export function PresentationEditor({
     setPresenting(true);
     setError(null);
     try {
-      cachePresentation(data);
+      cachePresentation(dataRef.current);
       const saved = await save();
       if (!saved) return;
-      router.push(`/presentations/${data.id}/present`);
+      router.push(`/presentations/${dataRef.current.id}/present`);
     } finally {
       setPresenting(false);
     }
@@ -205,6 +256,16 @@ export function PresentationEditor({
       <div className="mx-auto max-w-lg px-4 py-6">
         <Link
           href="/presentations"
+          onClick={(event) => {
+            if (
+              isDirty &&
+              !window.confirm(
+                "This draft has unsaved changes. Leave without saving?",
+              )
+            ) {
+              event.preventDefault();
+            }
+          }}
           className="mb-6 inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-[#444] transition-colors hover:text-[#888]"
         >
           ← Presentations
@@ -294,7 +355,9 @@ export function PresentationEditor({
                 placeholder="e.g. 2800"
                 onChange={(v) => {
                   const homeSqft = Number.parseInt(v, 10) || 0;
-                  setData((prev) => recalculateVisitRate(prev, { homeSqft }));
+                  commitEdit((prev) =>
+                    recalculateVisitRate(prev, { homeSqft }),
+                  );
                 }}
               />
             </EditorField>
@@ -515,6 +578,24 @@ export function PresentationEditor({
         <div className="mx-auto flex max-w-lg flex-col gap-2">
           {error ? (
             <p className="text-center text-sm text-red-400">{error}</p>
+          ) : null}
+          {!error ? (
+            <p
+              aria-live="polite"
+              className={`text-center text-[11px] ${
+                isDirty ? "text-amber-300/80" : "text-emerald-300/70"
+              }`}
+            >
+              {saving
+                ? "Saving every detail\u2026"
+                : isDirty
+                  ? showRecoveredNotice
+                    ? "Recovered unsaved details \u00b7 tap Save draft"
+                    : "Unsaved changes \u00b7 tap Save draft"
+                  : lastSavedAt
+                    ? "All presentation details saved"
+                    : "Draft ready to save"}
+            </p>
           ) : null}
           <button
             type="button"

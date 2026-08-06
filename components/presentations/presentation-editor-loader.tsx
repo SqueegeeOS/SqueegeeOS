@@ -4,12 +4,17 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import {
+  freshestPresentation,
+  readCachedPresentation,
+} from "@/lib/presentations/client-cache";
 import type { PresentationData } from "@/lib/presentations/types";
 import { PresentationEditor } from "./presentation-editor";
 
 export function PresentationEditorLoader({ id }: { id: string }) {
   const [unlocked, setUnlocked] = useState(false);
   const [presentation, setPresentation] = useState<PresentationData | null>(null);
+  const [recoveredDraft, setRecoveredDraft] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +38,12 @@ export function PresentationEditorLoader({ id }: { id: string }) {
               : (body?.error ?? "Could not load presentation"),
           );
         }
-        if (!cancelled) setPresentation(body.presentation);
+        if (!cancelled) {
+          const cached = readCachedPresentation(body.presentation.id);
+          const freshest = freshestPresentation(body.presentation, cached);
+          setPresentation(freshest);
+          setRecoveredDraft(freshest !== body.presentation);
+        }
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
@@ -82,5 +92,10 @@ export function PresentationEditorLoader({ id }: { id: string }) {
     );
   }
 
-  return <PresentationEditor presentation={presentation} />;
+  return (
+    <PresentationEditor
+      presentation={presentation}
+      recoveredDraft={recoveredDraft}
+    />
+  );
 }

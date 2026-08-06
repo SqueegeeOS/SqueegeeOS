@@ -18,6 +18,10 @@ import type {
 } from "./types";
 import { resolveEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import { normalizePresentationTier, type VisitRateOverrides } from "./types";
+import {
+  createPresentationDraftPayload,
+  restorePresentationDraftPayload,
+} from "./draft-persistence";
 
 interface PresentationRow {
   id: string;
@@ -45,6 +49,7 @@ interface PresentationRow {
   membership_id: string | null;
   onboarding_status: string | null;
   quote_snapshot: PresentationQuoteSnapshot | null;
+  draft_payload?: unknown;
   created_at: string;
   updated_at: string;
 }
@@ -126,7 +131,7 @@ function writeQuoteSnapshot(data: PresentationData): PresentationQuoteSnapshot |
 function rowToPresentation(row: PresentationRow): PresentationData {
   const rawSnapshot = row.quote_snapshot;
   const pricingFlags = readPricingFlags(rawSnapshot);
-  return normalizePresentation({
+  const base: PresentationData = {
     id: row.id,
     createdBy: row.created_by ?? "Team",
     salesRepId: row.sales_rep_id ?? null,
@@ -160,7 +165,11 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     onboardingStatus: row.onboarding_status as PresentationOnboardingStatus | null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-  });
+  };
+
+  return normalizePresentation(
+    restorePresentationDraftPayload(base, row.draft_payload),
+  );
 }
 
 function presentationToRow(data: PresentationData): Record<string, unknown> {
@@ -181,6 +190,7 @@ function presentationToRow(data: PresentationData): Record<string, unknown> {
     enrollment_savings: data.enrollmentSavings,
     custom_notes: data.customNotes || null,
     quote_snapshot: writeQuoteSnapshot(data),
+    draft_payload: createPresentationDraftPayload(data),
     slide_overrides: data.slideOverrides,
     status: data.status,
     signed_at: data.signedAt,
@@ -243,37 +253,34 @@ async function getFromSupabase(id: string): Promise<PresentationData | null> {
 
 async function saveToSupabase(data: PresentationData): Promise<PresentationData> {
   const supabase = createServerSupabaseClient();
-  const row = {
+  const row: Record<string, unknown> = {
     id: data.id,
     ...presentationToRow(data),
   };
 
-  const attempt = await supabase
-    .from("presentations")
-    .upsert(row, { onConflict: "id" })
-    .select("*")
-    .single();
-
-  if (!attempt.error) {
-    return rowToPresentation(attempt.data as PresentationRow);
-  }
-
-  if (
-    isMissingColumnError(attempt.error.message, "enrollment_savings") &&
-    "enrollment_savings" in row
-  ) {
-    const rowWithoutEnrollment = { ...row };
-    delete rowWithoutEnrollment.enrollment_savings;
-    const retry = await supabase
+  // Keep deploys safe while a newly added optional column is rolling out. The
+  // relational columns still receive the draft; once the migration lands the
+  // full editor snapshot becomes the authoritative recovery copy as well.
+  for (let attemptIndex = 0; attemptIndex < 3; attemptIndex += 1) {
+    const attempt = await supabase
       .from("presentations")
-      .upsert(rowWithoutEnrollment, { onConflict: "id" })
+      .upsert(row, { onConflict: "id" })
       .select("*")
       .single();
-    if (retry.error) throw new Error(retry.error.message);
-    return rowToPresentation(retry.data as PresentationRow);
+
+    if (!attempt.error) {
+      return rowToPresentation(attempt.data as PresentationRow);
+    }
+
+    const missingOptionalColumn = ["draft_payload", "enrollment_savings"].find(
+      (column) =>
+        column in row && isMissingColumnError(attempt.error.message, column),
+    );
+    if (!missingOptionalColumn) throw new Error(attempt.error.message);
+    delete row[missingOptionalColumn];
   }
 
-  throw new Error(attempt.error.message);
+  throw new Error("Presentation could not be saved after schema fallback.");
 }
 
 function isMissingColumnError(message: string, column: string): boolean {
@@ -372,10 +379,10 @@ export async function savePresentation(
     try {
       return normalizePresentation(await saveToSupabase(merged));
     } catch (error) {
-      // A rep-linked field presentation must never silently fall back to a
-      // device-local draft and lose its authoritative attribution lineage.
-      if (merged.salesRepId) throw error;
-      logCloudFallback("save", error);
+      // Never report a production draft as saved when it only reached this
+      // server instance's temporary local store. The editor must surface the
+      // failure and retain its recovery copy until Supabase accepts the save.
+      throw error;
     }
   }
 
