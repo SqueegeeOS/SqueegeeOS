@@ -1,4 +1,5 @@
 import type { PresentationData } from "./types";
+import { restorePresentationDraftPayload } from "./draft-persistence";
 
 const STORAGE_PREFIX = "squeegee:presentation:";
 
@@ -24,6 +25,30 @@ export function readCachedPresentation(id: string): PresentationData | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Prefer a newer in-tab draft over the server copy. This recovers edits after
+ * a refresh or navigation without allowing an older browser cache to replace
+ * a presentation that was updated elsewhere.
+ */
+export function freshestPresentation(
+  server: PresentationData,
+  cached: PresentationData | null,
+): PresentationData {
+  if (!cached || cached.id !== server.id) return server;
+
+  const serverUpdatedAt = Date.parse(server.updatedAt);
+  const cachedUpdatedAt = Date.parse(cached.updatedAt);
+  if (!Number.isFinite(cachedUpdatedAt)) return server;
+  if (!Number.isFinite(serverUpdatedAt) || cachedUpdatedAt > serverUpdatedAt) {
+    return {
+      ...restorePresentationDraftPayload(server, cached),
+      updatedAt: cached.updatedAt,
+    };
+  }
+
+  return server;
 }
 
 export function clearCachedPresentation(id: string): void {
