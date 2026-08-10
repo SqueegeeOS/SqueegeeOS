@@ -70,4 +70,17 @@ describe("agreement-pricing", () => {
       expect(pricing.source).toBe("quote_snapshot");
     }
   });
+
+  it("locks a 3x/year agreement to exactly three visits", () => {
+    const pricing = buildAgreementPricingSnapshot({
+      tier: "triannual",
+      visitPrice: 285,
+      homeSqft: 2500,
+    });
+
+    expect(pricing.kind).toBe("savings");
+    expect(pricing.tier).toBe("triannual");
+    expect(pricing.visitsPerYear).toBe(3);
+    expect(pricing.membershipAnnual).toBe(855);
+  });
 });

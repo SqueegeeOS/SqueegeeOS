@@ -71,7 +71,6 @@ export function presentationIncludedItems(
       detail: "Included every visit",
     });
   }
-
   return items;
 }
 
@@ -97,6 +96,9 @@ export function tierCertaintyCopy(tier: SqueegeeKingTierId | string): string {
   const id = normalizeToSqueegeeKingTier(tier);
   if (id === "quarterly") {
     return "Both memberships protect your home with priority scheduling and automatic add-on discounts. Quarterly adds RainBlock, Hard Water protection, and 25% OFF every add-on.";
+  }
+  if (id === "triannual") {
+    return "The 3× Per Year membership keeps the home on an every-four-month rhythm with priority scheduling, locked member pricing, and 20% OFF add-on services.";
   }
   return "Bi-Annual membership protects your home with priority scheduling, locked member pricing, and 20% OFF add-on services while your membership is active.";
 }

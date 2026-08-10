@@ -36,11 +36,15 @@ export function formatPropertyAddress(parts: {
 export function formatWebsiteMembershipSaleTier(
   tier: WebsiteMembershipSaleTier,
 ): string {
-  return tier === "biannual" ? "Bi-Annual" : "Quarterly";
+  return tier === "biannual"
+    ? "Bi-Annual"
+    : tier === "triannual"
+      ? "3× Per Year"
+      : "Quarterly";
 }
 
 export function isWebsiteMembershipSaleTier(
   value: string | null | undefined,
 ): value is WebsiteMembershipSaleTier {
-  return value === "biannual" || value === "quarterly";
+  return value === "biannual" || value === "triannual" || value === "quarterly";
 }

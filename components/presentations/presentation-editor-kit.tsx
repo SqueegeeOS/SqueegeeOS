@@ -134,7 +134,11 @@ export function TierPicker({
   value: SqueegeeKingTierId;
   onChange: (tier: SqueegeeKingTierId) => void;
 }) {
-  const tiers = Object.values(SQUEEGEEKING_TIERS);
+  const tiers = [
+    SQUEEGEEKING_TIERS.quarterly,
+    SQUEEGEEKING_TIERS.biannual,
+  ];
+  const optionalTier = SQUEEGEEKING_TIERS.triannual;
 
   return (
     <div className="grid gap-2">
@@ -171,6 +175,27 @@ export function TierPicker({
           </button>
         );
       })}
+      <button
+        type="button"
+        onClick={() => onChange(optionalTier.id)}
+        className="flex items-center justify-between rounded-lg border px-3 py-2.5 text-left transition-all active:scale-[0.99]"
+        style={{
+          borderColor: value === optionalTier.id ? "#c9a96e55" : "#1d1d1d",
+          backgroundColor: value === optionalTier.id ? "#141008" : "#0d0d0d",
+        }}
+      >
+        <span>
+          <span className="block text-[9px] uppercase tracking-[0.16em] text-[#555]">
+            Occasional option
+          </span>
+          <span className="mt-0.5 block text-xs text-[#aaa]">
+            3× per year · every 4 months
+          </span>
+        </span>
+        <span className="text-[10px] text-[#c9a96e]">
+          {value === optionalTier.id ? "Selected" : "Choose"}
+        </span>
+      </button>
     </div>
   );
 }

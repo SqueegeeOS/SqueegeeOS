@@ -6,7 +6,7 @@
 
 import { visitPriceForMembershipTier } from "@/lib/pricing/window-care-pricing";
 
-export type SqueegeeKingTierId = "biannual" | "quarterly";
+export type SqueegeeKingTierId = "biannual" | "triannual" | "quarterly";
 
 export interface SqueegeeKingTierDefinition {
   id: SqueegeeKingTierId;
@@ -41,6 +41,7 @@ export const ADDON_DISCOUNT_FINE_PRINT = `ADD-ON SERVICE DISCOUNT
 Member discount on additional services is applied automatically at time of service and remains valid for the duration of active membership.
 
   Quarterly Members:   25% off all add-on services
+  Tri-Annual Members:  20% off all add-on services
   Bi-Annual Members:   20% off all add-on services
 
 Discount is contingent upon membership payments remaining current. Discount will be suspended immediately upon any lapsed or failed payment and reinstated upon payment resolution. Discount is non-transferable and applies to SqueegeeKing standard service menu only.`;
@@ -74,6 +75,32 @@ export const SQUEEGEEKING_TIERS: Record<
     highlighted: false,
     defaultVisitPrice: 320,
     recommendedFor: "Occasional refresh",
+  },
+  triannual: {
+    id: "triannual",
+    label: "3× Per Year",
+    tagline: "Flexible Care",
+    visitsPerYear: 3,
+    frequency: "Every 4 months",
+    addonDiscount: 20,
+    benefits: [
+      "Exterior window cleaning (3× per year)",
+      "Personalized Home Care Plan",
+      "VIP Priority Scheduling",
+      "Locked member pricing",
+      "20% OFF all add-on services (while payments active)",
+      "Property Health Monitoring",
+      "Automatic service reminders",
+      "7-Day Workmanship Guarantee",
+    ],
+    exclusions: [
+      "RainBlock Technology",
+      "Hard Water Stain Removal",
+      "25% add-on discount (Quarterly exclusive)",
+    ],
+    highlighted: false,
+    defaultVisitPrice: 285,
+    recommendedFor: "A flexible middle cadence",
   },
   quarterly: {
     id: "quarterly",
@@ -143,7 +170,12 @@ export function formatTierPeriodPrice(
   price: number,
   tier: SqueegeeKingTierId,
 ): string {
-  const suffix = tier === "quarterly" ? "/quarter" : " bi-annually";
+  const suffix =
+    tier === "quarterly"
+      ? "/quarter"
+      : tier === "triannual"
+        ? "/visit · 3×/year"
+        : " bi-annually";
   return `${formatTierPrice(price)}${suffix}`;
 }
 
@@ -190,6 +222,16 @@ export function membershipRequestHref(
 
 export function normalizeToSqueegeeKingTier(tier: string): SqueegeeKingTierId {
   const n = tier.toLowerCase();
+  if (
+    n.includes("triannual") ||
+    n.includes("tri-annual") ||
+    n.includes("tri annual") ||
+    n.includes("3x") ||
+    n.includes("3×") ||
+    n.includes("three times")
+  ) {
+    return "triannual";
+  }
   if (
     n === "biannual" ||
     n === "bi-annual" ||

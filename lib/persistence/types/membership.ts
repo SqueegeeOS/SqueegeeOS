@@ -10,7 +10,7 @@ export type MembershipStatus =
 
 export type MembershipBillingSchedule = "first_of_service_month";
 
-export type MembershipSalesTier = "biannual" | "quarterly";
+export type MembershipSalesTier = "biannual" | "triannual" | "quarterly";
 
 /**
  * Persisted membership — maps to `memberships` table in Supabase.

@@ -80,4 +80,18 @@ describe("presentation draft persistence", () => {
     expect(restored.agreementId).toBe("agreement-id");
     expect(restored.clientName).toBe("Recovered editor value");
   });
+
+  it("restores the optional 3x/year tier and its scoped rate", () => {
+    const base = createDefaultPresentation({ clientName: "Three visit customer" });
+    const restored = restorePresentationDraftPayload(base, {
+      tier: "triannual",
+      monthlyRate: 285,
+      overrideTier: "triannual",
+      visitRateOverrides: { triannual: 285 },
+    });
+
+    expect(restored.tier).toBe("triannual");
+    expect(restored.overrideTier).toBe("triannual");
+    expect(restored.visitRateOverrides?.triannual).toBe(285);
+  });
 });

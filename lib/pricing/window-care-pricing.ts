@@ -308,7 +308,7 @@ export function getPricingComparison(
 
 /** Bridge for presentations / membership quotes — Law 008 single source. */
 export function visitPriceForMembershipTier(
-  tier: "quarterly" | "biannual",
+  tier: "quarterly" | "triannual" | "biannual",
   squareFeet: number,
   options: {
     twoStory?: boolean;
@@ -317,15 +317,18 @@ export function visitPriceForMembershipTier(
   } = {},
   settings: CompanySettings = DEFAULT_COMPANY_SETTINGS,
 ): number {
-  const frequency: CareFrequency =
-    tier === "quarterly" ? "quarterly" : "bi_annual";
   const resolved = normalizeCompanySettings(settings);
-  const exteriorPrice = calculateExteriorPrice(
-    squareFeet,
-    frequency,
-    resolved,
-    options,
-  );
+  const ratePerSqft =
+    tier === "triannual"
+      ? (resolved.rates.quarterly.ratePerSqft +
+          resolved.rates.bi_annual.ratePerSqft) /
+        2
+      : resolved.rates[tier === "quarterly" ? "quarterly" : "bi_annual"]
+          .ratePerSqft;
+  const exteriorPrice =
+    Math.floor(squareFeet * ratePerSqft) +
+    (options.twoStory ? resolved.twoStorySurcharge : 0) +
+    (options.includeScreens ? resolved.screenCleaningAddOn : 0);
   return (
     exteriorPrice +
     (options.includeInterior ? resolved.interiorCleaningAddOn : 0)

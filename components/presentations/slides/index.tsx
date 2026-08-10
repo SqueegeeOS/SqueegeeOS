@@ -261,6 +261,14 @@ export function CloseSlide({ presentation, overrides, onSign }: SlideComponentPr
           </button>
         </div>
 
+        <button
+          type="button"
+          onClick={() => onSign?.("triannual")}
+          className="mt-3 text-xs text-white/40 underline decoration-white/15 underline-offset-4 transition hover:text-accent"
+        >
+          Prefer a middle cadence? 3× per year · {formatTierPrice(rates.triannualVisit)}/visit
+        </button>
+
         <p className="mt-6 text-[11px] tracking-wide text-white/40">
           7-day guarantee · PDF agreement · {MEMBERSHIP_BILLING_REMINDER.split(".")[0]}
         </p>

@@ -1,13 +1,13 @@
 import {
   HARDWATER_RETAIL_VALUE,
-  memberVsOneTimePremium,
   memberYearlyWindowSavings,
   oneTimeRetailPerVisit,
   RAINBLOCK_RETAIL_VALUE,
   SQUEEGEEKING_TIERS,
+  calculateVisitPrice,
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
-import { calculateInteriorExteriorPrice, calculateWindowCarePricing } from "@/lib/pricing/window-care-pricing";
+import { calculateInteriorExteriorPrice } from "@/lib/pricing/window-care-pricing";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { careFrequencyToPresentationTier } from "@/lib/presentations/quote-snapshot";
 
@@ -44,14 +44,17 @@ export interface QuarterlyAgreementPricing extends AgreementPricingSnapshotBase 
   includedRows: AgreementMathRow[];
 }
 
-export interface BiannualAgreementPricing extends AgreementPricingSnapshotBase {
+export interface StandardAgreementPricing extends AgreementPricingSnapshotBase {
   kind: "savings";
   retailRows: AgreementMathRow[];
 }
 
+/** @deprecated Use StandardAgreementPricing. */
+export type BiannualAgreementPricing = StandardAgreementPricing;
+
 export type AgreementPricingSnapshot =
   | QuarterlyAgreementPricing
-  | BiannualAgreementPricing;
+  | StandardAgreementPricing;
 
 /** Included treatments — retail rates from tier catalog (pricing law) */
 export const QUARTERLY_INCLUDED_TREATMENT_DEFINITIONS = [
@@ -142,24 +145,17 @@ export function buildAgreementPricingSnapshot(
   input: BuildAgreementPricingInput,
 ): AgreementPricingSnapshot {
   const ctx = resolvePricingContext(input);
-  const frequency = input.tier === "quarterly" ? "quarterly" : "bi_annual";
-
-  const pricing = calculateWindowCarePricing({
-    squareFeet: ctx.sqft,
-    frequency,
-    includeInterior: ctx.includeInterior,
-    twoStory: ctx.twoStory,
-    includeScreens: ctx.includeScreens,
-  });
-
-  const visitsPerYear = pricing.annualVisits;
+  const visitsPerYear = SQUEEGEEKING_TIERS[input.tier].visitsPerYear;
 
   const exteriorMembershipPerVisit =
     input.visitPrice && input.visitPrice > 0
       ? input.visitPrice
       : ctx.snapshotVisitPrice && ctx.snapshotTier === input.tier
         ? ctx.snapshotVisitPrice
-        : pricing.exteriorMemberPrice;
+        : calculateVisitPrice(input.tier, ctx.sqft, {
+            twoStory: ctx.twoStory,
+            includeScreens: ctx.includeScreens,
+          });
 
   const membershipPerVisit = ctx.includeInterior
     ? calculateInteriorExteriorPrice(exteriorMembershipPerVisit)
@@ -197,13 +193,13 @@ export function buildAgreementPricingSnapshot(
     };
   }
 
-  const youSave = memberYearlyWindowSavings(membershipPerVisit, "biannual");
+  const youSave = memberYearlyWindowSavings(membershipPerVisit, input.tier);
   const visitLabel =
     visitsPerYear === 1 ? "1 One-Time Visit" : `${visitsPerYear} One-Time Visits`;
 
   return {
     kind: "savings",
-    tier: "biannual",
+    tier: input.tier,
     visitsPerYear,
     membershipPerVisit,
     membershipAnnual,

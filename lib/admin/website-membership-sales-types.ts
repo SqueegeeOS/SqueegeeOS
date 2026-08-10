@@ -1,6 +1,6 @@
 export const WEBSITE_MEMBERSHIP_SALE_SOURCE = "website_presentation" as const;
 
-export type WebsiteMembershipSaleTier = "biannual" | "quarterly";
+export type WebsiteMembershipSaleTier = "biannual" | "triannual" | "quarterly";
 
 export type WebsiteMembershipSaleActivationMode = "stripe" | "mock";
 

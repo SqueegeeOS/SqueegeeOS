@@ -126,7 +126,11 @@ export function tierVisitPriceForPresentation(
   targetTier: SqueegeeKingTierId,
 ): number {
   const rates = computePresentationRates(data);
-  return targetTier === "biannual" ? rates.biannualVisit : rates.quarterlyVisit;
+  return targetTier === "biannual"
+    ? rates.biannualVisit
+    : targetTier === "triannual"
+      ? rates.triannualVisit
+      : rates.quarterlyVisit;
 }
 
 export function enrollmentSavingsForPresentation(
@@ -147,6 +151,7 @@ export function computePresentationRates(input: PresentationPricingInput) {
   const overrides = normalizeVisitRateOverrides(input);
 
   let biannualVisit = calculateVisitPrice("biannual", input.homeSqft, pricingOpts);
+  let triannualVisit = calculateVisitPrice("triannual", input.homeSqft, pricingOpts);
   let quarterlyVisit = calculateVisitPrice(
     "quarterly",
     input.homeSqft,
@@ -154,16 +159,30 @@ export function computePresentationRates(input: PresentationPricingInput) {
   );
 
   const biannualOverride = overrides.biannual;
+  const triannualOverride = overrides.triannual;
   const quarterlyOverride = overrides.quarterly;
   if (biannualOverride && biannualOverride > 0) {
     biannualVisit = biannualOverride;
+  }
+  if (triannualOverride && triannualOverride > 0) {
+    triannualVisit = triannualOverride;
   }
   if (quarterlyOverride && quarterlyOverride > 0) {
     quarterlyVisit = quarterlyOverride;
   }
 
-  const visitRate = tier === "biannual" ? biannualVisit : quarterlyVisit;
-  const activeOverride = tier === "biannual" ? biannualOverride : quarterlyOverride;
+  const visitRate =
+    tier === "biannual"
+      ? biannualVisit
+      : tier === "triannual"
+        ? triannualVisit
+        : quarterlyVisit;
+  const activeOverride =
+    tier === "biannual"
+      ? biannualOverride
+      : tier === "triannual"
+        ? triannualOverride
+        : quarterlyOverride;
 
   const annualRate = calculateAnnualFromVisits(tier, visitRate);
   const upgrade = quarterlyUpgradeMath(biannualVisit, quarterlyVisit);
@@ -198,6 +217,7 @@ export function computePresentationRates(input: PresentationPricingInput) {
     retailValue,
     enrollmentSavings,
     biannualVisit,
+    triannualVisit,
     quarterlyVisit,
     oneTimePerVisit,
     yearlyWindowSavings,

@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSqueegeeKingTierQuotes,
+  calculateAnnualFromVisits,
+  calculateVisitPrice,
   formatTierPrice,
   membershipRequestHref,
+  normalizeToSqueegeeKingTier,
 } from "./tier-config";
 
 describe("SqueegeeKing tier quotes", () => {
@@ -40,5 +43,24 @@ describe("formatTierPrice", () => {
     // Real production bug: a stale record passed "$300" (string) through
     // here, and `"$300".toLocaleString()` is a no-op, producing "$$300".
     expect(formatTierPrice("$300" as unknown as number)).toBe("$300");
+  });
+});
+
+describe("optional 3x/year presentation cadence", () => {
+  it("prices between the two primary plans and annualizes three visits", () => {
+    const quarterly = calculateVisitPrice("quarterly", 2500);
+    const triannual = calculateVisitPrice("triannual", 2500);
+    const biannual = calculateVisitPrice("biannual", 2500);
+
+    expect(triannual).toBeGreaterThan(quarterly);
+    expect(triannual).toBeLessThan(biannual);
+    expect(calculateAnnualFromVisits("triannual", triannual)).toBe(
+      triannual * 3,
+    );
+  });
+
+  it("recognizes the common ways a 3x/year deal may be stored", () => {
+    expect(normalizeToSqueegeeKingTier("tri-annual")).toBe("triannual");
+    expect(normalizeToSqueegeeKingTier("3x per year")).toBe("triannual");
   });
 });

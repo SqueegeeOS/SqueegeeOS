@@ -47,7 +47,9 @@ function booleanValue(value: unknown, fallback: boolean): boolean {
 }
 
 function tierValue(value: unknown, fallback: PresentationTier): PresentationTier {
-  return value === "biannual" || value === "quarterly" ? value : fallback;
+  return value === "biannual" || value === "triannual" || value === "quarterly"
+    ? value
+    : fallback;
 }
 
 function nullableTierValue(
@@ -55,7 +57,9 @@ function nullableTierValue(
   fallback: PresentationTier | null,
 ): PresentationTier | null {
   if (value === null) return null;
-  return value === "biannual" || value === "quarterly" ? value : fallback;
+  return value === "biannual" || value === "triannual" || value === "quarterly"
+    ? value
+    : fallback;
 }
 
 function visitRateOverridesValue(
@@ -65,7 +69,7 @@ function visitRateOverridesValue(
   if (!isRecord(value)) return fallback;
 
   const overrides: VisitRateOverrides = {};
-  for (const tier of ["biannual", "quarterly"] as const) {
+  for (const tier of ["biannual", "triannual", "quarterly"] as const) {
     const rate = value[tier];
     if (typeof rate === "number" && Number.isFinite(rate) && rate > 0) {
       overrides[tier] = rate;

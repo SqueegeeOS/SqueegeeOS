@@ -23,7 +23,10 @@ import {
   type SlideOverride,
   type SlideType,
 } from "@/lib/presentations/types";
-import { formatTierPrice } from "@/lib/membership/tier-config";
+import {
+  calculateVisitPrice,
+  formatTierPrice,
+} from "@/lib/membership/tier-config";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
   CollapsibleSection,
@@ -127,11 +130,30 @@ export function PresentationEditor({
 
   const exteriorBreakdown =
     data.homeSqft > 0
-      ? buildExteriorWindowBreakdown(
-          data.homeSqft,
-          data.tier === "quarterly" ? "quarterly" : "bi_annual",
-          { twoStory, includeScreens },
-        )
+      ? data.tier === "triannual"
+        ? (() => {
+            const visitTotal = calculateVisitPrice("triannual", data.homeSqft, {
+              twoStory,
+              includeScreens,
+            });
+            const twoStorySurcharge = twoStory
+              ? DEFAULT_COMPANY_SETTINGS.twoStorySurcharge
+              : 0;
+            const screenCleaning = includeScreens
+              ? DEFAULT_COMPANY_SETTINGS.screenCleaningAddOn
+              : 0;
+            return {
+              sqftBase: visitTotal - twoStorySurcharge - screenCleaning,
+              twoStorySurcharge,
+              screenCleaning,
+              visitTotal,
+            };
+          })()
+        : buildExteriorWindowBreakdown(
+            data.homeSqft,
+            data.tier === "quarterly" ? "quarterly" : "bi_annual",
+            { twoStory, includeScreens },
+          )
       : null;
   const interiorCleaning = includeInterior
     ? DEFAULT_COMPANY_SETTINGS.interiorCleaningAddOn
@@ -146,7 +168,7 @@ export function PresentationEditor({
         const nextTier = value as PresentationData["tier"];
         return recalculateVisitRate(prev, {
           tier: nextTier,
-          retailValue: nextTier === "biannual" ? 0 : prev.retailValue,
+          retailValue: nextTier === "quarterly" ? prev.retailValue : 0,
           enrollmentSavings: defaultEnrollmentSavingsForTier(nextTier),
         });
       }
@@ -331,6 +353,11 @@ export function PresentationEditor({
                 Quarterly includes RainBlock + Hard Water protection on every
                 visit.
               </p>
+            ) : data.tier === "triannual" ? (
+              <p className="mt-3 text-[11px] leading-relaxed text-[#555]">
+                Optional 3× per year cadence · one visit every four months ·
+                20% off add-ons.
+              </p>
             ) : (
               <p className="mt-3 text-[11px] leading-relaxed text-[#555]">
                 Bi-Annual includes 20% off add-ons. RainBlock and Hard Water are
@@ -481,7 +508,9 @@ export function PresentationEditor({
                   Math.round(
                     data.tier === "biannual"
                       ? rates.biannualVisit
-                      : rates.quarterlyVisit,
+                      : data.tier === "triannual"
+                        ? rates.triannualVisit
+                        : rates.quarterlyVisit,
                   ),
                 )}
                 onChange={(v) =>

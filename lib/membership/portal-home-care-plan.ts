@@ -348,7 +348,7 @@ async function backfillPortalHomeCarePlan(
       includeInterior: false,
       tier,
       monthlyRate: visitPrice,
-      annualRate: visitPrice * (tier === "quarterly" ? 4 : 2),
+      annualRate: visitPrice * SQUEEGEEKING_TIERS[tier].visitsPerYear,
       retailValue: 0,
       enrollmentSavings: defaultEnrollmentSavingsForTier(tier),
       customNotes: "",

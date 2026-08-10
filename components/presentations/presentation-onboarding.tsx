@@ -139,7 +139,11 @@ export function PresentationOnboarding({
 
   const rates = computePresentationRates({ ...presentation, tier });
   const visitPrice =
-    tier === "biannual" ? rates.biannualVisit : rates.quarterlyVisit;
+    tier === "biannual"
+      ? rates.biannualVisit
+      : tier === "triannual"
+        ? rates.triannualVisit
+        : rates.quarterlyVisit;
   const annualTotal = calculateAnnualFromVisits(tier, visitPrice);
 
   const syncPresentation = (next: PresentationData) => {
@@ -381,6 +385,17 @@ export function PresentationOnboarding({
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              onClick={() => setTier("triannual")}
+              className={`mt-2 w-full rounded border px-3 py-2 text-[10px] uppercase tracking-[0.12em] ${
+                tier === "triannual"
+                  ? "border-accent/40 bg-accent/10 text-accent"
+                  : "border-white/10 text-white/35"
+              }`}
+            >
+              Optional · 3× per year · every 4 months
+            </button>
 
             <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left">
               <p className="font-serif text-sm italic leading-relaxed text-accent/80">

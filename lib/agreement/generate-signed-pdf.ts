@@ -76,6 +76,17 @@ const TEMPLATE_SIGNATURE_PLACEMENT: Record<
     sigW: 220,
     sigH: 52,
   },
+  triannual: {
+    pageIndex: -1,
+    nameX: 72,
+    nameY: 118,
+    dateX: 360,
+    dateY: 118,
+    sigX: 72,
+    sigY: 128,
+    sigW: 220,
+    sigH: 52,
+  },
 };
 
 function formatSignedDate(iso: string): string {
@@ -114,6 +125,9 @@ async function loadTemplateBytes(
   kind: AgreementKind,
   tier: SqueegeeKingTierId,
 ): Promise<Uint8Array | null> {
+  if (kind === "membership" && tier === "triannual") {
+    return null;
+  }
   const filename =
     kind === "one_time"
       ? ONE_TIME_AGREEMENT_TEMPLATE
