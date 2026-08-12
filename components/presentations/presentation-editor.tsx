@@ -36,6 +36,7 @@ import {
   SlideOverrideAccordion,
   TierPicker,
 } from "./presentation-editor-kit";
+import { PresentationAddressEditor } from "./presentation-address-editor";
 
 export function PresentationEditor({
   presentation: initial,
@@ -326,17 +327,16 @@ export function PresentationEditor({
               <EditorField label="Client name">
                 <EditorTextInput
                   value={data.clientName}
+                  name="name"
+                  autoComplete="name"
                   placeholder="Larry Buckley"
                   onChange={(v) => update("clientName", v)}
                 />
               </EditorField>
-              <EditorField label="Property address">
-                <EditorTextInput
-                  value={data.clientAddress}
-                  placeholder="123 Canyon Oaks Dr, Chico"
-                  onChange={(v) => update("clientAddress", v)}
-                />
-              </EditorField>
+              <PresentationAddressEditor
+                value={data.clientAddress}
+                onChange={(value) => update("clientAddress", value)}
+              />
             </div>
           </section>
 
@@ -574,6 +574,8 @@ export function PresentationEditor({
               <EditorTextInput
                 type="email"
                 inputMode="email"
+                name="email"
+                autoComplete="email"
                 value={data.clientEmail}
                 placeholder="client@email.com"
                 onChange={(v) => update("clientEmail", v)}

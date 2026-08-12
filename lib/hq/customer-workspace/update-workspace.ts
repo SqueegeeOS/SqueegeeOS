@@ -3,6 +3,7 @@ import { updateLeadIntakeStatus } from "@/lib/acquisition/leads/repository";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { patchPresentation } from "@/lib/presentations/repository";
+import { normalizeUsPostalCodeInput } from "@/lib/address/postal-code";
 
 export async function updateLeadIntakeFields(
   id: string,
@@ -129,7 +130,9 @@ export async function updatePropertyFields(
   if (fields.address !== undefined) row.address = fields.address.trim();
   if (fields.city !== undefined) row.city = fields.city.trim();
   if (fields.state !== undefined) row.state = fields.state.trim();
-  if (fields.zip !== undefined) row.zip = fields.zip.trim();
+  if (fields.zip !== undefined) {
+    row.zip = normalizeUsPostalCodeInput(fields.zip);
+  }
   if (fields.squareFeet !== undefined) row.square_feet = fields.squareFeet;
 
   if (Object.keys(row).length === 0) return;

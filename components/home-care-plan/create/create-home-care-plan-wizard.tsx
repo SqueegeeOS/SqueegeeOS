@@ -23,6 +23,7 @@ import { saveGeneratedHomeCarePlan } from "@/lib/persistence";
 import { LocalStorageNotice } from "@/components/persistence/local-storage-notice";
 import type { Property } from "@/lib/property/types";
 import { AmbientGlow, Eyebrow, PageTitle, Reveal } from "@/components/property/ui/primitives";
+import { normalizeUsPostalCodeInput } from "@/lib/address/postal-code";
 
 const inputClassName =
   "w-full rounded-2xl border border-border bg-surface px-4 py-3.5 text-base text-foreground placeholder:text-muted/60 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20";
@@ -222,6 +223,8 @@ export function CreateHomeCarePlanWizard({
                 <span className={labelClassName}>Full name</span>
                 <input
                   type="text"
+                  name="name"
+                  autoComplete="name"
                   value={draft.homeowner.fullName}
                   onChange={(e) => updateHomeowner({ fullName: e.target.value })}
                   placeholder="Larry Buckley"
@@ -232,6 +235,8 @@ export function CreateHomeCarePlanWizard({
                 <span className={labelClassName}>Email</span>
                 <input
                   type="email"
+                  name="email"
+                  autoComplete="email"
                   value={draft.homeowner.email}
                   onChange={(e) => updateHomeowner({ email: e.target.value })}
                   placeholder="homeowner@email.com"
@@ -242,6 +247,8 @@ export function CreateHomeCarePlanWizard({
                 <span className={labelClassName}>Phone</span>
                 <input
                   type="tel"
+                  name="tel"
+                  autoComplete="tel"
                   value={draft.homeowner.phone}
                   onChange={(e) => updateHomeowner({ phone: e.target.value })}
                   placeholder="(530) 555-0100"
@@ -260,6 +267,8 @@ export function CreateHomeCarePlanWizard({
                 <span className={labelClassName}>Property name</span>
                 <input
                   type="text"
+                  name="property-name"
+                  autoComplete="off"
                   value={draft.property.name}
                   onChange={(e) => updateProperty({ name: e.target.value })}
                   placeholder="Canyon Oaks Residence"
@@ -270,6 +279,8 @@ export function CreateHomeCarePlanWizard({
                 <span className={labelClassName}>Street address</span>
                 <input
                   type="text"
+                  name="address-line1"
+                  autoComplete="address-line1"
                   value={draft.property.address}
                   onChange={(e) => updateProperty({ address: e.target.value })}
                   placeholder="4125 Canyon Oaks Drive"
@@ -281,6 +292,8 @@ export function CreateHomeCarePlanWizard({
                   <span className={labelClassName}>City</span>
                   <input
                     type="text"
+                    name="address-level2"
+                    autoComplete="address-level2"
                     value={draft.property.city}
                     onChange={(e) => updateProperty({ city: e.target.value })}
                     className={`${inputClassName} mt-2`}
@@ -290,8 +303,17 @@ export function CreateHomeCarePlanWizard({
                   <span className={labelClassName}>ZIP</span>
                   <input
                     type="text"
+                    name="postal-code"
+                    autoComplete="postal-code"
+                    inputMode="text"
+                    maxLength={10}
                     value={draft.property.zip}
-                    onChange={(e) => updateProperty({ zip: e.target.value })}
+                    onChange={(e) =>
+                      updateProperty({
+                        zip: normalizeUsPostalCodeInput(e.target.value),
+                      })
+                    }
+                    placeholder="95928 or 95928-1234"
                     className={`${inputClassName} mt-2`}
                   />
                 </label>
@@ -301,6 +323,8 @@ export function CreateHomeCarePlanWizard({
                   <span className={labelClassName}>State</span>
                   <input
                     type="text"
+                    name="address-level1"
+                    autoComplete="address-level1"
                     value={draft.property.state}
                     onChange={(e) => updateProperty({ state: e.target.value })}
                     className={`${inputClassName} mt-2`}

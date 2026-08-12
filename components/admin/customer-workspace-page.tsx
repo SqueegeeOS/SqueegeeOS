@@ -16,6 +16,7 @@ import type { CustomerWorkspace, CustomerWorkspaceRefType } from "@/lib/hq/custo
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { ROUTES } from "@/lib/navigation/config";
 import { formatTierPrice, normalizeToSqueegeeKingTier, squeegeeKingTierLabel } from "@/lib/membership/tier-config";
+import { normalizeUsPostalCodeInput } from "@/lib/address/postal-code";
 
 function Section({
   title,
@@ -313,6 +314,8 @@ export function CustomerWorkspacePage({
                     Name
                   </span>
                   <input
+                    name="name"
+                    autoComplete="name"
                     value={draft.name}
                     onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
                     className={`mt-1.5 ${craftInput}`}
@@ -323,6 +326,9 @@ export function CustomerWorkspacePage({
                     Email
                   </span>
                   <input
+                    type="email"
+                    name="email"
+                    autoComplete="email"
                     value={draft.email}
                     onChange={(e) => setDraft((d) => ({ ...d, email: e.target.value }))}
                     className={`mt-1.5 ${craftInput}`}
@@ -333,6 +339,9 @@ export function CustomerWorkspacePage({
                     Phone
                   </span>
                   <input
+                    type="tel"
+                    name="tel"
+                    autoComplete="tel"
                     value={draft.phone}
                     onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))}
                     className={`mt-1.5 ${craftInput}`}
@@ -355,6 +364,8 @@ export function CustomerWorkspacePage({
                         Address
                       </span>
                       <input
+                        name="address-line1"
+                        autoComplete="address-line1"
                         value={draft.address}
                         onChange={(e) =>
                           setDraft((d) => ({ ...d, address: e.target.value }))
@@ -368,6 +379,8 @@ export function CustomerWorkspacePage({
                           City
                         </span>
                         <input
+                          name="address-level2"
+                          autoComplete="address-level2"
                           value={draft.city}
                           onChange={(e) =>
                             setDraft((d) => ({ ...d, city: e.target.value }))
@@ -380,6 +393,8 @@ export function CustomerWorkspacePage({
                           State
                         </span>
                         <input
+                          name="address-level1"
+                          autoComplete="address-level1"
                           value={draft.state}
                           onChange={(e) =>
                             setDraft((d) => ({ ...d, state: e.target.value }))
@@ -392,10 +407,18 @@ export function CustomerWorkspacePage({
                           Zip
                         </span>
                         <input
+                          name="postal-code"
+                          autoComplete="postal-code"
+                          inputMode="text"
+                          maxLength={10}
                           value={draft.zip}
                           onChange={(e) =>
-                            setDraft((d) => ({ ...d, zip: e.target.value }))
+                            setDraft((d) => ({
+                              ...d,
+                              zip: normalizeUsPostalCodeInput(e.target.value),
+                            }))
                           }
+                          placeholder="95928 or 95928-1234"
                           className={`mt-1.5 ${craftInput}`}
                         />
                       </label>

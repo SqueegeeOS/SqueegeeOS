@@ -35,17 +35,23 @@ export function EditorTextInput({
   type = "text",
   placeholder,
   inputMode,
+  autoComplete,
+  name,
 }: {
   value: string;
   onChange: (value: string) => void;
   type?: "text" | "email" | "number";
   placeholder?: string;
   inputMode?: "text" | "email" | "numeric" | "decimal";
+  autoComplete?: string;
+  name?: string;
 }) {
   return (
     <input
       type={type}
       inputMode={inputMode}
+      autoComplete={autoComplete}
+      name={name}
       value={value}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}

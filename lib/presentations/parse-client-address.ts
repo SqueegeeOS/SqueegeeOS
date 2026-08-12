@@ -6,7 +6,10 @@ export interface ParsedClientAddress {
   propertyName: string;
 }
 
-const STATE_ZIP_PATTERN = /,\s*([A-Za-z]{2})\s+(\d{5}(?:-\d{4})?)\s*$/;
+// Accept ZIP+4 pasted with a normal hyphen, whitespace, or a typographic dash.
+// The stored value is always canonicalized to 12345-6789.
+const STATE_ZIP_PATTERN =
+  /,\s*([A-Za-z]{2})\s+(\d{5})(?:[-\s‐‑‒–—―−]?(\d{4}))?\s*$/;
 
 /**
  * Best-effort parse of a single-line client address from presentations.
@@ -41,7 +44,9 @@ export function parseClientAddress(
   }
 
   const state = stateZipMatch[1].toUpperCase();
-  const zip = stateZipMatch[2];
+  const zip = stateZipMatch[3]
+    ? `${stateZipMatch[2]}-${stateZipMatch[3]}`
+    : stateZipMatch[2];
   const beforeState = trimmed.slice(0, stateZipMatch.index).trim();
   const commaParts = beforeState.split(",").map((part) => part.trim()).filter(Boolean);
 

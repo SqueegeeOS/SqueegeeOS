@@ -38,6 +38,17 @@ describe("parseClientAddress", () => {
     });
   });
 
+  it.each([
+    "742 Evergreen Terrace, Springfield, IL 62704-1234",
+    "742 Evergreen Terrace, Springfield, IL 62704 1234",
+    "742 Evergreen Terrace, Springfield, IL 62704–1234",
+    "742 Evergreen Terrace, Springfield, IL 62704‑1234",
+  ])("accepts and canonicalizes ZIP+4 separators: %s", (raw) => {
+    const parsed = parseClientAddress(raw);
+    expect(parsed.zip).toBe("62704-1234");
+    expect(hasCompleteClientAddress(parsed)).toBe(true);
+  });
+
   it("distinguishes complete addresses from partial free text", () => {
     expect(
       hasCompleteClientAddress(
