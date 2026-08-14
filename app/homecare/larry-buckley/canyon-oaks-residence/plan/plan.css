@@ -1,5 +1,5 @@
 .plan-root {
-  --font-handwritten: var(--font-caveat), cursive;
+  --font-handwritten: "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
 }
 
 .plan-handwritten {
