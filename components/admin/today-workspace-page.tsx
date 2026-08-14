@@ -269,6 +269,13 @@ function JobberVisitCard({
   const moment = classifyJobberTodayVisit(visit, now);
   const style = MOMENT_STYLES[moment];
   const service = visit.title?.trim() || "Scheduled Jobber visit";
+  const fieldActionLabel = fieldCaptureOpen
+    ? "Close field record"
+    : hasFieldDraft
+      ? "Resume saved visit draft"
+      : visit.homeAtlasFieldRecordCount > 0
+        ? "Add another visit update"
+        : "Add photos + visit notes";
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -362,6 +369,30 @@ function JobberVisitCard({
         <div className="mt-4 border-t border-border/60 pt-4">
           {propertyId && appointmentId ? (
             <>
+              {visit.homeAtlasFieldRecordCount > 0 ? (
+                <div className="mb-3 flex flex-col justify-between gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-3 sm:flex-row sm:items-center">
+                  <div>
+                    <p className="text-xs font-medium text-emerald-200">
+                      HomeAtlas visit memory saved
+                    </p>
+                    <p className="mt-1 text-[11px] leading-relaxed text-emerald-100/65">
+                      {visit.homeAtlasFieldRecordCount} field record
+                      {visit.homeAtlasFieldRecordCount === 1 ? "" : "s"}
+                      {visit.homeAtlasLatestFieldRecordBy
+                        ? ` · latest by ${visit.homeAtlasLatestFieldRecordBy}`
+                        : ""}
+                    </p>
+                  </div>
+                  {visit.homeAtlasLatestFieldRecordAt ? (
+                    <span className="text-[10px] text-emerald-100/55">
+                      {formatSyncTime(
+                        visit.homeAtlasLatestFieldRecordAt,
+                        timezone,
+                      )}
+                    </span>
+                  ) : null}
+                </div>
+              ) : null}
               <button
                 type="button"
                 aria-expanded={fieldCaptureOpen}
@@ -369,13 +400,7 @@ function JobberVisitCard({
                 className="flex min-h-12 w-full items-center justify-between rounded-xl border border-accent/35 bg-accent/[0.07] px-4 text-left text-sm text-accent transition active:scale-[0.995]"
               >
                 <span className="flex min-w-0 flex-col">
-                  <span>
-                    {fieldCaptureOpen
-                      ? "Close field record"
-                      : hasFieldDraft
-                        ? "Resume saved visit draft"
-                        : "Add photos + visit notes"}
-                  </span>
+                  <span>{fieldActionLabel}</span>
                   {hasFieldDraft && !fieldCaptureOpen ? (
                     <span className="mt-0.5 text-[10px] text-accent/70">
                       Saved on this device · expires after 72 hours without use

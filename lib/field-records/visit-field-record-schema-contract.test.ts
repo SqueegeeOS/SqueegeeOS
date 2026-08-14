@@ -188,6 +188,17 @@ describe("visit field record database contract", () => {
     expect(visitFieldDraft).not.toContain("Blob");
   });
 
+  it("shows database-backed visit memory on the exact Today appointment", () => {
+    expect(todayLoader).toContain('from("property_assessments")');
+    expect(todayLoader).toContain(
+      '.select("visit_id, field_record_id, technician_name, created_at")',
+    );
+    expect(todayLoader).toContain("isMissingVisitFieldRecordSchema");
+    expect(todayLoader).toContain("fieldRecordsByAppointment");
+    expect(todayWorkspace).toContain("HomeAtlas visit memory saved");
+    expect(todayWorkspace).toContain("Add another visit update");
+  });
+
   it("exposes the commit function only to the service role", () => {
     expect(migration).toContain(
       "revoke all on function public.commit_visit_field_record",
