@@ -16,6 +16,10 @@ import {
   type JobberTodayFieldRecordRow,
   type JobberTodayFieldRecordSummary,
 } from "./jobber-today-field-records";
+import {
+  buildJobberTodayPortalPath,
+  isMissingMembershipPortalAccessSchema,
+} from "./jobber-today-portal";
 import type {
   JobberTodayAppointmentLink,
   JobberTodayData,
@@ -58,6 +62,12 @@ interface StoredClientProperty {
 interface StoredPropertyLinkRow {
   external_property_id: string;
   property_id: string;
+  membership_id: string;
+}
+
+interface StoredMembershipPortalRow {
+  id: string;
+  portal_access_token: string | null;
 }
 
 interface StoredAppointmentLinkRow {
@@ -108,6 +118,7 @@ function toTodayVisit(
   propertyLinks: JobberTodayPropertyLink[],
   appointmentLinks: JobberTodayAppointmentLink[],
   fieldRecordsByAppointment: Map<string, JobberTodayFieldRecordSummary>,
+  portalPathByMembershipId: Map<string, string>,
 ): JobberTodayVisit {
   const property = readClientProperties(client?.properties).find(
     (candidate) => candidate.id === row.external_property_id,
@@ -137,6 +148,9 @@ function toTodayVisit(
       row.jobber_property_web_uri ?? property?.jobberWebUri ?? null,
     jobberClientWebUri: client?.jobber_web_uri ?? null,
     ...homeAtlas,
+    homeAtlasPortalPath: homeAtlas.homeAtlasMembershipId
+      ? (portalPathByMembershipId.get(homeAtlas.homeAtlasMembershipId) ?? null)
+      : null,
     homeAtlasFieldRecordCount: fieldRecord?.count ?? 0,
     homeAtlasLatestFieldRecordAt: fieldRecord?.latestFieldRecordAt ?? null,
     homeAtlasLatestFieldRecordBy: fieldRecord?.latestTechnicianName ?? null,
@@ -204,7 +218,7 @@ export async function loadJobberTodayBoard(
   for (const propertyIds of chunkItems(externalPropertyIds)) {
     const linkResult = await supabase
       .from("jobber_property_links")
-      .select("external_property_id, property_id")
+      .select("external_property_id, property_id, membership_id")
       .eq("connection_id", JOBBER_CONNECTION_ID)
       .eq("link_state", "active")
       .in("external_property_id", propertyIds);
@@ -213,8 +227,31 @@ export async function loadJobberTodayBoard(
       ...((linkResult.data ?? []) as StoredPropertyLinkRow[]).map((row) => ({
         externalPropertyId: row.external_property_id,
         propertyId: row.property_id,
+        membershipId: row.membership_id,
       })),
     );
+  }
+
+  const portalPathByMembershipId = new Map<string, string>();
+  const membershipIds = [
+    ...new Set(propertyLinks.map((link) => link.membershipId)),
+  ];
+  for (const membershipIdChunk of chunkItems(membershipIds)) {
+    const portalResult = await supabase
+      .from("memberships")
+      .select("id, portal_access_token")
+      .in("id", membershipIdChunk);
+    if (portalResult.error) {
+      if (isMissingMembershipPortalAccessSchema(portalResult.error)) {
+        portalPathByMembershipId.clear();
+        break;
+      }
+      throw new Error(portalResult.error.message);
+    }
+    for (const row of (portalResult.data ?? []) as StoredMembershipPortalRow[]) {
+      const portalPath = buildJobberTodayPortalPath(row.portal_access_token);
+      if (portalPath) portalPathByMembershipId.set(row.id, portalPath);
+    }
   }
 
   const appointmentLinks: JobberTodayAppointmentLink[] = [];
@@ -320,6 +357,7 @@ export async function loadJobberTodayBoard(
       propertyLinks,
       appointmentLinks,
       fieldRecordsByAppointment,
+      portalPathByMembershipId,
     ),
   );
   const latestSync = latestSyncResult.data as {

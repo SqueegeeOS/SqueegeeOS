@@ -22,6 +22,8 @@ export interface JobberTodayVisit {
   jobberClientWebUri: string | null;
   homeAtlasPropertyId: string | null;
   homeAtlasAppointmentId: string | null;
+  homeAtlasMembershipId: string | null;
+  homeAtlasPortalPath: string | null;
   homeAtlasFieldRecordCount: number;
   homeAtlasLatestFieldRecordAt: string | null;
   homeAtlasLatestFieldRecordBy: string | null;
@@ -31,6 +33,7 @@ export interface JobberTodayVisit {
 export interface JobberTodayPropertyLink {
   externalPropertyId: string;
   propertyId: string;
+  membershipId: string;
 }
 
 export interface JobberTodayAppointmentLink {
@@ -139,12 +142,17 @@ export function resolveJobberTodayHomeAtlasContext(input: {
 }): {
   homeAtlasPropertyId: string | null;
   homeAtlasAppointmentId: string | null;
+  homeAtlasMembershipId: string | null;
 } {
   const property = input.propertyLinks.find(
     (link) => link.externalPropertyId === input.externalPropertyId,
   );
   if (!property) {
-    return { homeAtlasPropertyId: null, homeAtlasAppointmentId: null };
+    return {
+      homeAtlasPropertyId: null,
+      homeAtlasAppointmentId: null,
+      homeAtlasMembershipId: null,
+    };
   }
 
   const appointment = input.appointmentLinks.find(
@@ -155,5 +163,6 @@ export function resolveJobberTodayHomeAtlasContext(input: {
   return {
     homeAtlasPropertyId: property.propertyId,
     homeAtlasAppointmentId: appointment?.appointmentId ?? null,
+    homeAtlasMembershipId: property.membershipId,
   };
 }

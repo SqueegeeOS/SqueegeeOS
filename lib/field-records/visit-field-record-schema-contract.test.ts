@@ -221,6 +221,17 @@ describe("visit field record database contract", () => {
     expect(todayWorkspace).toContain("Internal record only");
   });
 
+  it("lets HQ verify the exact paired customer portal without minting a new token", () => {
+    expect(todayLoader).toContain(
+      '.select("external_property_id, property_id, membership_id")',
+    );
+    expect(todayLoader).toContain('.select("id, portal_access_token")');
+    expect(todayLoader).toContain("buildJobberTodayPortalPath");
+    expect(todayWorkspace).toContain("Verify customer portal");
+    expect(todayWorkspace).toContain('target="_blank"');
+    expect(todayWorkspace).toContain('rel="noreferrer"');
+  });
+
   it("exposes the commit function only to the service role", () => {
     expect(migration).toContain(
       "revoke all on function public.commit_visit_field_record",

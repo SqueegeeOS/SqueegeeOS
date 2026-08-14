@@ -99,6 +99,7 @@ describe("Jobber Today board states", () => {
           {
             externalPropertyId: "jobber-property-1",
             propertyId: "homeatlas-property-1",
+            membershipId: "membership-1",
           },
         ],
         appointmentLinks: [
@@ -117,6 +118,7 @@ describe("Jobber Today board states", () => {
     ).toEqual({
       homeAtlasPropertyId: "homeatlas-property-1",
       homeAtlasAppointmentId: "appointment-1",
+      homeAtlasMembershipId: "membership-1",
     });
   });
 
@@ -128,6 +130,10 @@ describe("Jobber Today board states", () => {
         propertyLinks: [],
         appointmentLinks: [],
       }),
-    ).toEqual({ homeAtlasPropertyId: null, homeAtlasAppointmentId: null });
+    ).toEqual({
+      homeAtlasPropertyId: null,
+      homeAtlasAppointmentId: null,
+      homeAtlasMembershipId: null,
+    });
   });
 });
