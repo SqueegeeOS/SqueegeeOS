@@ -12,24 +12,28 @@ describe("Today field record truth", () => {
         fieldRecordId: "record-1",
         technicianName: "Donovan",
         createdAt: "invalid-legacy-time",
+        customerVisible: false,
       },
       {
         appointmentId: "appointment-1",
         fieldRecordId: "record-2",
         technicianName: "Dasan",
         createdAt: "2026-08-14T19:00:00.000Z",
+        customerVisible: true,
       },
       {
         appointmentId: "appointment-1",
         fieldRecordId: "record-2",
         technicianName: "Duplicate projection",
         createdAt: "2026-08-14T18:00:00.000Z",
+        customerVisible: true,
       },
       {
         appointmentId: "appointment-2",
         fieldRecordId: "record-3",
         technicianName: "David",
         createdAt: "2026-08-14T16:00:00.000Z",
+        customerVisible: false,
       },
     ]);
 
@@ -37,6 +41,7 @@ describe("Today field record truth", () => {
       count: 2,
       latestFieldRecordAt: "2026-08-14T19:00:00.000Z",
       latestTechnicianName: "Dasan",
+      customerVisibleCount: 1,
     });
     expect(summaries.get("appointment-2")?.count).toBe(1);
   });
@@ -49,12 +54,14 @@ describe("Today field record truth", () => {
           fieldRecordId: "record-1",
           technicianName: "Unknown",
           createdAt: "2026-08-14T17:00:00.000Z",
+          customerVisible: true,
         },
         {
           appointmentId: "appointment-1",
           fieldRecordId: null,
           technicianName: "Legacy",
           createdAt: "2026-08-14T17:00:00.000Z",
+          customerVisible: true,
         },
       ]).size,
     ).toBe(0);

@@ -58,17 +58,35 @@ describe("Jobber Today board states", () => {
   it("separates Jobber completion from proven HomeAtlas closeout", () => {
     expect(
       summarizeJobberTodayVisits([
-        { isComplete: true, homeAtlasFieldRecordCount: 1 },
-        { isComplete: true, homeAtlasFieldRecordCount: 0 },
-        { isComplete: false, homeAtlasFieldRecordCount: 1 },
-        { isComplete: false, homeAtlasFieldRecordCount: 0 },
+        {
+          isComplete: true,
+          homeAtlasFieldRecordCount: 1,
+          homeAtlasCustomerVisibleRecordCount: 1,
+        },
+        {
+          isComplete: true,
+          homeAtlasFieldRecordCount: 1,
+          homeAtlasCustomerVisibleRecordCount: 0,
+        },
+        {
+          isComplete: true,
+          homeAtlasFieldRecordCount: 0,
+          homeAtlasCustomerVisibleRecordCount: 0,
+        },
+        {
+          isComplete: false,
+          homeAtlasFieldRecordCount: 0,
+          homeAtlasCustomerVisibleRecordCount: 0,
+        },
       ]),
     ).toEqual({
       total: 4,
-      complete: 2,
-      remaining: 2,
+      complete: 3,
+      remaining: 1,
       documented: 2,
+      portalUpdated: 1,
       completedWithoutRecord: 1,
+      completedWithPrivateOnlyRecord: 1,
     });
   });
 

@@ -275,10 +275,17 @@ function JobberVisitCard({
     fieldRecordStatusAvailable &&
     visit.isComplete &&
     visit.homeAtlasFieldRecordCount === 0;
+  const needsCustomerPortalUpdate =
+    fieldRecordStatusAvailable &&
+    visit.isComplete &&
+    visit.homeAtlasFieldRecordCount > 0 &&
+    visit.homeAtlasCustomerVisibleRecordCount === 0;
   const fieldActionLabel = fieldCaptureOpen
     ? "Close field record"
     : hasFieldDraft
       ? "Resume saved visit draft"
+      : needsCustomerPortalUpdate
+        ? "Add customer-facing update"
       : visit.homeAtlasFieldRecordCount > 0
         ? "Add another visit update"
         : "Add photos + visit notes";
@@ -385,6 +392,18 @@ function JobberVisitCard({
               </p>
             </div>
           ) : null}
+          {needsCustomerPortalUpdate ? (
+            <div className="mb-3 rounded-xl border border-sky-300/25 bg-sky-300/[0.07] px-4 py-3">
+              <p className="text-xs font-medium text-sky-100">
+                Customer portal update needed
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-sky-100/65">
+                HomeAtlas has an internal visit record, but every saved note and
+                photo is private. Add a customer update or portal-visible photo to
+                complete the homeowner experience.
+              </p>
+            </div>
+          ) : null}
           {propertyId && appointmentId ? (
             <>
               {visit.homeAtlasFieldRecordCount > 0 ? (
@@ -399,6 +418,11 @@ function JobberVisitCard({
                       {visit.homeAtlasLatestFieldRecordBy
                         ? ` · latest by ${visit.homeAtlasLatestFieldRecordBy}`
                         : ""}
+                    </p>
+                    <p className="mt-1 text-[10px] text-emerald-100/55">
+                      {visit.homeAtlasCustomerVisibleRecordCount > 0
+                        ? "Customer portal updated"
+                        : "Internal record only"}
                     </p>
                   </div>
                   {visit.homeAtlasLatestFieldRecordAt ? (
@@ -693,7 +717,7 @@ function TodayWorkspaceContent() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
               <MetricCard
                 label="Today's jobs"
                 value={data.summary.total}
@@ -711,7 +735,7 @@ function TodayWorkspaceContent() {
                 detail="Kept for the full-day view"
               />
               <MetricCard
-                label="Proof saved"
+                label="Records saved"
                 value={
                   data.fieldRecordStatusAvailable
                     ? data.summary.documented
@@ -720,6 +744,19 @@ function TodayWorkspaceContent() {
                 detail={
                   data.fieldRecordStatusAvailable
                     ? "HomeAtlas visit record attached"
+                    : "Field-record setup required"
+                }
+              />
+              <MetricCard
+                label="Portal updated"
+                value={
+                  data.fieldRecordStatusAvailable
+                    ? data.summary.portalUpdated
+                    : "—"
+                }
+                detail={
+                  data.fieldRecordStatusAvailable
+                    ? "Customer-visible note or photo"
                     : "Field-record setup required"
                 }
               />
@@ -790,6 +827,19 @@ function TodayWorkspaceContent() {
               service.
             </span>{" "}
             Open the highlighted job cards below and save the field record.
+          </div>
+        ) : null}
+
+        {data &&
+        data.fieldRecordStatusAvailable &&
+        data.summary.completedWithPrivateOnlyRecord > 0 ? (
+          <div className="mb-6 rounded-2xl border border-sky-300/25 bg-sky-300/[0.06] p-4 text-sm text-sky-100">
+            <span className="font-medium">
+              {data.summary.completedWithPrivateOnlyRecord} completed visit
+              {data.summary.completedWithPrivateOnlyRecord === 1 ? " has" : "s have"}
+              {" "}an internal record but no customer-visible portal update.
+            </span>{" "}
+            Use the blue-highlighted job cards to publish the homeowner summary.
           </div>
         ) : null}
 

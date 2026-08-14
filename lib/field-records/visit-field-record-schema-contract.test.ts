@@ -191,7 +191,7 @@ describe("visit field record database contract", () => {
   it("shows database-backed visit memory on the exact Today appointment", () => {
     expect(todayLoader).toContain('from("property_assessments")');
     expect(todayLoader).toContain(
-      '.select("visit_id, field_record_id, technician_name, created_at")',
+      '"visit_id, field_record_id, technician_name, created_at, customer_note_visible"',
     );
     expect(todayLoader).toContain("isMissingVisitFieldRecordSchema");
     expect(todayLoader).toContain("fieldRecordsByAppointment");
@@ -208,6 +208,17 @@ describe("visit field record database contract", () => {
     expect(todayWorkspace).toContain(
       "No jobs are\n            being labeled undocumented from incomplete data",
     );
+  });
+
+  it("distinguishes internal field memory from customer-visible portal proof", () => {
+    expect(todayLoader).toContain("customer_note_visible");
+    expect(todayLoader).toContain('from("property_assets")');
+    expect(todayLoader).toContain('.eq("customer_visible", true)');
+    expect(todayWorkspace).toContain("Customer portal update needed");
+    expect(todayWorkspace).toContain("Add customer-facing update");
+    expect(todayWorkspace).toContain("completedWithPrivateOnlyRecord");
+    expect(todayWorkspace).toContain("Customer portal updated");
+    expect(todayWorkspace).toContain("Internal record only");
   });
 
   it("exposes the commit function only to the service role", () => {

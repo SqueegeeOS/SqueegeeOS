@@ -25,6 +25,7 @@ export interface JobberTodayVisit {
   homeAtlasFieldRecordCount: number;
   homeAtlasLatestFieldRecordAt: string | null;
   homeAtlasLatestFieldRecordBy: string | null;
+  homeAtlasCustomerVisibleRecordCount: number;
 }
 
 export interface JobberTodayPropertyLink {
@@ -57,12 +58,19 @@ export interface JobberTodaySummary {
   complete: number;
   remaining: number;
   documented: number;
+  portalUpdated: number;
   completedWithoutRecord: number;
+  completedWithPrivateOnlyRecord: number;
 }
 
 export function summarizeJobberTodayVisits(
   visits: Array<
-    Pick<JobberTodayVisit, "isComplete" | "homeAtlasFieldRecordCount">
+    Pick<
+      JobberTodayVisit,
+      | "isComplete"
+      | "homeAtlasFieldRecordCount"
+      | "homeAtlasCustomerVisibleRecordCount"
+    >
   >,
 ): JobberTodaySummary {
   const complete = visits.filter((visit) => visit.isComplete).length;
@@ -72,12 +80,23 @@ export function summarizeJobberTodayVisits(
   const completedWithoutRecord = visits.filter(
     (visit) => visit.isComplete && visit.homeAtlasFieldRecordCount === 0,
   ).length;
+  const portalUpdated = visits.filter(
+    (visit) => visit.homeAtlasCustomerVisibleRecordCount > 0,
+  ).length;
+  const completedWithPrivateOnlyRecord = visits.filter(
+    (visit) =>
+      visit.isComplete &&
+      visit.homeAtlasFieldRecordCount > 0 &&
+      visit.homeAtlasCustomerVisibleRecordCount === 0,
+  ).length;
   return {
     total: visits.length,
     complete,
     remaining: visits.length - complete,
     documented,
+    portalUpdated,
     completedWithoutRecord,
+    completedWithPrivateOnlyRecord,
   };
 }
 
