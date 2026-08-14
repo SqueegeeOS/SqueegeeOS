@@ -43,6 +43,10 @@ const memberPortalExperience = readFileSync(
   ),
   "utf8",
 );
+const visitFieldCapture = readFileSync(
+  new URL("../../components/visit/visit-field-capture.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("visit field record database contract", () => {
   it("keeps phone photos in a private, bounded storage bucket", () => {
@@ -142,6 +146,21 @@ describe("visit field record database contract", () => {
     );
     expect(memberPortalExperience).toContain(
       "visitStoryCollection.ungroupedPhotos",
+    );
+  });
+
+  it("resumes only unfinished private photo uploads after a field-network failure", () => {
+    expect(visitFieldCapture).toContain(
+      "const completedUploads = useRef(new Map<string, UploadedVisitPhoto>())",
+    );
+    expect(visitFieldCapture).toContain(
+      "!completedUploads.current.has(photo.clientId)",
+    );
+    expect(visitFieldCapture).toContain(
+      "completedUploads.current.set(intent.clientId",
+    );
+    expect(visitFieldCapture).toContain(
+      "Completed private photo uploads are preserved",
     );
   });
 
