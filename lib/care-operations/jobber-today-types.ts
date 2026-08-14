@@ -18,6 +18,19 @@ export interface JobberTodayVisit {
   propertyLabel: string | null;
   jobberPropertyWebUri: string | null;
   jobberClientWebUri: string | null;
+  homeAtlasPropertyId: string | null;
+  homeAtlasAppointmentId: string | null;
+}
+
+export interface JobberTodayPropertyLink {
+  externalPropertyId: string;
+  propertyId: string;
+}
+
+export interface JobberTodayAppointmentLink {
+  externalVisitId: string;
+  propertyId: string;
+  appointmentId: string;
 }
 
 export interface JobberTodayData {
@@ -65,4 +78,31 @@ export function isJobberTodayDataStale(
   const synchronizedAt = new Date(lastSyncedAt).getTime();
   if (!Number.isFinite(synchronizedAt)) return true;
   return now.getTime() - synchronizedAt > staleAfterMs;
+}
+
+export function resolveJobberTodayHomeAtlasContext(input: {
+  externalPropertyId: string;
+  externalVisitId: string;
+  propertyLinks: JobberTodayPropertyLink[];
+  appointmentLinks: JobberTodayAppointmentLink[];
+}): {
+  homeAtlasPropertyId: string | null;
+  homeAtlasAppointmentId: string | null;
+} {
+  const property = input.propertyLinks.find(
+    (link) => link.externalPropertyId === input.externalPropertyId,
+  );
+  if (!property) {
+    return { homeAtlasPropertyId: null, homeAtlasAppointmentId: null };
+  }
+
+  const appointment = input.appointmentLinks.find(
+    (link) =>
+      link.externalVisitId === input.externalVisitId &&
+      link.propertyId === property.propertyId,
+  );
+  return {
+    homeAtlasPropertyId: property.propertyId,
+    homeAtlasAppointmentId: appointment?.appointmentId ?? null,
+  };
 }

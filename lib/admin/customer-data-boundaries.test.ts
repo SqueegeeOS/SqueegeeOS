@@ -215,6 +215,17 @@ describe("customer data route boundaries", () => {
     expect(source).toMatch(/authorizeAdminRequest\(request\.headers\)/);
   });
 
+  it("protects visit field-record uploads and commits at the route handler", () => {
+    for (const route of [
+      "app/api/admin/field-records/upload-intents/route.ts",
+      "app/api/admin/field-records/route.ts",
+    ]) {
+      const source = readProjectFile(route);
+      expect(source).toContain("authorizeAdminRequest(request.headers)");
+      expect(source).toContain('"Cache-Control": "private, no-store"');
+    }
+  });
+
   it("protects source-backed growth truth at the route handler", () => {
     const source = readProjectFile("app/api/admin/growth/route.ts");
     expect(source).toContain("authorizeAdminRequest");

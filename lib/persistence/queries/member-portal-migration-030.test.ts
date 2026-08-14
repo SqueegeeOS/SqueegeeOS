@@ -29,6 +29,27 @@ let jobberVisitFixture: {
   scheduled_start: string;
   title: string | null;
 } | null = null;
+let assessmentNoteFixture: Array<{
+  id: string;
+  technician_name: string;
+  customer_note: string;
+  visit_date: string;
+}> = [];
+let propertyAssetFixture: Array<{
+  id: string;
+  storage_bucket: string;
+  storage_path: string;
+  title: string;
+  description: string | null;
+  capture_type: "before" | "after" | "detail";
+  is_primary: boolean;
+  captured_at: string;
+  created_at: string;
+}> = [];
+const createSignedUrlSpy = vi.fn(async (path: string) => ({
+  data: { signedUrl: `https://storage.example.test/signed/${path}` },
+  error: null,
+}));
 
 function chain(result: { data?: unknown; error?: unknown; count?: number }) {
   const promise = Promise.resolve(result);
@@ -39,6 +60,7 @@ function chain(result: { data?: unknown; error?: unknown; count?: number }) {
     "in",
     "gte",
     "neq",
+    "not",
     "order",
     "limit",
     "update",
@@ -125,6 +147,10 @@ function mockSupabaseFrom(table: string) {
       return chain({ data: jobberVisitFixture });
     case "service_observations":
       return chain({ data: [] });
+    case "property_assessments":
+      return chain({ data: assessmentNoteFixture });
+    case "property_assets":
+      return chain({ data: propertyAssetFixture });
     case "member_addon_transactions":
       return chain({ data: [] });
     case "member_savings_transactions":
@@ -135,6 +161,9 @@ function mockSupabaseFrom(table: string) {
 
 const mockPrivilegedClient = {
   from: vi.fn((table: string) => mockSupabaseFrom(table)),
+  storage: {
+    from: vi.fn(() => ({ createSignedUrl: createSignedUrlSpy })),
+  },
 };
 
 vi.mock("@/lib/persistence/supabase/client", () => ({
@@ -182,6 +211,8 @@ describe("migration 030 portal appointment regression", () => {
     appointmentRowsFixture = [EXISTING_APPOINTMENT];
     propertyLinkFixture = null;
     jobberVisitFixture = null;
+    assessmentNoteFixture = [];
+    propertyAssetFixture = [];
     vi.clearAllMocks();
   });
 
@@ -316,5 +347,53 @@ describe("migration 030 portal appointment regression", () => {
       date: "2099-09-06T16:00:00.000Z",
       status: "scheduled",
     });
+  });
+
+  it("projects customer-visible field notes and private signed visit photos", async () => {
+    assessmentNoteFixture = [
+      {
+        id: "assessment-1",
+        technician_name: "Noah",
+        customer_note: "Exterior glass cleaned and inspected.",
+        visit_date: "2026-08-14",
+      },
+    ];
+    propertyAssetFixture = [
+      {
+        id: "asset-1",
+        storage_bucket: "homeatlas-visit-media",
+        storage_path: "properties/property-1/visits/visit-1/after.jpg",
+        title: "After service",
+        description: null,
+        capture_type: "after",
+        is_primary: false,
+        captured_at: "2026-08-14T18:00:00.000Z",
+        created_at: "2026-08-14T18:00:00.000Z",
+      },
+    ];
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.observations).toContainEqual(
+      expect.objectContaining({
+        observedBy: "Noah",
+        notes: "Exterior glass cleaned and inspected.",
+      }),
+    );
+    expect(data?.property.photos).toEqual([
+      expect.objectContaining({
+        source: "our_team",
+        caption: "After service",
+        captureType: "after",
+        url: expect.stringContaining("/signed/properties/property-1"),
+      }),
+    ]);
+    expect(createSignedUrlSpy).toHaveBeenCalledWith(
+      propertyAssetFixture[0].storage_path,
+      3600,
+    );
   });
 });

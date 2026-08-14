@@ -110,13 +110,17 @@ const checks = [
   ["048", "private sales representative workspace", (s) => hasTable(s, "sales_reps") && hasTable(s, "sales_rep_leads") && hasTable(s, "sales_rep_activity_events") && hasTable(s, "sales_rep_attributions") && hasColumns(s, "sales_rep_leads", "sms_consent_status", "sms_consent_recorded_at", "next_follow_up_at") && ["sales_reps", "sales_rep_leads", "sales_rep_activity_events", "sales_rep_attributions"].every((table) => s.rlsTables.has(table)) && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["049", "audit-safe sales activity reversal", (s) => hasColumns(s, "sales_rep_activity_events", "reversed_at", "reversed_by", "reversal_reason") && constraintIncludes(s, "sales_rep_activity_events", "reversed_at", "reversed_by", "reversal_reason") && s.rlsTables.has("sales_rep_activity_events") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["050", "signature-backed sales attribution", (s) => hasColumns(s, "presentations", "sales_rep_id", "sales_rep_lead_id") && hasColumns(s, "sales_rep_attributions", "presentation_id", "signed_agreement_id", "attribution_source", "attributed_at") && hasColumn(s, "sales_rep_activity_events", "client_event_id") && s.indexes.has("sales_rep_attributions_rep_attributed_idx") && s.indexes.has("sales_rep_activity_rep_client_event_uidx") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
+  ["051", "Meta lead attribution", (s) => hasColumns(s, "lead_intakes", "external_lead_id", "source_page_id", "source_form_id", "source_campaign_id", "source_adset_id", "source_ad_id", "owner_sms_alert_status")],
+  ["052", "complete presentation drafts", (s) => hasColumn(s, "presentations", "draft_payload")],
+  ["053", "optional triannual plans", (s) => constraintIncludes(s, "presentations", "triannual") && constraintIncludes(s, "memberships", "triannual")],
+  ["054", "private visit field records", (s) => hasColumns(s, "property_assets", "storage_bucket", "capture_type", "customer_visible", "captured_by", "field_record_id") && hasColumn(s, "property_assessments", "field_record_id") && s.indexes.has("property_assessments_field_record_uidx") && s.visitMediaBucket === false && s.fieldPublicPolicies === 0 && s.fieldPublicPrivileges === 0],
 ];
 
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable] = await Promise.all([
+  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, fieldPolicies, fieldPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name, is_nullable from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -126,6 +130,8 @@ try {
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('referral_codes', 'referral_visits', 'referrals') and ('anon' = any(roles) or 'public' = any(roles))"),
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('homeowners', 'properties', 'home_care_plans', 'memberships', 'signed_agreements', 'property_assets', 'presentations', 'lead_intakes', 'customer_contact_points', 'customer_communication_automation_rules', 'customer_conversations', 'customer_messages', 'customer_communication_webhook_events', 'customer_contact_consent_events', 'customer_communication_provider_verifications', 'sales_reps', 'sales_rep_leads', 'sales_rep_activity_events', 'sales_rep_attributions') and ('anon' = any(roles) or 'authenticated' = any(roles) or 'public' = any(roles))"),
     client.query("with customer_tables(table_name) as (values ('homeowners'), ('properties'), ('home_care_plans'), ('memberships'), ('signed_agreements'), ('property_assets'), ('presentations'), ('lead_intakes'), ('customer_contact_points'), ('customer_communication_automation_rules'), ('customer_conversations'), ('customer_messages'), ('customer_communication_webhook_events'), ('customer_contact_consent_events'), ('customer_communication_provider_verifications'), ('sales_reps'), ('sales_rep_leads'), ('sales_rep_activity_events'), ('sales_rep_attributions')), public_roles(role_name) as (values ('anon'), ('authenticated')), table_privileges(privilege_name) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) select count(*)::int as count from customer_tables t cross join public_roles r cross join table_privileges p where to_regclass(format('public.%I', t.table_name)) is not null and has_table_privilege(r.role_name, to_regclass(format('public.%I', t.table_name)), p.privilege_name)"),
+    client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename in ('member_profiles', 'member_savings_transactions', 'service_observations', 'ai_quotes', 'property_assessments', 'property_visit_health_checks') and ('anon' = any(roles) or 'authenticated' = any(roles) or 'public' = any(roles))"),
+    client.query("with field_tables(table_name) as (values ('member_profiles'), ('member_savings_transactions'), ('service_observations'), ('ai_quotes'), ('property_assessments'), ('property_visit_health_checks')), public_roles(role_name) as (values ('anon'), ('authenticated')), table_privileges(privilege_name) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) select count(*)::int as count from field_tables t cross join public_roles r cross join table_privileges p where to_regclass(format('public.%I', t.table_name)) is not null and has_table_privilege(r.role_name, to_regclass(format('public.%I', t.table_name)), p.privilege_name)"),
     client.query("select count(*)::int as count from pg_policies where schemaname = 'public' and tablename = 'google_business_connections' and ('anon' = any(roles) or 'authenticated' = any(roles) or 'public' = any(roles))"),
     client.query("with public_roles(role_name) as (values ('anon'), ('authenticated')), table_privileges(privilege_name) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) select count(*)::int as count from public_roles r cross join table_privileges p where has_table_privilege(r.role_name, to_regclass('public.google_business_connections'), p.privilege_name)"),
     client.query("with table_privileges(privilege_name) as (values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')) select count(*)::int as count from table_privileges p where has_table_privilege('service_role', to_regclass('public.google_business_connections'), p.privilege_name)"),
@@ -135,9 +141,12 @@ try {
   ]);
 
   let agreementBucket = null;
+  let visitMediaBucket = null;
   if (storageTable.rows[0]?.exists) {
     const bucket = await client.query("select public from storage.buckets where id = 'signed-agreements' limit 1");
     agreementBucket = bucket.rows.length ? bucket.rows[0].public : null;
+    const visitBucket = await client.query("select public from storage.buckets where id = 'homeatlas-visit-media' limit 1");
+    visitMediaBucket = visitBucket.rows.length ? visitBucket.rows[0].public : null;
   }
 
   const snapshot = {
@@ -154,12 +163,15 @@ try {
     referralAnonPolicies: referralPolicies.rows[0]?.count ?? 0,
     customerPublicPolicies: customerPolicies.rows[0]?.count ?? -1,
     customerPublicPrivileges: customerPrivileges.rows[0]?.count ?? -1,
+    fieldPublicPolicies: fieldPolicies.rows[0]?.count ?? -1,
+    fieldPublicPrivileges: fieldPrivileges.rows[0]?.count ?? -1,
     googlePublicPolicies: googlePolicies.rows[0]?.count ?? -1,
     googlePublicPrivileges: googlePublicPrivileges.rows[0]?.count ?? -1,
     googleServicePrivileges: googleServicePrivileges.rows[0]?.count ?? -1,
     googleSecurityPosture: securityPosture.rows.some((row) => String(row.definition).includes("google_business_connections") && String(row.config).includes("search_path=public")),
     secureUpdatedAt: updatedAt.rows.some((row) => String(row.config).includes("search_path=public")),
     agreementBucket,
+    visitMediaBucket,
   };
 
   let missing = 0;

@@ -1,5 +1,7 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
@@ -15,6 +17,21 @@ import {
   type JobberTodayVisitMoment,
 } from "@/lib/care-operations/jobber-today-types";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
+
+const VisitFieldCapture = dynamic(
+  () =>
+    import("@/components/visit/visit-field-capture").then(
+      (module) => module.VisitFieldCapture,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <p className="py-8 text-center text-xs text-muted">
+        Opening the field record…
+      </p>
+    ),
+  },
+);
 
 const MOMENT_STYLES: Record<
   JobberTodayVisitMoment,
@@ -92,6 +109,7 @@ function JobberVisitCard({
   timezone: string;
   now: Date;
 }) {
+  const [fieldCaptureOpen, setFieldCaptureOpen] = useState(false);
   const moment = classifyJobberTodayVisit(visit, now);
   const style = MOMENT_STYLES[moment];
   const service = visit.title?.trim() || "Scheduled Jobber visit";
@@ -167,6 +185,51 @@ function JobberVisitCard({
               </a>
             ) : null}
           </div>
+        </div>
+
+        <div className="mt-4 border-t border-border/60 pt-4">
+          {visit.homeAtlasPropertyId && visit.homeAtlasAppointmentId ? (
+            <>
+              <button
+                type="button"
+                aria-expanded={fieldCaptureOpen}
+                onClick={() => setFieldCaptureOpen((open) => !open)}
+                className="flex min-h-12 w-full items-center justify-between rounded-xl border border-accent/35 bg-accent/[0.07] px-4 text-left text-sm text-accent transition active:scale-[0.995]"
+              >
+                <span>
+                  {fieldCaptureOpen ? "Close field record" : "Add photos + visit notes"}
+                </span>
+                <span aria-hidden>{fieldCaptureOpen ? "−" : "+"}</span>
+              </button>
+              {fieldCaptureOpen ? (
+                <div className="mt-4 rounded-2xl border border-border bg-foreground/[0.025] p-4 sm:p-5">
+                  <VisitFieldCapture
+                    propertyId={visit.homeAtlasPropertyId}
+                    appointmentId={visit.homeAtlasAppointmentId}
+                    clientName={visit.clientName}
+                    serviceLabel={service}
+                  />
+                </div>
+              ) : null}
+            </>
+          ) : visit.homeAtlasPropertyId ? (
+            <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] p-4 text-xs leading-relaxed text-amber-100">
+              This property is paired, but the HomeAtlas appointment is still
+              reconciling. Sync Jobber, then refresh Today to attach photos safely.
+            </div>
+          ) : (
+            <div className="flex flex-col justify-between gap-3 rounded-xl border border-border bg-foreground/[0.025] p-4 sm:flex-row sm:items-center">
+              <p className="text-xs leading-relaxed text-muted">
+                Pair this Jobber property to a HomeAtlas member before adding portal photos.
+              </p>
+              <Link
+                href="/hq/jobber"
+                className="shrink-0 text-xs text-accent underline underline-offset-4"
+              >
+                Pair property
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </article>

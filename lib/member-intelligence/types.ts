@@ -67,11 +67,13 @@ export interface PropertyRecord {
 }
 
 export interface PropertyPhotoView {
+  id?: string;
   source: "zillow" | "our_team" | "member_uploaded" | "internal";
   url: string;
   caption?: string | null;
   isPrimary: boolean;
   uploadedAt: string;
+  captureType?: "before" | "after" | "detail" | null;
 }
 
 export interface QuoteGenerationContext {

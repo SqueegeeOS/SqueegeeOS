@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyJobberTodayVisit,
   isJobberTodayDataStale,
+  resolveJobberTodayHomeAtlasContext,
 } from "./jobber-today-types";
 
 const scheduledVisit = {
@@ -51,5 +52,46 @@ describe("Jobber Today board states", () => {
     expect(
       isJobberTodayDataStale("2026-08-01T13:59:59.000Z", now),
     ).toBe(true);
+  });
+
+  it("opens field capture only through the active property and appointment pair", () => {
+    expect(
+      resolveJobberTodayHomeAtlasContext({
+        externalPropertyId: "jobber-property-1",
+        externalVisitId: "visit-1",
+        propertyLinks: [
+          {
+            externalPropertyId: "jobber-property-1",
+            propertyId: "homeatlas-property-1",
+          },
+        ],
+        appointmentLinks: [
+          {
+            externalVisitId: "visit-1",
+            propertyId: "homeatlas-property-1",
+            appointmentId: "appointment-1",
+          },
+          {
+            externalVisitId: "visit-1",
+            propertyId: "wrong-property",
+            appointmentId: "wrong-appointment",
+          },
+        ],
+      }),
+    ).toEqual({
+      homeAtlasPropertyId: "homeatlas-property-1",
+      homeAtlasAppointmentId: "appointment-1",
+    });
+  });
+
+  it("fails closed when the Jobber property is not paired", () => {
+    expect(
+      resolveJobberTodayHomeAtlasContext({
+        externalPropertyId: "unpaired-property",
+        externalVisitId: "visit-1",
+        propertyLinks: [],
+        appointmentLinks: [],
+      }),
+    ).toEqual({ homeAtlasPropertyId: null, homeAtlasAppointmentId: null });
   });
 });
