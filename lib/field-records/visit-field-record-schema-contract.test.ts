@@ -47,6 +47,10 @@ const visitFieldCapture = readFileSync(
   new URL("../../components/visit/visit-field-capture.tsx", import.meta.url),
   "utf8",
 );
+const visitFieldDraft = readFileSync(
+  new URL("./visit-field-draft.ts", import.meta.url),
+  "utf8",
+);
 
 describe("visit field record database contract", () => {
   it("keeps phone photos in a private, bounded storage bucket", () => {
@@ -162,6 +166,21 @@ describe("visit field record database contract", () => {
     expect(visitFieldCapture).toContain(
       "Completed private photo uploads are preserved",
     );
+  });
+
+  it("restores an expiring device-local field draft without pretending files survive", () => {
+    expect(visitFieldDraft).toContain(
+      "export const VISIT_FIELD_DRAFT_TTL_MS = 72 * 60 * 60 * 1_000",
+    );
+    expect(visitFieldDraft).toContain(
+      "homeatlas:visit-field-draft:v1:${scope.propertyId}:${scope.appointmentId}",
+    );
+    expect(visitFieldCapture).toContain("readVisitFieldDraft");
+    expect(visitFieldCapture).toContain("clearVisitFieldDraft(window.localStorage");
+    expect(visitFieldCapture).toContain("Draft restored from this device");
+    expect(visitFieldCapture).toContain("Re-add the complete set");
+    expect(visitFieldDraft).not.toContain("File");
+    expect(visitFieldDraft).not.toContain("Blob");
   });
 
   it("exposes the commit function only to the service role", () => {
