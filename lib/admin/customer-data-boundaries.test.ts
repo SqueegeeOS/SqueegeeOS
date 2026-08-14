@@ -108,6 +108,15 @@ describe("customer data route boundaries", () => {
     }
   });
 
+  it("keeps communications launch diagnostics behind HQ authorization", () => {
+    const source = readProjectFile(
+      "app/api/admin/communications/readiness/route.ts",
+    );
+    expect(source).toContain("authorizeAdminRequest");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+  });
+
   it("keeps membership history while allowing only one current plan", () => {
     const migration = readProjectFile(
       "lib/persistence/supabase/migrations/039_preserve_membership_history.sql",

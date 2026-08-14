@@ -319,7 +319,7 @@ export function buildLeadFirstTouchSmsPlan(
   const services = serviceSummary(input.services);
   const text =
     input.source === "facebook_lead_ad"
-      ? `Hi ${name}â€”thanks for your interest in SqueegeeKing! We offer bi-annual and quarterly home-care plans with member benefits and a personalized HomeAtlas portal to track visits. A team member will reach out shortly. You can reply here with questions. Reply STOP to opt out.`
+      ? `Hi ${name}, thanks for your interest in SqueegeeKing! We offer bi-annual and quarterly home-care plans with member benefits and a personalized HomeAtlas portal to track visits. A team member will reach out shortly. You can reply here with questions. Reply STOP to opt out.`
       : `Hi ${name}, this is SqueegeeKing. We received your request for ${services}. A person from our team will follow up soon. Reply STOP to opt out.`;
   return {
     mode: "plan_only",

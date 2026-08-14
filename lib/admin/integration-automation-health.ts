@@ -4,13 +4,13 @@ import { loadAutomaticBillingControlView } from "@/lib/billing/automatic-billing
 import { readJobberConnectionStatus } from "@/lib/care-operations/jobber-connection-store";
 import { getJobberConfigStatus } from "@/lib/care-operations/jobber-oauth-config";
 import { getCommunicationAutomationReadiness } from "@/lib/communications/provider-readiness";
+import { loadCommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness";
 import { getCommunicationsConfiguration } from "@/lib/communications/service";
 import type {
   ProductionHealthCheck,
   ProductionHealthSection,
   ProductionHealthStatus,
 } from "@/lib/admin/production-health-types";
-import { resolveMetaLeadAdsConfiguration } from "@/lib/integrations/meta-lead-ingestion";
 
 function check(
   id: string,
@@ -58,9 +58,14 @@ function compactDate(value: string | null): string | undefined {
 export async function runIntegrationAutomationChecks(): Promise<ProductionHealthSection> {
   const jobberConfig = getJobberConfigStatus();
   const communications = getCommunicationsConfiguration();
-  const metaConfigured = Boolean(resolveMetaLeadAdsConfiguration());
 
-  const [jobberResult, resendResult, twilioResult, billingResult] =
+  const [
+    jobberResult,
+    resendResult,
+    twilioResult,
+    billingResult,
+    launchReadinessResult,
+  ] =
     await Promise.allSettled([
       jobberConfig.configured
         ? readJobberConnectionStatus()
@@ -68,6 +73,7 @@ export async function runIntegrationAutomationChecks(): Promise<ProductionHealth
       getCommunicationAutomationReadiness("resend"),
       getCommunicationAutomationReadiness("twilio"),
       loadAutomaticBillingControlView(),
+      loadCommunicationsLaunchReadiness(),
     ]);
 
   const missingJobberParts = [
@@ -201,18 +207,30 @@ export async function runIntegrationAutomationChecks(): Promise<ProductionHealth
     check(
       "meta-lead-ads",
       "Facebook lead intake",
-      metaConfigured ? "green" : "yellow",
-      metaConfigured
-        ? "Meta lead credentials and Graph API version are configured."
-        : "Connect the Meta lead webhook before expecting Facebook leads in the HomeAtlas inbox.",
+      launchReadinessResult.status === "fulfilled" &&
+        launchReadinessResult.value.meta.state === "ready"
+        ? "green"
+        : "yellow",
+      launchReadinessResult.status === "fulfilled"
+        ? launchReadinessResult.value.meta.summary
+        : "Atlas could not verify the Facebook lead path.",
+      launchReadinessResult.status === "fulfilled"
+        ? `${launchReadinessResult.value.meta.completedSteps}/${launchReadinessResult.value.meta.totalSteps} launch checks complete`
+        : undefined,
     ),
     check(
       "automation-scheduler",
       "Scheduled automation",
-      process.env.CRON_SECRET?.trim() ? "green" : "yellow",
-      process.env.CRON_SECRET?.trim()
-        ? "The scheduler secret is present for Jobber reconciliation, communications, and billing runs."
-        : "Add CRON_SECRET before relying on scheduled Jobber, communications, or billing jobs.",
+      launchReadinessResult.status === "fulfilled" &&
+        launchReadinessResult.value.scheduler.state === "ready"
+        ? "green"
+        : "yellow",
+      launchReadinessResult.status === "fulfilled"
+        ? launchReadinessResult.value.scheduler.detail
+        : "Atlas could not verify the scheduled communications runner.",
+      launchReadinessResult.status === "fulfilled"
+        ? launchReadinessResult.value.scheduler.route
+        : undefined,
     ),
   );
 

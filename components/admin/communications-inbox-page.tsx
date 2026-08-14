@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
+import { CommunicationsLaunchReadinessPanel } from "@/components/admin/communications-launch-readiness";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
@@ -1362,6 +1363,7 @@ function CommunicationsInboxContent() {
           </div>
         ) : null}
 
+        <CommunicationsLaunchReadinessPanel />
         <CommunicationsAutomationPanel configuration={configuration} />
 
         {loading && conversations.length === 0 ? (
