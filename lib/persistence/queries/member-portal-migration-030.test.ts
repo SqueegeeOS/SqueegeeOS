@@ -5,7 +5,7 @@ const EXISTING_APPOINTMENT = {
   member_profile_id: null,
   property_id: "property-1",
   service_type: "window_cleaning",
-  scheduled_at: "2026-08-15T14:00:00.000Z",
+  scheduled_at: "2099-08-15T14:00:00.000Z",
   status: "scheduled",
   technician_name: "Noah",
   notes: null,
@@ -266,5 +266,55 @@ describe("migration 030 portal appointment regression", () => {
 
     expect(data?.nextAppointment).toBeNull();
     expect(data?.appointments).toEqual([]);
+  });
+
+  it("does not present a stale scheduled appointment as the next visit", async () => {
+    appointmentRowsFixture = [
+      {
+        ...EXISTING_APPOINTMENT,
+        id: "stale-appointment",
+        scheduled_at: "2020-08-15T14:00:00.000Z",
+      },
+    ];
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.appointments).toHaveLength(1);
+    expect(data?.nextAppointment).toBeNull();
+  });
+
+  it("uses a paired future Jobber visit when authoritative rows are stale", async () => {
+    appointmentRowsFixture = [
+      {
+        ...EXISTING_APPOINTMENT,
+        id: "stale-appointment",
+        scheduled_at: "2020-08-15T14:00:00.000Z",
+      },
+    ];
+    propertyLinkFixture = {
+      connection_id: "squeegeeking-jobber",
+      external_property_id: "jobber-property-1",
+    };
+    jobberVisitFixture = {
+      external_visit_id: "future-jobber-visit",
+      scheduled_start: "2099-09-06T16:00:00.000Z",
+      title: "Exterior window care",
+    };
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.nextAppointment).toMatchObject({
+      id: "jobber-future-jobber-visit",
+      date: "2099-09-06T16:00:00.000Z",
+      status: "scheduled",
+    });
   });
 });
