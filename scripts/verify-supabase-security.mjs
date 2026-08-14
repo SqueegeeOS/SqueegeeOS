@@ -58,6 +58,12 @@ const sensitiveTables = [
   "customer_messages",
   "customer_communication_webhook_events",
   "google_business_connections",
+  "member_profiles",
+  "member_savings_transactions",
+  "service_observations",
+  "ai_quotes",
+  "property_assessments",
+  "property_visit_health_checks",
 ];
 
 let failed = false;
@@ -110,8 +116,18 @@ for (const table of sensitiveTables) {
   if (!serviceOk || !anonClosed) failed = true;
 }
 
+const visitBucketResult = await service.storage.getBucket(
+  "homeatlas-visit-media",
+);
+const visitBucketPrivate =
+  !visitBucketResult.error && visitBucketResult.data?.public === false;
+console.log(
+  `visit media bucket           ${visitBucketPrivate ? "PRIVATE" : "MISSING OR PUBLIC"}`,
+);
+if (!visitBucketPrivate) failed = true;
+
 if (failed) {
-  console.error("\nSecurity verification failed - apply migrations 038 through 042.");
+  console.error("\nSecurity verification failed - apply migrations 038 through 054.");
   process.exit(1);
 }
 

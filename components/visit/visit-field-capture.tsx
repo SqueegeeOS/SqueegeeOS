@@ -480,7 +480,14 @@ export function VisitFieldCapture({
           onChange={(event) => setFollowUpNeeded(event.target.checked)}
           className="h-4 w-4 accent-amber-400"
         />
-        <span className="text-sm text-foreground/80">Flag a follow-up for HQ</span>
+        <span>
+          <span className="block text-sm text-foreground/80">
+            Flag a follow-up for HQ
+          </span>
+          <span className="mt-0.5 block text-[10px] text-muted">
+            Due next business day at 9:00 AM Pacific
+          </span>
+        </span>
       </label>
 
       {error ? (

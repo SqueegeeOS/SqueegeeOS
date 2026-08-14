@@ -24,6 +24,7 @@ import { getStripePublishableKey } from "@/lib/stripe/client";
 import { isStripeLiveMode, resolveStripeKeyMode } from "@/lib/stripe/mode";
 import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 import { isMembershipActive } from "@/lib/membership/membership-status";
+import { VISIT_MEDIA_BUCKET } from "@/lib/field-records/visit-field-record";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface ColumnProbeResult {
@@ -157,6 +158,8 @@ async function runSchemaChecks(
       supabase,
       "customer_communication_provider_verifications",
     ),
+    probeTableColumn(supabase, "property_assets", "storage_bucket"),
+    probeTableColumn(supabase, "property_assessments", "follow_up_status"),
   ]);
 
   const labels = [
@@ -175,6 +178,8 @@ async function runSchemaChecks(
     "lead_intakes.sms_consent_disclosure_version",
     "customer_contact_consent_events",
     "customer_communication_provider_verifications",
+    "property_assets.storage_bucket",
+    "property_assessments.follow_up_status",
   ];
 
   const checks = probes.map((probe, index) =>
@@ -320,6 +325,8 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
   let bucketExists = false;
   let bucketPrivate = false;
   let signedUrlWorks = false;
+  let visitMediaBucketExists = false;
+  let visitMediaBucketPrivate = false;
   let storageMessage: string | undefined;
 
   if (isSupabaseConfigured()) {
@@ -337,6 +344,15 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
           bucketPrivate = !bucket.public;
         } else if (bucketError) {
           storageMessage = bucketError.message;
+        }
+
+        const { data: visitBucket, error: visitBucketError } =
+          await supabase.storage.getBucket(VISIT_MEDIA_BUCKET);
+        if (!visitBucketError && visitBucket) {
+          visitMediaBucketExists = true;
+          visitMediaBucketPrivate = !visitBucket.public;
+        } else if (visitBucketError && !storageMessage) {
+          storageMessage = visitBucketError.message;
         }
 
         const signed = await resolveAgreementPdfAccessUrl(
@@ -384,6 +400,16 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
         : serviceRole
           ? "Signed URL generation unavailable"
           : "Requires service role",
+    ),
+    check(
+      "storage-visit-media",
+      "Private visit-photo storage",
+      visitMediaBucketExists && visitMediaBucketPrivate ? "green" : "red",
+      visitMediaBucketExists
+        ? visitMediaBucketPrivate
+          ? `${VISIT_MEDIA_BUCKET} bucket is private and reachable`
+          : `${VISIT_MEDIA_BUCKET} must not be public`
+        : `${VISIT_MEDIA_BUCKET} missing — apply migration 054`,
     ),
   ];
 

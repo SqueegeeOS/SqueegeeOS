@@ -6,6 +6,7 @@ import {
   getBusinessCalendarDayUtcBounds,
 } from "@/lib/admin/company-business-timezone";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
+import { loadOpenVisitFieldFollowUps } from "@/lib/field-records/visit-field-follow-up-server";
 import { readJobberConnectionStatus } from "./jobber-connection-store";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 import { chunkItems } from "./jobber-sync-utils";
@@ -123,25 +124,27 @@ export async function loadJobberTodayBoard(
     COMPANY_BUSINESS_TIMEZONE,
   );
 
-  const [connection, visitsResult, latestSyncResult] = await Promise.all([
-    readJobberConnectionStatus(),
-    supabase
-      .from("jobber_visit_projections")
-      .select(TODAY_VISIT_SELECT)
-      .eq("connection_id", JOBBER_CONNECTION_ID)
-      .neq("visit_status", "REMOVED")
-      .gte("scheduled_start", startUtc.toISOString())
-      .lt("scheduled_start", endUtc.toISOString())
-      .order("scheduled_start", { ascending: true })
-      .limit(250),
-    supabase
-      .from("jobber_visit_projections")
-      .select("source_observed_at")
-      .eq("connection_id", JOBBER_CONNECTION_ID)
-      .order("source_observed_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-  ]);
+  const [connection, visitsResult, latestSyncResult, fieldFollowUps] =
+    await Promise.all([
+      readJobberConnectionStatus(),
+      supabase
+        .from("jobber_visit_projections")
+        .select(TODAY_VISIT_SELECT)
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .neq("visit_status", "REMOVED")
+        .gte("scheduled_start", startUtc.toISOString())
+        .lt("scheduled_start", endUtc.toISOString())
+        .order("scheduled_start", { ascending: true })
+        .limit(250),
+      supabase
+        .from("jobber_visit_projections")
+        .select("source_observed_at")
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .order("source_observed_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      loadOpenVisitFieldFollowUps(),
+    ]);
 
   if (visitsResult.error) throw new Error(visitsResult.error.message);
   if (latestSyncResult.error) throw new Error(latestSyncResult.error.message);
@@ -238,5 +241,6 @@ export async function loadJobberTodayBoard(
       remaining: visits.length - complete,
     },
     visits,
+    fieldFollowUps,
   };
 }

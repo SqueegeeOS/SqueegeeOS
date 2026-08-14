@@ -113,7 +113,7 @@ const checks = [
   ["051", "Meta lead attribution", (s) => hasColumns(s, "lead_intakes", "external_lead_id", "source_page_id", "source_form_id", "source_campaign_id", "source_adset_id", "source_ad_id", "owner_sms_alert_status")],
   ["052", "complete presentation drafts", (s) => hasColumn(s, "presentations", "draft_payload")],
   ["053", "optional triannual plans", (s) => constraintIncludes(s, "presentations", "triannual") && constraintIncludes(s, "memberships", "triannual")],
-  ["054", "private visit field records", (s) => hasColumns(s, "property_assets", "storage_bucket", "capture_type", "customer_visible", "captured_by", "field_record_id") && hasColumn(s, "property_assessments", "field_record_id") && s.indexes.has("property_assessments_field_record_uidx") && s.visitMediaBucket === false && s.fieldPublicPolicies === 0 && s.fieldPublicPrivileges === 0],
+  ["054", "private visit field records", (s) => hasColumns(s, "property_assets", "storage_bucket", "capture_type", "customer_visible", "captured_by", "field_record_id") && hasColumns(s, "property_assessments", "field_record_id", "follow_up_status", "follow_up_due_at", "follow_up_resolved_at", "follow_up_resolved_by") && s.indexes.has("property_assessments_field_record_uidx") && s.indexes.has("property_assessments_open_follow_up_idx") && s.visitMediaBucket === false && s.fieldPublicPolicies === 0 && s.fieldPublicPrivileges === 0],
 ];
 
 await client.connect();

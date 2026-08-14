@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   buildVisitPhotoStoragePath,
+  classifyVisitFieldFollowUp,
   MAX_VISIT_PHOTO_BYTES,
+  nextVisitFieldFollowUpDueAt,
   validateVisitFieldRecordCommit,
+  validateResolveVisitFieldFollowUp,
   validateVisitPhotoDescriptors,
   validateVisitPhotoUploadRequest,
   visitPhotoStoragePrefix,
@@ -134,5 +137,51 @@ describe("visit field record validation", () => {
         photos: [],
       }),
     ).toContain("Add a customer update");
+  });
+
+  it("validates an explicit operator before resolving a follow-up", () => {
+    expect(
+      validateResolveVisitFieldFollowUp({
+        assessmentId: "not-an-assessment",
+        resolvedBy: "HQ operator",
+      }),
+    ).toContain("assessmentId");
+    expect(
+      validateResolveVisitFieldFollowUp({
+        assessmentId: "55555555-5555-4555-8555-555555555555",
+        resolvedBy: "  ",
+      }),
+    ).toContain("who completed");
+    expect(
+      validateResolveVisitFieldFollowUp({
+        assessmentId: "55555555-5555-4555-8555-555555555555",
+        resolvedBy: "HQ operator",
+      }),
+    ).toBeNull();
+  });
+
+  it("classifies owner follow-ups by the Pacific business day", () => {
+    const now = new Date("2026-08-14T19:00:00.000Z");
+    expect(
+      classifyVisitFieldFollowUp("2026-08-13T16:00:00.000Z", now),
+    ).toBe("overdue");
+    expect(
+      classifyVisitFieldFollowUp("2026-08-14T16:00:00.000Z", now),
+    ).toBe("due_today");
+    expect(
+      classifyVisitFieldFollowUp("2026-08-17T16:00:00.000Z", now),
+    ).toBe("upcoming");
+  });
+
+  it("schedules the next business day at 9 AM Pacific across weekends and DST", () => {
+    expect(nextVisitFieldFollowUpDueAt("2026-08-14")).toBe(
+      "2026-08-17T16:00:00.000Z",
+    );
+    expect(nextVisitFieldFollowUpDueAt("2026-08-15")).toBe(
+      "2026-08-17T16:00:00.000Z",
+    );
+    expect(nextVisitFieldFollowUpDueAt("2026-12-04")).toBe(
+      "2026-12-07T17:00:00.000Z",
+    );
   });
 });

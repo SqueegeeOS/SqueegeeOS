@@ -17,6 +17,10 @@ import {
   type JobberTodayVisitMoment,
 } from "@/lib/care-operations/jobber-today-types";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
+import {
+  classifyVisitFieldFollowUp,
+  type VisitFieldFollowUpView,
+} from "@/lib/field-records/visit-field-record";
 
 const VisitFieldCapture = dynamic(
   () =>
@@ -59,6 +63,22 @@ const MOMENT_STYLES: Record<
   },
 };
 
+const FOLLOW_UP_MOMENT_STYLES = {
+  overdue: {
+    label: "Overdue",
+    className: "border-red-400/30 bg-red-400/[0.08] text-red-200",
+  },
+  due_today: {
+    label: "Due today",
+    className: "border-amber-400/30 bg-amber-400/[0.08] text-amber-100",
+  },
+  upcoming: {
+    label: "Upcoming",
+    className: "border-border bg-foreground/[0.035] text-muted",
+  },
+} as const;
+const FOLLOW_UP_DUE_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+
 function formatCalendarDate(value: string): string {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "long",
@@ -100,14 +120,146 @@ function formatSyncTime(value: string | null, timezone: string): string {
   }).format(new Date(value));
 }
 
+function formatFollowUpDueAt(value: string, timezone: string): string {
+  let formatter = FOLLOW_UP_DUE_FORMATTERS.get(timezone);
+  if (!formatter) {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: timezone,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    FOLLOW_UP_DUE_FORMATTERS.set(timezone, formatter);
+  }
+  return formatter.format(new Date(value));
+}
+
+function FieldFollowUpQueue({
+  followUps,
+  timezone,
+  now,
+  resolvingId,
+  onResolve,
+}: {
+  followUps: VisitFieldFollowUpView[];
+  timezone: string;
+  now: Date;
+  resolvingId: string | null;
+  onResolve: (assessmentId: string) => void;
+}) {
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  if (followUps.length === 0) return null;
+
+  return (
+    <section className="mb-8 overflow-hidden rounded-[2rem] border border-amber-400/25 bg-gradient-to-br from-amber-400/[0.09] via-background/75 to-background/60 p-5 shadow-[0_24px_70px_rgba(0,0,0,0.18)] sm:p-7">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
+        <div>
+          <p className={craftEyebrow}>Owner action queue</p>
+          <h2 className="mt-2 font-serif text-2xl font-light text-foreground sm:text-3xl">
+            Field follow-ups
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+            The crew asked HQ to close these loops. Nothing leaves HomeAtlas
+            automatically—review the home record, act, then mark it complete.
+          </p>
+        </div>
+        <span className="self-start rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-3 py-1.5 text-xs text-amber-100 sm:self-auto">
+          {followUps.length} open
+        </span>
+      </div>
+
+      <ul className="mt-5 grid gap-3 lg:grid-cols-2">
+        {followUps.map((followUp) => {
+          const moment = classifyVisitFieldFollowUp(followUp.dueAt, now);
+          const style = FOLLOW_UP_MOMENT_STYLES[moment];
+          const isResolving = resolvingId === followUp.assessmentId;
+          const isConfirming = confirmingId === followUp.assessmentId;
+          const actionLabel = isResolving
+            ? "Completing…"
+            : isConfirming
+              ? "Tap again to complete"
+              : "Mark complete";
+          const context =
+            followUp.internalNote?.trim() ||
+            followUp.customerSummary?.trim() ||
+            "Field team requested an HQ follow-up after this visit.";
+          return (
+            <li
+              key={followUp.assessmentId}
+              className="rounded-2xl border border-border/80 bg-background/75 p-4 backdrop-blur-xl sm:p-5"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate font-serif text-xl font-light text-foreground">
+                    {followUp.homeownerName}
+                  </p>
+                  <p className="mt-1 truncate text-xs text-muted">
+                    {followUp.propertyName} · {followUp.propertyAddress}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] ${style.className}`}
+                >
+                  {style.label}
+                </span>
+              </div>
+
+              <p className="mt-4 line-clamp-3 text-sm leading-relaxed text-foreground/80">
+                {context}
+              </p>
+              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+                <span>Due {formatFollowUpDueAt(followUp.dueAt, timezone)}</span>
+                <span aria-hidden>·</span>
+                <span>Flagged by {followUp.technicianName}</span>
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-2 border-t border-border/60 pt-4">
+                <Link
+                  href={`/hq/properties/${followUp.propertyId}/health`}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-3 text-xs text-muted transition hover:text-foreground"
+                >
+                  Open home record
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isConfirming) {
+                      onResolve(followUp.assessmentId);
+                    } else {
+                      setConfirmingId(followUp.assessmentId);
+                    }
+                  }}
+                  disabled={resolvingId !== null}
+                  aria-live="polite"
+                  className={`min-h-11 rounded-xl border px-3 text-xs transition active:scale-[0.99] disabled:opacity-50 ${
+                    isConfirming
+                      ? "border-amber-300/40 bg-amber-300/[0.1] text-amber-100"
+                      : "border-emerald-400/30 bg-emerald-400/[0.08] text-emerald-200"
+                  }`}
+                >
+                  {actionLabel}
+                </button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function JobberVisitCard({
   visit,
   timezone,
   now,
+  onFieldRecordSaved,
 }: {
   visit: JobberTodayVisit;
   timezone: string;
   now: Date;
+  onFieldRecordSaved: () => void;
 }) {
   const [fieldCaptureOpen, setFieldCaptureOpen] = useState(false);
   const moment = classifyJobberTodayVisit(visit, now);
@@ -208,6 +360,7 @@ function JobberVisitCard({
                     appointmentId={visit.homeAtlasAppointmentId}
                     clientName={visit.clientName}
                     serviceLabel={service}
+                    onSaved={onFieldRecordSaved}
                   />
                 </div>
               ) : null}
@@ -282,6 +435,9 @@ function TodayWorkspaceContent() {
   const [data, setData] = useState<JobberTodayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [resolvingFollowUpId, setResolvingFollowUpId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -350,6 +506,46 @@ function TodayWorkspaceContent() {
       );
     } finally {
       setSyncing(false);
+    }
+  };
+
+  const resolveFollowUp = async (assessmentId: string) => {
+    if (resolvingFollowUpId) return;
+    setResolvingFollowUpId(assessmentId);
+    setError(null);
+    try {
+      const response = await fetch("/api/admin/field-records/follow-ups", {
+        method: "PATCH",
+        headers: getAdminRequestHeaders(),
+        body: JSON.stringify({
+          assessmentId,
+          resolvedBy: "HQ operator",
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { assessmentId?: string; error?: string }
+        | null;
+      if (!response.ok || !body?.assessmentId) {
+        throw new Error(body?.error ?? "Could not complete the field follow-up.");
+      }
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              fieldFollowUps: (current.fieldFollowUps ?? []).filter(
+                (followUp) => followUp.assessmentId !== body.assessmentId,
+              ),
+            }
+          : current,
+      );
+    } catch (resolveError) {
+      setError(
+        resolveError instanceof Error
+          ? resolveError.message
+          : "Could not complete the field follow-up.",
+      );
+    } finally {
+      setResolvingFollowUpId(null);
     }
   };
 
@@ -437,6 +633,16 @@ function TodayWorkspaceContent() {
           </section>
         ) : null}
 
+        {data ? (
+          <FieldFollowUpQueue
+            followUps={data.fieldFollowUps ?? []}
+            timezone={data.timezone}
+            now={now}
+            resolvingId={resolvingFollowUpId}
+            onResolve={(assessmentId) => void resolveFollowUp(assessmentId)}
+          />
+        ) : null}
+
         {data && !data.connected ? (
           <div className="mb-6 rounded-2xl border border-amber-500/30 bg-amber-500/[0.07] p-4 text-sm text-amber-100">
             Jobber needs to be reconnected before this schedule can refresh. Existing
@@ -504,6 +710,7 @@ function TodayWorkspaceContent() {
                   visit={visit}
                   timezone={data.timezone}
                   now={now}
+                  onFieldRecordSaved={() => void load()}
                 />
               ))}
             </div>
