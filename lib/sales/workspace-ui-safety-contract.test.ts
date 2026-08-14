@@ -71,9 +71,12 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain("Pitch this homeowner");
   });
 
-  it("only exposes native contact actions when the relevant consent is opted in", () => {
+  it("allows phone calls while keeping texts and emails consent-gated", () => {
     expect(workspace).toContain(
-      'phone.length > 0 && lead.smsConsentStatus === "opted_in"',
+      "const canCall = phone.length > 0",
+    );
+    expect(workspace).toContain(
+      'canCall && lead.smsConsentStatus === "opted_in"',
     );
     expect(workspace).toContain(
       'lead.emailConsentStatus === "opted_in"',
@@ -83,6 +86,7 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain(
       'href={`mailto:${encodeURIComponent(lead.email ?? "")}`}',
     );
+    expect(workspace).toContain("Call {canCall ? \"ready\" : \"unavailable\"}");
   });
 
   it("turns each homeowner card into an owned next-action workflow", () => {
@@ -93,5 +97,17 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain("Customer considering");
     expect(workspace).toContain("Latest context");
     expect(workspace).toContain('leadActionDraft.status === "follow_up"');
+  });
+
+  it("keeps the loaded open queue discoverable and visibly prioritized", () => {
+    expect(workspace).toContain("buildSalesLeadActionQueue");
+    expect(workspace).toContain("Nothing overdue");
+    expect(workspace).toContain("need a next move");
+    expect(workspace).toContain("NEXT_ACTION_STYLES");
+    expect(workspace).toContain("visibleLeadActionQueue.map");
+    expect(workspace).toContain("Show highest-priority 8");
+    expect(workspace).toContain("Show all ${leadActionQueue.length} open people");
+    expect(workspace).toContain("[content-visibility:auto]");
+    expect(workspace).toContain("setActionClock(Date.now())");
   });
 });

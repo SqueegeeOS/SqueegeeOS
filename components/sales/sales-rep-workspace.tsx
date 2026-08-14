@@ -30,6 +30,11 @@ import {
   craftSecondaryButton,
   craftTextarea,
 } from "@/lib/craft/tokens";
+import {
+  buildSalesLeadActionQueue,
+  summarizeSalesLeadActionQueue,
+  type SalesLeadActionMoment,
+} from "@/lib/sales/lead-action-priority";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -78,6 +83,7 @@ const EMPTY_METRICS: SalesWorkspaceMetrics = {
   closedArrCents: 0,
   closedArrTodayCents: 0,
 };
+const EMPTY_LEADS: SalesRepLead[] = [];
 
 const EMPTY_LEAD_FORM: CreateSalesLeadInput = {
   fullName: "",
@@ -148,6 +154,28 @@ const LEAD_STAGE_OPTIONS: Array<{
   { value: "considering", label: "Customer considering" },
   { value: "lost", label: "Closed / not moving forward" },
 ];
+
+const NEXT_ACTION_STYLES: Record<
+  SalesLeadActionMoment,
+  { label: string; className: string }
+> = {
+  overdue: {
+    label: "Overdue",
+    className: "border-red-300/30 bg-red-300/[0.08] text-red-100",
+  },
+  due_today: {
+    label: "Due today",
+    className: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  },
+  unscheduled: {
+    label: "Needs next move",
+    className: "border-sky-300/25 bg-sky-300/[0.07] text-sky-100",
+  },
+  upcoming: {
+    label: "Upcoming",
+    className: "border-white/[0.08] bg-white/[0.025] text-muted",
+  },
+};
 
 const FOLLOW_UP_SHORTCUTS = [
   { days: 0, label: "Today 5 PM" },
@@ -288,6 +316,8 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     null,
   );
   const [leadActionSaving, setLeadActionSaving] = useState(false);
+  const [showAllLeads, setShowAllLeads] = useState(false);
+  const [actionClock, setActionClock] = useState(0);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installHelp, setInstallHelp] = useState<string | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
@@ -405,6 +435,11 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     const timeout = window.setTimeout(() => setNotice(null), 5_000);
     return () => window.clearTimeout(timeout);
   }, [notice, undoableActivity]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setActionClock(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!undoableActivity) return;
@@ -892,17 +927,27 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     }
   };
 
-  const dueLeads = useMemo(() => {
-    const leads = workspace?.leads ?? [];
-    return [...leads]
-      .filter((lead) => !["signed", "won", "lost"].includes(lead.status))
-      .sort((left, right) => {
-        if (!left.nextFollowUpAt) return 1;
-        if (!right.nextFollowUpAt) return -1;
-        return left.nextFollowUpAt.localeCompare(right.nextFollowUpAt);
-      })
-      .slice(0, 8);
-  }, [workspace?.leads]);
+  const workspaceLeads = workspace?.leads ?? EMPTY_LEADS;
+  const workspaceGeneratedAt = workspace?.generatedAt ?? null;
+  const leadActionQueue = useMemo(
+    () =>
+      buildSalesLeadActionQueue(
+        workspaceLeads,
+        actionClock > 0
+          ? new Date(actionClock)
+          : workspaceGeneratedAt
+            ? new Date(workspaceGeneratedAt)
+            : new Date(),
+      ),
+    [actionClock, workspaceGeneratedAt, workspaceLeads],
+  );
+  const leadActionCounts = useMemo(
+    () => summarizeSalesLeadActionQueue(leadActionQueue),
+    [leadActionQueue],
+  );
+  const visibleLeadActionQueue = showAllLeads
+    ? leadActionQueue
+    : leadActionQueue.slice(0, 8);
 
   return (
     <AmbientStage
@@ -1336,6 +1381,17 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
               <div>
                 <p className={craftEyebrow}>Next-action queue</p>
                 <h2 className={`mt-2 text-2xl sm:text-3xl ${craftHeading}`}>People worth remembering</h2>
+                {leadActionQueue.length > 0 ? (
+                  <p className="mt-2 text-[11px] leading-5 text-muted">
+                    {leadActionCounts.overdue > 0
+                      ? `${leadActionCounts.overdue} overdue`
+                      : "Nothing overdue"}
+                    {" · "}
+                    {leadActionCounts.due_today} due today
+                    {" · "}
+                    {leadActionCounts.unscheduled} need a next move
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -1349,7 +1405,7 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
             <div className="mt-6 space-y-3">
               {loading ? (
                 <p className="py-8 text-center text-sm text-muted">Loading private queue…</p>
-              ) : dueLeads.length === 0 ? (
+              ) : leadActionQueue.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/[0.1] px-5 py-9 text-center">
                   <p className="font-serif text-xl text-foreground">Your first doorstep starts here.</p>
                   <p className="mt-2 text-sm leading-6 text-muted">
@@ -1357,27 +1413,34 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                   </p>
                 </div>
               ) : (
-                dueLeads.map((lead) => {
+                visibleLeadActionQueue.map(({ lead, moment }) => {
                   const phone = lead.phone?.replace(/[^\d+]/g, "") ?? "";
-                  const canUsePhone =
-                    phone.length > 0 && lead.smsConsentStatus === "opted_in";
+                  const canCall = phone.length > 0;
+                  const canText =
+                    canCall && lead.smsConsentStatus === "opted_in";
                   const canUseEmail =
                     Boolean(lead.email) &&
                     lead.emailConsentStatus === "opted_in";
+                  const nextActionStyle = NEXT_ACTION_STYLES[moment];
 
                   return (
                     <article
                     key={lead.id}
-                    className="rounded-2xl border border-white/[0.07] bg-black/10 p-4 sm:p-5"
+                    className="rounded-2xl border border-white/[0.07] bg-black/10 p-4 [contain-intrinsic-size:0_420px] [content-visibility:auto] sm:p-5"
                     >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <h3 className="truncate font-serif text-xl text-foreground">{lead.fullName}</h3>
                         <p className="mt-1 truncate text-xs text-muted">{lead.propertyAddress}</p>
                       </div>
-                      <span className="shrink-0 rounded-full border border-white/[0.08] px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] text-muted">
-                        {statusLabel(lead.status)}
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] ${nextActionStyle.className}`}>
+                          {nextActionStyle.label}
+                        </span>
+                        <span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] text-muted">
+                          {statusLabel(lead.status)}
+                        </span>
+                      </div>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
                       <p className="text-xs text-foreground/70">{followUpLabel(lead.nextFollowUpAt)}</p>
@@ -1385,7 +1448,11 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                         {moneyFromCents(lead.estimatedArrCents)} est. ARR
                       </p>
                     </div>
-                    <div className="mt-3 flex gap-2 text-[9px] uppercase tracking-[0.14em]">
+                    <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[9px] uppercase tracking-[0.14em]">
+                      <span className={canCall ? "text-emerald-200" : "text-muted/60"}>
+                        Call {canCall ? "ready" : "unavailable"}
+                      </span>
+                      <span className="text-muted/30">·</span>
                       <span className={lead.smsConsentStatus === "opted_in" ? "text-emerald-200" : "text-muted/60"}>
                         Text {lead.smsConsentStatus === "opted_in" ? "approved" : "not approved"}
                       </span>
@@ -1394,30 +1461,30 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                         Email {lead.emailConsentStatus === "opted_in" ? "approved" : "not approved"}
                       </span>
                     </div>
-                    {canUsePhone || canUseEmail ? (
-                      <div className="mt-4 grid grid-cols-3 gap-2" aria-label={`Contact ${lead.fullName}`}>
-                        {canUsePhone ? (
-                          <>
-                            <a
-                              href={`tel:${phone}`}
-                              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                              aria-label={`Call ${lead.fullName}`}
-                            >
-                              Call
-                            </a>
+                    {canCall || canUseEmail ? (
+                      <div className="mt-4 flex flex-wrap gap-2" aria-label={`Contact ${lead.fullName}`}>
+                        {canCall ? (
+                          <a
+                            href={`tel:${phone}`}
+                            className="inline-flex min-h-11 min-w-[5.5rem] flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            aria-label={`Call ${lead.fullName}`}
+                          >
+                            Call
+                          </a>
+                        ) : null}
+                        {canText ? (
                             <a
                               href={`sms:${phone}`}
-                              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                              className="inline-flex min-h-11 min-w-[5.5rem] flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                               aria-label={`Text ${lead.fullName}`}
                             >
                               Text
                             </a>
-                          </>
                         ) : null}
                         {canUseEmail ? (
                           <a
                             href={`mailto:${encodeURIComponent(lead.email ?? "")}`}
-                            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            className="inline-flex min-h-11 min-w-[5.5rem] flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                             aria-label={`Email ${lead.fullName}`}
                           >
                             Email
@@ -1596,6 +1663,18 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                   );
                 })
               )}
+              {leadActionQueue.length > 8 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllLeads((current) => !current)}
+                  aria-expanded={showAllLeads}
+                  className="min-h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-muted transition hover:border-accent/25 hover:text-accent"
+                >
+                  {showAllLeads
+                    ? "Show highest-priority 8"
+                    : `Show all ${leadActionQueue.length} open people`}
+                </button>
+              ) : null}
             </div>
           </GlassCard>
 
