@@ -55,13 +55,16 @@ export function formatMembershipCareVisitLabel(
     if (cadence === "biannual") {
       return "Bi-Annual Exterior Window Care";
     }
+    if (cadence === "triannual") {
+      return "3× Per Year Exterior Window Care";
+    }
     return "Quarterly Home Care Visit";
   }
 
   if (serviceType === "exterior_windows") {
-    return cadence === "biannual"
-      ? "Bi-Annual Exterior Window Care"
-      : "Quarterly Exterior Window Care";
+    if (cadence === "biannual") return "Bi-Annual Exterior Window Care";
+    if (cadence === "triannual") return "3× Per Year Exterior Window Care";
+    return "Quarterly Exterior Window Care";
   }
 
   return formatServiceTypeLabel(serviceType);

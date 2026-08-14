@@ -35,6 +35,10 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
 } from "@/lib/care-operations/model";
+import {
+  portalAppointmentLowerBoundIso,
+  selectNextScheduledPortalAppointment,
+} from "@/lib/membership/portal-next-appointment";
 
 export interface ServiceObservationView {
   id: string;
@@ -527,16 +531,21 @@ export async function getMemberPortalDataBySlugs(
     mapAppointment,
   );
 
-  const today = new Date().toISOString();
-  const authoritativeNextAppointment =
-    authoritativeAppointments.find(
-      (a) => a.status === "scheduled" && a.date >= today,
-    ) ??
-    authoritativeAppointments.find((a) => a.status === "scheduled") ??
-    null;
+  const portalReferenceDate = new Date();
+  const appointmentLowerBound = portalAppointmentLowerBoundIso(
+    portalReferenceDate,
+  );
+  const authoritativeNextAppointment = selectNextScheduledPortalAppointment(
+    authoritativeAppointments,
+    portalReferenceDate,
+  );
   const pairedJobberNextAppointment = authoritativeNextAppointment
     ? null
-    : await loadNextPairedJobberAppointment(supabase, propertyRow.id, today);
+    : await loadNextPairedJobberAppointment(
+        supabase,
+        propertyRow.id,
+        appointmentLowerBound,
+      );
   const nextAppointment =
     authoritativeNextAppointment ?? pairedJobberNextAppointment;
   const appointments = pairedJobberNextAppointment

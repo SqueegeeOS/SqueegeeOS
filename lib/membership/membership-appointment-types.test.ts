@@ -13,4 +13,13 @@ describe("formatMembershipCareVisitLabel", () => {
       formatMembershipCareVisitLabel("biannual", "home_care_visit"),
     ).toBe("Bi-Annual Exterior Window Care");
   });
+
+  it("uses truthful optional three-visit membership language", () => {
+    expect(
+      formatMembershipCareVisitLabel("triannual", "home_care_visit"),
+    ).toBe("3× Per Year Exterior Window Care");
+    expect(
+      formatMembershipCareVisitLabel("3x per year", "exterior_windows"),
+    ).toBe("3× Per Year Exterior Window Care");
+  });
 });
