@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildLocalBusinessJsonLd,
   buildServiceJsonLd,
   googleBusinessProfileUrl,
   serializeJsonLd,
@@ -30,6 +31,13 @@ describe("local SEO contracts", () => {
       "https://www.squeegeeking.net/#business",
     );
     expect(JSON.stringify(schema)).toContain("Chico");
+  });
+
+  it("uses the promoted homepage image in local business data", () => {
+    const schema = buildLocalBusinessJsonLd();
+    expect(JSON.stringify(schema)).toContain(
+      "/atlas-glass/hero-house.jpg",
+    );
   });
 
   it("escapes markup before embedding JSON-LD", () => {

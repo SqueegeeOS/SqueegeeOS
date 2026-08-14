@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Day2Homepage } from "@/components/marketing/day2-homepage";
+import { AtlasGlass } from "@/app/atlas-glass/atlas-glass";
 import {
   buildLocalBusinessJsonLd,
   serializeJsonLd,
@@ -20,12 +20,19 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/day/morning.jpg",
+        url: "/atlas-glass/hero-house.jpg",
         width: 1376,
         height: 768,
-        alt: "A cared-for Chico home in warm morning light",
+        alt: "A cared-for Chico home connected to its HomeAtlas care record",
       },
     ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
+    description:
+      "Professional window cleaning and exterior home care in Chico, powered by a HomeAtlas record for every member home.",
+    images: ["/atlas-glass/hero-house.jpg"],
   },
 };
 
@@ -38,7 +45,7 @@ export default function HomePage() {
           __html: serializeJsonLd(buildLocalBusinessJsonLd()),
         }}
       />
-      <Day2Homepage />
+      <AtlasGlass />
     </>
   );
 }
