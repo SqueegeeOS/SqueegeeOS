@@ -3,12 +3,14 @@ export interface JobberTodayFieldRecordRow {
   fieldRecordId: string | null;
   technicianName: string;
   createdAt: string;
+  customerVisible: boolean;
 }
 
 export interface JobberTodayFieldRecordSummary {
   count: number;
   latestFieldRecordAt: string;
   latestTechnicianName: string;
+  customerVisibleCount: number;
 }
 
 function timestamp(value: string): number {
@@ -34,7 +36,10 @@ export function summarizeJobberTodayFieldRecords(
 ): Map<string, JobberTodayFieldRecordSummary> {
   const accumulators = new Map<
     string,
-    JobberTodayFieldRecordSummary & { fieldRecordIds: Set<string> }
+    JobberTodayFieldRecordSummary & {
+      fieldRecordIds: Set<string>;
+      customerVisibleFieldRecordIds: Set<string>;
+    }
   >();
 
   for (const row of rows) {
@@ -45,7 +50,11 @@ export function summarizeJobberTodayFieldRecords(
         count: 1,
         latestFieldRecordAt: row.createdAt,
         latestTechnicianName: row.technicianName,
+        customerVisibleCount: row.customerVisible ? 1 : 0,
         fieldRecordIds: new Set([row.fieldRecordId]),
+        customerVisibleFieldRecordIds: new Set(
+          row.customerVisible ? [row.fieldRecordId] : [],
+        ),
       });
       continue;
     }
@@ -53,6 +62,13 @@ export function summarizeJobberTodayFieldRecords(
     if (!existing.fieldRecordIds.has(row.fieldRecordId)) {
       existing.fieldRecordIds.add(row.fieldRecordId);
       existing.count += 1;
+    }
+    if (
+      row.customerVisible &&
+      !existing.customerVisibleFieldRecordIds.has(row.fieldRecordId)
+    ) {
+      existing.customerVisibleFieldRecordIds.add(row.fieldRecordId);
+      existing.customerVisibleCount += 1;
     }
     if (timestamp(row.createdAt) > timestamp(existing.latestFieldRecordAt)) {
       existing.latestFieldRecordAt = row.createdAt;
@@ -67,6 +83,7 @@ export function summarizeJobberTodayFieldRecords(
         count: summary.count,
         latestFieldRecordAt: summary.latestFieldRecordAt,
         latestTechnicianName: summary.latestTechnicianName,
+        customerVisibleCount: summary.customerVisibleCount,
       },
     ]),
   );

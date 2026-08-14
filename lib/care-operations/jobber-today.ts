@@ -71,6 +71,11 @@ interface StoredFieldRecordRow {
   field_record_id: string | null;
   technician_name: string;
   created_at: string;
+  customer_note_visible: boolean;
+}
+
+interface StoredVisibleAssetRow {
+  field_record_id: string | null;
 }
 
 const TODAY_VISIT_SELECT =
@@ -135,6 +140,8 @@ function toTodayVisit(
     homeAtlasFieldRecordCount: fieldRecord?.count ?? 0,
     homeAtlasLatestFieldRecordAt: fieldRecord?.latestFieldRecordAt ?? null,
     homeAtlasLatestFieldRecordBy: fieldRecord?.latestTechnicianName ?? null,
+    homeAtlasCustomerVisibleRecordCount:
+      fieldRecord?.customerVisibleCount ?? 0,
   };
 }
 
@@ -234,13 +241,15 @@ export async function loadJobberTodayBoard(
     );
   }
 
-  const fieldRecordRows: JobberTodayFieldRecordRow[] = [];
+  const storedFieldRecordRows: StoredFieldRecordRow[] = [];
   let fieldRecordStatusAvailable = true;
   const appointmentIds = appointmentLinks.map((link) => link.appointmentId);
   for (const appointmentIdChunk of chunkItems(appointmentIds)) {
     const fieldRecordResult = await supabase
       .from("property_assessments")
-      .select("visit_id, field_record_id, technician_name, created_at")
+      .select(
+        "visit_id, field_record_id, technician_name, created_at, customer_note_visible",
+      )
       .in("visit_id", appointmentIdChunk)
       .not("field_record_id", "is", null)
       .order("created_at", { ascending: false })
@@ -248,22 +257,59 @@ export async function loadJobberTodayBoard(
     if (fieldRecordResult.error) {
       if (isMissingVisitFieldRecordSchema(fieldRecordResult.error)) {
         fieldRecordStatusAvailable = false;
-        fieldRecordRows.length = 0;
+        storedFieldRecordRows.length = 0;
         break;
       }
       throw new Error(fieldRecordResult.error.message);
     }
-    fieldRecordRows.push(
-      ...((fieldRecordResult.data ?? []) as StoredFieldRecordRow[]).map(
-        (row) => ({
-          appointmentId: row.visit_id,
-          fieldRecordId: row.field_record_id,
-          technicianName: row.technician_name,
-          createdAt: row.created_at,
-        }),
-      ),
+    storedFieldRecordRows.push(
+      ...((fieldRecordResult.data ?? []) as StoredFieldRecordRow[]),
     );
   }
+
+  const visiblePhotoFieldRecordIds = new Set<string>();
+  const fieldRecordIds = [
+    ...new Set(
+      storedFieldRecordRows.flatMap((row) =>
+        row.field_record_id ? [row.field_record_id] : [],
+      ),
+    ),
+  ];
+  if (fieldRecordStatusAvailable) {
+    for (const fieldRecordIdChunk of chunkItems(fieldRecordIds)) {
+      const visibleAssetResult = await supabase
+        .from("property_assets")
+        .select("field_record_id")
+        .in("field_record_id", fieldRecordIdChunk)
+        .eq("customer_visible", true)
+        .limit(2_000);
+      if (visibleAssetResult.error) {
+        if (isMissingVisitFieldRecordSchema(visibleAssetResult.error)) {
+          fieldRecordStatusAvailable = false;
+          storedFieldRecordRows.length = 0;
+          visiblePhotoFieldRecordIds.clear();
+          break;
+        }
+        throw new Error(visibleAssetResult.error.message);
+      }
+      for (const row of (visibleAssetResult.data ?? []) as StoredVisibleAssetRow[]) {
+        if (row.field_record_id) visiblePhotoFieldRecordIds.add(row.field_record_id);
+      }
+    }
+  }
+
+  const fieldRecordRows: JobberTodayFieldRecordRow[] =
+    storedFieldRecordRows.map((row) => ({
+      appointmentId: row.visit_id,
+      fieldRecordId: row.field_record_id,
+      technicianName: row.technician_name,
+      createdAt: row.created_at,
+      customerVisible:
+        row.customer_note_visible ||
+        (row.field_record_id
+          ? visiblePhotoFieldRecordIds.has(row.field_record_id)
+          : false),
+    }));
   const fieldRecordsByAppointment =
     summarizeJobberTodayFieldRecords(fieldRecordRows);
 
