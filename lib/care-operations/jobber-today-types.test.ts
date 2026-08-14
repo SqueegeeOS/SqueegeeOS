@@ -3,6 +3,7 @@ import {
   classifyJobberTodayVisit,
   isJobberTodayDataStale,
   resolveJobberTodayHomeAtlasContext,
+  summarizeJobberTodayVisits,
 } from "./jobber-today-types";
 
 const scheduledVisit = {
@@ -52,6 +53,23 @@ describe("Jobber Today board states", () => {
     expect(
       isJobberTodayDataStale("2026-08-01T13:59:59.000Z", now),
     ).toBe(true);
+  });
+
+  it("separates Jobber completion from proven HomeAtlas closeout", () => {
+    expect(
+      summarizeJobberTodayVisits([
+        { isComplete: true, homeAtlasFieldRecordCount: 1 },
+        { isComplete: true, homeAtlasFieldRecordCount: 0 },
+        { isComplete: false, homeAtlasFieldRecordCount: 1 },
+        { isComplete: false, homeAtlasFieldRecordCount: 0 },
+      ]),
+    ).toEqual({
+      total: 4,
+      complete: 2,
+      remaining: 2,
+      documented: 2,
+      completedWithoutRecord: 1,
+    });
   });
 
   it("opens field capture only through the active property and appointment pair", () => {
