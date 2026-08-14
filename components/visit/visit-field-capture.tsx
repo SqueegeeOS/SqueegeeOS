@@ -97,12 +97,14 @@ export function VisitFieldCapture({
   clientName,
   serviceLabel,
   onSaved,
+  onDraftStateChange,
 }: {
   propertyId: string;
   appointmentId: string;
   clientName: string;
   serviceLabel: string;
   onSaved?: () => void;
+  onDraftStateChange?: (hasDraft: boolean) => void;
 }) {
   const [initialDraft] = useState(() =>
     typeof window === "undefined"
@@ -154,6 +156,7 @@ export function VisitFieldCapture({
   useEffect(() => {
     if (saved) {
       clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+      onDraftStateChange?.(false);
       return;
     }
 
@@ -165,10 +168,11 @@ export function VisitFieldCapture({
       photos.length > 0;
     if (!hasMeaningfulDraft) {
       clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+      onDraftStateChange?.(false);
       return;
     }
 
-    writeVisitFieldDraft(window.localStorage, {
+    const draftStored = writeVisitFieldDraft(window.localStorage, {
       version: 1,
       propertyId,
       appointmentId,
@@ -181,12 +185,14 @@ export function VisitFieldCapture({
       selectedPhotoCount: Math.max(restoredPhotoCount, photos.length),
       savedAt: Date.now(),
     });
+    onDraftStateChange?.(draftStored);
   }, [
     appointmentId,
     customerSummary,
     fieldRecordId,
     followUpNeeded,
     internalNote,
+    onDraftStateChange,
     photos.length,
     propertyId,
     restoredPhotoCount,
@@ -368,6 +374,7 @@ export function VisitFieldCapture({
 
       rememberTechnicianName(technicianName.trim());
       clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+      onDraftStateChange?.(false);
       setSaved({
         photoCount: commitBody.photoCount ?? photos.length,
         customerVisibleCount: photos.filter((photo) => photo.customerVisible).length,
@@ -392,6 +399,7 @@ export function VisitFieldCapture({
 
   function startAnotherRecord() {
     clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+    onDraftStateChange?.(false);
     for (const photo of photos) {
       URL.revokeObjectURL(photo.previewUrl);
       previewUrls.current.delete(photo.previewUrl);

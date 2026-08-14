@@ -179,6 +179,11 @@ describe("visit field record database contract", () => {
     expect(visitFieldCapture).toContain("clearVisitFieldDraft(window.localStorage");
     expect(visitFieldCapture).toContain("Draft restored from this device");
     expect(visitFieldCapture).toContain("Re-add the complete set");
+    expect(visitFieldCapture).toContain("onDraftStateChange?.(draftStored)");
+    expect(todayWorkspace).toContain("readVisitFieldDraft(window.localStorage");
+    expect(todayWorkspace).toContain("Resume saved visit draft");
+    expect(todayWorkspace).toContain("Saved on this device");
+    expect(todayWorkspace).toContain("onDraftStateChange={setHasFieldDraft}");
     expect(visitFieldDraft).not.toContain("File");
     expect(visitFieldDraft).not.toContain("Blob");
   });
