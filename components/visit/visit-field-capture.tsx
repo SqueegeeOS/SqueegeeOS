@@ -25,6 +25,8 @@ interface PhotoDraft {
   previewUrl: string;
 }
 
+type UploadedVisitPhoto = VisitFieldRecordCommitInput["photos"][number];
+
 interface UploadIntentResponse {
   bucket: string;
   uploads: VisitPhotoUploadIntent[];
@@ -99,6 +101,7 @@ export function VisitFieldCapture({
     customerVisibleCount: number;
   } | null>(null);
   const previewUrls = useRef(new Set<string>());
+  const completedUploads = useRef(new Map<string, UploadedVisitPhoto>());
   const saveInFlight = useRef(false);
 
   useEffect(() => {
@@ -142,6 +145,7 @@ export function VisitFieldCapture({
   }
 
   function removePhoto(clientId: string) {
+    completedUploads.current.delete(clientId);
     setPhotos((current) => {
       const target = current.find((photo) => photo.clientId === clientId);
       if (target) {
@@ -181,8 +185,10 @@ export function VisitFieldCapture({
     setProgress(photos.length ? "Preparing private uploads…" : "Saving visit memory…");
 
     try {
-      const uploadedPhotos: VisitFieldRecordCommitInput["photos"] = [];
-      if (photos.length > 0) {
+      const pendingPhotos = photos.filter(
+        (photo) => !completedUploads.current.has(photo.clientId),
+      );
+      if (pendingPhotos.length > 0) {
         const intentResponse = await fetch(
           "/api/admin/field-records/upload-intents",
           {
@@ -192,7 +198,7 @@ export function VisitFieldCapture({
               fieldRecordId,
               propertyId,
               appointmentId,
-              photos: photos.map((photo) => ({
+              photos: pendingPhotos.map((photo) => ({
                 clientId: photo.clientId,
                 fileName: photo.file.name,
                 mimeType: photo.file.type,
@@ -212,9 +218,13 @@ export function VisitFieldCapture({
 
         const uploadClient = createUploadClient();
         for (const [index, intent] of intentBody.uploads.entries()) {
-          const draft = photos.find((photo) => photo.clientId === intent.clientId);
+          const draft = pendingPhotos.find(
+            (photo) => photo.clientId === intent.clientId,
+          );
           if (!draft) throw new Error("A selected photo changed before upload.");
-          setProgress(`Uploading photo ${index + 1} of ${photos.length}…`);
+          setProgress(
+            `Uploading unfinished photo ${index + 1} of ${pendingPhotos.length}…`,
+          );
           const upload = await uploadClient.storage
             .from(intentBody.bucket)
             .uploadToSignedUrl(intent.storagePath, intent.token, draft.file, {
@@ -223,7 +233,7 @@ export function VisitFieldCapture({
               upsert: false,
             });
           if (upload.error) throw new Error(`Could not upload ${draft.file.name}.`);
-          uploadedPhotos.push({
+          completedUploads.current.set(intent.clientId, {
             clientId: intent.clientId,
             fileName: intent.fileName,
             mimeType: intent.mimeType,
@@ -234,6 +244,18 @@ export function VisitFieldCapture({
           });
         }
       }
+
+      const uploadedPhotos = photos.map((photo): UploadedVisitPhoto => {
+        const uploaded = completedUploads.current.get(photo.clientId);
+        if (!uploaded) {
+          throw new Error("A selected photo did not finish uploading.");
+        }
+        return {
+          ...uploaded,
+          captureType: photo.captureType,
+          customerVisible: photo.customerVisible,
+        };
+      });
 
       setProgress("Committing one HomeAtlas visit record…");
       const commitResponse = await fetch("/api/admin/field-records", {
@@ -266,11 +288,14 @@ export function VisitFieldCapture({
       setProgress(null);
       onSaved?.();
     } catch (saveError) {
-      setError(
+      const message =
         saveError instanceof Error
           ? saveError.message
-          : "Could not save the visit record.",
-      );
+          : "Could not save the visit record.";
+      const retryNote = completedUploads.current.size
+        ? " Completed private photo uploads are preserved—tap Save again to resume."
+        : "";
+      setError(`${message}${retryNote}`);
       setProgress(null);
     } finally {
       saveInFlight.current = false;
@@ -284,6 +309,7 @@ export function VisitFieldCapture({
       previewUrls.current.delete(photo.previewUrl);
     }
     setPhotos([]);
+    completedUploads.current.clear();
     setCustomerSummary("");
     setInternalNote("");
     setFollowUpNeeded(false);
