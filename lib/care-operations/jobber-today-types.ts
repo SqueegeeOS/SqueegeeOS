@@ -1,3 +1,5 @@
+import type { VisitFieldFollowUpView } from "@/lib/field-records/visit-field-record";
+
 export type JobberTodayVisitMoment =
   | "complete"
   | "in_progress"
@@ -47,6 +49,7 @@ export interface JobberTodayData {
     remaining: number;
   };
   visits: JobberTodayVisit[];
+  fieldFollowUps: VisitFieldFollowUpView[];
 }
 
 export function classifyJobberTodayVisit(

@@ -1,5 +1,6 @@
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import { nextVisitFieldFollowUpDueAt } from "@/lib/field-records/visit-field-record";
 import { isAssessmentAreaKey, type AssessmentAreaKey } from "./assessment-areas";
 import {
   getLocalAssessmentById,
@@ -129,6 +130,9 @@ export async function createPropertyAssessment(
   );
   const scoresJson = buildScoresJson(form);
   const now = new Date().toISOString();
+  const followUpNeeded =
+    form.proposalSummary.trim() === "Follow-up recommended" ||
+    form.recommendedServices.some((service) => service.id === "follow-up");
 
   if (isCloudPersistenceConnected()) {
     const supabase = createServerSupabaseClient();
@@ -152,6 +156,10 @@ export async function createPropertyAssessment(
           form.recommendedServices.length > 0
             ? form.recommendedServices
             : null,
+        follow_up_status: followUpNeeded ? "open" : null,
+        follow_up_due_at: followUpNeeded
+          ? nextVisitFieldFollowUpDueAt(form.visitDate)
+          : null,
       })
       .select("*")
       .single();

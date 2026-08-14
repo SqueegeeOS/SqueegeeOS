@@ -15,11 +15,41 @@ alter table public.property_assets
   );
 
 alter table public.property_assessments
-  add column if not exists field_record_id uuid;
+  add column if not exists field_record_id uuid,
+  add column if not exists follow_up_status text,
+  add column if not exists follow_up_due_at timestamptz,
+  add column if not exists follow_up_resolved_at timestamptz,
+  add column if not exists follow_up_resolved_by text;
+
+alter table public.property_assessments
+  drop constraint if exists property_assessments_follow_up_state_check,
+  add constraint property_assessments_follow_up_state_check check (
+    (
+      follow_up_status is null
+      and follow_up_due_at is null
+      and follow_up_resolved_at is null
+      and follow_up_resolved_by is null
+    )
+    or (
+      follow_up_status = 'open'
+      and follow_up_due_at is not null
+      and follow_up_resolved_at is null
+      and follow_up_resolved_by is null
+    )
+    or (
+      follow_up_status = 'resolved'
+      and follow_up_due_at is not null
+      and follow_up_resolved_at is not null
+      and nullif(trim(follow_up_resolved_by), '') is not null
+    )
+  );
 
 create unique index if not exists property_assessments_field_record_uidx
   on public.property_assessments(field_record_id)
   where field_record_id is not null;
+create index if not exists property_assessments_open_follow_up_idx
+  on public.property_assessments(follow_up_due_at, created_at)
+  where follow_up_status = 'open';
 create unique index if not exists property_assets_storage_identity_uidx
   on public.property_assets(storage_bucket, storage_path)
   where storage_bucket is not null;
@@ -240,7 +270,9 @@ begin
     customer_note_visible,
     proposal_summary,
     recommended_services,
-    field_record_id
+    field_record_id,
+    follow_up_status,
+    follow_up_due_at
   )
   values (
     p_property_id,
@@ -260,7 +292,18 @@ begin
         'note', ''
       ))
     else null end,
-    p_field_record_id
+    p_field_record_id,
+    case when p_follow_up_needed then 'open' else null end,
+    case when p_follow_up_needed then
+      (
+        case extract(isodow from p_visit_date)
+          when 5 then p_visit_date + 3
+          when 6 then p_visit_date + 2
+          when 7 then p_visit_date + 1
+          else p_visit_date + 1
+        end + time '09:00'
+      ) at time zone 'America/Los_Angeles'
+    else null end
   )
   returning id into resolved_assessment_id;
 
@@ -323,3 +366,133 @@ comment on function public.commit_visit_field_record(
   uuid, uuid, uuid, text, date, text, text, boolean, jsonb
 ) is
   'Atomically and idempotently commits an HQ visit note and its private-storage photo metadata.';
+
+create or replace function public.resolve_visit_field_follow_up(
+  p_assessment_id uuid,
+  p_resolved_by text
+)
+returns table(assessment_id uuid, resolved_at timestamptz)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  resolved_assessment_id uuid;
+  resolved_timestamp timestamptz;
+begin
+  if p_assessment_id is null
+     or nullif(trim(p_resolved_by), '') is null
+     or length(trim(p_resolved_by)) > 80 then
+    raise exception 'Invalid visit follow-up resolution';
+  end if;
+
+  update public.property_assessments assessment
+  set follow_up_status = 'resolved',
+      follow_up_resolved_at = now(),
+      follow_up_resolved_by = trim(p_resolved_by)
+  where assessment.id = p_assessment_id
+    and assessment.follow_up_status = 'open'
+  returning assessment.id, assessment.follow_up_resolved_at
+    into resolved_assessment_id, resolved_timestamp;
+
+  if resolved_assessment_id is null then
+    select assessment.id, assessment.follow_up_resolved_at
+      into resolved_assessment_id, resolved_timestamp
+    from public.property_assessments assessment
+    where assessment.id = p_assessment_id
+      and assessment.follow_up_status = 'resolved';
+  end if;
+
+  if resolved_assessment_id is null or resolved_timestamp is null then
+    raise exception 'Open visit follow-up not found';
+  end if;
+
+  return query select resolved_assessment_id, resolved_timestamp;
+end;
+$$;
+
+revoke all on function public.resolve_visit_field_follow_up(uuid, text)
+  from public, anon, authenticated;
+grant execute on function public.resolve_visit_field_follow_up(uuid, text)
+  to service_role;
+
+comment on function public.resolve_visit_field_follow_up(uuid, text) is
+  'Idempotently resolves an owner field follow-up while preserving its visit record.';
+
+-- Keep the HQ privacy probe current as new field-intelligence tables join the
+-- customer record. A green Production Health result must cover these notes.
+create or replace function public.homeatlas_security_posture()
+returns table(
+  customer_public_policy_count bigint,
+  customer_public_privilege_count bigint,
+  admin_rate_limit_ready boolean
+)
+language sql
+security definer
+set search_path = public
+as $$
+  with sensitive_tables(table_name) as (
+    values
+      ('homeowners'),
+      ('properties'),
+      ('home_care_plans'),
+      ('memberships'),
+      ('signed_agreements'),
+      ('property_assets'),
+      ('presentations'),
+      ('lead_intakes'),
+      ('customer_contact_points'),
+      ('customer_communication_automation_rules'),
+      ('customer_conversations'),
+      ('customer_messages'),
+      ('customer_communication_webhook_events'),
+      ('customer_contact_consent_events'),
+      ('customer_communication_provider_verifications'),
+      ('google_business_connections'),
+      ('sales_reps'),
+      ('sales_rep_leads'),
+      ('sales_rep_activity_events'),
+      ('sales_rep_attributions'),
+      ('member_profiles'),
+      ('member_savings_transactions'),
+      ('service_observations'),
+      ('ai_quotes'),
+      ('property_assessments'),
+      ('property_visit_health_checks')
+  ),
+  public_roles(role_name) as (
+    values ('anon'), ('authenticated')
+  ),
+  table_privileges(privilege_name) as (
+    values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')
+  )
+  select
+    (
+      select count(*)
+      from pg_policies policy
+      where policy.schemaname = 'public'
+        and policy.tablename in (select table_name from sensitive_tables)
+        and (
+          'anon' = any(policy.roles)
+          or 'authenticated' = any(policy.roles)
+          or 'public' = any(policy.roles)
+        )
+    ),
+    (
+      select count(*)
+      from sensitive_tables sensitive
+      cross join public_roles role
+      cross join table_privileges privilege
+      where has_table_privilege(
+        role.role_name,
+        format('public.%I', sensitive.table_name),
+        privilege.privilege_name
+      )
+    ),
+    to_regclass('public.admin_unlock_rate_limits') is not null;
+$$;
+
+revoke all on function public.homeatlas_security_posture()
+  from public, anon, authenticated;
+grant execute on function public.homeatlas_security_posture()
+  to service_role;

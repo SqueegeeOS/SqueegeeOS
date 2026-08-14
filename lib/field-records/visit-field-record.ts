@@ -1,3 +1,5 @@
+import { zonedDateTimeToUtc } from "@/lib/admin/company-business-timezone";
+
 export const VISIT_MEDIA_BUCKET = "homeatlas-visit-media";
 export const MAX_VISIT_PHOTOS = 8;
 export const MAX_VISIT_PHOTO_BYTES = 15 * 1024 * 1024;
@@ -46,6 +48,29 @@ export interface VisitFieldRecordCommitInput {
   photos: Array<Omit<VisitPhotoUploadIntent, "token">>;
 }
 
+export interface VisitFieldFollowUpView {
+  assessmentId: string;
+  fieldRecordId: string | null;
+  propertyId: string;
+  appointmentId: string | null;
+  homeownerName: string;
+  propertyName: string;
+  propertyAddress: string;
+  technicianName: string;
+  visitDate: string;
+  customerSummary: string | null;
+  internalNote: string | null;
+  dueAt: string;
+  createdAt: string;
+}
+
+export interface ResolveVisitFieldFollowUpInput {
+  assessmentId: string;
+  resolvedBy: string;
+}
+
+export type VisitFieldFollowUpMoment = "overdue" | "due_today" | "upcoming";
+
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -56,6 +81,23 @@ const EXTENSION_BY_MIME_TYPE: Record<VisitPhotoMimeType, string> = {
   "image/heic": "heic",
   "image/heif": "heif",
 };
+
+const FOLLOW_UP_DAY_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function pacificCalendarDateKey(value: Date): string {
+  const parts = new Map(
+    FOLLOW_UP_DAY_FORMATTER.formatToParts(value).map((part) => [
+      part.type,
+      part.value,
+    ]),
+  );
+  return `${parts.get("year")}-${parts.get("month")}-${parts.get("day")}`;
+}
 
 export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_PATTERN.test(value);
@@ -162,6 +204,23 @@ function isIsoCalendarDate(value: string): boolean {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
+export function nextVisitFieldFollowUpDueAt(visitDate: string): string {
+  if (!isIsoCalendarDate(visitDate)) {
+    throw new Error("visitDate must be a valid calendar date.");
+  }
+  const [year, month, day] = visitDate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayOfWeek = date.getUTCDay();
+  const daysToAdd = dayOfWeek === 5 ? 3 : dayOfWeek === 6 ? 2 : 1;
+  date.setUTCDate(date.getUTCDate() + daysToAdd);
+  return zonedDateTimeToUtc(
+    date.toISOString().slice(0, 10),
+    9,
+    0,
+    0,
+  ).toISOString();
+}
+
 export function validateVisitFieldRecordCommit(
   input: VisitFieldRecordCommitInput,
 ): string | null {
@@ -211,6 +270,32 @@ export function validateVisitFieldRecordCommit(
   }
 
   return null;
+}
+
+export function validateResolveVisitFieldFollowUp(
+  input: ResolveVisitFieldFollowUpInput,
+): string | null {
+  if (!isUuid(input.assessmentId)) return "assessmentId must be a UUID.";
+  if (!input.resolvedBy?.trim()) return "Enter who completed the follow-up.";
+  if (input.resolvedBy.trim().length > 80) {
+    return "Completed-by name must be 80 characters or fewer.";
+  }
+  return null;
+}
+
+export function classifyVisitFieldFollowUp(
+  dueAt: string,
+  now: Date,
+): VisitFieldFollowUpMoment {
+  const due = new Date(dueAt);
+  if (!Number.isFinite(due.getTime())) return "overdue";
+
+  const dueDay = pacificCalendarDateKey(due);
+  const today = pacificCalendarDateKey(now);
+
+  if (dueDay < today) return "overdue";
+  if (dueDay === today) return "due_today";
+  return "upcoming";
 }
 
 export function visitPhotoTitle(captureType: VisitPhotoCaptureType): string {

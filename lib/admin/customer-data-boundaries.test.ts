@@ -219,6 +219,7 @@ describe("customer data route boundaries", () => {
     for (const route of [
       "app/api/admin/field-records/upload-intents/route.ts",
       "app/api/admin/field-records/route.ts",
+      "app/api/admin/field-records/follow-ups/route.ts",
     ]) {
       const source = readProjectFile(route);
       expect(source).toContain("authorizeAdminRequest(request.headers)");
