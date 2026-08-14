@@ -28,6 +28,14 @@ const assessmentTimeline = readFileSync(
   new URL("../../components/hq/HQAssessmentTimeline.tsx", import.meta.url),
   "utf8",
 );
+const productionHealthServer = readFileSync(
+  new URL("../admin/production-health-server.ts", import.meta.url),
+  "utf8",
+);
+const productionHealthRunway = readFileSync(
+  new URL("../admin/production-health-runway.ts", import.meta.url),
+  "utf8",
+);
 
 describe("visit field record database contract", () => {
   it("keeps phone photos in a private, bounded storage bucket", () => {
@@ -102,6 +110,19 @@ describe("visit field record database contract", () => {
       'fetch("/api/admin/field-records/follow-ups"',
     );
     expect(propertyHealthShell).toContain('resolvedBy: HQ_OPERATOR_LABEL');
+  });
+
+  it("makes the complete field-service loop visible in production readiness", () => {
+    expect(productionHealthServer).toContain('id: "field-record-media-schema"');
+    expect(productionHealthServer).toContain(
+      'id: "field-record-follow-up-schema"',
+    );
+    expect(productionHealthServer).toContain('"storage-visit-media"');
+    expect(productionHealthRunway).toContain('id: "serve"');
+    expect(productionHealthRunway).toContain(
+      'description: "Today notes, private photos, follow-ups, and portal proof"',
+    );
+    expect(productionHealthRunway).toContain('"storage-visit-media"');
   });
 
   it("exposes the commit function only to the service role", () => {
