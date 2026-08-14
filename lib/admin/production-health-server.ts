@@ -127,63 +127,111 @@ function schemaCheck(
 async function runSchemaChecks(
   supabase: SupabaseClient,
 ): Promise<ProductionHealthSection> {
-  const probes = await Promise.all([
-    probeTableColumn(supabase, "presentations", "enrollment_savings"),
-    probeTableColumn(supabase, "memberships", "membership_enrollment_savings"),
-    probeTableColumn(supabase, "website_membership_sales"),
-    probeTableColumn(supabase, "membership_billing_charges"),
-    probeTableColumn(supabase, "obligations"),
-    probeTableColumn(supabase, "obligation_events"),
-    probeTableColumn(
-      supabase,
-      "signed_agreements",
-      "signature_image_storage_path",
-    ),
-    probeTableColumn(supabase, "signed_agreements", "agreement_pdf_url"),
-    probeTableColumn(
-      supabase,
-      "signed_agreements",
-      "authorized_visit_price_cents",
-    ),
-    probeTableColumn(supabase, "memberships", "automatic_billing_enabled"),
-    probeTableColumn(supabase, "billing_automation_settings"),
-    probeTableColumn(supabase, "jobber_membership_job_links"),
-    probeTableColumn(
-      supabase,
-      "lead_intakes",
-      "sms_consent_disclosure_version",
-    ),
-    probeTableColumn(supabase, "customer_contact_consent_events"),
-    probeTableColumn(
-      supabase,
-      "customer_communication_provider_verifications",
-    ),
-    probeTableColumn(supabase, "property_assets", "storage_bucket"),
-    probeTableColumn(supabase, "property_assessments", "follow_up_status"),
-  ]);
-
-  const labels = [
-    "presentations.enrollment_savings",
-    "memberships.membership_enrollment_savings",
-    "website_membership_sales",
-    "membership_billing_charges",
-    "obligations",
-    "obligation_events",
-    "signed_agreements.signature_image_storage_path",
-    "signed_agreements.agreement_pdf_url",
-    "signed_agreements.authorized_visit_price_cents",
-    "memberships.automatic_billing_enabled",
-    "billing_automation_settings",
-    "jobber_membership_job_links",
-    "lead_intakes.sms_consent_disclosure_version",
-    "customer_contact_consent_events",
-    "customer_communication_provider_verifications",
-    "property_assets.storage_bucket",
-    "property_assessments.follow_up_status",
+  const targets: Array<{
+    id: string;
+    label: string;
+    table: string;
+    column?: string;
+  }> = [
+    {
+      id: "presentation-enrollment-savings-schema",
+      label: "presentations.enrollment_savings",
+      table: "presentations",
+      column: "enrollment_savings",
+    },
+    {
+      id: "membership-enrollment-savings-schema",
+      label: "memberships.membership_enrollment_savings",
+      table: "memberships",
+      column: "membership_enrollment_savings",
+    },
+    {
+      id: "website-membership-sales-schema",
+      label: "website_membership_sales",
+      table: "website_membership_sales",
+    },
+    {
+      id: "membership-billing-charges-schema",
+      label: "membership_billing_charges",
+      table: "membership_billing_charges",
+    },
+    { id: "obligations-schema", label: "obligations", table: "obligations" },
+    {
+      id: "obligation-events-schema",
+      label: "obligation_events",
+      table: "obligation_events",
+    },
+    {
+      id: "agreement-signature-storage-schema",
+      label: "signed_agreements.signature_image_storage_path",
+      table: "signed_agreements",
+      column: "signature_image_storage_path",
+    },
+    {
+      id: "agreement-pdf-schema",
+      label: "signed_agreements.agreement_pdf_url",
+      table: "signed_agreements",
+      column: "agreement_pdf_url",
+    },
+    {
+      id: "agreement-authorized-price-schema",
+      label: "signed_agreements.authorized_visit_price_cents",
+      table: "signed_agreements",
+      column: "authorized_visit_price_cents",
+    },
+    {
+      id: "automatic-billing-membership-schema",
+      label: "memberships.automatic_billing_enabled",
+      table: "memberships",
+      column: "automatic_billing_enabled",
+    },
+    {
+      id: "billing-automation-settings-schema",
+      label: "billing_automation_settings",
+      table: "billing_automation_settings",
+    },
+    {
+      id: "jobber-membership-links-schema",
+      label: "jobber_membership_job_links",
+      table: "jobber_membership_job_links",
+    },
+    {
+      id: "lead-sms-consent-schema",
+      label: "lead_intakes.sms_consent_disclosure_version",
+      table: "lead_intakes",
+      column: "sms_consent_disclosure_version",
+    },
+    {
+      id: "customer-contact-consent-schema",
+      label: "customer_contact_consent_events",
+      table: "customer_contact_consent_events",
+    },
+    {
+      id: "provider-verification-schema",
+      label: "customer_communication_provider_verifications",
+      table: "customer_communication_provider_verifications",
+    },
+    {
+      id: "field-record-media-schema",
+      label: "property_assets.storage_bucket",
+      table: "property_assets",
+      column: "storage_bucket",
+    },
+    {
+      id: "field-record-follow-up-schema",
+      label: "property_assessments.follow_up_status",
+      table: "property_assessments",
+      column: "follow_up_status",
+    },
   ];
 
-  const checks = probes.map((probe, index) =>
-    schemaCheck(`schema-${index}`, labels[index]!, probe),
+  const probes = await Promise.all(
+    targets.map((target) =>
+      probeTableColumn(supabase, target.table, target.column),
+    ),
+  );
+  const checks = targets.map((target, index) =>
+    schemaCheck(target.id, target.label, probes[index]!),
   );
 
   return sectionFromChecks("schema", "Database migrations / schema", checks);
