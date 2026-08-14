@@ -46,13 +46,39 @@ export interface JobberTodayData {
   accountName: string | null;
   lastSyncedAt: string | null;
   loadedAt: string;
-  summary: {
-    total: number;
-    complete: number;
-    remaining: number;
-  };
+  fieldRecordStatusAvailable: boolean;
+  summary: JobberTodaySummary;
   visits: JobberTodayVisit[];
   fieldFollowUps: VisitFieldFollowUpView[];
+}
+
+export interface JobberTodaySummary {
+  total: number;
+  complete: number;
+  remaining: number;
+  documented: number;
+  completedWithoutRecord: number;
+}
+
+export function summarizeJobberTodayVisits(
+  visits: Array<
+    Pick<JobberTodayVisit, "isComplete" | "homeAtlasFieldRecordCount">
+  >,
+): JobberTodaySummary {
+  const complete = visits.filter((visit) => visit.isComplete).length;
+  const documented = visits.filter(
+    (visit) => visit.homeAtlasFieldRecordCount > 0,
+  ).length;
+  const completedWithoutRecord = visits.filter(
+    (visit) => visit.isComplete && visit.homeAtlasFieldRecordCount === 0,
+  ).length;
+  return {
+    total: visits.length,
+    complete,
+    remaining: visits.length - complete,
+    documented,
+    completedWithoutRecord,
+  };
 }
 
 export function classifyJobberTodayVisit(

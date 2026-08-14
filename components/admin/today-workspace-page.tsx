@@ -255,11 +255,13 @@ function JobberVisitCard({
   visit,
   timezone,
   now,
+  fieldRecordStatusAvailable,
   onFieldRecordSaved,
 }: {
   visit: JobberTodayVisit;
   timezone: string;
   now: Date;
+  fieldRecordStatusAvailable: boolean;
   onFieldRecordSaved: () => void;
 }) {
   const propertyId = visit.homeAtlasPropertyId;
@@ -269,6 +271,10 @@ function JobberVisitCard({
   const moment = classifyJobberTodayVisit(visit, now);
   const style = MOMENT_STYLES[moment];
   const service = visit.title?.trim() || "Scheduled Jobber visit";
+  const needsFieldCloseout =
+    fieldRecordStatusAvailable &&
+    visit.isComplete &&
+    visit.homeAtlasFieldRecordCount === 0;
   const fieldActionLabel = fieldCaptureOpen
     ? "Close field record"
     : hasFieldDraft
@@ -367,6 +373,18 @@ function JobberVisitCard({
         </div>
 
         <div className="mt-4 border-t border-border/60 pt-4">
+          {needsFieldCloseout ? (
+            <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/[0.08] px-4 py-3">
+              <p className="text-xs font-medium text-amber-100">
+                HomeAtlas closeout needed
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-amber-100/65">
+                Jobber marks this complete, but no visit note or photo record is
+                attached yet. Finish the action below so the home history stays
+                trustworthy.
+              </p>
+            </div>
+          ) : null}
           {propertyId && appointmentId ? (
             <>
               {visit.homeAtlasFieldRecordCount > 0 ? (
@@ -451,22 +469,28 @@ function MetricCard({
   value,
   detail,
   accent = false,
+  warning = false,
 }: {
   label: string;
   value: string | number;
   detail: string;
   accent?: boolean;
+  warning?: boolean;
 }) {
+  const cardClassName = warning
+    ? "border-amber-400/30 bg-amber-400/[0.08]"
+    : accent
+      ? "border-accent/25 bg-accent/[0.06]"
+      : "border-border/70 bg-background/50";
+  const valueClassName = warning
+    ? "text-amber-100"
+    : accent
+      ? "text-accent"
+      : "text-foreground";
   return (
-    <div
-      className={`rounded-2xl border p-4 ${
-        accent
-          ? "border-accent/25 bg-accent/[0.06]"
-          : "border-border/70 bg-background/50"
-      }`}
-    >
+    <div className={`rounded-2xl border p-4 ${cardClassName}`}>
       <p className="text-[9px] uppercase tracking-[0.17em] text-muted">{label}</p>
-      <p className={`mt-2 text-2xl ${accent ? "text-accent" : "text-foreground"}`}>
+      <p className={`mt-2 text-2xl ${valueClassName}`}>
         {value}
       </p>
       <p className="mt-1 text-[11px] text-muted">{detail}</p>
@@ -669,7 +693,7 @@ function TodayWorkspaceContent() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <MetricCard
                 label="Today's jobs"
                 value={data.summary.total}
@@ -685,6 +709,36 @@ function TodayWorkspaceContent() {
                 label="Complete"
                 value={data.summary.complete}
                 detail="Kept for the full-day view"
+              />
+              <MetricCard
+                label="Proof saved"
+                value={
+                  data.fieldRecordStatusAvailable
+                    ? data.summary.documented
+                    : "—"
+                }
+                detail={
+                  data.fieldRecordStatusAvailable
+                    ? "HomeAtlas visit record attached"
+                    : "Field-record setup required"
+                }
+              />
+              <MetricCard
+                label="Needs closeout"
+                value={
+                  data.fieldRecordStatusAvailable
+                    ? data.summary.completedWithoutRecord
+                    : "—"
+                }
+                detail={
+                  data.fieldRecordStatusAvailable
+                    ? "Complete without visit proof"
+                    : "Not available until migration 054"
+                }
+                warning={
+                  data.fieldRecordStatusAvailable &&
+                  data.summary.completedWithoutRecord > 0
+                }
               />
             </div>
           </section>
@@ -714,6 +768,28 @@ function TodayWorkspaceContent() {
           <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
             This schedule is more than six hours old. Use Sync Jobber now before
             dispatching the route.
+          </div>
+        ) : null}
+
+        {data && !data.fieldRecordStatusAvailable ? (
+          <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
+            Today can still show the Jobber route, but it cannot verify visit
+            notes or photos until HomeAtlas migration 054 is live. No jobs are
+            being labeled undocumented from incomplete data.
+          </div>
+        ) : null}
+
+        {data &&
+        data.fieldRecordStatusAvailable &&
+        data.summary.completedWithoutRecord > 0 ? (
+          <div className="mb-6 rounded-2xl border border-amber-400/30 bg-gradient-to-r from-amber-400/[0.1] to-background/60 p-4 text-sm text-amber-100">
+            <span className="font-medium">
+              {data.summary.completedWithoutRecord} completed visit
+              {data.summary.completedWithoutRecord === 1 ? "" : "s"} still need
+              {data.summary.completedWithoutRecord === 1 ? "s" : ""} proof of
+              service.
+            </span>{" "}
+            Open the highlighted job cards below and save the field record.
           </div>
         ) : null}
 
@@ -767,6 +843,7 @@ function TodayWorkspaceContent() {
                   visit={visit}
                   timezone={data.timezone}
                   now={now}
+                  fieldRecordStatusAvailable={data.fieldRecordStatusAvailable}
                   onFieldRecordSaved={() => void load()}
                 />
               ))}

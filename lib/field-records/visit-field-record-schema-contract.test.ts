@@ -199,6 +199,17 @@ describe("visit field record database contract", () => {
     expect(todayWorkspace).toContain("Add another visit update");
   });
 
+  it("does not confuse Jobber completion with proven HomeAtlas closeout", () => {
+    expect(todayLoader).toContain("fieldRecordStatusAvailable = false");
+    expect(todayLoader).toContain("summarizeJobberTodayVisits(visits)");
+    expect(todayWorkspace).toContain("HomeAtlas closeout needed");
+    expect(todayWorkspace).toContain("Needs closeout");
+    expect(todayWorkspace).toContain("completedWithoutRecord");
+    expect(todayWorkspace).toContain(
+      "No jobs are\n            being labeled undocumented from incomplete data",
+    );
+  });
+
   it("exposes the commit function only to the service role", () => {
     expect(migration).toContain(
       "revoke all on function public.commit_visit_field_record",

@@ -22,7 +22,10 @@ import type {
   JobberTodayPropertyLink,
   JobberTodayVisit,
 } from "./jobber-today-types";
-import { resolveJobberTodayHomeAtlasContext } from "./jobber-today-types";
+import {
+  resolveJobberTodayHomeAtlasContext,
+  summarizeJobberTodayVisits,
+} from "./jobber-today-types";
 
 interface StoredVisitRow {
   id: string;
@@ -232,6 +235,7 @@ export async function loadJobberTodayBoard(
   }
 
   const fieldRecordRows: JobberTodayFieldRecordRow[] = [];
+  let fieldRecordStatusAvailable = true;
   const appointmentIds = appointmentLinks.map((link) => link.appointmentId);
   for (const appointmentIdChunk of chunkItems(appointmentIds)) {
     const fieldRecordResult = await supabase
@@ -242,7 +246,11 @@ export async function loadJobberTodayBoard(
       .order("created_at", { ascending: false })
       .limit(2_000);
     if (fieldRecordResult.error) {
-      if (isMissingVisitFieldRecordSchema(fieldRecordResult.error)) break;
+      if (isMissingVisitFieldRecordSchema(fieldRecordResult.error)) {
+        fieldRecordStatusAvailable = false;
+        fieldRecordRows.length = 0;
+        break;
+      }
       throw new Error(fieldRecordResult.error.message);
     }
     fieldRecordRows.push(
@@ -268,7 +276,6 @@ export async function loadJobberTodayBoard(
       fieldRecordsByAppointment,
     ),
   );
-  const complete = visits.filter((visit) => visit.isComplete).length;
   const latestSync = latestSyncResult.data as {
     source_observed_at?: string;
   } | null;
@@ -284,11 +291,8 @@ export async function loadJobberTodayBoard(
     accountName: connection.accountName,
     lastSyncedAt: latestSync?.source_observed_at ?? null,
     loadedAt: new Date().toISOString(),
-    summary: {
-      total: visits.length,
-      complete,
-      remaining: visits.length - complete,
-    },
+    fieldRecordStatusAvailable,
+    summary: summarizeJobberTodayVisits(visits),
     visits,
     fieldFollowUps,
   };
