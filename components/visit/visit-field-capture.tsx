@@ -6,6 +6,11 @@ import { useEffect, useRef, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { businessTodayIsoDate } from "@/lib/admin/company-business-timezone";
 import {
+  clearVisitFieldDraft,
+  readVisitFieldDraft,
+  writeVisitFieldDraft,
+} from "@/lib/field-records/visit-field-draft";
+import {
   MAX_VISIT_PHOTOS,
   MAX_VISIT_PHOTO_BYTES,
   type VisitFieldRecordCommitInput,
@@ -58,6 +63,23 @@ function megabytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(bytes >= 10 * 1024 * 1024 ? 0 : 1)} MB`;
 }
 
+function savedTechnicianName(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(TECHNICIAN_NAME_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function rememberTechnicianName(value: string): void {
+  try {
+    window.localStorage.setItem(TECHNICIAN_NAME_KEY, value);
+  } catch {
+    // A completed visit must not look failed because device storage is disabled.
+  }
+}
+
 function createUploadClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -82,17 +104,34 @@ export function VisitFieldCapture({
   serviceLabel: string;
   onSaved?: () => void;
 }) {
-  const [fieldRecordId, setFieldRecordId] = useState(newClientId);
-  const [technicianName, setTechnicianName] = useState(() =>
+  const [initialDraft] = useState(() =>
     typeof window === "undefined"
-      ? ""
-      : (window.localStorage.getItem(TECHNICIAN_NAME_KEY) ?? ""),
+      ? null
+      : readVisitFieldDraft(window.localStorage, { propertyId, appointmentId }),
   );
-  const [visitDate, setVisitDate] = useState(businessTodayIsoDate);
-  const [customerSummary, setCustomerSummary] = useState("");
-  const [internalNote, setInternalNote] = useState("");
-  const [followUpNeeded, setFollowUpNeeded] = useState(false);
+  const [fieldRecordId, setFieldRecordId] = useState(
+    () => initialDraft?.fieldRecordId ?? newClientId(),
+  );
+  const [technicianName, setTechnicianName] = useState(() =>
+    initialDraft?.technicianName ?? savedTechnicianName(),
+  );
+  const [visitDate, setVisitDate] = useState(
+    () => initialDraft?.visitDate ?? businessTodayIsoDate(),
+  );
+  const [customerSummary, setCustomerSummary] = useState(
+    () => initialDraft?.customerSummary ?? "",
+  );
+  const [internalNote, setInternalNote] = useState(
+    () => initialDraft?.internalNote ?? "",
+  );
+  const [followUpNeeded, setFollowUpNeeded] = useState(
+    () => initialDraft?.followUpNeeded ?? false,
+  );
   const [photos, setPhotos] = useState<PhotoDraft[]>([]);
+  const [restoredPhotoCount, setRestoredPhotoCount] = useState(
+    () => initialDraft?.selectedPhotoCount ?? 0,
+  );
+  const [draftNoticeDismissed, setDraftNoticeDismissed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -111,6 +150,50 @@ export function VisitFieldCapture({
       currentUrls.clear();
     };
   }, []);
+
+  useEffect(() => {
+    if (saved) {
+      clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+      return;
+    }
+
+    const hasMeaningfulDraft =
+      customerSummary.trim().length > 0 ||
+      internalNote.trim().length > 0 ||
+      followUpNeeded ||
+      restoredPhotoCount > 0 ||
+      photos.length > 0;
+    if (!hasMeaningfulDraft) {
+      clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+      return;
+    }
+
+    writeVisitFieldDraft(window.localStorage, {
+      version: 1,
+      propertyId,
+      appointmentId,
+      fieldRecordId,
+      technicianName,
+      visitDate,
+      customerSummary,
+      internalNote,
+      followUpNeeded,
+      selectedPhotoCount: Math.max(restoredPhotoCount, photos.length),
+      savedAt: Date.now(),
+    });
+  }, [
+    appointmentId,
+    customerSummary,
+    fieldRecordId,
+    followUpNeeded,
+    internalNote,
+    photos.length,
+    propertyId,
+    restoredPhotoCount,
+    saved,
+    technicianName,
+    visitDate,
+  ]);
 
   function addPhotos(captureType: VisitPhotoCaptureType, files: FileList | null) {
     if (!files?.length) return;
@@ -141,7 +224,10 @@ export function VisitFieldCapture({
         previewUrl,
       });
     }
-    if (accepted.length) setPhotos((current) => [...current, ...accepted]);
+    if (accepted.length) {
+      setRestoredPhotoCount(0);
+      setPhotos((current) => [...current, ...accepted]);
+    }
   }
 
   function removePhoto(clientId: string) {
@@ -280,7 +366,8 @@ export function VisitFieldCapture({
         throw new Error(commitBody?.error ?? "Could not save the visit record.");
       }
 
-      window.localStorage.setItem(TECHNICIAN_NAME_KEY, technicianName.trim());
+      rememberTechnicianName(technicianName.trim());
+      clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
       setSaved({
         photoCount: commitBody.photoCount ?? photos.length,
         customerVisibleCount: photos.filter((photo) => photo.customerVisible).length,
@@ -304,6 +391,7 @@ export function VisitFieldCapture({
   }
 
   function startAnotherRecord() {
+    clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
     for (const photo of photos) {
       URL.revokeObjectURL(photo.previewUrl);
       previewUrls.current.delete(photo.previewUrl);
@@ -313,6 +401,8 @@ export function VisitFieldCapture({
     setCustomerSummary("");
     setInternalNote("");
     setFollowUpNeeded(false);
+    setRestoredPhotoCount(0);
+    setDraftNoticeDismissed(true);
     setFieldRecordId(newClientId());
     setSaved(null);
     setError(null);
@@ -349,6 +439,39 @@ export function VisitFieldCapture({
           One save connects the visit, team memory, and customer portal.
         </p>
       </div>
+
+      {initialDraft && !draftNoticeDismissed ? (
+        <div
+          role="status"
+          className="rounded-xl border border-sky-300/25 bg-sky-300/[0.07] p-4 text-sm text-sky-100"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-medium">Draft restored from this device.</p>
+              <p className="mt-1 text-xs leading-relaxed text-sky-100/70">
+                Visit text and choices stay here for 72 hours without use, then
+                clear automatically.
+              </p>
+              {restoredPhotoCount > 0 ? (
+                <p className="mt-2 text-xs leading-relaxed text-amber-100/85">
+                  {restoredPhotoCount} phone photo
+                  {restoredPhotoCount === 1 ? " was" : "s were"} selected before
+                  this closed. Re-add the complete set you still want—browsers do
+                  not retain access to phone files.
+                </p>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={() => setDraftNoticeDismissed(true)}
+              className="min-h-9 shrink-0 rounded-full border border-sky-200/25 px-3 text-xs text-sky-100"
+              aria-label="Dismiss restored draft notice"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
