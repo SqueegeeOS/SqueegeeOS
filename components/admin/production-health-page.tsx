@@ -22,6 +22,20 @@ function ProductionHealthLoadingShell() {
   );
 }
 
+async function requestProductionHealthReport(): Promise<ProductionHealthReport> {
+  const response = await fetch("/api/admin/production-health", {
+    headers: getAdminRequestHeaders(),
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new Error(body?.error ?? "Failed to load production health");
+  }
+  return (await response.json()) as ProductionHealthReport;
+}
+
 function ProductionHealthContent() {
   const [report, setReport] = useState<ProductionHealthReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -31,17 +45,7 @@ function ProductionHealthContent() {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/admin/production-health", {
-        headers: getAdminRequestHeaders(),
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        const body = (await response.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(body?.error ?? "Failed to load production health");
-      }
-      setReport((await response.json()) as ProductionHealthReport);
+      setReport(await requestProductionHealthReport());
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -54,8 +58,26 @@ function ProductionHealthContent() {
   }, []);
 
   useEffect(() => {
-    void loadReport();
-  }, [loadReport]);
+    let ignore = false;
+    void requestProductionHealthReport()
+      .then((nextReport) => {
+        if (!ignore) setReport(nextReport);
+      })
+      .catch((loadError: unknown) => {
+        if (ignore) return;
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Failed to load production health",
+        );
+      })
+      .finally(() => {
+        if (!ignore) setLoading(false);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
 
   return (
     <AmbientStage className="px-4 py-10 text-foreground sm:px-6 sm:py-12">
@@ -68,8 +90,9 @@ function ProductionHealthContent() {
             Production Health
           </h1>
           <p className="mt-4 max-w-2xl text-sm leading-[1.65] text-muted">
-            Read-only checks for customer privacy, migrations, Stripe, storage,
-            agreement signing, billing readiness, and live data integrity.
+            One read-only operating check for customer safety, Jobber, email and
+            text, Atlas AI, address search, scheduled automation, billing, and
+            live data integrity.
           </p>
         </MotionReveal>
 

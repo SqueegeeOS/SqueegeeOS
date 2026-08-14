@@ -72,4 +72,20 @@ describe("resolveOnboardingSafe", () => {
     ]);
     expect(result.status).toBe("green");
   });
+
+  it("keeps optional integration setup separate from onboarding safety", () => {
+    const result = resolveOnboardingSafe([
+      greenSection("schema", "Database"),
+      greenSection("stripe", "Stripe"),
+      {
+        id: "integrations",
+        title: "Integrations & automation",
+        status: "red",
+        checks: [],
+      },
+    ]);
+
+    expect(result.status).toBe("green");
+    expect(result.summary).toContain("ready for live customer onboarding");
+  });
 });
