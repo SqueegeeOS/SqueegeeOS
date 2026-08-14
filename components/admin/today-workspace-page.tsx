@@ -21,6 +21,7 @@ import {
   classifyVisitFieldFollowUp,
   type VisitFieldFollowUpView,
 } from "@/lib/field-records/visit-field-record";
+import { readVisitFieldDraft } from "@/lib/field-records/visit-field-draft";
 
 const VisitFieldCapture = dynamic(
   () =>
@@ -261,10 +262,29 @@ function JobberVisitCard({
   now: Date;
   onFieldRecordSaved: () => void;
 }) {
+  const propertyId = visit.homeAtlasPropertyId;
+  const appointmentId = visit.homeAtlasAppointmentId;
   const [fieldCaptureOpen, setFieldCaptureOpen] = useState(false);
+  const [hasFieldDraft, setHasFieldDraft] = useState(false);
   const moment = classifyJobberTodayVisit(visit, now);
   const style = MOMENT_STYLES[moment];
   const service = visit.title?.trim() || "Scheduled Jobber visit";
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setHasFieldDraft(
+        Boolean(
+          propertyId &&
+            appointmentId &&
+            readVisitFieldDraft(window.localStorage, {
+              propertyId,
+              appointmentId,
+            }),
+        ),
+      );
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [appointmentId, propertyId]);
 
   return (
     <article className="group grid overflow-hidden rounded-[1.75rem] border border-border/80 bg-background/70 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:grid-cols-[9.5rem_minmax(0,1fr)]">
@@ -340,7 +360,7 @@ function JobberVisitCard({
         </div>
 
         <div className="mt-4 border-t border-border/60 pt-4">
-          {visit.homeAtlasPropertyId && visit.homeAtlasAppointmentId ? (
+          {propertyId && appointmentId ? (
             <>
               <button
                 type="button"
@@ -348,24 +368,36 @@ function JobberVisitCard({
                 onClick={() => setFieldCaptureOpen((open) => !open)}
                 className="flex min-h-12 w-full items-center justify-between rounded-xl border border-accent/35 bg-accent/[0.07] px-4 text-left text-sm text-accent transition active:scale-[0.995]"
               >
-                <span>
-                  {fieldCaptureOpen ? "Close field record" : "Add photos + visit notes"}
+                <span className="flex min-w-0 flex-col">
+                  <span>
+                    {fieldCaptureOpen
+                      ? "Close field record"
+                      : hasFieldDraft
+                        ? "Resume saved visit draft"
+                        : "Add photos + visit notes"}
+                  </span>
+                  {hasFieldDraft && !fieldCaptureOpen ? (
+                    <span className="mt-0.5 text-[10px] text-accent/70">
+                      Saved on this device · expires after 72 hours without use
+                    </span>
+                  ) : null}
                 </span>
                 <span aria-hidden>{fieldCaptureOpen ? "−" : "+"}</span>
               </button>
               {fieldCaptureOpen ? (
                 <div className="mt-4 rounded-2xl border border-border bg-foreground/[0.025] p-4 sm:p-5">
                   <VisitFieldCapture
-                    propertyId={visit.homeAtlasPropertyId}
-                    appointmentId={visit.homeAtlasAppointmentId}
+                    propertyId={propertyId}
+                    appointmentId={appointmentId}
                     clientName={visit.clientName}
                     serviceLabel={service}
                     onSaved={onFieldRecordSaved}
+                    onDraftStateChange={setHasFieldDraft}
                   />
                 </div>
               ) : null}
             </>
-          ) : visit.homeAtlasPropertyId ? (
+          ) : propertyId ? (
             <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] p-4 text-xs leading-relaxed text-amber-100">
               This property is paired, but the HomeAtlas appointment is still
               reconciling. Sync Jobber, then refresh Today to attach photos safely.
