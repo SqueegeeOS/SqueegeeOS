@@ -84,4 +84,14 @@ describe("sales representative workspace activity safety", () => {
       'href={`mailto:${encodeURIComponent(lead.email ?? "")}`}',
     );
   });
+
+  it("turns each homeowner card into an owned next-action workflow", () => {
+    expect(workspace).toContain('kind: "update_lead"');
+    expect(workspace).toContain("Update next move");
+    expect(workspace).toContain("Save next move");
+    expect(workspace).toContain("Estimated annual value");
+    expect(workspace).toContain("Customer considering");
+    expect(workspace).toContain("Latest context");
+    expect(workspace).toContain('leadActionDraft.status === "follow_up"');
+  });
 });

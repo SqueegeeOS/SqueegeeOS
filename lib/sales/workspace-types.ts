@@ -72,6 +72,17 @@ export interface CreateSalesLeadInput {
   emailConsentAttested?: boolean;
 }
 
+export interface UpdateSalesLeadInput {
+  leadId: string;
+  status: Extract<
+    SalesLeadStatus,
+    "new" | "follow_up" | "presentation" | "considering" | "lost"
+  >;
+  estimatedArrDollars: number;
+  nextFollowUpAt?: string | null;
+  notes?: string | null;
+}
+
 export interface CreateSalesActivityInput {
   activityType: SalesActivityType;
   quantity?: number;
@@ -100,5 +111,6 @@ export interface SalesActivityReversalReceipt {
 
 export type SalesWorkspaceCommand =
   | { kind: "lead"; lead: CreateSalesLeadInput }
+  | { kind: "update_lead"; lead: UpdateSalesLeadInput }
   | { kind: "activity"; activity: CreateSalesActivityInput }
   | { kind: "undo_activity"; activityId: string };

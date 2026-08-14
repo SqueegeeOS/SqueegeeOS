@@ -16,6 +16,7 @@ describe("presentation draft persistence", () => {
       ...base,
       clientName: "Saved customer",
       clientAddress: "123 Test Street, Chico",
+      clientPhone: "+15305550123",
       clientEmail: "customer@example.com",
       homeSqft: 3210,
       twoStory: true,
