@@ -1,4 +1,5 @@
 import { allowsMockWebsiteMembershipSales } from "@/lib/admin/website-membership-sales";
+import { runIntegrationAutomationChecks } from "@/lib/admin/integration-automation-health";
 import type {
   ProductionHealthCheck,
   ProductionHealthReport,
@@ -30,6 +31,17 @@ interface ColumnProbeResult {
   missing: boolean;
   message: string;
 }
+
+const ONBOARDING_CRITICAL_SECTIONS = new Map([
+  ["schema", "schema migrations incomplete"],
+  ["stripe", "Stripe not production-ready"],
+  ["storage", "agreement storage unsafe"],
+  ["agreement", "agreement signing is not ready"],
+  ["sales-billing", "sales and billing readiness is blocked"],
+  ["integrity", "customer data integrity issues"],
+  ["privacy", "customer data privacy is not closed"],
+  ["persistence", "cloud persistence is not ready"],
+]);
 
 function worstStatus(statuses: ProductionHealthStatus[]): ProductionHealthStatus {
   if (statuses.includes("red")) return "red";
@@ -738,18 +750,12 @@ async function runIntegrityChecks(
 export function resolveOnboardingSafe(
   sections: ProductionHealthSection[],
 ): { status: ProductionHealthStatus; summary: string } {
-  const schema = sections.find((section) => section.id === "schema");
-  const stripe = sections.find((section) => section.id === "stripe");
-  const integrity = sections.find((section) => section.id === "integrity");
-  const storage = sections.find((section) => section.id === "storage");
-  const privacy = sections.find((section) => section.id === "privacy");
-
-  const blockers: string[] = [];
-  if (schema?.status === "red") blockers.push("schema migrations incomplete");
-  if (stripe?.status === "red") blockers.push("Stripe not production-ready");
-  if (storage?.status === "red") blockers.push("agreement storage unsafe");
-  if (integrity?.status === "red") blockers.push("customer data integrity issues");
-  if (privacy?.status === "red") blockers.push("customer data privacy is not closed");
+  const onboardingSections = sections.filter((section) =>
+    ONBOARDING_CRITICAL_SECTIONS.has(section.id),
+  );
+  const blockers = onboardingSections
+    .filter((section) => section.status === "red")
+    .map((section) => ONBOARDING_CRITICAL_SECTIONS.get(section.id)!);
 
   if (blockers.length > 0) {
     return {
@@ -758,7 +764,9 @@ export function resolveOnboardingSafe(
     };
   }
 
-  const reviewSections = sections.filter((section) => section.status === "yellow");
+  const reviewSections = onboardingSections.filter(
+    (section) => section.status === "yellow",
+  );
   if (reviewSections.length > 0) {
     return {
       status: "yellow",
@@ -826,6 +834,7 @@ export async function runProductionHealthReport(): Promise<ProductionHealthRepor
           "Privacy checks require Supabase",
         ),
       ]),
+      await runIntegrationAutomationChecks(),
     ];
     const onboarding = resolveOnboardingSafe(sections);
     return {
@@ -845,6 +854,7 @@ export async function runProductionHealthReport(): Promise<ProductionHealthRepor
     runAgreementChecks(supabase),
     runSalesBillingChecks(supabase),
     runIntegrityChecks(supabase),
+    runIntegrationAutomationChecks(),
   ]);
 
   if (!isCloudPersistenceConnected()) {
