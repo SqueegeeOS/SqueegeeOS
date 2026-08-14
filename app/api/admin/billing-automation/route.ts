@@ -187,7 +187,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Choose live webhook verification, a read-only billing preview, or an exact failed retry.",
+            "Choose live webhook verification, a no-charge billing rehearsal, or an exact failed retry.",
         },
         { status: 400, headers: { "Cache-Control": "no-store" } },
       );

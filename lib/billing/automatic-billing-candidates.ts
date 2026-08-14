@@ -105,6 +105,7 @@ export interface AutomaticBillingPreparationSummary {
   serviceMonth: string;
   appointments: number;
   eligible: number;
+  eligibleAmountCents: number;
   created: number;
   locked: number;
   shadowed: number;
@@ -435,6 +436,7 @@ export async function prepareAutomaticBillingOrders(input: {
     serviceMonth: bounds.serviceMonth,
     appointments: 0,
     eligible: 0,
+    eligibleAmountCents: 0,
     created: 0,
     locked: 0,
     shadowed: 0,
@@ -631,6 +633,7 @@ export async function prepareAutomaticBillingOrders(input: {
       continue;
     }
     summary.eligible += 1;
+    summary.eligibleAmountCents += amountCents;
     const activeOrder = orders.find(
       (order) =>
         isActiveOrder(order) &&

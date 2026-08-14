@@ -27,6 +27,108 @@ export interface BillingAutomationControl {
   paidOrderCount: number;
 }
 
+interface BillingRehearsal {
+  runId: string;
+  serviceMonth: string;
+  appointments: number;
+  eligible: number;
+  eligibleAmountCents: number;
+  created: number;
+  alreadyPrepared: number;
+  shadowed: number;
+  blocked: number;
+  blockedReasons: Record<string, number>;
+}
+
+const BILLING_BLOCKER_LABELS: Record<string, string> = {
+  active_membership_not_found: "No active HomeAtlas membership",
+  billing_schedule_not_supported: "Billing schedule is not first-of-service-month",
+  signed_agreement_required: "Signed agreement is missing",
+  signed_agreement_not_complete: "Signed agreement is incomplete",
+  signed_agreement_binding_mismatch: "Agreement does not match this member and property",
+  automatic_billing_authorization_unverified:
+    "Signed automatic-billing terms need founder verification",
+  signed_visit_price_mismatch: "Current member price differs from signed authorization",
+  payment_setup_incomplete: "Payment setup is incomplete",
+  stripe_customer_missing: "Stripe customer is missing",
+  stripe_payment_method_missing: "Saved payment method is missing",
+  membership_automatic_billing_paused: "Automatic billing is paused for this member",
+  jobber_projection_missing: "Jobber visit details are missing",
+  jobber_property_not_paired: "Jobber property is not paired",
+  jobber_automatic_payment_enabled: "Jobber is already set to collect payment",
+  jobber_invoice_state_unknown: "Jobber invoice state is unknown",
+  jobber_invoice_visibility_unavailable: "Jobber invoice visibility is unavailable",
+  jobber_visit_already_invoiced: "Jobber already created an invoice",
+  jobber_job_price_missing: "Jobber job price is missing",
+  jobber_billing_strategy_unsupported: "Jobber billing setup is unsupported",
+  one_off_job_waiting_for_last_visit: "One-time job is waiting for its final visit",
+  fixed_price_job_already_represented_this_month:
+    "That fixed-price Jobber job is already represented this month",
+  charge_above_founder_cap: "Charge exceeds the founder safety cap",
+  paid_or_processing_jobber_charge_changed:
+    "A paid or processing Jobber charge changed and needs review",
+};
+
+function recordValue(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function nonNegativeNumber(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : 0;
+}
+
+function parseBillingRehearsal(value: unknown): BillingRehearsal | null {
+  const run = recordValue(value);
+  const prepared = recordValue(run?.prepared);
+  if (
+    !run ||
+    !prepared ||
+    run.triggerSource !== "founder_manual" ||
+    run.executionMode !== "shadow" ||
+    typeof run.runId !== "string" ||
+    typeof run.serviceMonth !== "string"
+  ) {
+    return null;
+  }
+
+  const rawReasons = recordValue(prepared.blockedReasons) ?? {};
+  const blockedReasons = Object.fromEntries(
+    Object.entries(rawReasons)
+      .filter((entry): entry is [string, number] =>
+        typeof entry[1] === "number" && entry[1] > 0,
+      )
+      .map(([reason, count]) => [reason, count]),
+  );
+
+  return {
+    runId: run.runId,
+    serviceMonth: run.serviceMonth,
+    appointments: nonNegativeNumber(prepared.appointments),
+    eligible: nonNegativeNumber(prepared.eligible),
+    eligibleAmountCents: nonNegativeNumber(prepared.eligibleAmountCents),
+    created: nonNegativeNumber(prepared.created),
+    alreadyPrepared: nonNegativeNumber(prepared.alreadyPrepared),
+    shadowed: nonNegativeNumber(prepared.shadowed),
+    blocked: nonNegativeNumber(prepared.blocked),
+    blockedReasons,
+  };
+}
+
+function billingBlockerLabel(reason: string): string {
+  return reason
+    .split(",")
+    .map(
+      (part) =>
+        BILLING_BLOCKER_LABELS[part] ??
+        part.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase()),
+    )
+    .join(" + ");
+}
+
 function readableDate(value: string): string {
   return new Date(`${value}T12:00:00`).toLocaleDateString("en-US", {
     month: "long",
@@ -45,6 +147,9 @@ export function BillingAutomationPanel({
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [noticeIsError, setNoticeIsError] = useState(false);
+  const [rehearsal, setRehearsal] = useState<BillingRehearsal | null>(() =>
+    parseBillingRehearsal(control.settings.lastRunSummary),
+  );
   const armed =
     control.settings.enabled && control.settings.executionMode === "automatic";
   const readyToArm =
@@ -110,10 +215,16 @@ export function BillingAutomationPanel({
       });
       const body = (await response.json().catch(() => null)) as {
         error?: string;
+        run?: unknown;
       } | null;
       if (!response.ok) throw new Error(body?.error ?? "Billing scan failed");
+      const completedRehearsal = parseBillingRehearsal(body?.run);
+      if (!completedRehearsal) {
+        throw new Error("Billing rehearsal returned an incomplete report.");
+      }
+      setRehearsal(completedRehearsal);
       setNotice(
-        "Eligibility preview refreshed. This action did not create or confirm a Stripe charge.",
+        `${completedRehearsal.eligible} eligible for ${formatCurrency(completedRehearsal.eligibleAmountCents / 100)}. This rehearsal did not create or confirm a Stripe charge.`,
       );
       await onUpdated();
     } catch (error) {
@@ -212,7 +323,7 @@ export function BillingAutomationPanel({
             onClick={() => void scanNow()}
             className="rounded-full border border-border/60 px-5 py-2.5 text-xs uppercase tracking-[0.14em] text-muted transition hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
           >
-            Preview eligibility (no charge)
+            Run billing rehearsal (no charge)
           </button>
           {!control.stripeWebhookVerified ? (
             <button
@@ -259,6 +370,79 @@ export function BillingAutomationPanel({
           </div>
         ))}
       </div>
+
+      {rehearsal ? (
+        <section className="mt-6 rounded-3xl border border-emerald-400/20 bg-emerald-400/[0.045] p-5 sm:p-6">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+            <div>
+              <p className={craftEyebrow}>No-charge rehearsal</p>
+              <h3 className="mt-2 font-serif text-xl font-light text-foreground">
+                {readableDate(rehearsal.serviceMonth)} billing window
+              </h3>
+              <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted">
+                Atlas ran the real eligibility rules in shadow mode. It may save
+                review records, but it cannot claim an order or contact Stripe.
+              </p>
+            </div>
+            <span className="self-start rounded-full border border-emerald-400/30 bg-emerald-400/[0.08] px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-emerald-200">
+              Stripe not contacted
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Jobber visits scanned", String(rehearsal.appointments)],
+              ["Eligible services", String(rehearsal.eligible)],
+              [
+                "Expected collection",
+                formatCurrency(rehearsal.eligibleAmountCents / 100),
+              ],
+              ["Blocked for review", String(rehearsal.blocked)],
+            ].map(([label, value]) => (
+              <div
+                key={label}
+                className="rounded-2xl border border-border/50 bg-background/35 p-4"
+              >
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+                  {label}
+                </p>
+                <p className="mt-2 font-serif text-xl font-light text-foreground">
+                  {value}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <p className="mt-4 text-xs leading-relaxed text-muted">
+            {rehearsal.created} new preview order
+            {rehearsal.created === 1 ? "" : "s"} · {rehearsal.alreadyPrepared}{" "}
+            already prepared · {rehearsal.shadowed} kept in no-charge shadow
+          </p>
+
+          {Object.keys(rehearsal.blockedReasons).length > 0 ? (
+            <div className="mt-4 border-t border-border/50 pt-4">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+                What needs fixing
+              </p>
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                {Object.entries(rehearsal.blockedReasons)
+                  .sort((left, right) => right[1] - left[1])
+                  .map(([reason, count]) => (
+                    <li
+                      key={reason}
+                      className="flex items-start justify-between gap-3 rounded-xl border border-border/45 bg-background/30 px-3 py-2.5 text-xs text-muted"
+                    >
+                      <span>{billingBlockerLabel(reason)}</span>
+                      <span className="shrink-0 tabular-nums text-foreground">
+                        {count}
+                      </span>
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted">
         <span>{control.readyOrderCount} ready</span>
