@@ -20,6 +20,14 @@ const assessmentRepository = readFileSync(
   new URL("../health/assessment-repository.ts", import.meta.url),
   "utf8",
 );
+const propertyHealthShell = readFileSync(
+  new URL("../../components/hq/property-health-page-shell.tsx", import.meta.url),
+  "utf8",
+);
+const assessmentTimeline = readFileSync(
+  new URL("../../components/hq/HQAssessmentTimeline.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("visit field record database contract", () => {
   it("keeps phone photos in a private, bounded storage bucket", () => {
@@ -76,6 +84,24 @@ describe("visit field record database contract", () => {
     expect(assessmentRepository).toContain(
       'follow_up_status: followUpNeeded ? "open"',
     );
+  });
+
+  it("preserves open and resolved follow-up history on the HQ property record", () => {
+    for (const mapping of [
+      "followUpStatus: row.follow_up_status",
+      "followUpDueAt: row.follow_up_due_at",
+      "followUpResolvedAt: row.follow_up_resolved_at",
+      "followUpResolvedBy: row.follow_up_resolved_by",
+    ]) {
+      expect(assessmentRepository).toContain(mapping);
+    }
+    expect(assessmentTimeline).toContain("Owner follow-up open");
+    expect(assessmentTimeline).toContain("Follow-up resolved");
+    expect(assessmentTimeline).toContain("Tap again to complete");
+    expect(propertyHealthShell).toContain(
+      'fetch("/api/admin/field-records/follow-ups"',
+    );
+    expect(propertyHealthShell).toContain('resolvedBy: HQ_OPERATOR_LABEL');
   });
 
   it("exposes the commit function only to the service role", () => {

@@ -8,6 +8,8 @@ export type AssessmentType =
   | "custom"
   | "visit_note";
 
+export type AssessmentFollowUpStatus = "open" | "resolved";
+
 export interface RecommendedService {
   id: string;
   service: string;
@@ -35,6 +37,7 @@ export interface PropertyAssessment {
   id: string;
   propertyId: string;
   visitId: string | null;
+  fieldRecordId: string | null;
   assessmentType: AssessmentType;
   technicianName: string;
   visitDate: string;
@@ -47,6 +50,10 @@ export interface PropertyAssessment {
   customerNoteVisible: boolean;
   proposalSummary: string | null;
   recommendedServices: RecommendedService[];
+  followUpStatus: AssessmentFollowUpStatus | null;
+  followUpDueAt: string | null;
+  followUpResolvedAt: string | null;
+  followUpResolvedBy: string | null;
   proposalSent: boolean;
   proposalSentAt: string | null;
   createdAt: string;
