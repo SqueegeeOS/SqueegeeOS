@@ -18,12 +18,13 @@ import {
   type PresentationPlanMode,
 } from "./care-plan";
 
-export const PRESENTATION_DRAFT_SCHEMA_VERSION = 2;
+export const PRESENTATION_DRAFT_SCHEMA_VERSION = 3;
 
 export interface PresentationDraftPayload {
   schemaVersion: typeof PRESENTATION_DRAFT_SCHEMA_VERSION;
   clientName: string;
   clientAddress: string;
+  clientPhone: string;
   clientEmail: string;
   homeSqft: number;
   twoStory: boolean;
@@ -123,6 +124,7 @@ export function createPresentationDraftPayload(
     schemaVersion: PRESENTATION_DRAFT_SCHEMA_VERSION,
     clientName: data.clientName,
     clientAddress: data.clientAddress,
+    clientPhone: data.clientPhone,
     clientEmail: data.clientEmail,
     homeSqft: data.homeSqft,
     twoStory: data.twoStory,
@@ -170,6 +172,7 @@ export function restorePresentationDraftPayload(
     ...base,
     clientName: stringValue(payload.clientName, base.clientName),
     clientAddress: stringValue(payload.clientAddress, base.clientAddress),
+    clientPhone: stringValue(payload.clientPhone, base.clientPhone),
     clientEmail: stringValue(payload.clientEmail, base.clientEmail),
     homeSqft: numberValue(payload.homeSqft, base.homeSqft),
     twoStory: booleanValue(payload.twoStory, base.twoStory),

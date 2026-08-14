@@ -160,6 +160,7 @@ export interface PresentationData {
   salesRepLeadId: string | null;
   clientName: string;
   clientAddress: string;
+  clientPhone: string;
   clientEmail: string;
   homeSqft: number;
   twoStory: boolean;

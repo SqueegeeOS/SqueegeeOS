@@ -3,6 +3,7 @@ import {
   normalizeNorthAmericanPhone,
   validateCreateSalesActivity,
   validateCreateSalesLead,
+  validateUpdateSalesLead,
   validateUndoSalesActivity,
 } from "./workspace-validation";
 
@@ -81,6 +82,59 @@ describe("sales workspace validation", () => {
     ).toEqual({
       ok: false,
       error: "Signed memberships are recorded automatically from the agreement.",
+    });
+  });
+
+  it("requires an owned next action for open lead updates", () => {
+    expect(
+      validateUpdateSalesLead({
+        leadId: "00000000-0000-4000-8000-000000000001",
+        status: "follow_up",
+        estimatedArrDollars: 1200,
+        notes: "Call after work",
+      }),
+    ).toEqual({
+      ok: false,
+      error: "Choose when this homeowner should return to the action queue.",
+    });
+
+    const result = validateUpdateSalesLead({
+      leadId: "00000000-0000-4000-8000-000000000001",
+      status: "considering",
+      estimatedArrDollars: 1800,
+      nextFollowUpAt: "2026-08-20T18:30:00.000Z",
+      notes: "Reviewing the quarterly option with their spouse.",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toMatchObject({
+        status: "considering",
+        nextFollowUpAt: "2026-08-20T18:30:00.000Z",
+      });
+    }
+  });
+
+  it("keeps agreement outcomes automatic and requires a lost reason", () => {
+    expect(
+      validateUpdateSalesLead({
+        leadId: "00000000-0000-4000-8000-000000000001",
+        status: "signed",
+        estimatedArrDollars: 1200,
+      }),
+    ).toEqual({
+      ok: false,
+      error: "Signed customers are advanced automatically from their agreement.",
+    });
+    expect(
+      validateUpdateSalesLead({
+        leadId: "00000000-0000-4000-8000-000000000001",
+        status: "lost",
+        estimatedArrDollars: 1200,
+        notes: "",
+      }),
+    ).toEqual({
+      ok: false,
+      error: "Add a short reason before closing this lead.",
     });
   });
 

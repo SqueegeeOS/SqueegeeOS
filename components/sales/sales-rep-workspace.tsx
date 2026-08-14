@@ -19,6 +19,7 @@ import type {
   SalesRepLead,
   SalesWorkspaceMetrics,
   SalesWorkspacePayload,
+  UpdateSalesLeadInput,
 } from "@/lib/sales/workspace-types";
 import {
   craftEyebrow,
@@ -56,6 +57,13 @@ interface FixedDoorFeedback {
   message: string;
   activity?: SalesActivityReceipt;
   clientEventId?: string;
+}
+
+interface LeadActionDraft {
+  status: UpdateSalesLeadInput["status"];
+  estimatedArrDollars: number;
+  nextFollowUpAt: string;
+  notes: string;
 }
 
 const EMPTY_METRICS: SalesWorkspaceMetrics = {
@@ -129,6 +137,23 @@ const QUICK_ACTIONS: Array<{
     metric: "presentationsToday",
   },
 ];
+
+const LEAD_STAGE_OPTIONS: Array<{
+  value: LeadActionDraft["status"];
+  label: string;
+}> = [
+  { value: "new", label: "New conversation" },
+  { value: "follow_up", label: "Follow up" },
+  { value: "presentation", label: "Presentation ready" },
+  { value: "considering", label: "Customer considering" },
+  { value: "lost", label: "Closed / not moving forward" },
+];
+
+const FOLLOW_UP_SHORTCUTS = [
+  { days: 0, label: "Today 5 PM" },
+  { days: 1, label: "Tomorrow" },
+  { days: 7, label: "Next week" },
+] as const;
 
 function offlinePulseStorageKey(repSlug: string) {
   return `${OFFLINE_PULSE_STORAGE_KEY}.${repSlug.trim().toLowerCase()}`;
@@ -212,6 +237,21 @@ function followUpLabel(value: string | null) {
   }).format(date);
 }
 
+function localDateTimeInputValue(value: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function suggestedFollowUpValue(daysFromNow: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + daysFromNow);
+  date.setHours(daysFromNow === 0 ? 17 : 10, 0, 0, 0);
+  return localDateTimeInputValue(date.toISOString());
+}
+
 function statusLabel(status: SalesRepLead["status"]) {
   return status.replaceAll("_", " ");
 }
@@ -243,6 +283,11 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
   const [leadFormOpen, setLeadFormOpen] = useState(false);
   const [leadForm, setLeadForm] = useState<CreateSalesLeadInput>(EMPTY_LEAD_FORM);
   const [leadSaving, setLeadSaving] = useState(false);
+  const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
+  const [leadActionDraft, setLeadActionDraft] = useState<LeadActionDraft | null>(
+    null,
+  );
+  const [leadActionSaving, setLeadActionSaving] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installHelp, setInstallHelp] = useState<string | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
@@ -788,6 +833,65 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     }
   };
 
+  const openLeadActionEditor = (lead: SalesRepLead) => {
+    const status: UpdateSalesLeadInput["status"] =
+      lead.status === "follow_up" ||
+      lead.status === "presentation" ||
+      lead.status === "considering" ||
+      lead.status === "lost"
+        ? lead.status
+        : "new";
+    setEditingLeadId(lead.id);
+    setLeadActionDraft({
+      status,
+      estimatedArrDollars: lead.estimatedArrCents / 100,
+      nextFollowUpAt: localDateTimeInputValue(lead.nextFollowUpAt),
+      notes: lead.notes,
+    });
+    setError(null);
+  };
+
+  const saveLeadAction = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingLeadId || !leadActionDraft) return;
+
+    setLeadActionSaving(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/sales/${encodeURIComponent(repSlug)}/workspace`,
+        {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+          body: JSON.stringify({
+            kind: "update_lead",
+            lead: { leadId: editingLeadId, ...leadActionDraft },
+          }),
+        },
+      );
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+        message?: string;
+      } | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Could not save the next move.");
+      }
+      setEditingLeadId(null);
+      setLeadActionDraft(null);
+      setNotice(body?.message ?? "Next move saved.");
+      await loadWorkspace();
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Could not save the next move.",
+      );
+    } finally {
+      setLeadActionSaving(false);
+    }
+  };
+
   const dueLeads = useMemo(() => {
     const leads = workspace?.leads ?? [];
     return [...leads]
@@ -1321,12 +1425,173 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                         ) : null}
                       </div>
                     ) : null}
-                    <Link
-                      href={`/presentations/new?rep=${encodeURIComponent(profile.slug)}&lead=${encodeURIComponent(lead.id)}`}
-                      className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-full border border-accent/40 bg-accent/[0.08] px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                    >
-                      Pitch this homeowner
-                    </Link>
+                    <div className="mt-4 grid gap-2 min-[430px]:grid-cols-2">
+                      <Link
+                        href={`/presentations/new?rep=${encodeURIComponent(profile.slug)}&lead=${encodeURIComponent(lead.id)}`}
+                        className="inline-flex min-h-12 items-center justify-center rounded-full border border-accent/40 bg-accent/[0.08] px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      >
+                        Pitch this homeowner
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (editingLeadId === lead.id) {
+                            setEditingLeadId(null);
+                            setLeadActionDraft(null);
+                            return;
+                          }
+                          openLeadActionEditor(lead);
+                        }}
+                        aria-expanded={editingLeadId === lead.id}
+                        className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/[0.035] px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      >
+                        {editingLeadId === lead.id ? "Close next move" : "Update next move"}
+                      </button>
+                    </div>
+
+                    {editingLeadId === lead.id && leadActionDraft ? (
+                      <form
+                        onSubmit={saveLeadAction}
+                        className="mt-4 space-y-4 rounded-2xl border border-accent/20 bg-accent/[0.045] p-4"
+                      >
+                        <div>
+                          <label htmlFor={`lead-status-${lead.id}`} className={craftLabel}>
+                            Pipeline stage
+                          </label>
+                          <select
+                            id={`lead-status-${lead.id}`}
+                            value={leadActionDraft.status}
+                            onChange={(event) => {
+                              const status = event.target.value as LeadActionDraft["status"];
+                              setLeadActionDraft((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      status,
+                                      nextFollowUpAt:
+                                        status === "lost"
+                                          ? ""
+                                          : current.nextFollowUpAt,
+                                    }
+                                  : current,
+                              );
+                            }}
+                            className={craftInput}
+                          >
+                            {LEAD_STAGE_OPTIONS.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label htmlFor={`lead-arr-${lead.id}`} className={craftLabel}>
+                            Estimated annual value
+                          </label>
+                          <input
+                            id={`lead-arr-${lead.id}`}
+                            type="number"
+                            min="0"
+                            step="50"
+                            inputMode="decimal"
+                            value={leadActionDraft.estimatedArrDollars}
+                            onChange={(event) =>
+                              setLeadActionDraft((current) =>
+                                current
+                                  ? {
+                                      ...current,
+                                      estimatedArrDollars: Number(event.target.value),
+                                    }
+                                  : current,
+                              )
+                            }
+                            className={craftInput}
+                          />
+                        </div>
+
+                        {leadActionDraft.status !== "lost" ? (
+                          <div>
+                            <label htmlFor={`lead-follow-up-${lead.id}`} className={craftLabel}>
+                              Next action time
+                            </label>
+                            <input
+                              id={`lead-follow-up-${lead.id}`}
+                              type="datetime-local"
+                              value={leadActionDraft.nextFollowUpAt}
+                              onChange={(event) =>
+                                setLeadActionDraft((current) =>
+                                  current
+                                    ? { ...current, nextFollowUpAt: event.target.value }
+                                    : current,
+                                )
+                              }
+                              className={craftInput}
+                              required={
+                                leadActionDraft.status === "follow_up" ||
+                                leadActionDraft.status === "considering"
+                              }
+                            />
+                            <div className="mt-2 grid grid-cols-3 gap-2">
+                              {FOLLOW_UP_SHORTCUTS.map(({ days, label }) => (
+                                <button
+                                  key={label}
+                                  type="button"
+                                  onClick={() =>
+                                    setLeadActionDraft((current) =>
+                                      current
+                                        ? {
+                                            ...current,
+                                            status:
+                                              current.status === "new"
+                                                ? "follow_up"
+                                                : current.status,
+                                            nextFollowUpAt: suggestedFollowUpValue(
+                                              days,
+                                            ),
+                                          }
+                                        : current,
+                                    )
+                                  }
+                                  className="min-h-10 rounded-xl border border-white/10 bg-black/15 px-2 text-[9px] font-bold uppercase tracking-[0.1em] text-muted"
+                                >
+                                  {label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        <div>
+                          <label htmlFor={`lead-notes-${lead.id}`} className={craftLabel}>
+                            Latest context {leadActionDraft.status === "lost" ? "· reason required" : ""}
+                          </label>
+                          <textarea
+                            id={`lead-notes-${lead.id}`}
+                            rows={3}
+                            value={leadActionDraft.notes}
+                            onChange={(event) =>
+                              setLeadActionDraft((current) =>
+                                current
+                                  ? { ...current, notes: event.target.value }
+                                  : current,
+                              )
+                            }
+                            className={craftTextarea}
+                            placeholder="What was said, what matters, and what happens next?"
+                          />
+                        </div>
+
+                        <button
+                          type="submit"
+                          disabled={leadActionSaving}
+                          className="min-h-12 w-full rounded-full bg-accent px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--on-accent)] disabled:opacity-50"
+                        >
+                          {leadActionSaving ? "Saving next move…" : "Save next move"}
+                        </button>
+                      </form>
+                    ) : null}
                     </article>
                   );
                 })

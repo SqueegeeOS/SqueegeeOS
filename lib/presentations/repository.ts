@@ -102,6 +102,7 @@ function normalizePresentation(data: PresentationData): PresentationData {
     ...data,
     salesRepId: data.salesRepId ?? null,
     salesRepLeadId: data.salesRepLeadId ?? null,
+    clientPhone: data.clientPhone ?? "",
     twoStory,
     includeScreens,
     includeInterior,
@@ -167,6 +168,7 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     salesRepLeadId: row.sales_rep_lead_id ?? null,
     clientName: row.client_name,
     clientAddress: row.client_address ?? "",
+    clientPhone: "",
     clientEmail: row.client_email ?? "",
     homeSqft: row.home_sqft,
     ...pricingFlags,
@@ -326,6 +328,7 @@ function isMissingColumnError(message: string, column: string): boolean {
 export function createDefaultPresentation(input?: {
   clientName?: string;
   clientAddress?: string;
+  clientPhone?: string;
   clientEmail?: string;
   createdBy?: string;
   salesRepId?: string | null;
@@ -346,6 +349,7 @@ export function createDefaultPresentation(input?: {
     salesRepLeadId: input?.salesRepLeadId ?? null,
     clientName: input?.clientName ?? "New Client",
     clientAddress: input?.clientAddress ?? "",
+    clientPhone: input?.clientPhone ?? "",
     clientEmail: input?.clientEmail ?? "",
     homeSqft,
     twoStory: input?.quoteSnapshot?.twoStory ?? false,
@@ -435,6 +439,7 @@ export async function savePresentation(
 export async function createPresentation(input?: {
   clientName?: string;
   clientAddress?: string;
+  clientPhone?: string;
   clientEmail?: string;
   createdBy?: string;
   salesRepId?: string | null;
@@ -464,6 +469,7 @@ export async function patchPresentation(
       salesRepId: patch.salesRepId ?? null,
       salesRepLeadId: patch.salesRepLeadId ?? null,
       clientName: patch.clientName,
+      clientPhone: patch.clientPhone,
       tier: patch.tier,
       homeSqft: patch.homeSqft,
       quoteSnapshot: patch.quoteSnapshot ?? null,

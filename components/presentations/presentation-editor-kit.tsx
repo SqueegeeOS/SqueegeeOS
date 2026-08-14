@@ -40,9 +40,9 @@ export function EditorTextInput({
 }: {
   value: string;
   onChange: (value: string) => void;
-  type?: "text" | "email" | "number";
+  type?: "text" | "email" | "number" | "tel";
   placeholder?: string;
-  inputMode?: "text" | "email" | "numeric" | "decimal";
+  inputMode?: "text" | "email" | "numeric" | "decimal" | "tel";
   autoComplete?: string;
   name?: string;
 }) {

@@ -7,11 +7,13 @@ import {
   reverseSalesActivity,
   SalesWorkspaceActionError,
   SalesWorkspaceUnavailableError,
+  updateSalesLead,
 } from "@/lib/sales/workspace-server";
 import type { SalesWorkspaceCommand } from "@/lib/sales/workspace-types";
 import {
   validateCreateSalesActivity,
   validateCreateSalesLead,
+  validateUpdateSalesLead,
   validateUndoSalesActivity,
 } from "@/lib/sales/workspace-validation";
 
@@ -88,6 +90,21 @@ export async function POST(
         { activity, message: "Field activity recorded." },
         { status: 201 },
       );
+    }
+
+    if (command?.kind === "update_lead") {
+      const validation = validateUpdateSalesLead(command.lead);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      const lead = await updateSalesLead(repSlug, validation.value);
+      return NextResponse.json({
+        lead,
+        message:
+          lead.status === "lost"
+            ? "Lead closed with the reason preserved."
+            : "Next move saved to the private action queue.",
+      });
     }
 
     if (command?.kind === "undo_activity") {

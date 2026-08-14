@@ -46,6 +46,7 @@ export interface PresentationSalesLeadPrefill {
   id: string;
   fullName: string;
   propertyAddress: string;
+  phone: string | null;
   email: string | null;
 }
 
@@ -212,7 +213,7 @@ export async function resolvePresentationSalesLineage(
     const supabase = createPrivilegedServerSupabaseClient();
     const { data, error } = await supabase
       .from("sales_rep_leads")
-      .select("id, full_name, property_address, email_normalized")
+      .select("id, full_name, property_address, phone_normalized, email_normalized")
       .eq("id", leadId)
       .eq("rep_id", rep.id)
       .maybeSingle();
@@ -226,6 +227,10 @@ export async function resolvePresentationSalesLineage(
       id: String(data.id),
       fullName: String(data.full_name),
       propertyAddress: String(data.property_address),
+      phone:
+        typeof data.phone_normalized === "string"
+          ? data.phone_normalized
+          : null,
       email:
         typeof data.email_normalized === "string"
           ? data.email_normalized
@@ -409,6 +414,115 @@ export async function createSalesLead(
   }
 
   return lead;
+}
+
+export async function updateSalesLead(
+  slug: string,
+  input: {
+    leadId: string;
+    status: Extract<
+      SalesLeadStatus,
+      "new" | "follow_up" | "presentation" | "considering" | "lost"
+    >;
+    estimatedArrDollars: number;
+    nextFollowUpAt: string | null;
+    notes: string;
+  },
+): Promise<SalesRepLead> {
+  const rep = await loadRepRow(slug);
+  const supabase = createPrivilegedServerSupabaseClient();
+  const existing = await supabase
+    .from("sales_rep_leads")
+    .select("id, status, next_follow_up_at, updated_at")
+    .eq("id", input.leadId)
+    .eq("rep_id", rep.id)
+    .maybeSingle();
+
+  if (existing.error) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(existing.error.message),
+    );
+  }
+  if (!existing.data) {
+    throw new SalesWorkspaceActionError(
+      "That homeowner is not in this field workspace.",
+      404,
+    );
+  }
+  if (["signed", "won"].includes(String(existing.data.status))) {
+    throw new SalesWorkspaceActionError(
+      "That customer already has a completed sales outcome.",
+    );
+  }
+
+  const { data, error } = await supabase
+    .from("sales_rep_leads")
+    .update({
+      status: input.status,
+      estimated_arr_cents: Math.round(input.estimatedArrDollars * 100),
+      next_follow_up_at: input.nextFollowUpAt,
+      notes: input.notes || null,
+    })
+    .eq("id", input.leadId)
+    .eq("rep_id", rep.id)
+    .eq("updated_at", String(existing.data.updated_at))
+    .select(
+      "id, full_name, property_address, phone_normalized, email_normalized, status, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at",
+    )
+    .maybeSingle();
+
+  if (error) {
+    throw new SalesWorkspaceUnavailableError(readableStorageError(error.message));
+  }
+  if (!data) {
+    throw new SalesWorkspaceActionError(
+      "That homeowner changed in another session. Refresh and try again.",
+    );
+  }
+
+  const followUpChanged =
+    input.nextFollowUpAt !== null &&
+    new Date(input.nextFollowUpAt).getTime() !==
+      new Date(String(existing.data.next_follow_up_at ?? 0)).getTime();
+  if (followUpChanged) {
+    const { error: activityError } = await supabase
+      .from("sales_rep_activity_events")
+      .insert({
+        rep_id: rep.id,
+        lead_id: input.leadId,
+        event_type: "follow_up_scheduled",
+        quantity: 1,
+        source_path: profileFromRow(rep).workspacePath,
+      });
+    if (activityError) {
+      console.error(
+        "[sales-workspace] follow-up activity insert failed",
+        activityError.message,
+      );
+    }
+  }
+
+  return leadFromRow(data as SalesLeadRow);
+}
+
+/**
+ * Creating a presentation advances its linked lead without manufacturing a
+ * signed result or inflating the manual field-pitch counter.
+ */
+export async function markSalesLeadPresentationCreated(input: {
+  repId: string;
+  leadId: string;
+}): Promise<void> {
+  const supabase = createPrivilegedServerSupabaseClient();
+  const { error } = await supabase
+    .from("sales_rep_leads")
+    .update({ status: "presentation" })
+    .eq("id", input.leadId)
+    .eq("rep_id", input.repId)
+    .in("status", ["new", "follow_up", "presentation", "considering"]);
+  if (error) {
+    throw new SalesWorkspaceUnavailableError(readableStorageError(error.message));
+  }
 }
 
 export async function createSalesActivity(

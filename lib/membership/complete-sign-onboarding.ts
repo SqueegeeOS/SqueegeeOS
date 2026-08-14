@@ -48,6 +48,8 @@ import {
   legacyOverrideFieldsForTier,
   normalizeVisitRateOverrides,
 } from "@/lib/presentations/calculations";
+import { normalizeNorthAmericanPhone } from "@/lib/sales/workspace-validation";
+import { preserveSalesLeadSmsHandoff } from "@/lib/sales/lead-contact-handoff";
 
 export interface CompleteSignOnboardingInput {
   presentation: PresentationData;
@@ -192,6 +194,14 @@ export async function completeSignOnboarding(
       "A complete service address is required before membership onboarding.",
     );
   }
+  const normalizedClientPhone = normalizeNorthAmericanPhone(
+    presentation.clientPhone,
+  );
+  if (presentation.clientPhone.trim() && !normalizedClientPhone) {
+    throw new SignOnboardingError(
+      "Enter a valid 10-digit mobile number or clear it before signing.",
+    );
+  }
   const presentationRates = computePresentationRates({
     ...presentation,
     tier: input.agreementTier,
@@ -216,7 +226,7 @@ export async function completeSignOnboarding(
         full_name: presentation.clientName,
         first_name: firstNameFromFullName(presentation.clientName),
         email: presentation.clientEmail || null,
-        phone: null,
+        ...(normalizedClientPhone ? { phone: normalizedClientPhone } : {}),
       },
       { onConflict: "slug" },
     )
@@ -226,6 +236,20 @@ export async function completeSignOnboarding(
   if (homeownerError || !homeowner?.id) {
     throw new SignOnboardingError(
       `Failed to create homeowner: ${homeownerError?.message ?? "unknown error"}`,
+    );
+  }
+
+  try {
+    await preserveSalesLeadSmsHandoff({
+      supabase,
+      homeownerId: homeowner.id as string,
+      salesRepLeadId: presentation.salesRepLeadId,
+      presentationPhone: normalizedClientPhone,
+    });
+  } catch (contactError) {
+    console.error(
+      "[onboarding] nonfatal field contact handoff failed",
+      contactError,
     );
   }
 

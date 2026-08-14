@@ -38,6 +38,8 @@ describe("signature-backed sales attribution security", () => {
       "foreign key (presentation_id, rep_id) references public.presentations(id, sales_rep_id)",
     );
     expect(presentationRoute).toContain("resolvePresentationSalesLineage");
+    expect(presentationRoute).toContain("clientPhone: lineage?.lead?.phone");
+    expect(presentationRoute).toContain("markSalesLeadPresentationCreated");
     expect(presentationRoute).not.toContain("createdBy: body.createdBy");
   });
 

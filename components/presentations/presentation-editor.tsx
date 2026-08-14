@@ -634,14 +634,30 @@ export function PresentationEditor({
           </CollapsibleSection>
 
           <CollapsibleSection
-            title="Agreement email"
+            title="Customer contact"
             summary={
-              data.clientEmail.trim() || "Needed when the customer signs"
+              [data.clientPhone.trim(), data.clientEmail.trim()]
+                .filter(Boolean)
+                .join(" · ") || "Add phone and email for the customer record"
             }
           >
             <EditorField
+              label="Mobile phone"
+              hint="Saved with the customer when the agreement is signed. A field lead is filled automatically."
+            >
+              <EditorTextInput
+                type="tel"
+                inputMode="tel"
+                name="tel"
+                autoComplete="tel"
+                value={data.clientPhone}
+                placeholder="(530) 555-0123"
+                onChange={(v) => update("clientPhone", v)}
+              />
+            </EditorField>
+            <EditorField
               label="Customer email"
-              hint="Collected at signing. You can add this after the presentation if needed."
+              hint="Used for the signed agreement and member portal welcome."
             >
               <EditorTextInput
                 type="email"

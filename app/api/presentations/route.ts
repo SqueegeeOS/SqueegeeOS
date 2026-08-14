@@ -7,6 +7,7 @@ import {
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import {
   resolvePresentationSalesLineage,
+  markSalesLeadPresentationCreated,
   SalesWorkspaceActionError,
   SalesWorkspaceUnavailableError,
 } from "@/lib/sales/workspace-server";
@@ -69,6 +70,7 @@ export async function POST(req: NextRequest) {
     const presentation = await createPresentation({
       clientName: lineage?.lead?.fullName || body.clientName,
       clientAddress: lineage?.lead?.propertyAddress,
+      clientPhone: lineage?.lead?.phone ?? undefined,
       clientEmail: lineage?.lead?.email ?? undefined,
       // The creator label remains useful for trusted HQ flows such as the care
       // plan builder. Only the stable, server-resolved rep ID grants sales
@@ -81,6 +83,20 @@ export async function POST(req: NextRequest) {
         typeof body.homeSqft === "number" ? body.homeSqft : undefined,
       quoteSnapshot: body.quoteSnapshot ?? null,
     });
+
+    if (lineage?.leadId) {
+      try {
+        await markSalesLeadPresentationCreated({
+          repId: lineage.id,
+          leadId: lineage.leadId,
+        });
+      } catch (trackingError) {
+        console.error(
+          "[presentations] nonfatal sales lead stage update failed",
+          trackingError,
+        );
+      }
+    }
 
     if (body.quoteSnapshot?.windowCareVisitPrice > 0) {
       const patched = await patchPresentation(presentation.id, {

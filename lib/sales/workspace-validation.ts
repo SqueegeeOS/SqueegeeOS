@@ -2,11 +2,19 @@ import {
   SALES_ACTIVITY_TYPES,
   type CreateSalesLeadInput,
   type SalesActivityType,
+  type UpdateSalesLeadInput,
 } from "./workspace-types";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+const EDITABLE_LEAD_STATUSES = new Set<UpdateSalesLeadInput["status"]>([
+  "new",
+  "follow_up",
+  "presentation",
+  "considering",
+  "lost",
+]);
 
 function cleanText(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
@@ -162,6 +170,78 @@ export function validateCreateSalesActivity(input: unknown):
   return {
     ok: true,
     value: { activityType, quantity, leadId, clientEventId, occurredAt },
+  };
+}
+
+export function validateUpdateSalesLead(input: unknown):
+  | {
+      ok: true;
+      value: {
+        leadId: string;
+        status: UpdateSalesLeadInput["status"];
+        estimatedArrDollars: number;
+        nextFollowUpAt: string | null;
+        notes: string;
+      };
+    }
+  | { ok: false; error: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, error: "Lead update details are required." };
+  }
+
+  const raw = input as Record<string, unknown>;
+  const leadId = cleanText(raw.leadId, 80);
+  if (!UUID_PATTERN.test(leadId)) {
+    return { ok: false, error: "Lead reference is invalid." };
+  }
+
+  const status = cleanText(raw.status, 40) as UpdateSalesLeadInput["status"];
+  if (!EDITABLE_LEAD_STATUSES.has(status)) {
+    return {
+      ok: false,
+      error: "Signed customers are advanced automatically from their agreement.",
+    };
+  }
+
+  const notes = cleanText(raw.notes, 2000);
+  if (status === "lost" && notes.length < 3) {
+    return { ok: false, error: "Add a short reason before closing this lead." };
+  }
+
+  let nextFollowUpAt: string | null = null;
+  if (raw.nextFollowUpAt) {
+    const parsed = new Date(String(raw.nextFollowUpAt));
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: "Choose a valid next-action time." };
+    }
+    nextFollowUpAt = parsed.toISOString();
+  }
+  if ((status === "follow_up" || status === "considering") && !nextFollowUpAt) {
+    return {
+      ok: false,
+      error: "Choose when this homeowner should return to the action queue.",
+    };
+  }
+  if (status === "lost") nextFollowUpAt = null;
+
+  const estimatedArrDollars = Number(raw.estimatedArrDollars);
+  if (
+    !Number.isFinite(estimatedArrDollars) ||
+    estimatedArrDollars < 0 ||
+    estimatedArrDollars > 1_000_000
+  ) {
+    return { ok: false, error: "Estimated ARR must be between $0 and $1,000,000." };
+  }
+
+  return {
+    ok: true,
+    value: {
+      leadId,
+      status,
+      estimatedArrDollars: Math.round(estimatedArrDollars * 100) / 100,
+      nextFollowUpAt,
+      notes,
+    },
   };
 }
 

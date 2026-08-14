@@ -393,6 +393,7 @@ async function backfillPortalHomeCarePlan(
         city: context.property_city,
         state: context.property_state,
       }),
+      clientPhone: "",
       clientEmail: "",
       homeSqft: context.square_feet ?? 0,
       twoStory: false,
