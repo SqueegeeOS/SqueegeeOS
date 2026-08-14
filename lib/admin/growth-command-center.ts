@@ -1,0 +1,313 @@
+export const GROWTH_TARGET_ARR = 240_000;
+export const GROWTH_TARGET_DATE = "2028-12-31";
+export const LONG_TERM_ARR_VISION = 10_000_000;
+
+export interface GrowthTruthSnapshot {
+  generatedAt: string;
+  source: "supabase" | "unavailable";
+  currentActiveArr: number;
+  onBookArr: number;
+  arrAddedLast30Days: number;
+  activeMembers: number;
+  membersOnBook: number;
+  cardOnFileCount: number;
+  leadsLast30Days: number;
+  signedMembersLast30Days: number;
+  directionalCloseRate: number | null;
+  averageMemberArr: number | null;
+  openLeads: number;
+  draftPresentations: number;
+  presentedNotSigned: number;
+  sourceMix: {
+    website: number;
+    facebook: number;
+  };
+  warnings: string[];
+}
+
+export interface GrowthScenarioInput {
+  currentArr: number;
+  targetArr: number;
+  targetDate: string;
+  averageMemberArr: number;
+  leadsPerWeek: number;
+  closeRatePercent: number;
+  annualRetentionPercent: number;
+  referenceDate?: string;
+}
+
+export interface GrowthScenarioResult {
+  monthsRemaining: number;
+  arrGap: number;
+  requiredNetArrPerMonth: number;
+  requiredMembersPerMonth: number;
+  requiredLeadsPerWeek: number;
+  modeledMembersPerMonth: number;
+  modeledNewArrPerMonth: number;
+  projectedArrAtTargetDate: number;
+  projectedTargetPercent: number;
+  onTrack: boolean;
+}
+
+function positive(value: number, fallback = 0): number {
+  return Number.isFinite(value) ? Math.max(0, value) : fallback;
+}
+
+export function monthsThroughDate(
+  referenceDate: string | Date,
+  targetDate: string | Date,
+): number {
+  const start = new Date(referenceDate);
+  const end = new Date(targetDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  const months =
+    (end.getUTCFullYear() - start.getUTCFullYear()) * 12 +
+    end.getUTCMonth() -
+    start.getUTCMonth() +
+    (end.getUTCDate() >= start.getUTCDate() ? 1 : 0);
+  return Math.max(0, months);
+}
+
+export function calculateGrowthScenario(
+  input: GrowthScenarioInput,
+): GrowthScenarioResult {
+  const currentArr = positive(input.currentArr);
+  const targetArr = positive(input.targetArr);
+  const averageMemberArr = Math.max(1, positive(input.averageMemberArr, 1));
+  const closeRate = Math.min(1, positive(input.closeRatePercent) / 100);
+  const retention = Math.min(1, positive(input.annualRetentionPercent) / 100);
+  const monthsRemaining = monthsThroughDate(
+    input.referenceDate ?? new Date(),
+    input.targetDate,
+  );
+  const arrGap = Math.max(0, targetArr - currentArr);
+  const requiredNetArrPerMonth =
+    monthsRemaining > 0 ? arrGap / monthsRemaining : arrGap;
+  const requiredMembersPerMonth = requiredNetArrPerMonth / averageMemberArr;
+  const requiredLeadsPerWeek =
+    closeRate > 0 ? requiredMembersPerMonth / closeRate / 4.345 : 0;
+  const modeledMembersPerMonth = positive(input.leadsPerWeek) * 4.345 * closeRate;
+  const modeledNewArrPerMonth = modeledMembersPerMonth * averageMemberArr;
+
+  let projectedArr = currentArr;
+  const monthlyRetention = Math.pow(retention, 1 / 12);
+  for (let month = 0; month < monthsRemaining; month += 1) {
+    projectedArr = projectedArr * monthlyRetention + modeledNewArrPerMonth;
+  }
+
+  return {
+    monthsRemaining,
+    arrGap,
+    requiredNetArrPerMonth,
+    requiredMembersPerMonth,
+    requiredLeadsPerWeek,
+    modeledMembersPerMonth,
+    modeledNewArrPerMonth,
+    projectedArrAtTargetDate: projectedArr,
+    projectedTargetPercent:
+      targetArr > 0 ? Math.min(999, (projectedArr / targetArr) * 100) : 100,
+    onTrack: targetArr > 0 && projectedArr >= targetArr,
+  };
+}
+
+export type GrowthInitiativeHorizon = "now" | "next" | "later";
+
+export interface GrowthInitiative {
+  id: string;
+  horizon: GrowthInitiativeHorizon;
+  title: string;
+  outcome: string;
+  owner: "Founder" | "Founder + David" | "HomeAtlas";
+  impact: "Critical" | "High" | "Medium";
+}
+
+export const GROWTH_INITIATIVES: GrowthInitiative[] = [
+  {
+    id: "signup-reliability",
+    horizon: "now",
+    title: "Zero-friction signup reliability",
+    outcome: "Every field survives draft, address, plan, signature, payment, and portal activation.",
+    owner: "HomeAtlas",
+    impact: "Critical",
+  },
+  {
+    id: "ready-customer-sprint",
+    horizon: "now",
+    title: "Ready-customer activation sprint",
+    outcome: "Move the three waiting prospects through the full production flow and record every snag.",
+    owner: "Founder",
+    impact: "Critical",
+  },
+  {
+    id: "speed-to-lead",
+    horizon: "now",
+    title: "Five-minute speed-to-lead",
+    outcome: "Notify the founder immediately and start a compliant customer conversation when consent exists.",
+    owner: "HomeAtlas",
+    impact: "Critical",
+  },
+  {
+    id: "card-completion",
+    horizon: "now",
+    title: "Card-on-file completion queue",
+    outcome: "Make every signed-but-incomplete membership visible and easy to finish without duplicate records.",
+    owner: "Founder",
+    impact: "High",
+  },
+  {
+    id: "jobber-visit-truth",
+    horizon: "now",
+    title: "Jobber next-visit truth",
+    outcome: "A paired property shows the verified next visit, scope, and billing source in HQ and the portal.",
+    owner: "HomeAtlas",
+    impact: "Critical",
+  },
+  {
+    id: "billing-dry-run",
+    horizon: "now",
+    title: "First-of-month billing rehearsal",
+    outcome: "Preview every candidate, blocker, amount, and duplicate guard before any real charge is armed.",
+    owner: "Founder",
+    impact: "Critical",
+  },
+  {
+    id: "visit-proof",
+    horizon: "now",
+    title: "Visit proof that compounds trust",
+    outcome: "Photos, notes, completion, and follow-up land on one property timeline after every visit.",
+    owner: "HomeAtlas",
+    impact: "High",
+  },
+  {
+    id: "source-attribution",
+    horizon: "next",
+    title: "Lead-source attribution",
+    outcome: "Website, Facebook, Google, referral, and D2D leads stay labeled through signed ARR.",
+    owner: "HomeAtlas",
+    impact: "High",
+  },
+  {
+    id: "david-field-mode",
+    horizon: "next",
+    title: "David sunlight field mode",
+    outcome: "One-thumb doors, conversations, follow-ups, presentations, and auto-attributed closes.",
+    owner: "Founder + David",
+    impact: "High",
+  },
+  {
+    id: "follow-up-machine",
+    horizon: "next",
+    title: "Permission-aware follow-up machine",
+    outcome: "Every lead has a next action, due date, owner, and visible message history.",
+    owner: "HomeAtlas",
+    impact: "High",
+  },
+  {
+    id: "review-flywheel",
+    horizon: "next",
+    title: "Review flywheel",
+    outcome: "Request a Google review after a successful visit and show fresh proof on the public site.",
+    owner: "HomeAtlas",
+    impact: "High",
+  },
+  {
+    id: "referral-loop",
+    horizon: "next",
+    title: "Member referral loop",
+    outcome: "Give members a simple share link and track referred leads through activation.",
+    owner: "HomeAtlas",
+    impact: "High",
+  },
+  {
+    id: "churn-rescue",
+    horizon: "next",
+    title: "Churn and payment rescue",
+    outcome: "Flag service, card, and cancellation risk before ARR quietly disappears.",
+    owner: "HomeAtlas",
+    impact: "High",
+  },
+  {
+    id: "capacity-forecast",
+    horizon: "next",
+    title: "30/60/90-day capacity forecast",
+    outcome: "Know when recurring work requires a helper, route change, or first technician hire.",
+    owner: "Founder",
+    impact: "High",
+  },
+  {
+    id: "addon-intelligence",
+    horizon: "next",
+    title: "Relevant add-on intelligence",
+    outcome: "Surface pressure washing, cobweb, gutter, and screen opportunities from real property history.",
+    owner: "HomeAtlas",
+    impact: "Medium",
+  },
+  {
+    id: "territory-learning",
+    horizon: "later",
+    title: "Territory learning map",
+    outcome: "Compare doors, conversations, signed ARR, density, and retention by neighborhood.",
+    owner: "Founder + David",
+    impact: "High",
+  },
+  {
+    id: "commission-ledger",
+    horizon: "later",
+    title: "Auditable sales compensation ledger",
+    outcome: "Track front-end, back-end, residual, reversals, vesting, and special David terms without ambiguity.",
+    owner: "HomeAtlas",
+    impact: "High",
+  },
+  {
+    id: "pricing-learning",
+    horizon: "later",
+    title: "Pricing learning system",
+    outcome: "Measure close rate, margin, retention, and capacity by offer before changing company pricing.",
+    owner: "Founder",
+    impact: "Medium",
+  },
+  {
+    id: "crew-operating-system",
+    horizon: "later",
+    title: "Crew operating system",
+    outcome: "Turn property truth into routes, proof of work, quality checks, payroll evidence, and callbacks.",
+    owner: "HomeAtlas",
+    impact: "High",
+  },
+  {
+    id: "market-playbook",
+    horizon: "later",
+    title: "Replicable market playbook",
+    outcome: "Document the local acquisition, service, retention, staffing, and unit-economics recipe before expansion.",
+    owner: "Founder",
+    impact: "High",
+  },
+];
+
+export const GROWTH_LADDER = [
+  {
+    range: "$0-$50K ARR",
+    title: "Prove the founder machine",
+    focus: "Reliable signup, dense routes, fast follow-up, strong reviews, and clean records.",
+  },
+  {
+    range: "$50K-$240K ARR",
+    title: "Build the local recurring engine",
+    focus: "One dependable sales motion, first field capacity, billing discipline, and retention.",
+  },
+  {
+    range: "$240K-$1M ARR",
+    title: "Systemize crews and territories",
+    focus: "Role clarity, route economics, quality control, sales management, and predictable hiring.",
+  },
+  {
+    range: "$1M-$3M ARR",
+    title: "Create a multi-territory company",
+    focus: "Market playbooks, leaders, centralized support, and location-level P&Ls.",
+  },
+  {
+    range: "$3M-$10M ARR",
+    title: "Operate a durable platform",
+    focus: "Brand, data, finance, leadership depth, defensible retention, and expansion discipline.",
+  },
+] as const;

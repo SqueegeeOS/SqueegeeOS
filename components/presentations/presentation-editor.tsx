@@ -37,6 +37,12 @@ import {
   TierPicker,
 } from "./presentation-editor-kit";
 import { PresentationAddressEditor } from "./presentation-address-editor";
+import { PresentationPlanStudio } from "./presentation-plan-studio";
+import {
+  createDefaultCarePlan,
+  resizeCarePlan,
+  summarizeCarePlan,
+} from "@/lib/presentations/care-plan";
 
 export function PresentationEditor({
   presentation: initial,
@@ -120,13 +126,39 @@ export function PresentationEditor({
       includeInterior: boolean;
     }>,
   ) => {
-    commitEdit((prev) =>
-      recalculateVisitRate(prev, {
+    commitEdit((prev) => {
+      const nextFlags = {
         twoStory: patch.twoStory ?? prev.twoStory,
         includeScreens: patch.includeScreens ?? prev.includeScreens,
         includeInterior: patch.includeInterior ?? prev.includeInterior,
-      }),
-    );
+      };
+      return recalculateVisitRate(prev, {
+        ...nextFlags,
+        carePlan:
+          prev.planMode === "simple"
+            ? createDefaultCarePlan({
+                tier: prev.tier,
+                includeScreens: nextFlags.includeScreens,
+                includeInterior: nextFlags.includeInterior,
+              })
+            : prev.carePlan,
+      });
+    });
+  };
+
+  const setPlanStudioOptions = (patch: Partial<PresentationData>) => {
+    commitEdit((prev) => {
+      const nextTier = patch.tier ?? prev.tier;
+      const mergedPatch = {
+        ...patch,
+        carePlan: patch.carePlan
+          ? patch.carePlan
+          : nextTier !== prev.tier
+            ? resizeCarePlan(prev.carePlan, nextTier)
+            : prev.carePlan,
+      };
+      return recalculateVisitRate(prev, mergedPatch);
+    });
   };
 
   const exteriorBreakdown =
@@ -169,6 +201,7 @@ export function PresentationEditor({
         const nextTier = value as PresentationData["tier"];
         return recalculateVisitRate(prev, {
           tier: nextTier,
+          carePlan: resizeCarePlan(prev.carePlan, nextTier),
           retailValue: nextTier === "quarterly" ? prev.retailValue : 0,
           enrollmentSavings: defaultEnrollmentSavingsForTier(nextTier),
         });
@@ -270,13 +303,15 @@ export function PresentationEditor({
     data.clientName.trim().length > 0 && data.clientAddress.trim().length > 0;
 
   const pricingSummary =
-    data.homeSqft > 0
+    data.planMode === "custom"
+      ? summarizeCarePlan(data.carePlan)
+      : data.homeSqft > 0
       ? `${data.homeSqft.toLocaleString()} sq ft`
       : "Standard pricing";
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] pb-36 text-white">
-      <div className="mx-auto max-w-lg px-4 py-6">
+      <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
         <Link
           href="/presentations"
           onClick={(event) => {
@@ -307,6 +342,7 @@ export function PresentationEditor({
 
           <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <span className="text-[#c9a96e]">
+              {data.planMode === "custom" ? "Avg " : ""}
               {formatTierPrice(visitRate)}/visit
             </span>
             <span className="text-[#333]">·</span>
@@ -366,6 +402,11 @@ export function PresentationEditor({
             )}
           </section>
 
+          <PresentationPlanStudio
+            presentation={data}
+            onChange={setPlanStudioOptions}
+          />
+
           <CollapsibleSection
             title="Home size & visit rate"
             summary={pricingSummary}
@@ -403,40 +444,63 @@ export function PresentationEditor({
               >
                 Two-story (+$100)
               </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setPricingOption({ includeScreens: !includeScreens })
-                }
-                aria-pressed={includeScreens}
-                className="rounded-lg border px-3 py-2 text-xs transition-colors"
-                style={{
-                  borderColor: includeScreens ? "#c9a96e55" : "#222",
-                  color: includeScreens ? "#c9a96e" : "#555",
-                  backgroundColor: includeScreens ? "#141008" : "#111",
-                }}
-              >
-                Screens (+$50)
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setPricingOption({ includeInterior: !includeInterior })
-                }
-                aria-pressed={includeInterior}
-                className="rounded-lg border px-3 py-2 text-xs transition-colors"
-                style={{
-                  borderColor: includeInterior ? "#c9a96e55" : "#222",
-                  color: includeInterior ? "#c9a96e" : "#555",
-                  backgroundColor: includeInterior ? "#141008" : "#111",
-                }}
-              >
-                Interior cleaning (+$
-                {DEFAULT_COMPANY_SETTINGS.interiorCleaningAddOn})
-              </button>
+              {data.planMode === "simple" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPricingOption({ includeScreens: !includeScreens })
+                    }
+                    aria-pressed={includeScreens}
+                    className="rounded-lg border px-3 py-2 text-xs transition-colors"
+                    style={{
+                      borderColor: includeScreens ? "#c9a96e55" : "#222",
+                      color: includeScreens ? "#c9a96e" : "#777",
+                      backgroundColor: includeScreens ? "#141008" : "#111",
+                    }}
+                  >
+                    Screens (+$50 every visit)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setPricingOption({ includeInterior: !includeInterior })
+                    }
+                    aria-pressed={includeInterior}
+                    className="rounded-lg border px-3 py-2 text-xs transition-colors"
+                    style={{
+                      borderColor: includeInterior ? "#c9a96e55" : "#222",
+                      color: includeInterior ? "#c9a96e" : "#777",
+                      backgroundColor: includeInterior ? "#141008" : "#111",
+                    }}
+                  >
+                    Interior (+$
+                    {DEFAULT_COMPANY_SETTINGS.interiorCleaningAddOn} every visit)
+                  </button>
+                </>
+              ) : (
+                <p className="w-full rounded-xl border border-[#c9a96e]/15 bg-[#c9a96e]/[0.04] px-3 py-2.5 text-xs leading-relaxed text-[#c9a96e]/75">
+                  Interior and screens are priced visit-by-visit in Atlas Plan Studio.
+                </p>
+              )}
             </div>
 
-            {exteriorBreakdown ? (
+            {data.planMode === "custom" && rates.carePlanPricing ? (
+              <div className="rounded-xl border border-white/[0.08] bg-[#111] px-3 py-3 text-xs text-white/55">
+                {rates.carePlanPricing.visits.map((visit) => (
+                  <p key={visit.id} className="flex justify-between gap-4 py-1">
+                    <span>{visit.label}</span>
+                    <span className="text-white/80">
+                      {formatTierPrice(visit.total)}
+                    </span>
+                  </p>
+                ))}
+                <p className="mt-2 flex justify-between border-t border-white/[0.08] pt-2 text-[#c9a96e]">
+                  <span>Estimated annual plan</span>
+                  <span>{formatTierPrice(rates.carePlanPricing.annualTotal)}</span>
+                </p>
+              </div>
+            ) : exteriorBreakdown ? (
               <div className="rounded-lg bg-[#111] px-3 py-2.5 text-[11px] text-[#555]">
                 <p className="flex justify-between">
                   <span>Sq ft base</span>
@@ -497,8 +561,16 @@ export function PresentationEditor({
             </EditorField>
 
             <EditorField
-              label="Per-visit rate override"
-              hint="Optional. Standard pricing applies when blank."
+              label={
+                data.planMode === "custom"
+                  ? "Exterior base-rate override"
+                  : "Per-visit rate override"
+              }
+              hint={
+                data.planMode === "custom"
+                  ? "Optional base before the $100 interior and $50 screen add-ons. Use each visit's exact-price field when the final totals differ."
+                  : "Optional. Standard pricing applies when blank."
+              }
             >
               <EditorTextInput
                 type="number"
@@ -606,7 +678,7 @@ export function PresentationEditor({
 
       {/* Error */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-[#1a1a1a] bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a] to-[#0a0a0a]/95 px-4 pb-6 pt-4">
-        <div className="mx-auto flex max-w-lg flex-col gap-2">
+        <div className="mx-auto flex max-w-3xl flex-col gap-2">
           {error ? (
             <p className="text-center text-sm text-red-400">{error}</p>
           ) : null}

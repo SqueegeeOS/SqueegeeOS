@@ -22,6 +22,13 @@ import {
   createPresentationDraftPayload,
   restorePresentationDraftPayload,
 } from "./draft-persistence";
+import {
+  createDefaultCarePlan,
+  normalizeCarePlan,
+  normalizePresentationLayout,
+  normalizePresentationPlanMode,
+  resizeCarePlan,
+} from "./care-plan";
 
 interface PresentationRow {
   id: string;
@@ -60,6 +67,23 @@ function normalizePresentation(data: PresentationData): PresentationData {
     data.includeScreens ?? data.quoteSnapshot?.includeScreens ?? false;
   const includeInterior =
     data.includeInterior ?? data.quoteSnapshot?.includeInterior ?? false;
+  const planMode = normalizePresentationPlanMode(data.planMode, "simple");
+  const presentationLayout = normalizePresentationLayout(
+    data.presentationLayout,
+    "signature",
+  );
+  const normalizedCarePlan = normalizeCarePlan(
+    data.carePlan,
+    createDefaultCarePlan({
+      tier: data.tier,
+      includeInterior,
+      includeScreens,
+    }),
+  );
+  const carePlan =
+    normalizedCarePlan.tier === data.tier
+      ? normalizedCarePlan
+      : resizeCarePlan(normalizedCarePlan, data.tier);
   const computed = withComputedRates({
     tier: data.tier,
     homeSqft: data.homeSqft,
@@ -70,6 +94,8 @@ function normalizePresentation(data: PresentationData): PresentationData {
     twoStory,
     includeScreens,
     includeInterior,
+    planMode,
+    carePlan,
   });
 
   return {
@@ -79,6 +105,9 @@ function normalizePresentation(data: PresentationData): PresentationData {
     twoStory,
     includeScreens,
     includeInterior,
+    planMode,
+    presentationLayout,
+    carePlan,
     ...computed,
     quoteSnapshot: isCarePlanQuoteSnapshot(data.quoteSnapshot)
       ? data.quoteSnapshot
@@ -142,6 +171,13 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     homeSqft: row.home_sqft,
     ...pricingFlags,
     tier: normalizePresentationTier(row.tier),
+    planMode: "simple",
+    presentationLayout: "signature",
+    carePlan: createDefaultCarePlan({
+      tier: normalizePresentationTier(row.tier),
+      includeInterior: pricingFlags.includeInterior,
+      includeScreens: pricingFlags.includeScreens,
+    }),
     monthlyRate: Number(row.monthly_rate),
     overrideTier: row.override_tier
       ? normalizePresentationTier(row.override_tier)
@@ -315,6 +351,13 @@ export function createDefaultPresentation(input?: {
     twoStory: input?.quoteSnapshot?.twoStory ?? false,
     includeScreens: input?.quoteSnapshot?.includeScreens ?? false,
     includeInterior: input?.quoteSnapshot?.includeInterior ?? false,
+    planMode: "simple",
+    presentationLayout: "signature",
+    carePlan: createDefaultCarePlan({
+      tier,
+      includeInterior: input?.quoteSnapshot?.includeInterior ?? false,
+      includeScreens: input?.quoteSnapshot?.includeScreens ?? false,
+    }),
     tier,
     ...rates,
     visitRateOverrides: {},

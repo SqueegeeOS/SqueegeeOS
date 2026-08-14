@@ -83,4 +83,16 @@ describe("agreement-pricing", () => {
     expect(pricing.visitsPerYear).toBe(3);
     expect(pricing.membershipAnnual).toBe(855);
   });
+
+  it("does not add interior pricing twice to a locked presentation total", () => {
+    const pricing = buildAgreementPricingSnapshot({
+      tier: "biannual",
+      visitPrice: 400,
+      homeSqft: 2500,
+      includeInterior: true,
+    });
+
+    expect(pricing.membershipPerVisit).toBe(400);
+    expect(pricing.membershipAnnual).toBe(800);
+  });
 });

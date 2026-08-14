@@ -1,4 +1,7 @@
-import { enrollmentSavingsForPresentation } from "@/lib/presentations/calculations";
+import {
+  computePresentationRates,
+  enrollmentSavingsForPresentation,
+} from "@/lib/presentations/calculations";
 import {
   isMembershipBillingAuthorized,
   membershipBillingTermsHash,
@@ -80,15 +83,22 @@ export function buildMembershipPricingFields(input: {
   tier: SqueegeeKingTierId;
   visitPrice: number;
   planName: string;
+  annualRate?: number;
+  variableVisitPricing?: boolean;
 }) {
   const visitsPerYear = SQUEEGEEKING_TIERS[input.tier].visitsPerYear;
-  const annualRate = calculateAnnualFromVisits(input.tier, input.visitPrice);
+  const annualRate =
+    input.annualRate && input.annualRate > 0
+      ? input.annualRate
+      : calculateAnnualFromVisits(input.tier, input.visitPrice);
   return {
     salesTier: input.tier as MembershipSalesTier,
     visitPrice: input.visitPrice,
     annualRate,
     visitsPerYear,
-    priceDisplay: `${formatTierPrice(input.visitPrice)}/visit`,
+    priceDisplay: `${formatTierPrice(input.visitPrice)}${
+      input.variableVisitPricing ? " average" : ""
+    }/visit`,
     billingPeriod: "per_visit",
     planName: input.planName,
   };
@@ -182,10 +192,20 @@ export async function completeSignOnboarding(
       "A complete service address is required before membership onboarding.",
     );
   }
+  const presentationRates = computePresentationRates({
+    ...presentation,
+    tier: input.agreementTier,
+  });
+  const hasCustomCarePlan =
+    presentation.planMode === "custom" &&
+    presentation.carePlan.tier === input.agreementTier &&
+    Boolean(presentationRates.carePlanPricing);
   const pricing = buildMembershipPricingFields({
     tier: input.agreementTier,
     visitPrice: input.visitPrice,
     planName: input.planName,
+    annualRate: hasCustomCarePlan ? presentationRates.annualRate : undefined,
+    variableVisitPricing: hasCustomCarePlan,
   });
 
   const { data: homeowner, error: homeownerError } = await supabase
@@ -390,6 +410,11 @@ export async function completeSignOnboarding(
       includeScreens: presentation.includeScreens,
       includeInterior: input.quoteSnapshot?.includeInterior ?? false,
       quoteSnapshot: input.quoteSnapshot,
+      carePlan: hasCustomCarePlan ? presentation.carePlan : null,
+      carePlanPricing: hasCustomCarePlan
+        ? presentationRates.carePlanPricing
+        : null,
+      annualPrice: hasCustomCarePlan ? presentationRates.annualRate : undefined,
       enrollmentSavings: enrollmentSavingsForPresentation(
         presentation,
         input.agreementTier,

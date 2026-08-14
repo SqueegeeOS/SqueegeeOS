@@ -16,6 +16,12 @@ import type {
 } from "./types";
 import { resolveEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import { tierCertaintyCopy } from "./tier-benefits";
+import { DEFAULT_COMPANY_SETTINGS } from "@/lib/pricing/company-settings";
+import {
+  calculateCarePlanPricing,
+  type PresentationCarePlan,
+  type PresentationPlanMode,
+} from "./care-plan";
 
 type VisitRateState = Pick<PresentationData, "tier"> &
   Partial<
@@ -42,6 +48,8 @@ export type PresentationPricingInput = Pick<
   twoStory?: boolean;
   includeScreens?: boolean;
   includeInterior?: boolean;
+  planMode?: PresentationPlanMode;
+  carePlan?: PresentationCarePlan;
 };
 
 /** `monthlyRate` > 0 means a legacy manual override on `overrideTier`. */
@@ -171,12 +179,6 @@ export function computePresentationRates(input: PresentationPricingInput) {
     quarterlyVisit = quarterlyOverride;
   }
 
-  const visitRate =
-    tier === "biannual"
-      ? biannualVisit
-      : tier === "triannual"
-        ? triannualVisit
-        : quarterlyVisit;
   const activeOverride =
     tier === "biannual"
       ? biannualOverride
@@ -184,7 +186,40 @@ export function computePresentationRates(input: PresentationPricingInput) {
         ? triannualOverride
         : quarterlyOverride;
 
-  const annualRate = calculateAnnualFromVisits(tier, visitRate);
+  const customPlanActive =
+    input.planMode === "custom" && input.carePlan?.tier === tier;
+  const carePlanPricing = customPlanActive
+    ? calculateCarePlanPricing({
+        plan: input.carePlan!,
+        baseVisitPrice:
+          activeOverride && activeOverride > 0
+            ? activeOverride
+            : calculateVisitPrice(tier, input.homeSqft, {
+                twoStory: input.twoStory,
+                includeScreens: false,
+                includeInterior: false,
+              }),
+        interiorAddOn: DEFAULT_COMPANY_SETTINGS.interiorCleaningAddOn,
+        screensAddOn: DEFAULT_COMPANY_SETTINGS.screenCleaningAddOn,
+      })
+    : null;
+
+  if (carePlanPricing) {
+    if (tier === "biannual") biannualVisit = carePlanPricing.averageVisitPrice;
+    else if (tier === "triannual") triannualVisit = carePlanPricing.averageVisitPrice;
+    else quarterlyVisit = carePlanPricing.averageVisitPrice;
+  }
+
+  const visitRate =
+    tier === "biannual"
+      ? biannualVisit
+      : tier === "triannual"
+        ? triannualVisit
+        : quarterlyVisit;
+
+  const annualRate = carePlanPricing
+    ? carePlanPricing.annualTotal
+    : calculateAnnualFromVisits(tier, visitRate);
   const upgrade = quarterlyUpgradeMath(biannualVisit, quarterlyVisit);
 
   const retailValue =
@@ -228,6 +263,7 @@ export function computePresentationRates(input: PresentationPricingInput) {
         ? quarterlyYearlyWindowSavings + retailValue
         : 0,
     upgrade,
+    carePlanPricing,
     narrative: tier === "quarterly" ? ("savings" as const) : ("certainty" as const),
     certaintyCopy: tierCertaintyCopy(tier),
   };
@@ -239,6 +275,8 @@ export function withComputedRates(
       twoStory?: boolean;
       includeScreens?: boolean;
       includeInterior?: boolean;
+      planMode?: PresentationPlanMode;
+      carePlan?: PresentationCarePlan;
     },
 ): Pick<
   PresentationData,
@@ -266,6 +304,8 @@ export function withComputedRates(
     twoStory: data.twoStory,
     includeScreens: data.includeScreens,
     includeInterior: data.includeInterior,
+    planMode: data.planMode,
+    carePlan: data.carePlan,
   });
   const legacy = legacyOverrideFieldsForTier(visitRateOverrides, data.tier);
 

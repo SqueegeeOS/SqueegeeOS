@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { PendingRequestsInbox } from "@/components/admin/pending-requests-inbox";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 
 export function PendingRequestsPage() {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;

@@ -21,8 +21,14 @@ import {
 } from "@/lib/persistence/supabase/client";
 import { getPresentation } from "@/lib/presentations/repository";
 import {
+  computePresentationRates,
   tierVisitPriceForPresentation,
 } from "@/lib/presentations/calculations";
+import {
+  createDefaultCarePlan,
+  serviceStateLabel,
+  summarizeCarePlan,
+} from "@/lib/presentations/care-plan";
 import {
   firstNameFromFullName,
   parseClientAddress,
@@ -78,6 +84,15 @@ export function buildPortalHomeCarePlanFromPresentation(
     zip: parsed.zip,
   });
   const propertyProfile: HomeCarePlanData["propertyProfile"] = [];
+  const customCarePlan =
+    input.presentation.planMode === "custom" &&
+    input.presentation.carePlan.tier === input.agreementTier
+      ? input.presentation.carePlan
+      : null;
+  const presentationRates = computePresentationRates({
+    ...input.presentation,
+    tier: input.agreementTier,
+  });
 
   if (input.presentation.homeSqft > 0) {
     propertyProfile.push({
@@ -92,6 +107,40 @@ export function buildPortalHomeCarePlanFromPresentation(
     value: input.planName,
     detail: `${squeegeeKingTierLabel(input.agreementTier)} care`,
   });
+
+  if (customCarePlan) {
+    propertyProfile.push({
+      label: "Care Rhythm",
+      value: summarizeCarePlan(customCarePlan),
+      detail: "Personalized visit-by-visit service plan",
+    });
+  }
+
+  const carePlanParagraphs = customCarePlan
+    ? [
+        customCarePlan.summary,
+        ...customCarePlan.visits.map(
+          (visit, index) =>
+            `Visit ${index + 1} - ${visit.label}${
+              presentationRates.carePlanPricing?.visits[index]
+                ? ` (${formatTierPrice(
+                    presentationRates.carePlanPricing.visits[index]!.total,
+                  )})`
+                : ""
+            }: exterior included; interior ${serviceStateLabel(
+              visit.interiorWindows,
+            ).toLowerCase()}; screens ${serviceStateLabel(
+              visit.screens,
+            ).toLowerCase()}${visit.notes ? `; ${visit.notes}` : ""}.`,
+        ),
+        ...(customCarePlan.customerChoiceNote
+          ? [customCarePlan.customerChoiceNote]
+          : []),
+      ]
+    : [];
+  const annualPrice = customCarePlan
+    ? presentationRates.annualRate
+    : input.visitPrice * SQUEEGEEKING_TIERS[input.agreementTier].visitsPerYear;
 
   return {
     homeowner: {
@@ -133,7 +182,10 @@ export function buildPortalHomeCarePlanFromPresentation(
     recommendation: {
       headline: `Your ${input.planName} membership.`,
       paragraphs: [
-        `${formatTierPrice(input.visitPrice)} per visit · billed on the 1st of your service month.`,
+        `${formatTierPrice(input.visitPrice)}${
+          customCarePlan ? " average" : ""
+        } per visit · ${formatTierPrice(annualPrice)} annual plan · billed on the 1st of your service month.`,
+        ...carePlanParagraphs,
       ],
       closing:
         "Nothing to do at the door — your care team handles scheduling and follow-through.",
@@ -154,7 +206,7 @@ export function buildPortalHomeCarePlanFromPresentation(
         name: input.planName,
         price: formatTierPrice(input.visitPrice),
         visitPrice: input.visitPrice,
-        period: "per visit",
+        period: customCarePlan ? "average per visit" : "per visit",
         lifestyle: squeegeeKingTierLabel(input.agreementTier),
         highlighted: true,
       },
@@ -347,6 +399,9 @@ async function backfillPortalHomeCarePlan(
       includeScreens: false,
       includeInterior: false,
       tier,
+      planMode: "simple",
+      presentationLayout: "signature",
+      carePlan: createDefaultCarePlan({ tier }),
       monthlyRate: visitPrice,
       annualRate: visitPrice * SQUEEGEEKING_TIERS[tier].visitsPerYear,
       retailValue: 0,

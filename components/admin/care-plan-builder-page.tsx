@@ -6,7 +6,7 @@ import { useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { FadePriceBlock, RollingPrice } from "@/components/admin/pricing-motion";
 import { useCompanySettings } from "@/components/pricing/pricing-settings-provider";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { buildCopyQuote, formatDollars, memberSavingsQuoteLine } from "@/lib/pricing/format";
 import { EXTERIOR_ADDON_AREA_GUIDANCE } from "@/lib/pricing/exterior-addon-guidance";
 import {
@@ -40,7 +40,7 @@ const pillIdle =
 
 export function CarePlanBuilderPage() {
   const router = useRouter();
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
   const { settings } = useCompanySettings();
   const minSqft = getMinSqft(settings);
   const maxSqft = getMaxSqft(settings);

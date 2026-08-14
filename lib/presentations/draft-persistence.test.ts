@@ -4,6 +4,7 @@ import {
   createPresentationDraftPayload,
   restorePresentationDraftPayload,
 } from "./draft-persistence";
+import { applyCarePlanPreset, createDefaultCarePlan } from "./care-plan";
 
 describe("presentation draft persistence", () => {
   it("round-trips every editable presentation field", () => {
@@ -21,6 +22,12 @@ describe("presentation draft persistence", () => {
       includeScreens: true,
       includeInterior: true,
       tier: "biannual" as const,
+      planMode: "custom" as const,
+      presentationLayout: "story" as const,
+      carePlan: applyCarePlanPreset(
+        createDefaultCarePlan({ tier: "biannual" }),
+        "annual_interior",
+      ),
       monthlyRate: 375,
       overrideTier: "biannual" as const,
       visitRateOverrides: { biannual: 375, quarterly: 290 },
@@ -93,5 +100,20 @@ describe("presentation draft persistence", () => {
     expect(restored.tier).toBe("triannual");
     expect(restored.overrideTier).toBe("triannual");
     expect(restored.visitRateOverrides?.triannual).toBe(285);
+  });
+
+  it("upgrades older draft payloads to a safe default care plan", () => {
+    const base = createDefaultPresentation({ clientName: "Legacy customer" });
+    const restored = restorePresentationDraftPayload(base, {
+      schemaVersion: 1,
+      tier: "biannual",
+      includeInterior: true,
+      includeScreens: false,
+    });
+
+    expect(restored.planMode).toBe("simple");
+    expect(restored.presentationLayout).toBe("signature");
+    expect(restored.carePlan.tier).toBe("biannual");
+    expect(restored.carePlan.visits).toHaveLength(2);
   });
 });

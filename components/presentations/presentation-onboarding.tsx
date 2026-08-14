@@ -53,7 +53,7 @@ const STEP_ORDER: Record<OnboardingStep, number> = {
   complete: 3,
 };
 
-function tierToPlanId(_tier: PresentationTier): MembershipPlanId {
+function tierToPlanId(): MembershipPlanId {
   return "preferred";
 }
 
@@ -98,7 +98,12 @@ export function PresentationOnboarding({
     resolveInitialStep(presentation),
   );
   const stepRef = useRef(step);
-  const [tier, setTier] = useState<PresentationTier>(selectedTier);
+  const customPlanLocked =
+    presentation.planMode === "custom" &&
+    presentation.carePlan.tier === presentation.tier;
+  const [tier, setTier] = useState<PresentationTier>(() =>
+    customPlanLocked ? presentation.tier : selectedTier,
+  );
   const [signature, setSignature] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -144,7 +149,10 @@ export function PresentationOnboarding({
       : tier === "triannual"
         ? rates.triannualVisit
         : rates.quarterlyVisit;
-  const annualTotal = calculateAnnualFromVisits(tier, visitPrice);
+  const annualTotal =
+    customPlanLocked && rates.carePlanPricing
+      ? rates.annualRate
+      : calculateAnnualFromVisits(tier, visitPrice);
 
   const syncPresentation = (next: PresentationData) => {
     cachePresentation(next);
@@ -257,7 +265,7 @@ export function PresentationOnboarding({
           homeownerSlug,
           propertySlug,
           propertyName: presentation.clientAddress || presentation.clientName,
-          planId: tierToPlanId(tier),
+          planId: tierToPlanId(),
           planName: planNameForAgreement(tier),
           signatureDataUrl: signature,
           signedAt,
@@ -369,33 +377,50 @@ export function PresentationOnboarding({
               {SQUEEGEEKING_TIERS[tier].addonDiscount}% OFF add-ons
             </p>
 
-            <div className="mt-4 flex gap-2">
-              {(["biannual", "quarterly"] as const).map((option) => (
+            {customPlanLocked ? (
+              <div className="mt-4 rounded-lg border border-accent/20 bg-accent/[0.06] px-4 py-3 text-left">
+                <p className="text-[10px] uppercase tracking-[0.15em] text-accent/65">
+                  Personalized plan locked
+                </p>
+                <p className="mt-1 text-sm text-white/65">
+                  {presentation.carePlan.summary}
+                </p>
+                <p className="mt-2 text-xs text-white/40">
+                  {formatTierPrice(visitPrice)} average per visit ·{" "}
+                  {formatTierPrice(annualTotal)} annual plan
+                </p>
+              </div>
+            ) : (
+              <>
+                <div className="mt-4 flex gap-2">
+                  {(["biannual", "quarterly"] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => setTier(option)}
+                      className={`flex-1 rounded border px-3 py-2 text-[11px] uppercase tracking-[0.12em] ${
+                        tier === option
+                          ? "border-accent/40 bg-accent/10 text-accent"
+                          : "border-white/10 text-white/40"
+                      }`}
+                    >
+                      {SQUEEGEEKING_TIERS[option].label}
+                    </button>
+                  ))}
+                </div>
                 <button
-                  key={option}
                   type="button"
-                  onClick={() => setTier(option)}
-                  className={`flex-1 rounded border px-3 py-2 text-[11px] uppercase tracking-[0.12em] ${
-                    tier === option
+                  onClick={() => setTier("triannual")}
+                  className={`mt-2 w-full rounded border px-3 py-2 text-[10px] uppercase tracking-[0.12em] ${
+                    tier === "triannual"
                       ? "border-accent/40 bg-accent/10 text-accent"
-                      : "border-white/10 text-white/40"
+                      : "border-white/10 text-white/35"
                   }`}
                 >
-                  {SQUEEGEEKING_TIERS[option].label}
+                  Optional · 3× per year · every 4 months
                 </button>
-              ))}
-            </div>
-            <button
-              type="button"
-              onClick={() => setTier("triannual")}
-              className={`mt-2 w-full rounded border px-3 py-2 text-[10px] uppercase tracking-[0.12em] ${
-                tier === "triannual"
-                  ? "border-accent/40 bg-accent/10 text-accent"
-                  : "border-white/10 text-white/35"
-              }`}
-            >
-              Optional · 3× per year · every 4 months
-            </button>
+              </>
+            )}
 
             <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left">
               <p className="font-serif text-sm italic leading-relaxed text-accent/80">
@@ -426,7 +451,7 @@ export function PresentationOnboarding({
               />
               <span className="text-xs leading-relaxed text-white/50">
                 {membershipAgreementCheckboxText()} I authorize{" "}
-                {formatTierPrice(visitPrice)} per visit (
+                {formatTierPrice(visitPrice)} {customPlanLocked ? "average " : ""}per visit (
                 {formatTierPrice(annualTotal)}/year) for the SqueegeeKing{" "}
                 {tierLabel(tier)} plan.
               </span>

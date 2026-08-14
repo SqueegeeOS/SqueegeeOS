@@ -3,7 +3,7 @@ export interface MembershipProductionSigning {
   propertyId: string;
   customerName: string;
   propertyAddress: string;
-  tier: "biannual" | "quarterly" | "unknown";
+  tier: "biannual" | "triannual" | "quarterly" | "unknown";
   visitPrice: number | null;
   yearlyValue: number | null;
   signedAt: string;

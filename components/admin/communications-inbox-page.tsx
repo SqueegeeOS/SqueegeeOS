@@ -8,7 +8,7 @@ import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import {
   manualSendFingerprint,
   resolveManualSendAttempt,
@@ -1787,7 +1787,7 @@ function CommunicationsInboxContent() {
 }
 
 export function CommunicationsInboxPage() {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;

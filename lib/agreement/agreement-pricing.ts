@@ -7,7 +7,6 @@ import {
   calculateVisitPrice,
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
-import { calculateInteriorExteriorPrice } from "@/lib/pricing/window-care-pricing";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { careFrequencyToPresentationTier } from "@/lib/presentations/quote-snapshot";
 
@@ -147,7 +146,9 @@ export function buildAgreementPricingSnapshot(
   const ctx = resolvePricingContext(input);
   const visitsPerYear = SQUEEGEEKING_TIERS[input.tier].visitsPerYear;
 
-  const exteriorMembershipPerVisit =
+  // A presentation or quote snapshot supplies the final, customer-facing
+  // visit total. Never re-apply interior/screens to a locked price here.
+  const membershipPerVisit =
     input.visitPrice && input.visitPrice > 0
       ? input.visitPrice
       : ctx.snapshotVisitPrice && ctx.snapshotTier === input.tier
@@ -155,11 +156,8 @@ export function buildAgreementPricingSnapshot(
         : calculateVisitPrice(input.tier, ctx.sqft, {
             twoStory: ctx.twoStory,
             includeScreens: ctx.includeScreens,
+            includeInterior: ctx.includeInterior,
           });
-
-  const membershipPerVisit = ctx.includeInterior
-    ? calculateInteriorExteriorPrice(exteriorMembershipPerVisit)
-    : exteriorMembershipPerVisit;
 
   const membershipAnnual = membershipPerVisit * visitsPerYear;
   const retailPerVisit = oneTimeRetailPerVisit(membershipPerVisit, input.tier);

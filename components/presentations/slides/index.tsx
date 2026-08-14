@@ -16,13 +16,20 @@ import {
   ProcessTimeline,
 } from "./visual-primitives";
 import { computePresentationRates } from "@/lib/presentations/calculations";
+import {
+  serviceStateLabel,
+  summarizeCarePlan,
+} from "@/lib/presentations/care-plan";
 import { formatDollars, memberSavingsQuoteLine } from "@/lib/pricing/format";
 import {
   MEMBERSHIP_BILLING_PHILOSOPHY,
   MEMBERSHIP_BILLING_REMINDER,
 } from "@/lib/agreement/agreement-content";
 import { formatTierPrice, SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
-import type { PresentationTier } from "@/lib/presentations/types";
+import {
+  tierLabel,
+  type PresentationTier,
+} from "@/lib/presentations/types";
 import {
   quarterlyComplimentaryLine,
   quarterlySavingsLine,
@@ -56,9 +63,12 @@ export function CoverSlide({ presentation, overrides }: SlideComponentProps) {
 
 export function IncludedSlide({ presentation, overrides }: SlideComponentProps) {
   const def = SQUEEGEEKING_TIERS[presentation.tier];
-  const scope = presentation.includeInterior
-    ? "Interior + exterior glass"
-    : "Exterior glass";
+  const scope =
+    presentation.planMode === "custom"
+      ? summarizeCarePlan(presentation.carePlan)
+      : presentation.includeInterior
+        ? "Interior + exterior glass"
+        : "Exterior glass";
   return (
     <FullSlide>
       <div className="mx-auto max-w-4xl text-center">
@@ -69,9 +79,78 @@ export function IncludedSlide({ presentation, overrides }: SlideComponentProps) 
         </p>
         <p className="mt-2 text-xs tracking-wide text-white/40">
           {scope}
-          {presentation.includeScreens ? " · screens included" : ""}
+          {presentation.planMode === "simple" && presentation.includeScreens
+            ? " · screens included"
+            : ""}
         </p>
         <IncludedVisual tier={presentation.tier} />
+      </div>
+    </FullSlide>
+  );
+}
+
+export function CarePlanSlide({ presentation, overrides }: SlideComponentProps) {
+  const rates = computePresentationRates(presentation);
+  const pricing = rates.carePlanPricing;
+
+  return (
+    <FullSlide>
+      <div className="mx-auto max-w-5xl">
+        <Eyebrow>Your home&apos;s care rhythm</Eyebrow>
+        <HeroText>{overrides?.headline ?? presentation.carePlan.summary}</HeroText>
+        <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/55">
+          A clear visit-by-visit plan, built around this home instead of a generic package.
+        </p>
+
+        <div className="mt-8 grid gap-3 sm:grid-cols-2">
+          {presentation.carePlan.visits.map((visit, index) => {
+            const visitPrice = pricing?.visits[index]?.total;
+            return (
+              <article
+                key={visit.id}
+                className="rounded-2xl border border-white/10 bg-white/[0.035] p-5"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.16em] text-accent/65">
+                      Visit {index + 1}
+                    </p>
+                    <h3 className="mt-1 font-serif text-xl text-[#f5f2eb]">
+                      {visit.label}
+                    </h3>
+                    <p className="mt-1 text-xs text-white/40">{visit.timing}</p>
+                  </div>
+                  {typeof visitPrice === "number" ? (
+                    <p className="shrink-0 font-serif text-lg text-accent">
+                      {formatTierPrice(visitPrice)}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[10px]">
+                  <div className="rounded-lg border border-accent/20 bg-accent/[0.06] px-2 py-2 text-accent">
+                    Exterior<br />Included
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/10 px-2 py-2 text-white/55">
+                    Interior<br />{serviceStateLabel(visit.interiorWindows)}
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/10 px-2 py-2 text-white/55">
+                    Screens<br />{serviceStateLabel(visit.screens)}
+                  </div>
+                </div>
+                {visit.notes ? (
+                  <p className="mt-3 text-xs leading-relaxed text-white/45">{visit.notes}</p>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+
+        {presentation.carePlan.customerChoiceNote ? (
+          <p className="mt-6 text-center font-serif text-sm italic text-accent/70">
+            {presentation.carePlan.customerChoiceNote}
+          </p>
+        ) : null}
       </div>
     </FullSlide>
   );
@@ -98,6 +177,54 @@ export function InvestmentSlide({ presentation, overrides }: SlideComponentProps
   const { upgrade } = rates;
   const [showBreakdown, setShowBreakdown] = useState(false);
   const savingsLine = quarterlySavingsLine(upgrade);
+
+  if (presentation.planMode === "custom" && rates.carePlanPricing) {
+    return (
+      <FullSlide>
+        <div className="mx-auto max-w-4xl">
+          <Eyebrow>{overrides?.headline ?? "Your plan"}</Eyebrow>
+          <HeroText>Built for this home.</HeroText>
+          <p className="mt-4 max-w-2xl text-sm leading-relaxed text-white/55">
+            Every scheduled visit has a clear scope and price. Optional work is
+            only added when you choose it.
+          </p>
+
+          <div className="mt-8 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03]">
+            {rates.carePlanPricing.visits.map((visit, index) => (
+              <div
+                key={visit.id}
+                className="flex items-center justify-between gap-5 border-b border-white/[0.08] px-5 py-4 last:border-b-0 sm:px-6"
+              >
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.15em] text-white/35">
+                    Visit {index + 1}
+                  </p>
+                  <p className="mt-1 text-sm text-[#f5f2eb]">{visit.label}</p>
+                </div>
+                <p className="font-serif text-xl text-accent">
+                  {formatTierPrice(visit.total)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 flex items-end justify-between gap-5 rounded-2xl border border-accent/20 bg-accent/[0.06] px-5 py-5 sm:px-6">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-accent/65">
+                Annual care plan
+              </p>
+              <p className="mt-1 text-sm text-white/45">
+                {presentation.carePlan.visits.length} scheduled visits
+              </p>
+            </div>
+            <p className="font-serif text-3xl text-accent">
+              {formatTierPrice(rates.carePlanPricing.annualTotal)}
+            </p>
+          </div>
+        </div>
+      </FullSlide>
+    );
+  }
 
   return (
     <FullSlide>
@@ -244,30 +371,49 @@ export function CloseSlide({ presentation, overrides, onSign }: SlideComponentPr
           <IconBullet icon="✓">No payment when we arrive — care stays at the center</IconBullet>
         </ul>
 
-        <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <button
-            type="button"
-            onClick={() => onSign?.("biannual")}
-            className="min-h-[52px] rounded-xl border border-white/20 bg-white/[0.03] px-8 py-4 text-sm font-medium text-[#f5f2eb] transition-colors duration-200 hover:border-white/40 hover:bg-white/[0.06] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
-          >
-            Bi-Annual · {formatTierPrice(rates.biannualVisit)}/visit
-          </button>
-          <button
-            type="button"
-            onClick={() => onSign?.("quarterly")}
-            className="min-h-[52px] rounded-xl bg-gradient-to-br from-accent via-[#e8d5a3] to-accent px-8 py-4 text-sm font-semibold text-[#060606] shadow-[0_0_40px_rgba(201,184,150,0.25)] transition-shadow duration-300 hover:shadow-[0_0_56px_rgba(201,184,150,0.35)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
-          >
-            Quarterly · {formatTierPrice(rates.quarterlyVisit)}/visit
-          </button>
-        </div>
+        {presentation.planMode === "custom" ? (
+          <div className="mt-12">
+            <button
+              type="button"
+              onClick={() => onSign?.(presentation.tier)}
+              className="min-h-[56px] w-full max-w-md rounded-xl bg-gradient-to-br from-accent via-[#e8d5a3] to-accent px-8 py-4 text-sm font-semibold text-[#060606] shadow-[0_0_40px_rgba(201,184,150,0.25)] transition-shadow duration-300 hover:shadow-[0_0_56px_rgba(201,184,150,0.35)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
+            >
+              Begin my {tierLabel(presentation.tier)} care plan
+            </button>
+            <p className="mt-3 text-xs text-white/40">
+              {formatTierPrice(rates.visitRate)} average per visit ·{" "}
+              {formatTierPrice(rates.annualRate)} annual plan
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-12 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={() => onSign?.("biannual")}
+                className="min-h-[52px] rounded-xl border border-white/20 bg-white/[0.03] px-8 py-4 text-sm font-medium text-[#f5f2eb] transition-colors duration-200 hover:border-white/40 hover:bg-white/[0.06] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
+              >
+                Bi-Annual · {formatTierPrice(rates.biannualVisit)}/visit
+              </button>
+              <button
+                type="button"
+                onClick={() => onSign?.("quarterly")}
+                className="min-h-[52px] rounded-xl bg-gradient-to-br from-accent via-[#e8d5a3] to-accent px-8 py-4 text-sm font-semibold text-[#060606] shadow-[0_0_40px_rgba(201,184,150,0.25)] transition-shadow duration-300 hover:shadow-[0_0_56px_rgba(201,184,150,0.35)] active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent/60"
+              >
+                Quarterly · {formatTierPrice(rates.quarterlyVisit)}/visit
+              </button>
+            </div>
 
-        <button
-          type="button"
-          onClick={() => onSign?.("triannual")}
-          className="mt-3 text-xs text-white/40 underline decoration-white/15 underline-offset-4 transition hover:text-accent"
-        >
-          Prefer a middle cadence? 3× per year · {formatTierPrice(rates.triannualVisit)}/visit
-        </button>
+            <button
+              type="button"
+              onClick={() => onSign?.("triannual")}
+              className="mt-3 text-xs text-white/40 underline decoration-white/15 underline-offset-4 transition hover:text-accent"
+            >
+              Prefer a middle cadence? 3× per year ·{" "}
+              {formatTierPrice(rates.triannualVisit)}/visit
+            </button>
+          </>
+        )}
 
         <p className="mt-6 text-[11px] tracking-wide text-white/40">
           7-day guarantee · PDF agreement · {MEMBERSHIP_BILLING_REMINDER.split(".")[0]}
@@ -283,6 +429,7 @@ export function CloseSlide({ presentation, overrides, onSign }: SlideComponentPr
 export const SLIDE_COMPONENTS = {
   cover: CoverSlide,
   included: IncludedSlide,
+  care_plan: CarePlanSlide,
   difference: DifferenceSlide,
   investment: InvestmentSlide,
   process: ProcessSlide,
