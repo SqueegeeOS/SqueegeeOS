@@ -44,6 +44,7 @@ import {
 
 export interface ServiceObservationView {
   id: string;
+  fieldRecordId: string | null;
   observedAt: string;
   observedBy: string | null;
   notes: string;
@@ -208,6 +209,7 @@ interface ObservationRow {
 
 interface AssessmentNoteRow {
   id: string;
+  field_record_id: string | null;
   technician_name: string;
   customer_note: string;
   visit_date: string;
@@ -215,11 +217,13 @@ interface AssessmentNoteRow {
 
 interface PortalPhotoRow {
   id: string;
+  field_record_id: string | null;
   storage_bucket: string | null;
   storage_path: string;
   title: string;
   description: string | null;
   capture_type: "before" | "after" | "detail" | null;
+  captured_by: string | null;
   is_primary: boolean;
   captured_at: string | null;
   created_at: string;
@@ -330,6 +334,7 @@ function mapObservation(row: ObservationRow): ServiceObservationView {
   const flag = row.observation_flags?.[0];
   return {
     id: row.id,
+    fieldRecordId: null,
     observedAt: row.observed_at,
     observedBy: row.observed_by,
     notes: row.notes,
@@ -341,6 +346,7 @@ function mapObservation(row: ObservationRow): ServiceObservationView {
 function mapAssessmentNote(row: AssessmentNoteRow): ServiceObservationView {
   return {
     id: `assessment-${row.id}`,
+    fieldRecordId: row.field_record_id,
     observedAt: `${row.visit_date}T12:00:00.000Z`,
     observedBy: row.technician_name,
     notes: row.customer_note,
@@ -634,7 +640,7 @@ export async function getMemberPortalDataBySlugs(
         .limit(8),
       supabase
         .from("property_assessments")
-        .select("id, technician_name, customer_note, visit_date")
+        .select("id, field_record_id, technician_name, customer_note, visit_date")
         .eq("property_id", propertyRow.id)
         .eq("customer_note_visible", true)
         .not("customer_note", "is", null)
@@ -643,7 +649,7 @@ export async function getMemberPortalDataBySlugs(
       supabase
         .from("property_assets")
         .select(
-          "id, storage_bucket, storage_path, title, description, capture_type, is_primary, captured_at, created_at",
+          "id, field_record_id, storage_bucket, storage_path, title, description, capture_type, captured_by, is_primary, captured_at, created_at",
         )
         .eq("property_id", propertyRow.id)
         .eq("kind", "photo")
@@ -694,12 +700,14 @@ export async function getMemberPortalDataBySlugs(
         if (signed.error || !signed.data?.signedUrl) return null;
         return {
           id: photo.id,
+          fieldRecordId: photo.field_record_id,
           source: "our_team",
           url: signed.data.signedUrl,
           caption: photo.title || photo.description,
           isPrimary: photo.is_primary,
           uploadedAt: photo.captured_at ?? photo.created_at,
           captureType: photo.capture_type,
+          capturedBy: photo.captured_by,
         };
         },
       ),

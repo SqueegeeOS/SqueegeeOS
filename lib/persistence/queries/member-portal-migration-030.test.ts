@@ -31,17 +31,20 @@ let jobberVisitFixture: {
 } | null = null;
 let assessmentNoteFixture: Array<{
   id: string;
+  field_record_id: string | null;
   technician_name: string;
   customer_note: string;
   visit_date: string;
 }> = [];
 let propertyAssetFixture: Array<{
   id: string;
+  field_record_id: string | null;
   storage_bucket: string;
   storage_path: string;
   title: string;
   description: string | null;
   capture_type: "before" | "after" | "detail";
+  captured_by: string | null;
   is_primary: boolean;
   captured_at: string;
   created_at: string;
@@ -353,6 +356,7 @@ describe("migration 030 portal appointment regression", () => {
     assessmentNoteFixture = [
       {
         id: "assessment-1",
+        field_record_id: "field-record-1",
         technician_name: "Noah",
         customer_note: "Exterior glass cleaned and inspected.",
         visit_date: "2026-08-14",
@@ -361,11 +365,13 @@ describe("migration 030 portal appointment regression", () => {
     propertyAssetFixture = [
       {
         id: "asset-1",
+        field_record_id: "field-record-1",
         storage_bucket: "homeatlas-visit-media",
         storage_path: "properties/property-1/visits/visit-1/after.jpg",
         title: "After service",
         description: null,
         capture_type: "after",
+        captured_by: "Noah",
         is_primary: false,
         captured_at: "2026-08-14T18:00:00.000Z",
         created_at: "2026-08-14T18:00:00.000Z",
@@ -379,15 +385,18 @@ describe("migration 030 portal appointment regression", () => {
 
     expect(data?.observations).toContainEqual(
       expect.objectContaining({
+        fieldRecordId: "field-record-1",
         observedBy: "Noah",
         notes: "Exterior glass cleaned and inspected.",
       }),
     );
     expect(data?.property.photos).toEqual([
       expect.objectContaining({
+        fieldRecordId: "field-record-1",
         source: "our_team",
         caption: "After service",
         captureType: "after",
+        capturedBy: "Noah",
         url: expect.stringContaining("/signed/properties/property-1"),
       }),
     ]);

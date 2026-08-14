@@ -68,12 +68,14 @@ export interface PropertyRecord {
 
 export interface PropertyPhotoView {
   id?: string;
+  fieldRecordId?: string | null;
   source: "zillow" | "our_team" | "member_uploaded" | "internal";
   url: string;
   caption?: string | null;
   isPrimary: boolean;
   uploadedAt: string;
   captureType?: "before" | "after" | "detail" | null;
+  capturedBy?: string | null;
 }
 
 export interface QuoteGenerationContext {
