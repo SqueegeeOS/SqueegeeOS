@@ -5,6 +5,7 @@ import {
   runMetaLeadPostSaveAutomation,
 } from "@/lib/integrations/meta-lead-ingestion";
 import { parseMetaLeadWebhookPayload } from "@/lib/integrations/meta-lead-ads";
+import { recordCurrentMetaWebhookProof } from "@/lib/integrations/meta-webhook-readiness";
 import { verifyMetaWebhookSignature } from "@/lib/integrations/webhook-signatures";
 
 export const runtime = "nodejs";
@@ -19,6 +20,17 @@ export async function GET(request: Request) {
   const challenge = url.searchParams.get("hub.challenge");
   if (mode !== "subscribe" || token !== verifyToken || !challenge) {
     return new Response("Verification failed", { status: 403 });
+  }
+  try {
+    await recordCurrentMetaWebhookProof({
+      kind: "callback_challenge",
+      payload: challenge,
+    });
+  } catch (error) {
+    console.error("[meta-leads] callback proof failed", {
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return new Response("Verification storage unavailable", { status: 503 });
   }
   return new Response(challenge, {
     status: 200,
@@ -42,6 +54,20 @@ export async function POST(request: Request) {
   const references = parseMetaLeadWebhookPayload(rawPayload);
   if (!references) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+  }
+  try {
+    await recordCurrentMetaWebhookProof({
+      kind: "signed_event",
+      payload: rawPayload,
+    });
+  } catch (error) {
+    console.error("[meta-leads] signed webhook proof failed", {
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return NextResponse.json(
+      { error: "Webhook verification storage unavailable" },
+      { status: 503 },
+    );
   }
   if (references.length === 0) {
     return NextResponse.json({ received: true, leads: 0 }, { status: 202 });
