@@ -11,7 +11,7 @@ import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 import type { HqMembershipRow } from "@/app/api/admin/memberships/route";
 
@@ -64,7 +64,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export function HqMembershipsPage() {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
@@ -116,7 +116,6 @@ function HqMembershipsContent() {
     (r) => r.status === "active" || r.status === "scheduled" || r.status === "needs scheduling",
   );
   const needsScheduling = live.filter((r) => r.status === "needs scheduling");
-  const pending = live.filter((r) => r.status === "signed" || r.status === "needs card");
   const yearly = live.reduce((sum, r) => sum + (r.yearlyValue ?? 0), 0);
   const now = new Date();
   const thisMonth = live

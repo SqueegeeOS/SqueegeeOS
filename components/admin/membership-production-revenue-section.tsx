@@ -5,8 +5,11 @@ import { formatCurrency } from "@/lib/admin/sales-calculations";
 import { craftEyebrow, craftTableHead } from "@/lib/craft/tokens";
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 
-function tierLabel(tier: "biannual" | "quarterly" | "unknown"): string {
+function tierLabel(
+  tier: "biannual" | "triannual" | "quarterly" | "unknown",
+): string {
   if (tier === "biannual") return "Bi-Annual";
+  if (tier === "triannual") return "Tri-Annual";
   if (tier === "quarterly") return "Quarterly";
   return "Unknown";
 }

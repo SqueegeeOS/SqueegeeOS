@@ -10,6 +10,7 @@ describe("customer data route boundaries", () => {
     for (const route of [
       "app/api/presentations/route.ts",
       "app/api/presentations/[id]/route.ts",
+      "app/api/presentations/plan-assistant/route.ts",
     ]) {
       const source = readProjectFile(route);
       expect(source).toContain("authorizeAdminRequest");
@@ -203,5 +204,11 @@ describe("customer data route boundaries", () => {
     );
     expect(source).toContain("authorizeAdminRequest");
     expect(source).toMatch(/authorizeAdminRequest\(request\.headers\)/);
+  });
+
+  it("protects source-backed growth truth at the route handler", () => {
+    const source = readProjectFile("app/api/admin/growth/route.ts");
+    expect(source).toContain("authorizeAdminRequest");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
   });
 });

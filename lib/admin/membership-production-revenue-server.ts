@@ -146,7 +146,9 @@ export async function loadMembershipProductionRevenueOverview(): Promise<Members
         const cardOnFile = hasPaymentMethodOnFile(row);
         const membershipActive = isMembershipActive(row);
         const tier: MembershipProductionSigning["tier"] =
-          row.sales_tier === "biannual" || row.sales_tier === "quarterly"
+          row.sales_tier === "biannual" ||
+          row.sales_tier === "triannual" ||
+          row.sales_tier === "quarterly"
             ? row.sales_tier
             : "unknown";
 

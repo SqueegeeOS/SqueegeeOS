@@ -7,8 +7,18 @@ import type {
   SlideType,
   VisitRateOverrides,
 } from "./types";
+import {
+  createDefaultCarePlan,
+  normalizeCarePlan,
+  normalizePresentationLayout,
+  normalizePresentationPlanMode,
+  resizeCarePlan,
+  type PresentationCarePlan,
+  type PresentationLayout,
+  type PresentationPlanMode,
+} from "./care-plan";
 
-export const PRESENTATION_DRAFT_SCHEMA_VERSION = 1;
+export const PRESENTATION_DRAFT_SCHEMA_VERSION = 2;
 
 export interface PresentationDraftPayload {
   schemaVersion: typeof PRESENTATION_DRAFT_SCHEMA_VERSION;
@@ -19,6 +29,9 @@ export interface PresentationDraftPayload {
   twoStory: boolean;
   includeScreens: boolean;
   includeInterior: boolean;
+  planMode: PresentationPlanMode;
+  presentationLayout: PresentationLayout;
+  carePlan: PresentationCarePlan;
   tier: PresentationTier;
   monthlyRate: number;
   overrideTier: PresentationTier | null;
@@ -115,6 +128,9 @@ export function createPresentationDraftPayload(
     twoStory: data.twoStory,
     includeScreens: data.includeScreens,
     includeInterior: data.includeInterior,
+    planMode: data.planMode,
+    presentationLayout: data.presentationLayout,
+    carePlan: data.carePlan,
     tier: data.tier,
     monthlyRate: data.monthlyRate,
     overrideTier: data.overrideTier ?? null,
@@ -134,6 +150,22 @@ export function restorePresentationDraftPayload(
 ): PresentationData {
   if (!isRecord(payload)) return base;
 
+  const tier = tierValue(payload.tier, base.tier);
+  const includeInterior = booleanValue(
+    payload.includeInterior,
+    base.includeInterior,
+  );
+  const includeScreens = booleanValue(payload.includeScreens, base.includeScreens);
+  const carePlanFallback =
+    base.carePlan?.tier === tier
+      ? base.carePlan
+      : createDefaultCarePlan({ tier, includeInterior, includeScreens });
+  const normalizedCarePlan = normalizeCarePlan(payload.carePlan, carePlanFallback);
+  const carePlan =
+    normalizedCarePlan.tier === tier
+      ? normalizedCarePlan
+      : resizeCarePlan(normalizedCarePlan, tier);
+
   return {
     ...base,
     clientName: stringValue(payload.clientName, base.clientName),
@@ -141,9 +173,15 @@ export function restorePresentationDraftPayload(
     clientEmail: stringValue(payload.clientEmail, base.clientEmail),
     homeSqft: numberValue(payload.homeSqft, base.homeSqft),
     twoStory: booleanValue(payload.twoStory, base.twoStory),
-    includeScreens: booleanValue(payload.includeScreens, base.includeScreens),
-    includeInterior: booleanValue(payload.includeInterior, base.includeInterior),
-    tier: tierValue(payload.tier, base.tier),
+    includeScreens,
+    includeInterior,
+    planMode: normalizePresentationPlanMode(payload.planMode, base.planMode),
+    presentationLayout: normalizePresentationLayout(
+      payload.presentationLayout,
+      base.presentationLayout,
+    ),
+    carePlan,
+    tier,
     monthlyRate: numberValue(payload.monthlyRate, base.monthlyRate),
     overrideTier: nullableTierValue(
       payload.overrideTier,

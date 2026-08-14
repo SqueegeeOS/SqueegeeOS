@@ -27,6 +27,7 @@ export const ROUTES = {
   hqPendingRequests: "/hq/requests",
   hqToday: "/hq/today",
   hqBilling: "/hq/billing",
+  hqGrowth: "/hq/growth",
   hqMembership: "/hq/memberships",
   hqCustomerWorkspace: (type: string, id: string) =>
     `/hq/customers/${type}/${encodeURIComponent(id)}`,

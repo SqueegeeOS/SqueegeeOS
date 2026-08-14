@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateVisitPrice } from "@/lib/membership/tier-config";
 import { buildMembershipPricingFields } from "@/lib/membership/complete-sign-onboarding";
+import { createDefaultCarePlan } from "@/lib/presentations/care-plan";
 import {
   applyTierVisitOverride,
   computePresentationRates,
@@ -139,6 +140,47 @@ describe("manual per-visit override precedence", () => {
     });
     expect(membership.visitPrice).toBe(300);
     expect(membership.priceDisplay).toBe("$300/visit");
+  });
+
+  it("uses an exact annual total for variable custom visits", () => {
+    const plan = createDefaultCarePlan({ tier: "quarterly" });
+    plan.visits[0] = {
+      ...plan.visits[0]!,
+      interiorWindows: "included",
+    };
+    plan.visits[1] = {
+      ...plan.visits[1]!,
+      screens: "optional",
+    };
+
+    const rates = computePresentationRates({
+      tier: "quarterly",
+      homeSqft: SQFT,
+      planMode: "custom",
+      carePlan: plan,
+      twoStory: false,
+      includeScreens: false,
+      includeInterior: false,
+    });
+    const exterior = calculateVisitPrice("quarterly", SQFT);
+
+    expect(rates.carePlanPricing?.visits.map((visit) => visit.total)).toEqual([
+      exterior + 100,
+      exterior,
+      exterior,
+      exterior,
+    ]);
+    expect(rates.annualRate).toBe(exterior * 4 + 100);
+
+    const membership = buildMembershipPricingFields({
+      tier: "quarterly",
+      visitPrice: rates.visitRate,
+      annualRate: rates.annualRate,
+      variableVisitPricing: true,
+      planName: "Personalized Quarterly Membership",
+    });
+    expect(membership.annualRate).toBe(exterior * 4 + 100);
+    expect(membership.priceDisplay).toContain("average/visit");
   });
 
   it("preserves per-tier overrides through withComputedRates and tier changes", () => {

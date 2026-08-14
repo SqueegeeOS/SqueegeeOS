@@ -6,7 +6,7 @@ import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import {
   classifyJobberTodayVisit,
   isJobberTodayDataStale,
@@ -452,7 +452,7 @@ function TodayWorkspaceContent() {
 }
 
 export function TodayWorkspacePage() {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
   if (!unlocked) return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
   return <TodayWorkspaceContent />;
 }

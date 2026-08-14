@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { JobberConnectionPanel } from "@/components/admin/jobber-connection-panel";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { MotionReveal } from "@/components/craft/motion-reveal";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 
 function JobberHeadquartersContent() {
@@ -31,7 +30,7 @@ function JobberHeadquartersContent() {
 }
 
 export function JobberHeadquartersPage() {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
   }

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { CustomerWorkspacePage } from "@/components/admin/customer-workspace-page";
 import type { CustomerWorkspaceRefType } from "@/lib/hq/customer-workspace/types";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 
 const TYPES: CustomerWorkspaceRefType[] = [
   "lead",
@@ -24,7 +23,7 @@ export function CustomerWorkspacePageShell({
   type: string;
   id: string;
 }) {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
 
   if (!isRefType(type)) {
     return <p className="p-8 text-sm text-muted">Invalid customer workspace.</p>;

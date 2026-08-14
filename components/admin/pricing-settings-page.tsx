@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { useCompanySettings } from "@/components/pricing/pricing-settings-provider";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import {
   normalizeCompanySettings,
   perThousandFromRate,
@@ -21,7 +21,7 @@ const inputClass =
 const labelClass = "text-[10px] uppercase tracking-[0.24em] text-muted";
 
 export function PricingSettingsPage() {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
   const { settings, loading, storage, saveSettings, refresh } = useCompanySettings();
   const [draft, setDraft] = useState<CompanySettings>(settings);
   const [saving, setSaving] = useState(false);

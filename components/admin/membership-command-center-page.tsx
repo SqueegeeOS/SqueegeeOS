@@ -11,7 +11,7 @@ import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import type { MembershipCommandCenterData } from "@/lib/admin/membership-command-center-types";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 
 function LoadingShell() {
@@ -312,7 +312,7 @@ function CommandCenterContent() {
 }
 
 export function MembershipCommandCenterPage() {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;

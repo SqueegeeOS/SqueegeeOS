@@ -25,6 +25,14 @@ import {
 } from "@/lib/agreement/pdf-layout";
 import type { AgreementKind } from "@/lib/agreement/one-time-agreement";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
+import type {
+  CarePlanPricing,
+  PresentationCarePlan,
+} from "@/lib/presentations/care-plan";
+import {
+  serviceStateLabel,
+  summarizeCarePlan,
+} from "@/lib/presentations/care-plan";
 import {
   ONE_TIME_AGREEMENT_TITLE,
   ONE_TIME_AGREEMENT_TEMPLATE,
@@ -45,6 +53,9 @@ export interface GenerateSignedPDFInput {
   includeScreens?: boolean;
   includeInterior?: boolean;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
+  carePlan?: PresentationCarePlan | null;
+  carePlanPricing?: CarePlanPricing | null;
+  annualPrice?: number;
   pricingSnapshot?: AgreementPricingSnapshot;
   enrollmentSavings?: number;
 }
@@ -88,15 +99,6 @@ const TEMPLATE_SIGNATURE_PLACEMENT: Record<
     sigH: 52,
   },
 };
-
-function formatSignedDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-    timeZone: "America/Los_Angeles",
-  });
-}
 
 function formatSignedDateTime(iso: string): string {
   return new Date(iso).toLocaleString("en-US", {
@@ -198,15 +200,51 @@ async function buildProgrammaticAgreement(
 
   layout.drawHeading(`${def.label} Membership`);
   layout.drawParagraph(
-    `${formatAgreementDollars(pricing.membershipPerVisit)} per visit · ${pricing.visitsPerYear} visits per year`,
+    `${formatAgreementDollars(pricing.membershipPerVisit)}${
+      input.carePlan ? " average" : ""
+    } per visit · ${pricing.visitsPerYear} visits per year`,
   );
   layout.drawParagraph(
     `Member discount on add-ons: ${def.addonDiscount}% off (while payments active)`,
   );
   layout.drawParagraph(
-    `Annual membership: ${formatAgreementDollars(pricing.membershipAnnual)}`,
+    `Annual membership: ${formatAgreementDollars(
+      input.annualPrice ?? pricing.membershipAnnual,
+    )}`,
     { bold: true },
   );
+
+  if (input.carePlan?.tier === skTier) {
+    layout.drawHeading("Your Service Rhythm");
+    layout.drawParagraph(input.carePlan.summary || summarizeCarePlan(input.carePlan), {
+      size: 9,
+      lineHeight: 12,
+    });
+    for (const [index, visit] of input.carePlan.visits.entries()) {
+      const scheduledPrice = input.carePlanPricing?.visits[index]?.total;
+      const scope = [
+        "Exterior windows included",
+        `Interior windows: ${serviceStateLabel(visit.interiorWindows).toLowerCase()}`,
+        `Screens: ${serviceStateLabel(visit.screens).toLowerCase()}`,
+      ].join("; ");
+      layout.drawParagraph(
+        `${index + 1}. ${visit.label} (${visit.timing})${
+          typeof scheduledPrice === "number"
+            ? ` - ${formatAgreementDollars(scheduledPrice)}`
+            : ""
+        } - ${scope}${
+          visit.notes ? `; ${visit.notes}` : ""
+        }`,
+        { size: 8, lineHeight: 11 },
+      );
+    }
+    if (input.carePlan.customerChoiceNote) {
+      layout.drawParagraph(input.carePlan.customerChoiceNote, {
+        size: 8,
+        lineHeight: 11,
+      });
+    }
+  }
 
   if (pricing.kind === "included") {
     layout.drawQuarterlyIncludedHighlight(pricing);
@@ -373,7 +411,11 @@ export async function generateSignedPDF(
   const skTier = normalizeToSqueegeeKingTier(
     input.agreementTier ?? input.tier ?? "quarterly",
   );
-  const templateBytes = await loadTemplateBytes("membership", skTier);
+  // Personalized visit schedules need their complete scope rendered into the
+  // agreement, so use the programmatic document instead of a static template.
+  const templateBytes = input.carePlan
+    ? null
+    : await loadTemplateBytes("membership", skTier);
 
   if (templateBytes) {
     const pdfDoc = await PDFDocument.load(templateBytes);

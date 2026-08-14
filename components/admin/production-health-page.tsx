@@ -9,7 +9,7 @@ import { MotionReveal } from "@/components/craft/motion-reveal";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import type { ProductionHealthReport } from "@/lib/admin/production-health-types";
-import { isAdminUnlocked } from "@/lib/admin/pin";
+import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { craftEyebrow, craftHeading, craftPrimaryButton } from "@/lib/craft/tokens";
 
 function ProductionHealthLoadingShell() {
@@ -97,7 +97,7 @@ function ProductionHealthContent() {
 }
 
 export function ProductionHealthPage() {
-  const [unlocked, setUnlocked] = useState(() => isAdminUnlocked());
+  const [unlocked, setUnlocked] = useAdminUnlockedState();
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;

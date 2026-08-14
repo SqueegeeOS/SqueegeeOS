@@ -8,6 +8,11 @@ import {
   isCarePlanQuoteSnapshot,
   type PresentationQuoteSnapshot,
 } from "./quote-snapshot";
+import type {
+  PresentationCarePlan,
+  PresentationLayout,
+  PresentationPlanMode,
+} from "./care-plan";
 
 export type PresentationTier = SqueegeeKingTierId;
 export type PresentationStatus = "draft" | "presented" | "signed";
@@ -27,6 +32,7 @@ export interface SlideOverride {
 export type SlideType =
   | "cover"
   | "included"
+  | "care_plan"
   | "difference"
   | "investment"
   | "process"
@@ -66,6 +72,12 @@ export const SLIDE_MANIFEST: SlideConfig[] = [
     editable: ["highlight"],
   },
   {
+    id: "care_plan",
+    label: "Care Rhythm",
+    description: "Visit-by-visit service plan",
+    editable: ["headline"],
+  },
+  {
     id: "difference",
     label: "The Difference",
     description: "SqueegeeKing vs typical service",
@@ -98,13 +110,45 @@ export const SLIDE_MANIFEST: SlideConfig[] = [
 ];
 
 export function getPresentationSlides(
-  presentation: Pick<PresentationData, "quoteSnapshot">,
+  presentation: Pick<
+    PresentationData,
+    "quoteSnapshot" | "presentationLayout" | "planMode"
+  >,
 ): SlideConfig[] {
-  return SLIDE_MANIFEST.filter(
-    (slide) =>
-      slide.id !== "custom_quote" ||
-      isCarePlanQuoteSnapshot(presentation.quoteSnapshot),
-  );
+  const layout = presentation.presentationLayout ?? "signature";
+  const allowedByLayout: Record<PresentationLayout, SlideType[]> = {
+    signature: [
+      "cover",
+      "included",
+      "care_plan",
+      "difference",
+      "investment",
+      "process",
+      "custom_quote",
+      "close",
+    ],
+    concise: ["cover", "care_plan", "investment", "custom_quote", "close"],
+    story: [
+      "cover",
+      "difference",
+      "included",
+      "care_plan",
+      "process",
+      "investment",
+      "custom_quote",
+      "close",
+    ],
+  };
+  const order = allowedByLayout[layout];
+  return order
+    .map((id) => SLIDE_MANIFEST.find((slide) => slide.id === id))
+    .filter((slide): slide is SlideConfig => !!slide)
+    .filter(
+      (slide) =>
+        slide.id !== "custom_quote" ||
+        (presentation.planMode !== "custom" &&
+          isCarePlanQuoteSnapshot(presentation.quoteSnapshot)),
+    );
 }
 
 export interface PresentationData {
@@ -121,6 +165,10 @@ export interface PresentationData {
   twoStory: boolean;
   includeScreens: boolean;
   includeInterior: boolean;
+  /** Fast global options or an explicitly scheduled visit-by-visit plan. */
+  planMode: PresentationPlanMode;
+  presentationLayout: PresentationLayout;
+  carePlan: PresentationCarePlan;
   tier: PresentationTier;
   /** Legacy per-visit override for the tier in `overrideTier` */
   monthlyRate: number;
