@@ -28,10 +28,15 @@ export interface PersistedPhotoDocument {
   description: string | null;
   /** Public or signed URL — Supabase Storage path in production */
   storagePath: string;
+  storageBucket: string | null;
   mimeType: string | null;
   fileSizeBytes: number | null;
   visitId: string | null;
   signedAgreementId: string | null;
+  captureType: "before" | "after" | "detail" | null;
+  customerVisible: boolean;
+  capturedBy: string | null;
+  fieldRecordId: string | null;
   photoSource: PropertyPhotoSource | null;
   isPrimary: boolean;
   externalUrl: string | null;
@@ -42,9 +47,24 @@ export interface PersistedPhotoDocument {
 
 export type PersistedPhotoDocumentInput = Omit<
   PersistedPhotoDocument,
-  "id" | "createdAt" | "updatedAt" | "photoSource" | "isPrimary" | "externalUrl"
+  | "id"
+  | "createdAt"
+  | "updatedAt"
+  | "storageBucket"
+  | "captureType"
+  | "customerVisible"
+  | "capturedBy"
+  | "fieldRecordId"
+  | "photoSource"
+  | "isPrimary"
+  | "externalUrl"
 > & {
   id?: string;
+  storageBucket?: string | null;
+  captureType?: "before" | "after" | "detail" | null;
+  customerVisible?: boolean;
+  capturedBy?: string | null;
+  fieldRecordId?: string | null;
   photoSource?: PropertyPhotoSource | null;
   isPrimary?: boolean;
   externalUrl?: string | null;
