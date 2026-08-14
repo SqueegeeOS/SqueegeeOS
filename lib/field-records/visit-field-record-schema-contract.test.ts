@@ -36,6 +36,13 @@ const productionHealthRunway = readFileSync(
   new URL("../admin/production-health-runway.ts", import.meta.url),
   "utf8",
 );
+const memberPortalExperience = readFileSync(
+  new URL(
+    "../../components/membership/member-portal-experience.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("visit field record database contract", () => {
   it("keeps phone photos in a private, bounded storage bucket", () => {
@@ -123,6 +130,19 @@ describe("visit field record database contract", () => {
       'description: "Today notes, private photos, follow-ups, and portal proof"',
     );
     expect(productionHealthRunway).toContain('"storage-visit-media"');
+  });
+
+  it("keeps each customer note with the photos from its exact field record", () => {
+    expect(memberPortalExperience).toContain("buildPortalVisitStories");
+    expect(memberPortalExperience).toContain(
+      "<MemberVisitStories stories={visitStoryCollection.stories}",
+    );
+    expect(memberPortalExperience).toContain(
+      "visitStoryCollection.ungroupedObservations",
+    );
+    expect(memberPortalExperience).toContain(
+      "visitStoryCollection.ungroupedPhotos",
+    );
   });
 
   it("exposes the commit function only to the service role", () => {

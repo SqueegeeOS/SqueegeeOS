@@ -20,7 +20,9 @@ import { MemberWalletCard } from "@/components/membership/member-wallet-card";
 import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-data";
 import { HomeAtlasJourneySection } from "@/components/membership/homeatlas-journey-section";
 import { MemberFieldNotes } from "@/components/membership/member-field-notes";
+import { MemberVisitStories } from "@/components/membership/member-visit-stories";
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
+import { buildPortalVisitStories } from "@/lib/membership/portal-visit-stories";
 import { HomeAtlasSavingsSection } from "@/components/portal/homeatlas-savings-section";
 import { CareAddonsSection } from "@/components/portal/care-addons-section";
 import { NextCareVisitHero } from "@/components/portal/next-care-visit-hero";
@@ -69,6 +71,10 @@ export function MemberPortalExperience({
   const reduceMotion = useReducedMotion();
   const view = buildPortalCareRecordView(data, portalData);
   const portalPhotos = portalData?.property.photos ?? [];
+  const visitStoryCollection = buildPortalVisitStories(
+    portalData?.observations ?? [],
+    portalPhotos,
+  );
   const portalHeroImage =
     data.property.heroImage ||
     portalPhotos.find((photo) => photo.captureType === "after")?.url ||
@@ -457,7 +463,10 @@ export function MemberPortalExperience({
                 </span>
               ))}
             </div>
-            <MemberFieldNotes observations={portalData?.observations ?? []} />
+            <MemberVisitStories stories={visitStoryCollection.stories} />
+            <MemberFieldNotes
+              observations={visitStoryCollection.ungroupedObservations}
+            />
           </PortalSection>
 
           {/* §7 — Timeline */}
@@ -499,58 +508,62 @@ export function MemberPortalExperience({
             )}
           </PortalSection>
 
-          {/* §8 — Photos */}
-          <PortalSection
-            id="photos"
-            index={7}
-            eyebrow="Photos"
-            headline={`${view.propertyName}, cared for.`}
-          >
-            {portalPhotos.length > 0 ? (
-              <ul className="grid gap-4 sm:grid-cols-2">
-                {portalPhotos.map((photo, index) => (
-                  <li
-                    key={photo.id ?? `${photo.uploadedAt}-${index}`}
-                    className="craft-glass-subtle overflow-hidden rounded-[var(--radius-card-lg)] shadow-[var(--shadow-ambient)]"
-                  >
-                    <div className="relative aspect-[4/3] bg-black/20">
-                      <Image
-                        src={photo.url}
-                        alt={
-                          photo.caption || `Documented visit photo ${index + 1}`
-                        }
-                        fill
-                        sizes="(max-width: 640px) 100vw, 320px"
-                        className="object-cover"
-                      />
-                      {photo.captureType ? (
-                        <span className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-white">
-                          {photo.captureType}
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="p-4">
-                      <p className="text-sm text-foreground/80">
-                        {photo.caption || "Visit photo"}
-                      </p>
-                      <p className="mt-1 text-[11px] text-muted">
-                        {PORTAL_PHOTO_DATE_FORMATTER.format(
-                          new Date(photo.uploadedAt),
-                        )}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="craft-glass-subtle rounded-[var(--radius-card-lg)] border-accent/10 bg-gradient-to-b from-accent/[0.05] to-transparent py-12 text-center shadow-[var(--shadow-ambient)]">
-                <AtlasMark size={104} className="mx-auto" />
-                <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-foreground/60">
-                  {view.photosEmptyCopy}
-                </p>
-              </div>
-            )}
-          </PortalSection>
+          {/* §8 — Legacy / unpaired photos */}
+          {visitStoryCollection.ungroupedPhotos.length > 0 ||
+          visitStoryCollection.stories.length === 0 ? (
+            <PortalSection
+              id="photos"
+              index={7}
+              eyebrow="Photos"
+              headline={`${view.propertyName}, cared for.`}
+            >
+              {visitStoryCollection.ungroupedPhotos.length > 0 ? (
+                <ul className="grid gap-4 sm:grid-cols-2">
+                  {visitStoryCollection.ungroupedPhotos.map((photo, index) => (
+                    <li
+                      key={photo.id ?? `${photo.uploadedAt}-${index}`}
+                      className="craft-glass-subtle overflow-hidden rounded-[var(--radius-card-lg)] shadow-[var(--shadow-ambient)]"
+                    >
+                      <div className="relative aspect-[4/3] bg-black/20">
+                        <Image
+                          src={photo.url}
+                          alt={
+                            photo.caption ||
+                            `Documented visit photo ${index + 1}`
+                          }
+                          fill
+                          sizes="(max-width: 640px) 100vw, 320px"
+                          className="object-cover"
+                        />
+                        {photo.captureType ? (
+                          <span className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-white">
+                            {photo.captureType}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="p-4">
+                        <p className="text-sm text-foreground/80">
+                          {photo.caption || "Visit photo"}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted">
+                          {PORTAL_PHOTO_DATE_FORMATTER.format(
+                            new Date(photo.uploadedAt),
+                          )}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="craft-glass-subtle rounded-[var(--radius-card-lg)] border-accent/10 bg-gradient-to-b from-accent/[0.05] to-transparent py-12 text-center shadow-[var(--shadow-ambient)]">
+                  <AtlasMark size={104} className="mx-auto" />
+                  <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-foreground/60">
+                    {view.photosEmptyCopy}
+                  </p>
+                </div>
+              )}
+            </PortalSection>
+          ) : null}
         </div>
 
         {isCustomerPortal && (
