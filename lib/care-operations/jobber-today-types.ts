@@ -22,6 +22,9 @@ export interface JobberTodayVisit {
   jobberClientWebUri: string | null;
   homeAtlasPropertyId: string | null;
   homeAtlasAppointmentId: string | null;
+  homeAtlasFieldRecordCount: number;
+  homeAtlasLatestFieldRecordAt: string | null;
+  homeAtlasLatestFieldRecordBy: string | null;
 }
 
 export interface JobberTodayPropertyLink {

@@ -10,6 +10,12 @@ import { loadOpenVisitFieldFollowUps } from "@/lib/field-records/visit-field-fol
 import { readJobberConnectionStatus } from "./jobber-connection-store";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 import { chunkItems } from "./jobber-sync-utils";
+import {
+  isMissingVisitFieldRecordSchema,
+  summarizeJobberTodayFieldRecords,
+  type JobberTodayFieldRecordRow,
+  type JobberTodayFieldRecordSummary,
+} from "./jobber-today-field-records";
 import type {
   JobberTodayAppointmentLink,
   JobberTodayData,
@@ -57,6 +63,13 @@ interface StoredAppointmentLinkRow {
   property_id: string;
 }
 
+interface StoredFieldRecordRow {
+  visit_id: string | null;
+  field_record_id: string | null;
+  technician_name: string;
+  created_at: string;
+}
+
 const TODAY_VISIT_SELECT =
   "id, external_visit_id, external_client_id, external_property_id, jobber_property_web_uri, job_number, title, client_name, visit_status, job_status, scheduled_start, scheduled_end, is_complete";
 
@@ -86,6 +99,7 @@ function toTodayVisit(
   client: StoredClientRow | undefined,
   propertyLinks: JobberTodayPropertyLink[],
   appointmentLinks: JobberTodayAppointmentLink[],
+  fieldRecordsByAppointment: Map<string, JobberTodayFieldRecordSummary>,
 ): JobberTodayVisit {
   const property = readClientProperties(client?.properties).find(
     (candidate) => candidate.id === row.external_property_id,
@@ -96,6 +110,9 @@ function toTodayVisit(
     propertyLinks,
     appointmentLinks,
   });
+  const fieldRecord = homeAtlas.homeAtlasAppointmentId
+    ? fieldRecordsByAppointment.get(homeAtlas.homeAtlasAppointmentId)
+    : undefined;
   return {
     projectionId: row.id,
     externalVisitId: row.external_visit_id,
@@ -112,6 +129,9 @@ function toTodayVisit(
       row.jobber_property_web_uri ?? property?.jobberWebUri ?? null,
     jobberClientWebUri: client?.jobber_web_uri ?? null,
     ...homeAtlas,
+    homeAtlasFieldRecordCount: fieldRecord?.count ?? 0,
+    homeAtlasLatestFieldRecordAt: fieldRecord?.latestFieldRecordAt ?? null,
+    homeAtlasLatestFieldRecordBy: fieldRecord?.latestTechnicianName ?? null,
   };
 }
 
@@ -211,12 +231,41 @@ export async function loadJobberTodayBoard(
     );
   }
 
+  const fieldRecordRows: JobberTodayFieldRecordRow[] = [];
+  const appointmentIds = appointmentLinks.map((link) => link.appointmentId);
+  for (const appointmentIdChunk of chunkItems(appointmentIds)) {
+    const fieldRecordResult = await supabase
+      .from("property_assessments")
+      .select("visit_id, field_record_id, technician_name, created_at")
+      .in("visit_id", appointmentIdChunk)
+      .not("field_record_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(2_000);
+    if (fieldRecordResult.error) {
+      if (isMissingVisitFieldRecordSchema(fieldRecordResult.error)) break;
+      throw new Error(fieldRecordResult.error.message);
+    }
+    fieldRecordRows.push(
+      ...((fieldRecordResult.data ?? []) as StoredFieldRecordRow[]).map(
+        (row) => ({
+          appointmentId: row.visit_id,
+          fieldRecordId: row.field_record_id,
+          technicianName: row.technician_name,
+          createdAt: row.created_at,
+        }),
+      ),
+    );
+  }
+  const fieldRecordsByAppointment =
+    summarizeJobberTodayFieldRecords(fieldRecordRows);
+
   const visits = visitRows.map((row) =>
     toTodayVisit(
       row,
       clientsById.get(row.external_client_id),
       propertyLinks,
       appointmentLinks,
+      fieldRecordsByAppointment,
     ),
   );
   const complete = visits.filter((visit) => visit.isComplete).length;
