@@ -356,6 +356,16 @@ function JobberVisitCard({
             {formatTimeRange(visit, timezone)} Pacific
           </p>
           <div className="flex flex-wrap gap-2">
+            {visit.homeAtlasPortalPath ? (
+              <Link
+                href={visit.homeAtlasPortalPath}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-10 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-400/[0.08] px-4 text-xs text-emerald-200 transition hover:bg-emerald-400/[0.13]"
+              >
+                Verify customer portal
+              </Link>
+            ) : null}
             {visit.jobberClientWebUri ? (
               <a
                 href={visit.jobberClientWebUri}
