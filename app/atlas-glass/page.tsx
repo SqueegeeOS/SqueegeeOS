@@ -5,6 +5,7 @@ export const metadata: Metadata = {
   title: "HomeAtlas — Your Home Remembers",
   description:
     "An interactive SqueegeeKing homepage concept showing how HomeAtlas remembers every visit, photo, and promise.",
+  alternates: { canonical: "/" },
   robots: { index: false, follow: false },
 };
 

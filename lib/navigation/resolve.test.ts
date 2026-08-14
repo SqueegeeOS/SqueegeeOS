@@ -23,11 +23,18 @@ describe("getNavigationMode", () => {
     expect(getNavigationMode("/david")).toBe("hidden");
     expect(getNavigationMode("/sales/alex")).toBe("hidden");
   });
+
+  it("lets Atlas own the promoted homepage chrome", () => {
+    expect(getNavigationMode("/")).toBe("hidden");
+    expect(getNavigationMode("/atlas-glass")).toBe("hidden");
+    expect(getNavigationMode("/rightway")).toBe("customer");
+  });
 });
 
 describe("shouldUseOverlayNav", () => {
-  it("uses overlay navigation on both homepage experiences", () => {
+  it("preserves overlay behavior for comparison experiences", () => {
     expect(shouldUseOverlayNav("/")).toBe(true);
+    expect(shouldUseOverlayNav("/rightway")).toBe(true);
     expect(shouldUseOverlayNav("/night2")).toBe(true);
   });
 });
