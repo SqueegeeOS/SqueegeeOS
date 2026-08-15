@@ -11,6 +11,13 @@ import {
   type JobberTodayVisit,
 } from "@/lib/care-operations/jobber-today-types";
 import { readVisitFieldDraft } from "@/lib/field-records/visit-field-draft";
+import type { VisitFieldSaveResult } from "@/components/visit/visit-field-capture";
+import {
+  resolveTechnicianVisitNextAction,
+  technicianVisitStageLabel,
+  technicianVisitStageProgress,
+  type TechnicianVisitEventType,
+} from "@/lib/field-operations/technician-visit-events";
 import {
   filterTechnicianVisits,
   listTechnicianCrew,
@@ -81,6 +88,12 @@ const READINESS_STYLE: Record<
     label: "Proof check unavailable",
     detail: "Do not assume this visit is closed until HQ restores field proof.",
     className: "border-rose-300/35 bg-rose-300/10 text-rose-100",
+  },
+  jobber_completion_pending: {
+    label: "Jobber close pending",
+    detail:
+      "Field Run is done, but Jobber still shows this visit open. HQ needs to close it there.",
+    className: "border-amber-300/40 bg-amber-300/10 text-amber-100",
   },
 };
 
@@ -167,17 +180,22 @@ function TechnicianVisitCard({
   visit,
   timezone,
   fieldRecordStatusAvailable,
+  fieldEventStatusAvailable,
   fieldActorName,
   onSaved,
 }: {
   visit: JobberTodayVisit;
   timezone: string;
   fieldRecordStatusAvailable: boolean;
+  fieldEventStatusAvailable: boolean;
   fieldActorName: string | null;
   onSaved: () => void;
 }) {
   const [captureOpen, setCaptureOpen] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
+  const [routePending, setRoutePending] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
+  const [routeNotice, setRouteNotice] = useState<string | null>(null);
   const readiness = resolveTechnicianVisitReadiness(
     visit,
     fieldRecordStatusAvailable,
@@ -188,6 +206,24 @@ function TechnicianVisitCard({
   const canCapture = Boolean(
     fieldRecordStatusAvailable && propertyId && appointmentId,
   );
+  const canAdvanceRoute = Boolean(
+    fieldEventStatusAvailable && propertyId && appointmentId,
+  );
+  const stageProgress = technicianVisitStageProgress(
+    visit.homeAtlasFieldStage,
+  );
+  const routeAction = canAdvanceRoute
+    ? resolveTechnicianVisitNextAction({
+        stage: visit.homeAtlasFieldStage,
+        hasFieldRecord: visit.homeAtlasFieldRecordCount > 0,
+        jobberComplete: visit.isComplete,
+      })
+    : null;
+  const showStandaloneCaptureButton =
+    !fieldEventStatusAvailable ||
+    (hasDraft && routeAction?.kind !== "closeout") ||
+    visit.homeAtlasFieldStage === "service_completed" ||
+    visit.homeAtlasFieldStage === "departed";
   const moment = classifyJobberTodayVisit(visit);
   const actionLabel = hasDraft
     ? "Resume saved closeout"
@@ -215,6 +251,62 @@ function TechnicianVisitCard({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [appointmentId, propertyId]);
+
+  async function advanceRoute(eventType: TechnicianVisitEventType) {
+    if (!propertyId || !appointmentId || routePending) return;
+    setRoutePending(true);
+    setRouteError(null);
+    setRouteNotice(null);
+    try {
+      const response = await fetch("/api/field/visit-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: crypto.randomUUID(),
+          propertyId,
+          appointmentId,
+          eventType,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | {
+            customerAlertPrepared?: boolean;
+            error?: string;
+          }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Could not advance the field route.");
+      }
+      setRouteNotice(
+        body?.customerAlertPrepared
+          ? "Status saved. A customer update is prepared, not sent."
+          : "Status saved to the HomeAtlas service timeline.",
+      );
+      onSaved();
+    } catch (routeActionError) {
+      setRouteError(
+        routeActionError instanceof Error
+          ? routeActionError.message
+          : "Could not advance the field route.",
+      );
+    } finally {
+      setRoutePending(false);
+    }
+  }
+
+  function handleCloseoutSaved(result: VisitFieldSaveResult) {
+    setCaptureOpen(false);
+    setRouteError(null);
+    setRouteNotice(
+      result.routeEventRecorded === false
+        ? (result.routeEventWarning ??
+            "Closeout saved. Refresh and retry the route status.")
+        : result.routeEventRecorded
+          ? "Closeout saved. Service advanced to complete."
+          : "Closeout saved to the property record.",
+    );
+    onSaved();
+  }
 
   return (
     <article
@@ -314,6 +406,108 @@ function TechnicianVisitCard({
           </p>
         </div>
 
+        {fieldEventStatusAvailable && propertyId && appointmentId ? (
+          <section className="mt-3 rounded-2xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.055] p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.17em] text-[#9be2bd]">
+                  Automated service flow
+                </p>
+                <p className="mt-1 text-sm font-medium text-[#d5f8e4]">
+                  {technicianVisitStageLabel(visit.homeAtlasFieldStage)}
+                </p>
+              </div>
+              <span className="rounded-full border border-[#9be2bd]/25 px-3 py-1 text-xs tabular-nums text-[#bff1d5]">
+                {stageProgress.completed}/{stageProgress.total}
+              </span>
+            </div>
+            <div
+              className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"
+              role="progressbar"
+              aria-label="Service flow progress"
+              aria-valuemin={0}
+              aria-valuemax={stageProgress.total}
+              aria-valuenow={stageProgress.completed}
+            >
+              <div
+                className="h-full rounded-full bg-[#9be2bd] transition-[width] duration-500"
+                style={{
+                  width: `${(stageProgress.completed / stageProgress.total) * 100}%`,
+                }}
+              />
+            </div>
+            {visit.homeAtlasFieldStageAt ? (
+              <p className="mt-2 text-[11px] text-white/45">
+                Last moved {formatTime(visit.homeAtlasFieldStageAt, timezone)}
+                {visit.homeAtlasFieldStageBy
+                  ? ` by ${visit.homeAtlasFieldStageBy}`
+                  : ""}
+              </p>
+            ) : null}
+
+            {routeAction ? (
+              <button
+                type="button"
+                disabled={
+                  routePending ||
+                  (routeAction.kind === "closeout" && !canCapture)
+                }
+                onClick={() => {
+                  if (routeAction.kind === "closeout") {
+                    setCaptureOpen((open) => !open);
+                    return;
+                  }
+                  void advanceRoute(routeAction.eventType);
+                }}
+                className="mt-4 flex min-h-14 w-full items-center justify-between rounded-xl border border-[#9be2bd]/40 bg-[#9be2bd]/[0.12] px-4 text-left text-base font-medium text-[#d5f8e4] active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span>
+                  {routePending
+                    ? "Saving status…"
+                    : routeAction.kind === "closeout" && captureOpen
+                      ? "Close field form"
+                      : routeAction.label}
+                  <span className="mt-0.5 block text-[10px] font-normal leading-relaxed text-[#bff1d5]/60">
+                    {routeAction.detail}
+                  </span>
+                </span>
+                <span aria-hidden>→</span>
+              </button>
+            ) : (
+              <div className="mt-4 rounded-xl border border-emerald-300/25 bg-emerald-300/[0.08] px-4 py-3 text-sm text-emerald-100">
+                Stop complete. The next assigned home is ready above.
+              </div>
+            )}
+
+            <p className="mt-3 text-[10px] leading-relaxed text-white/40">
+              Customer alert copy is prepared for approved moments. Nothing is
+              sent until messaging approval and consent checks are live.
+            </p>
+          </section>
+        ) : propertyId && appointmentId ? (
+          <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] px-4 py-3 text-xs leading-relaxed text-amber-100">
+            Automated route status is waiting on migration 058. Visit closeouts
+            still save normally.
+          </div>
+        ) : null}
+
+        {routeNotice ? (
+          <p
+            role="status"
+            className="mt-3 rounded-xl border border-sky-300/25 bg-sky-300/[0.07] px-4 py-3 text-xs leading-relaxed text-sky-100"
+          >
+            {routeNotice}
+          </p>
+        ) : null}
+        {routeError ? (
+          <p
+            role="alert"
+            className="mt-3 rounded-xl border border-rose-300/25 bg-rose-300/[0.07] px-4 py-3 text-xs leading-relaxed text-rose-100"
+          >
+            {routeError}
+          </p>
+        ) : null}
+
         {visit.homeAtlasFieldRecordCount > 0 ? (
           <div className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] px-4 py-3 text-xs text-emerald-100/75">
             {visit.homeAtlasFieldRecordCount} saved field record
@@ -370,22 +564,24 @@ function TechnicianVisitCard({
 
         {canCapture && propertyId && appointmentId ? (
           <div className="mt-3">
-            <button
-              type="button"
-              aria-expanded={captureOpen}
-              onClick={() => setCaptureOpen((open) => !open)}
-              className="flex min-h-14 w-full items-center justify-between rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.09] px-4 text-left text-base font-medium text-[#c9f3dc] active:scale-[0.995]"
-            >
-              <span>
-                {captureOpen ? "Close field form" : actionLabel}
-                {hasDraft && !captureOpen ? (
-                  <span className="mt-0.5 block text-[10px] font-normal text-[#bff1d5]/55">
-                    Saved on this device
-                  </span>
-                ) : null}
-              </span>
-              <span aria-hidden>{captureOpen ? "−" : "+"}</span>
-            </button>
+            {showStandaloneCaptureButton ? (
+              <button
+                type="button"
+                aria-expanded={captureOpen}
+                onClick={() => setCaptureOpen((open) => !open)}
+                className="flex min-h-14 w-full items-center justify-between rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.09] px-4 text-left text-base font-medium text-[#c9f3dc] active:scale-[0.995]"
+              >
+                <span>
+                  {captureOpen ? "Close field form" : actionLabel}
+                  {hasDraft && !captureOpen ? (
+                    <span className="mt-0.5 block text-[10px] font-normal text-[#bff1d5]/55">
+                      Saved on this device
+                    </span>
+                  ) : null}
+                </span>
+                <span aria-hidden>{captureOpen ? "−" : "+"}</span>
+              </button>
+            ) : null}
             {captureOpen ? (
               <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
                 <VisitFieldCapture
@@ -397,10 +593,7 @@ function TechnicianVisitCard({
                   scopeReadState={visit.scopeReadState}
                   apiRoutePrefix="/api/field"
                   lockedTechnicianName={fieldActorName ?? undefined}
-                  onSaved={() => {
-                    setCaptureOpen(false);
-                    onSaved();
-                  }}
+                  onSaved={handleCloseoutSaved}
                   onDraftStateChange={setHasDraft}
                 />
               </div>
@@ -740,6 +933,9 @@ export function TechnicianTodayWorkspace({
                     timezone={data.timezone}
                     fieldRecordStatusAvailable={
                       data.fieldRecordStatusAvailable
+                    }
+                    fieldEventStatusAvailable={
+                      data.fieldEventStatusAvailable
                     }
                     fieldActorName={
                       technicianSession ? actorDisplayName : null

@@ -7,6 +7,8 @@ import {
 } from "@/lib/admin/company-business-timezone";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { loadOpenVisitFieldFollowUps } from "@/lib/field-records/visit-field-follow-up-server";
+import { loadTechnicianVisitEventSnapshots } from "@/lib/field-operations/technician-visit-event-server";
+import type { TechnicianVisitEventSnapshot } from "@/lib/field-operations/technician-visit-events";
 import { readJobberConnectionStatus } from "./jobber-connection-store";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 import { chunkItems } from "./jobber-sync-utils";
@@ -122,6 +124,7 @@ function toTodayVisit(
   propertyLinks: JobberTodayPropertyLink[],
   appointmentLinks: JobberTodayAppointmentLink[],
   fieldRecordsByAppointment: Map<string, JobberTodayFieldRecordSummary>,
+  fieldEventsByAppointment: Map<string, TechnicianVisitEventSnapshot>,
   portalPathByMembershipId: Map<string, string>,
 ): JobberTodayVisit {
   const property = readClientProperties(client?.properties).find(
@@ -135,6 +138,9 @@ function toTodayVisit(
   });
   const fieldRecord = homeAtlas.homeAtlasAppointmentId
     ? fieldRecordsByAppointment.get(homeAtlas.homeAtlasAppointmentId)
+    : undefined;
+  const fieldEvent = homeAtlas.homeAtlasAppointmentId
+    ? fieldEventsByAppointment.get(homeAtlas.homeAtlasAppointmentId)
     : undefined;
   return {
     projectionId: row.id,
@@ -163,6 +169,10 @@ function toTodayVisit(
     homeAtlasCustomerVisibleRecordCount:
       fieldRecord?.customerVisibleCount ?? 0,
     homeAtlasOpenFollowUpCount: fieldRecord?.openFollowUpCount ?? 0,
+    homeAtlasFieldStage: fieldEvent?.stage ?? "not_started",
+    homeAtlasFieldStageAt: fieldEvent?.occurredAt ?? null,
+    homeAtlasFieldStageBy: fieldEvent?.actorDisplayName ?? null,
+    homeAtlasFieldEventCount: fieldEvent?.eventCount ?? 0,
   };
 }
 
@@ -357,6 +367,7 @@ export async function loadJobberTodayBoard(
     }));
   const fieldRecordsByAppointment =
     summarizeJobberTodayFieldRecords(fieldRecordRows);
+  const fieldEvents = await loadTechnicianVisitEventSnapshots(appointmentIds);
 
   const visits = visitRows.map((row) =>
     toTodayVisit(
@@ -365,6 +376,7 @@ export async function loadJobberTodayBoard(
       propertyLinks,
       appointmentLinks,
       fieldRecordsByAppointment,
+      fieldEvents.byAppointmentId,
       portalPathByMembershipId,
     ),
   );
@@ -384,6 +396,7 @@ export async function loadJobberTodayBoard(
     lastSyncedAt: latestSync?.source_observed_at ?? null,
     loadedAt: new Date().toISOString(),
     fieldRecordStatusAvailable,
+    fieldEventStatusAvailable: fieldEvents.available,
     summary: summarizeJobberTodayVisits(visits),
     visits,
     fieldFollowUps,

@@ -45,7 +45,15 @@ interface CommitResponse {
   fieldRecordId?: string;
   assessmentId?: string;
   photoCount?: number;
+  routeEventRecorded?: boolean | null;
+  routeEventWarning?: string | null;
   error?: string;
+}
+
+export interface VisitFieldSaveResult {
+  fieldRecordId: string;
+  routeEventRecorded: boolean | null;
+  routeEventWarning: string | null;
 }
 
 const CAPTURE_OPTIONS: Array<{
@@ -114,7 +122,7 @@ export function VisitFieldCapture({
   scopeReadState: VisitServiceScopeReadState;
   apiRoutePrefix?: "/api/admin" | "/api/field";
   lockedTechnicianName?: string;
-  onSaved?: () => void;
+  onSaved?: (result: VisitFieldSaveResult) => void;
   onDraftStateChange?: (hasDraft: boolean) => void;
 }) {
   const [initialDraft] = useState(() =>
@@ -164,6 +172,8 @@ export function VisitFieldCapture({
     customerVisibleCount: number;
     completedScopeCount: number;
     scopeTotal: number;
+    routeEventRecorded: boolean | null;
+    routeEventWarning: string | null;
   } | null>(null);
   const previewUrls = useRef(new Set<string>());
   const completedUploads = useRef(new Map<string, UploadedVisitPhoto>());
@@ -460,9 +470,15 @@ export function VisitFieldCapture({
         customerVisibleCount: photos.filter((photo) => photo.customerVisible).length,
         completedScopeCount: serviceScope.filter((item) => item.completed).length,
         scopeTotal: serviceScope.length,
+        routeEventRecorded: commitBody.routeEventRecorded ?? null,
+        routeEventWarning: commitBody.routeEventWarning ?? null,
       });
       setProgress(null);
-      onSaved?.();
+      onSaved?.({
+        fieldRecordId: commitBody.fieldRecordId,
+        routeEventRecorded: commitBody.routeEventRecorded ?? null,
+        routeEventWarning: commitBody.routeEventWarning ?? null,
+      });
     } catch (saveError) {
       const message =
         saveError instanceof Error
@@ -513,6 +529,15 @@ export function VisitFieldCapture({
           <p className="mt-2 text-xs leading-relaxed text-emerald-100/70">
             {saved.completedScopeCount}/{saved.scopeTotal} Jobber service item
             {saved.scopeTotal === 1 ? "" : "s"} recorded in the durable closeout.
+          </p>
+        ) : null}
+        {saved.routeEventRecorded ? (
+          <p className="mt-2 text-xs leading-relaxed text-emerald-100/70">
+            Field Run advanced to Service complete automatically.
+          </p>
+        ) : saved.routeEventWarning ? (
+          <p className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] p-3 text-xs leading-relaxed text-amber-100">
+            {saved.routeEventWarning}
           </p>
         ) : null}
         <button

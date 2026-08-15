@@ -22,6 +22,10 @@ import {
   type VisitFieldFollowUpView,
 } from "@/lib/field-records/visit-field-record";
 import { readVisitFieldDraft } from "@/lib/field-records/visit-field-draft";
+import {
+  technicianVisitStageLabel,
+  technicianVisitStageProgress,
+} from "@/lib/field-operations/technician-visit-events";
 
 const VisitFieldCapture = dynamic(
   () =>
@@ -256,18 +260,23 @@ function JobberVisitCard({
   timezone,
   now,
   fieldRecordStatusAvailable,
+  fieldEventStatusAvailable,
   onFieldRecordSaved,
 }: {
   visit: JobberTodayVisit;
   timezone: string;
   now: Date;
   fieldRecordStatusAvailable: boolean;
+  fieldEventStatusAvailable: boolean;
   onFieldRecordSaved: () => void;
 }) {
   const propertyId = visit.homeAtlasPropertyId;
   const appointmentId = visit.homeAtlasAppointmentId;
   const [fieldCaptureOpen, setFieldCaptureOpen] = useState(false);
   const [hasFieldDraft, setHasFieldDraft] = useState(false);
+  const fieldStageProgress = technicianVisitStageProgress(
+    visit.homeAtlasFieldStage,
+  );
   const moment = classifyJobberTodayVisit(visit, now);
   const style = MOMENT_STYLES[moment];
   const service = visit.title?.trim() || "Scheduled Jobber visit";
@@ -377,6 +386,51 @@ function JobberVisitCard({
             ) : null}
           </div>
         </div>
+
+        {fieldEventStatusAvailable && appointmentId ? (
+          <div className="mt-5 rounded-2xl border border-accent/25 bg-accent/[0.055] p-4">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.17em] text-accent">
+                  Live field status
+                </p>
+                <p className="mt-1 text-sm font-medium text-foreground">
+                  {technicianVisitStageLabel(visit.homeAtlasFieldStage)}
+                </p>
+              </div>
+              <span className="rounded-full border border-accent/25 px-3 py-1 text-xs tabular-nums text-accent">
+                {fieldStageProgress.completed}/{fieldStageProgress.total}
+              </span>
+            </div>
+            <div
+              className="mt-3 h-1.5 overflow-hidden rounded-full bg-foreground/10"
+              role="progressbar"
+              aria-label="Technician service progress"
+              aria-valuemin={0}
+              aria-valuemax={fieldStageProgress.total}
+              aria-valuenow={fieldStageProgress.completed}
+            >
+              <div
+                className="h-full rounded-full bg-accent transition-[width] duration-500"
+                style={{
+                  width: `${(fieldStageProgress.completed / fieldStageProgress.total) * 100}%`,
+                }}
+              />
+            </div>
+            {visit.homeAtlasFieldStageAt ? (
+              <p className="mt-2 text-[11px] text-muted">
+                Updated {formatTime(visit.homeAtlasFieldStageAt, timezone)}
+                {visit.homeAtlasFieldStageBy
+                  ? ` by ${visit.homeAtlasFieldStageBy}`
+                  : ""}
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-muted">
+                The assigned technician has not started this stop in Field Run.
+              </p>
+            )}
+          </div>
+        ) : null}
 
         <div className="mt-6 flex flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted">
@@ -908,6 +962,13 @@ function TodayWorkspaceContent() {
           </div>
         ) : null}
 
+        {data && !data.fieldEventStatusAvailable ? (
+          <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
+            Technician live status is waiting on migration 058. Jobber schedule
+            and visit closeouts remain available while that automation is offline.
+          </div>
+        ) : null}
+
         {data &&
         data.fieldRecordStatusAvailable &&
         data.summary.completedWithoutRecord > 0 ? (
@@ -986,6 +1047,7 @@ function TodayWorkspaceContent() {
                   timezone={data.timezone}
                   now={now}
                   fieldRecordStatusAvailable={data.fieldRecordStatusAvailable}
+                  fieldEventStatusAvailable={data.fieldEventStatusAvailable}
                   onFieldRecordSaved={() => void load()}
                 />
               ))}
