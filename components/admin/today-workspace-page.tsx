@@ -26,6 +26,7 @@ import {
   technicianVisitStageLabel,
   technicianVisitStageProgress,
 } from "@/lib/field-operations/technician-visit-events";
+import { jobberTodayVisitAnchorId } from "@/lib/care-operations/jobber-today-links";
 
 const VisitFieldCapture = dynamic(
   () =>
@@ -320,7 +321,10 @@ function JobberVisitCard({
   }, [appointmentId, propertyId]);
 
   return (
-    <article className="group grid overflow-hidden rounded-[1.75rem] border border-border/80 bg-background/70 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl sm:grid-cols-[9.5rem_minmax(0,1fr)]">
+    <article
+      id={jobberTodayVisitAnchorId(visit.projectionId)}
+      className="group grid scroll-mt-24 overflow-hidden rounded-[1.75rem] border border-border/80 bg-background/70 shadow-[0_24px_70px_rgba(0,0,0,0.22)] backdrop-blur-xl target:ring-2 target:ring-accent/60 sm:grid-cols-[9.5rem_minmax(0,1fr)]"
+    >
       <div className="border-b border-border/60 bg-foreground/[0.025] px-5 py-5 sm:border-b-0 sm:border-r">
         <p className="font-serif text-2xl font-light text-foreground">
           {formatTime(visit.scheduledStart, timezone)}
