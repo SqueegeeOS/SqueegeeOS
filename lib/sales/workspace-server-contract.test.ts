@@ -38,4 +38,27 @@ describe("sales workspace active-queue loading contract", () => {
       "HomeAtlas could not finish loading the active lead queue.",
     );
   });
+
+  it("pages the complete signed-close ledger instead of silently stopping at the provider row cap", () => {
+    expect(server).toContain("SALES_ATTRIBUTION_PAGE_SIZE");
+    expect(server).toContain(
+      '.select(SALES_ATTRIBUTION_SELECT, { count: "exact" })',
+    );
+    expect(server).toContain(
+      ".range(offset, offset + SALES_ATTRIBUTION_PAGE_SIZE - 1)",
+    );
+    expect(server).toContain(
+      "HomeAtlas could not prove that the signed-close ledger was complete.",
+    );
+    expect(server).toContain("loadAllSalesRepAttributionRows(rep.id)");
+  });
+
+  it("derives the visible close ledger only from signature-backed attribution rows", () => {
+    expect(server).toContain("selectRecentSalesRepWinSources");
+    expect(server).toContain("loadRecentSalesRepWins(rep.id, attributions)");
+    expect(server).toContain('.eq("rep_id", repId)');
+    expect(server).toContain('.eq("sales_rep_id", repId)');
+    expect(server).toContain('recentWinsStatus = "unavailable"');
+    expect(server).not.toContain("recentWins: openLeadRows");
+  });
 });

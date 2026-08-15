@@ -17,6 +17,7 @@ import type {
   SalesActivityReceipt,
   SalesActivityType,
   SalesRepLead,
+  SalesRepRecentWin,
   SalesWorkspaceMetrics,
   SalesWorkspacePayload,
   UpdateSalesLeadInput,
@@ -88,6 +89,7 @@ const EMPTY_METRICS: SalesWorkspaceMetrics = {
   closedArrTodayCents: 0,
 };
 const EMPTY_LEADS: SalesRepLead[] = [];
+const EMPTY_RECENT_WINS: SalesRepRecentWin[] = [];
 
 const EMPTY_LEAD_FORM: CreateSalesLeadInput = {
   fullName: "",
@@ -119,6 +121,30 @@ const PACIFIC_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   month: "2-digit",
   day: "2-digit",
 });
+const RECENT_WIN_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const RECENT_WIN_STATUS: Record<
+  SalesRepRecentWin["status"],
+  { label: string; className: string }
+> = {
+  pending: {
+    label: "Signed",
+    className: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  },
+  active: {
+    label: "Activated",
+    className: "border-emerald-300/30 bg-emerald-300/[0.08] text-emerald-100",
+  },
+  qualified: {
+    label: "12-mo qualified",
+    className: "border-accent/30 bg-accent/[0.08] text-accent",
+  },
+};
 
 const QUICK_ACTIONS: Array<{
   type: ManualPulseActivity;
@@ -286,6 +312,13 @@ function suggestedFollowUpValue(daysFromNow: number) {
 
 function statusLabel(status: SalesRepLead["status"]) {
   return status.replaceAll("_", " ");
+}
+
+function recentWinDateLabel(value: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? RECENT_WIN_DATE_FORMATTER.format(date)
+    : "Date unavailable";
 }
 
 async function fetchSalesWorkspace(repSlug: string): Promise<SalesWorkspacePayload> {
@@ -935,6 +968,8 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
   };
 
   const workspaceLeads = workspace?.leads ?? EMPTY_LEADS;
+  const recentWins = workspace?.recentWins ?? EMPTY_RECENT_WINS;
+  const recentWinsStatus = workspace?.recentWinsStatus ?? "complete";
   const workspaceGeneratedAt = workspace?.generatedAt ?? null;
   const leadActionQueue = useMemo(
     () =>
@@ -1880,6 +1915,86 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                 ))}
               </div>
             ) : null}
+          </GlassCard>
+        </section>
+
+        <section className="mt-8">
+          <GlassCard as="section" tone="elevated" padding="lg" rim>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className={craftEyebrow}>Verified closes</p>
+                <h2 className={`mt-2 text-2xl sm:text-3xl ${craftHeading}`}>
+                  The wins HomeAtlas can prove
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+                  Only completed agreement signatures create these credits. Door taps
+                  and manual pipeline changes never count as a close.
+                </p>
+              </div>
+              <span className="rounded-full border border-emerald-300/25 bg-emerald-300/[0.07] px-3 py-2 text-[9px] font-bold uppercase tracking-[0.15em] text-emerald-100">
+                Signature backed
+              </span>
+            </div>
+
+            {recentWinsStatus === "unavailable" ? (
+              <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/[0.07] px-4 py-4 text-sm leading-6 text-amber-50" role="status">
+                Close totals are still verified, but HomeAtlas could not load the
+                homeowner labels for this ledger. Refresh before relying on the names.
+              </div>
+            ) : loading ? (
+              <p className="mt-6 py-6 text-center text-sm text-muted">
+                Verifying signed memberships…
+              </p>
+            ) : recentWins.length === 0 ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-white/[0.1] px-5 py-8 text-center">
+                <p className="font-serif text-xl text-foreground">
+                  The first verified close will land here automatically.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  No manual signed counter is used, so an accidental field tap cannot
+                  create a fake win.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {recentWins.map((win) => {
+                  const status = RECENT_WIN_STATUS[win.status];
+                  return (
+                    <article
+                      key={win.id}
+                      className="rounded-2xl border border-white/[0.08] bg-black/10 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="truncate font-serif text-xl text-foreground">
+                            {win.fullName}
+                          </h3>
+                          <p className="mt-1 truncate text-xs text-muted">
+                            {win.propertyAddress}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] ${status.className}`}>
+                          {status.label}
+                        </span>
+                      </div>
+                      <div className="mt-5 flex items-end justify-between gap-3 border-t border-white/[0.07] pt-4">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-[0.16em] text-muted">
+                            Credited ARR
+                          </p>
+                          <p className="mt-1 font-serif text-2xl text-accent">
+                            {moneyFromCents(win.attributedArrCents)}
+                          </p>
+                        </div>
+                        <p className="pb-1 text-[10px] text-muted">
+                          {recentWinDateLabel(win.attributedAt)}
+                        </p>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </GlassCard>
         </section>
 

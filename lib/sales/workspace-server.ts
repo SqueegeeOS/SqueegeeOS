@@ -12,8 +12,10 @@ import type {
   SalesActivityType,
   SalesLeadStatus,
   SalesRepLead,
+  SalesRepRecentWin,
   SalesWorkspacePayload,
 } from "./workspace-types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getSalesActivityUndoExpiresAt,
   isReversibleSalesActivityType,
@@ -26,6 +28,13 @@ import {
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { reconcileSignedMembershipAttributionsForRep } from "./signed-attribution-server";
+import {
+  buildSalesRepRecentWins,
+  selectRecentSalesRepWinSources,
+  type SalesRepWinAttributionSource,
+  type SalesRepWinLeadIdentity,
+  type SalesRepWinPresentationIdentity,
+} from "./recent-wins";
 
 interface SalesRepRow {
   id: string;
@@ -86,6 +95,9 @@ interface ReversibleSalesActivityRow extends CreatedSalesActivityRow {
 }
 
 interface SalesAttributionRow {
+  id: string;
+  lead_id: string | null;
+  presentation_id: string | null;
   qualification_status: "pending" | "active" | "qualified" | "cancelled";
   attributed_arr_cents: number;
   attributed_at: string;
@@ -100,6 +112,9 @@ const OPEN_SALES_LEAD_STATUSES: SalesLeadStatus[] = [
   "considering",
 ];
 const SALES_LEAD_PAGE_SIZE = 500;
+const SALES_ATTRIBUTION_SELECT =
+  "id, lead_id, presentation_id, qualification_status, attributed_arr_cents, attributed_at";
+const SALES_ATTRIBUTION_PAGE_SIZE = 500;
 
 export class SalesWorkspaceUnavailableError extends Error {
   constructor(message: string) {
@@ -130,6 +145,7 @@ function readableStorageError(message: string): string {
   if (
     message.includes("sales_reps") ||
     message.includes("sales_rep_leads") ||
+    message.includes("sales_rep_attributions") ||
     message.includes("reversed_at") ||
     message.includes("client_event_id") ||
     message.includes("PGRST204") ||
@@ -171,6 +187,126 @@ function leadFromRow(row: SalesLeadRow): SalesRepLead {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+async function loadAllSalesRepAttributionRows(
+  repId: string,
+): Promise<SalesAttributionRow[]> {
+  const supabase = createPrivilegedServerSupabaseClient();
+  const rows: SalesAttributionRow[] = [];
+  let offset = 0;
+
+  while (true) {
+    const result = await supabase
+      .from("sales_rep_attributions")
+      .select(SALES_ATTRIBUTION_SELECT, { count: "exact" })
+      .eq("rep_id", repId)
+      .order("attributed_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + SALES_ATTRIBUTION_PAGE_SIZE - 1);
+
+    if (result.error) {
+      throw new SalesWorkspaceUnavailableError(
+        readableStorageError(result.error.message),
+      );
+    }
+    if (result.count === null) {
+      throw new SalesWorkspaceUnavailableError(
+        "HomeAtlas could not prove that the signed-close ledger was complete.",
+      );
+    }
+
+    const page = (result.data ?? []) as SalesAttributionRow[];
+    rows.push(...page);
+    offset += page.length;
+    if (offset >= result.count) return rows;
+    if (page.length === 0) {
+      throw new SalesWorkspaceUnavailableError(
+        "HomeAtlas could not finish loading the signed-close ledger.",
+      );
+    }
+  }
+}
+
+async function loadRecentWinLeadIdentities(
+  supabase: SupabaseClient,
+  repId: string,
+  ids: string[],
+): Promise<SalesRepWinLeadIdentity[]> {
+  if (ids.length === 0) return [];
+  const result = await supabase
+    .from("sales_rep_leads")
+    .select("id, full_name, property_address")
+    .eq("rep_id", repId)
+    .in("id", ids);
+  if (result.error) throw new Error(result.error.message);
+  return (result.data ?? []).map((row) => ({
+    id: String(row.id),
+    fullName: String(row.full_name ?? ""),
+    propertyAddress: String(row.property_address ?? ""),
+  }));
+}
+
+async function loadRecentWinPresentationIdentities(
+  supabase: SupabaseClient,
+  repId: string,
+  ids: string[],
+): Promise<SalesRepWinPresentationIdentity[]> {
+  if (ids.length === 0) return [];
+  const result = await supabase
+    .from("presentations")
+    .select("id, client_name, client_address")
+    .eq("sales_rep_id", repId)
+    .in("id", ids);
+  if (result.error) throw new Error(result.error.message);
+  return (result.data ?? []).map((row) => ({
+    id: String(row.id),
+    clientName: String(row.client_name ?? ""),
+    clientAddress: String(row.client_address ?? ""),
+  }));
+}
+
+async function loadRecentSalesRepWins(
+  repId: string,
+  attributions: SalesAttributionRow[],
+): Promise<SalesRepRecentWin[]> {
+  const recentSources = selectRecentSalesRepWinSources(
+    attributions.map(
+      (attribution): SalesRepWinAttributionSource => ({
+        id: attribution.id,
+        leadId: attribution.lead_id,
+        presentationId: attribution.presentation_id,
+        attributedArrCents: Number(attribution.attributed_arr_cents) || 0,
+        status: attribution.qualification_status,
+        attributedAt: attribution.attributed_at,
+      }),
+    ),
+    6,
+  );
+  const leadIds = [
+    ...new Set(
+      recentSources
+        .map((attribution) => attribution.leadId)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+  const presentationIds = [
+    ...new Set(
+      recentSources
+        .map((attribution) => attribution.presentationId)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+  const supabase = createPrivilegedServerSupabaseClient();
+  const [leads, presentations] = await Promise.all([
+    loadRecentWinLeadIdentities(supabase, repId, leadIds),
+    loadRecentWinPresentationIdentities(supabase, repId, presentationIds),
+  ]);
+  return buildSalesRepRecentWins({
+    attributions: recentSources,
+    leads,
+    presentations,
+  });
 }
 
 async function loadAllOpenSalesRepLeadRows(
@@ -314,7 +450,7 @@ export async function loadSalesWorkspace(
     console.error("[sales-workspace] nonfatal attribution reconciliation failure", error);
   }
 
-  const [openLeadRows, leadsTodayResult, activityResult, attributionResult] =
+  const [openLeadRows, leadsTodayResult, activityResult, attributions] =
     await Promise.all([
       loadAllOpenSalesRepLeadRows(rep.id),
       supabase
@@ -330,14 +466,10 @@ export async function loadSalesWorkspace(
         .is("reversed_at", null)
         .gte("occurred_at", startUtc.toISOString())
         .lt("occurred_at", endUtc.toISOString()),
-      supabase
-        .from("sales_rep_attributions")
-        .select("qualification_status, attributed_arr_cents, attributed_at")
-        .eq("rep_id", rep.id),
+      loadAllSalesRepAttributionRows(rep.id),
     ]);
 
-  const firstError =
-    leadsTodayResult.error ?? activityResult.error ?? attributionResult.error;
+  const firstError = leadsTodayResult.error ?? activityResult.error;
   if (firstError) {
     throw new SalesWorkspaceUnavailableError(readableStorageError(firstError.message));
   }
@@ -349,7 +481,6 @@ export async function loadSalesWorkspace(
 
   const leads = openLeadRows.map(leadFromRow);
   const activities = (activityResult.data ?? []) as SalesActivityRow[];
-  const attributions = (attributionResult.data ?? []) as SalesAttributionRow[];
   const activityCount = (eventType: string) =>
     activities.reduce(
       (total, activity) =>
@@ -364,6 +495,14 @@ export async function loadSalesWorkspace(
     const attributedAt = new Date(attribution.attributed_at);
     return attributedAt >= startUtc && attributedAt < endUtc;
   });
+  let recentWins: SalesRepRecentWin[] = [];
+  let recentWinsStatus: SalesWorkspacePayload["recentWinsStatus"] = "complete";
+  try {
+    recentWins = await loadRecentSalesRepWins(rep.id, attributions);
+  } catch (error) {
+    recentWinsStatus = "unavailable";
+    console.error("[sales-workspace] recent signed-close identity load failed", error);
+  }
 
   return {
     profile: profileFromRow(rep),
@@ -393,6 +532,8 @@ export async function loadSalesWorkspace(
       ).length,
     },
     leads,
+    recentWins,
+    recentWinsStatus,
     generatedAt: referenceDate.toISOString(),
   };
 }

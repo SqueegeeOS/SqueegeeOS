@@ -53,10 +53,21 @@ export interface SalesWorkspaceMetrics {
   qualifiedRetainedMembers: number;
 }
 
+export interface SalesRepRecentWin {
+  id: string;
+  fullName: string;
+  propertyAddress: string;
+  attributedArrCents: number;
+  status: "pending" | "active" | "qualified";
+  attributedAt: string;
+}
+
 export interface SalesWorkspacePayload {
   profile: SalesRepProfile;
   metrics: SalesWorkspaceMetrics;
   leads: SalesRepLead[];
+  recentWins: SalesRepRecentWin[];
+  recentWinsStatus: "complete" | "unavailable";
   generatedAt: string;
 }
 
