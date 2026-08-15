@@ -43,7 +43,7 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p className="text-sm text-[#555]">Property not found.</p>
-        <Link href="/tech" className="mt-4 inline-block text-sm text-[#c9a96e]">
+        <Link href="/tech/properties" className="mt-4 inline-block text-sm text-[#c9a96e]">
           ← All properties
         </Link>
       </div>
@@ -56,7 +56,7 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
     <AmbientStage className="text-white">
       <div className="mx-auto max-w-lg px-4 py-10 pb-20 sm:py-12">
       <Link
-        href="/tech"
+        href="/tech/properties"
         className={`mb-8 inline-block ${craftGhostLink} !text-[10px] !uppercase !tracking-[0.2em] !no-underline`}
       >
         ← All properties

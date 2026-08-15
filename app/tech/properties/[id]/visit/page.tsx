@@ -24,7 +24,7 @@ export default async function TechDocumentVisitPage({
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p className="text-sm text-[#555]">Property not found.</p>
-        <Link href="/tech" className="mt-4 inline-block text-sm text-[#c9a96e]">
+        <Link href="/tech/properties" className="mt-4 inline-block text-sm text-[#c9a96e]">
           ← All properties
         </Link>
       </div>
