@@ -1,5 +1,6 @@
 import type { VisitFieldFollowUpView } from "@/lib/field-records/visit-field-record";
 import type { TechnicianVisitStage } from "@/lib/field-operations/technician-visit-events";
+import type { FieldIndependenceReview } from "@/lib/field-operations/independence-review";
 
 export type JobberTodayVisitMoment =
   | "complete"
@@ -166,6 +167,7 @@ export interface JobberTodayVisit {
   homeAtlasFieldStageAt: string | null;
   homeAtlasFieldStageBy: string | null;
   homeAtlasFieldEventCount: number;
+  homeAtlasIndependenceReview: FieldIndependenceReview | null;
 }
 
 export interface JobberTodayPropertyLink {
@@ -190,6 +192,7 @@ export interface JobberTodayData {
   loadedAt: string;
   fieldRecordStatusAvailable: boolean;
   fieldEventStatusAvailable: boolean;
+  independenceReviewStatusAvailable: boolean;
   summary: JobberTodaySummary;
   visits: JobberTodayVisit[];
   fieldFollowUps: VisitFieldFollowUpView[];

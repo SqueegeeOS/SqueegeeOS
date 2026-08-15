@@ -81,6 +81,7 @@ function visit(
     homeAtlasFieldStageAt: null,
     homeAtlasFieldStageBy: null,
     homeAtlasFieldEventCount: 0,
+    homeAtlasIndependenceReview: null,
     ...overrides,
   };
 }
@@ -109,6 +110,7 @@ function today(visits: JobberTodayVisit[]): JobberTodayData {
     loadedAt: NOW.toISOString(),
     fieldRecordStatusAvailable: true,
     fieldEventStatusAvailable: true,
+    independenceReviewStatusAvailable: true,
     summary: {
       total: visits.length,
       complete: visits.filter((candidate) => candidate.isComplete).length,

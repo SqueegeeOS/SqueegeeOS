@@ -7,6 +7,7 @@ import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { MotionReveal } from "@/components/craft/motion-reveal";
+import { FieldIndependenceReviewPanel } from "@/components/admin/field-independence-review";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import {
@@ -266,6 +267,7 @@ function JobberVisitCard({
   now,
   fieldRecordStatusAvailable,
   fieldEventStatusAvailable,
+  independenceReviewStatusAvailable,
   onFieldRecordSaved,
 }: {
   visit: JobberTodayVisit;
@@ -273,6 +275,7 @@ function JobberVisitCard({
   now: Date;
   fieldRecordStatusAvailable: boolean;
   fieldEventStatusAvailable: boolean;
+  independenceReviewStatusAvailable: boolean;
   onFieldRecordSaved: () => void;
 }) {
   const propertyId = visit.homeAtlasPropertyId;
@@ -571,6 +574,13 @@ function JobberVisitCard({
                     waiting in the owner action queue.
                   </p>
                 </div>
+              ) : null}
+              {independenceReviewStatusAvailable ? (
+                <FieldIndependenceReviewPanel
+                  key={`${visit.homeAtlasAppointmentId}:${visit.homeAtlasIndependenceReview?.reviewedAt ?? "new"}`}
+                  visit={visit}
+                  onSaved={onFieldRecordSaved}
+                />
               ) : null}
               <button
                 type="button"
@@ -1020,6 +1030,14 @@ function TodayWorkspaceContent() {
           </div>
         ) : null}
 
+        {data && !data.independenceReviewStatusAvailable ? (
+          <div className="mb-6 rounded-2xl border border-violet-300/25 bg-violet-300/[0.06] p-4 text-sm text-violet-100">
+            Owner time buyback reviews are waiting on migration 061. Today will
+            keep running normally, but completed jobs cannot count toward the
+            8-hour independence milestone yet.
+          </div>
+        ) : null}
+
         {data &&
         data.fieldEventStatusAvailable &&
         data.summary.jobberCompletionPending > 0 ? (
@@ -1113,6 +1131,9 @@ function TodayWorkspaceContent() {
                   now={now}
                   fieldRecordStatusAvailable={data.fieldRecordStatusAvailable}
                   fieldEventStatusAvailable={data.fieldEventStatusAvailable}
+                  independenceReviewStatusAvailable={
+                    data.independenceReviewStatusAvailable
+                  }
                   onFieldRecordSaved={() => void load()}
                 />
               ))}

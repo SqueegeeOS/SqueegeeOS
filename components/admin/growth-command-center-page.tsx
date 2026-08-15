@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { OwnerLeverageScoreboard } from "@/components/admin/owner-leverage-scoreboard";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
@@ -109,30 +110,30 @@ function TruthCard({
 
 const ITINERARY = [
   {
-    cadence: "Every selling day",
-    title: "Create and convert demand",
+    cadence: "Every field day",
+    title: "Make normal production owner-optional",
     steps: [
-      "Contact every new permissioned lead fast; never let an inbox become a graveyard.",
-      "Move ready prospects through presentation, signature, card, Jobber match, and portal.",
-      "Record the next action before leaving every conversation or door.",
+      "Give Jarad the verified scope, access notes, route stage, and property memory before arrival.",
+      "Require closeout proof and record owner help or a true exception—never rely on memory.",
+      "Count bought-back time only after a normal visit passes the independence gate.",
+    ],
+  },
+  {
+    cadence: "Every Growth Day",
+    title: "Turn bought-back time into recurring demand",
+    steps: [
+      "Start a Growth Session for Noah or Dasan and choose the channel before doing the work.",
+      "Use the operator-linked presentation path so a signed agreement owns its ARR attribution.",
+      "Finish the session with exact break time and a short outcome note.",
     ],
   },
   {
     cadence: "Every week",
-    title: "Run the local machine",
+    title: "Advance the 8 → 16 → 24 → 32 ladder",
     steps: [
-      "Review lead source, follow-up age, signed ARR, cards missing, and upcoming capacity.",
-      "Rehearse the next billing window; resolve every exception before money day.",
-      "Inspect completed visits for proof, quality, review asks, referrals, and useful add-ons.",
-    ],
-  },
-  {
-    cadence: "Every month",
-    title: "Protect the compounding asset",
-    steps: [
-      "Reconcile active ARR, on-book ARR, cancellations, failed payments, and Jobber service truth.",
-      "Compare acquisition channels by signed retained ARR, not cheap leads or vanity clicks.",
-      "Make one capacity decision and one system improvement before adding more complexity.",
+      "Review independent hours, owner interventions, quality exceptions, Growth Hours, and signed ARR.",
+      "Coach the repeated exception; do not punish the technician for surfacing a real risk.",
+      "When demand outruns capacity, train or hire production instead of defaulting Noah to the tools.",
     ],
   },
 ] as const;
@@ -219,8 +220,8 @@ function GrowthContent() {
                 The path to {money(GROWTH_TARGET_ARR, true)} ARR.
               </h1>
               <p className="mt-5 max-w-2xl text-sm leading-relaxed text-white/52 sm:text-base">
-                One founder, one D2D salesperson, one trustworthy customer record.
-                This cockpit separates current company truth from an adjustable growth scenario.
+                Jarad produces. Noah and Dasan create demand. HomeAtlas coordinates
+                the handoff and separates verified company truth from planning assumptions.
               </p>
             </div>
             <div className="min-w-[15rem] rounded-2xl border border-accent/15 bg-accent/[0.055] p-5">
@@ -305,6 +306,8 @@ function GrowthContent() {
             </p>
           ))}
         </section>
+
+        <OwnerLeverageScoreboard />
 
         <section className="mt-16 rounded-[2rem] border border-white/[0.08] bg-[#0d0c0a]/85 p-5 sm:p-8">
           <div className="grid gap-8 xl:grid-cols-[0.85fr_1.15fr]">

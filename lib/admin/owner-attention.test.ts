@@ -78,6 +78,7 @@ function healthyToday(overrides: Partial<JobberTodayData> = {}): JobberTodayData
     loadedAt: NOW.toISOString(),
     fieldRecordStatusAvailable: true,
     fieldEventStatusAvailable: true,
+    independenceReviewStatusAvailable: true,
     summary: {
       total: 0,
       complete: 0,
@@ -246,6 +247,7 @@ function visit(overrides: Partial<JobberTodayVisit> = {}): JobberTodayVisit {
     homeAtlasFieldStageAt: "2026-08-14T16:00:00.000Z",
     homeAtlasFieldStageBy: "Alex",
     homeAtlasFieldEventCount: 4,
+    homeAtlasIndependenceReview: null,
     ...overrides,
   };
 }
