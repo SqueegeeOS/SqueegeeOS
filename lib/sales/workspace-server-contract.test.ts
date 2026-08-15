@@ -1,0 +1,41 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const server = readFileSync(
+  new URL("./workspace-server.ts", import.meta.url),
+  "utf8",
+);
+
+describe("sales workspace active-queue loading contract", () => {
+  it("pages through only active leads instead of letting closed history crowd them out", () => {
+    expect(server).toContain("OPEN_SALES_LEAD_STATUSES");
+    expect(server).toContain('.in("status", OPEN_SALES_LEAD_STATUSES)');
+    expect(server).toContain(
+      '.select(SALES_LEAD_SELECT, { count: "exact" })',
+    );
+    expect(server).toContain(
+      ".range(offset, offset + SALES_LEAD_PAGE_SIZE - 1)",
+    );
+    expect(server).toContain("if (offset >= result.count) return rows");
+    expect(server).not.toContain(".limit(100)");
+  });
+
+  it("counts all leads captured today independently of their later outcome", () => {
+    expect(server).toContain('.select("id", { count: "exact", head: true })');
+    expect(server).toContain('gte("created_at", startUtc.toISOString())');
+    expect(server).toContain('lt("created_at", endUtc.toISOString())');
+    expect(server).toContain("if (leadsTodayResult.count === null)");
+    expect(server).toContain("HomeAtlas could not verify today's lead count.");
+    expect(server).toContain("leadsToday: leadsTodayResult.count");
+  });
+
+  it("fails visibly instead of presenting an unprovably partial active queue", () => {
+    expect(server).toContain("if (result.count === null)");
+    expect(server).toContain(
+      "HomeAtlas could not prove that the active lead queue was complete.",
+    );
+    expect(server).toContain(
+      "HomeAtlas could not finish loading the active lead queue.",
+    );
+  });
+});
