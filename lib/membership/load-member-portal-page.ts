@@ -36,7 +36,9 @@ export async function loadMemberPortalPageBySlugs(
   const customerPortalMode = options?.customerPortalMode ?? "slug";
 
   const portalData = isCloudPersistenceConnected()
-    ? await getMemberPortalDataBySlugs(homeownerSlug, propertySlug)
+    ? await getMemberPortalDataBySlugs(homeownerSlug, propertySlug, {
+        includeLiveService: customerPortalMode === "token",
+      })
     : null;
 
   const propertyId = await getPropertyIdBySlugs(homeownerSlug, propertySlug);

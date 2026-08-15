@@ -289,6 +289,10 @@ function JobberVisitCard({
     visit.isComplete &&
     visit.homeAtlasFieldRecordCount > 0 &&
     visit.homeAtlasCustomerVisibleRecordCount === 0;
+  const needsJobberCompletion =
+    fieldEventStatusAvailable &&
+    visit.homeAtlasFieldStage === "departed" &&
+    !visit.isComplete;
   const fieldActionLabel = fieldCaptureOpen
     ? "Close field record"
     : hasFieldDraft
@@ -471,6 +475,28 @@ function JobberVisitCard({
         </div>
 
         <div className="mt-4 border-t border-border/60 pt-4">
+          {needsJobberCompletion ? (
+            <div className="mb-3 rounded-xl border border-violet-300/30 bg-violet-300/[0.08] px-4 py-3">
+              <p className="text-xs font-medium text-violet-100">
+                Close this visit in Jobber
+              </p>
+              <p className="mt-1 text-[11px] leading-relaxed text-violet-100/70">
+                HomeAtlas shows the technician finished and left, but Jobber
+                still reports this visit open. Verify the work, then close it in
+                Jobber; HomeAtlas will not change Jobber automatically.
+              </p>
+              {visit.jobberPropertyWebUri ? (
+                <a
+                  href={visit.jobberPropertyWebUri}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex min-h-10 items-center justify-center rounded-full border border-violet-200/30 px-4 text-xs text-violet-100 transition hover:bg-violet-200/[0.08]"
+                >
+                  Open property in Jobber
+                </a>
+              ) : null}
+            </div>
+          ) : null}
           {needsFieldCloseout ? (
             <div className="mb-3 rounded-xl border border-amber-400/30 bg-amber-400/[0.08] px-4 py-3">
               <p className="text-xs font-medium text-amber-100">
@@ -908,6 +934,23 @@ function TodayWorkspaceContent() {
                   data.summary.completedWithoutRecord > 0
                 }
               />
+              <MetricCard
+                label="Close in Jobber"
+                value={
+                  data.fieldEventStatusAvailable
+                    ? data.summary.jobberCompletionPending
+                    : "—"
+                }
+                detail={
+                  data.fieldEventStatusAvailable
+                    ? "Crew left; Jobber still open"
+                    : "Available after migration 058"
+                }
+                warning={
+                  data.fieldEventStatusAvailable &&
+                  data.summary.jobberCompletionPending > 0
+                }
+              />
             </div>
           </section>
         ) : null}
@@ -966,6 +1009,20 @@ function TodayWorkspaceContent() {
           <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
             Technician live status is waiting on migration 058. Jobber schedule
             and visit closeouts remain available while that automation is offline.
+          </div>
+        ) : null}
+
+        {data &&
+        data.fieldEventStatusAvailable &&
+        data.summary.jobberCompletionPending > 0 ? (
+          <div className="mb-6 rounded-2xl border border-violet-300/30 bg-violet-300/[0.07] p-4 text-sm text-violet-100">
+            <span className="font-medium">
+              {data.summary.jobberCompletionPending} visit
+              {data.summary.jobberCompletionPending === 1 ? " is" : "s are"}
+              {" "}finished in HomeAtlas but still open in Jobber.
+            </span>{" "}
+            Use the purple action on the matching job card to review and close
+            the source visit.
           </div>
         ) : null}
 

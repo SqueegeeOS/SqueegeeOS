@@ -203,6 +203,7 @@ export interface JobberTodaySummary {
   portalUpdated: number;
   completedWithoutRecord: number;
   completedWithPrivateOnlyRecord: number;
+  jobberCompletionPending: number;
   assigned: number;
   unassigned: number;
   assignmentUnknown: number;
@@ -215,6 +216,7 @@ export function summarizeJobberTodayVisits(
       | "isComplete"
       | "homeAtlasFieldRecordCount"
       | "homeAtlasCustomerVisibleRecordCount"
+      | "homeAtlasFieldStage"
       | "assignedUsers"
       | "assignmentReadState"
     >
@@ -235,6 +237,10 @@ export function summarizeJobberTodayVisits(
       visit.isComplete &&
       visit.homeAtlasFieldRecordCount > 0 &&
       visit.homeAtlasCustomerVisibleRecordCount === 0,
+  ).length;
+  const jobberCompletionPending = visits.filter(
+    (visit) =>
+      !visit.isComplete && visit.homeAtlasFieldStage === "departed",
   ).length;
   const assigned = visits.filter(
     (visit) =>
@@ -257,6 +263,7 @@ export function summarizeJobberTodayVisits(
     portalUpdated,
     completedWithoutRecord,
     completedWithPrivateOnlyRecord,
+    jobberCompletionPending,
     assigned,
     unassigned,
     assignmentUnknown,
