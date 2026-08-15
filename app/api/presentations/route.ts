@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createPresentation,
+  findAuthoritativePresentationForSalesLead,
   listPresentations,
   patchPresentation,
 } from "@/lib/presentations/repository";
@@ -67,24 +68,32 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const presentation = await createPresentation({
-      clientName: lineage?.lead?.fullName || body.clientName,
-      clientAddress: lineage?.lead?.propertyAddress,
-      clientPhone: lineage?.lead?.phone ?? undefined,
-      clientEmail: lineage?.lead?.email ?? undefined,
-      // The creator label remains useful for trusted HQ flows such as the care
-      // plan builder. Only the stable, server-resolved rep ID grants sales
-      // attribution; this display label never does.
-      createdBy: lineage?.displayName ?? requestedCreator,
-      salesRepId: lineage?.id ?? null,
-      salesRepLeadId: lineage?.leadId ?? null,
-      tier: body.tier,
-      homeSqft:
-        typeof body.homeSqft === "number" ? body.homeSqft : undefined,
-      quoteSnapshot: body.quoteSnapshot ?? null,
-    });
+    const existingPresentation = lineage?.leadId
+      ? await findAuthoritativePresentationForSalesLead({
+          salesRepId: lineage.id,
+          salesRepLeadId: lineage.leadId,
+        })
+      : null;
+    const presentation =
+      existingPresentation ??
+      (await createPresentation({
+        clientName: lineage?.lead?.fullName || body.clientName,
+        clientAddress: lineage?.lead?.propertyAddress,
+        clientPhone: lineage?.lead?.phone ?? undefined,
+        clientEmail: lineage?.lead?.email ?? undefined,
+        // The creator label remains useful for trusted HQ flows such as the care
+        // plan builder. Only the stable, server-resolved rep ID grants sales
+        // attribution; this display label never does.
+        createdBy: lineage?.displayName ?? requestedCreator,
+        salesRepId: lineage?.id ?? null,
+        salesRepLeadId: lineage?.leadId ?? null,
+        tier: body.tier,
+        homeSqft:
+          typeof body.homeSqft === "number" ? body.homeSqft : undefined,
+        quoteSnapshot: body.quoteSnapshot ?? null,
+      }));
 
-    if (lineage?.leadId) {
+    if (lineage?.leadId && presentation.status !== "signed") {
       try {
         await markSalesLeadPresentationCreated({
           repId: lineage.id,
@@ -98,7 +107,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (body.quoteSnapshot?.windowCareVisitPrice > 0) {
+    if (
+      !existingPresentation &&
+      body.quoteSnapshot?.windowCareVisitPrice > 0
+    ) {
       const patched = await patchPresentation(presentation.id, {
         monthlyRate: body.quoteSnapshot.windowCareVisitPrice,
         tier:
@@ -107,12 +119,15 @@ export async function POST(req: NextRequest) {
             : "biannual",
       });
       return NextResponse.json(
-        { presentation: patched ?? presentation },
+        { presentation: patched ?? presentation, resumed: false },
         { status: 201 },
       );
     }
 
-    return NextResponse.json({ presentation }, { status: 201 });
+    return NextResponse.json(
+      { presentation, resumed: Boolean(existingPresentation) },
+      { status: existingPresentation ? 200 : 201 },
+    );
   } catch (error) {
     if (
       error instanceof SalesWorkspaceActionError ||

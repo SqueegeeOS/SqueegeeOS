@@ -29,6 +29,7 @@ import {
   normalizePresentationPlanMode,
   resizeCarePlan,
 } from "./care-plan";
+import { selectAuthoritativeSalesLeadPresentation } from "./sales-lead-presentation";
 
 interface PresentationRow {
   id: string;
@@ -289,6 +290,26 @@ async function getFromSupabase(id: string): Promise<PresentationData | null> {
   return data ? rowToPresentation(data as PresentationRow) : null;
 }
 
+async function findSalesLeadPresentationFromSupabase(input: {
+  salesRepId: string;
+  salesRepLeadId: string;
+}): Promise<PresentationData | null> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("presentations")
+    .select("*")
+    .eq("sales_rep_id", input.salesRepId)
+    .eq("sales_rep_lead_id", input.salesRepLeadId)
+    .order("updated_at", { ascending: false })
+    .limit(20);
+
+  if (error) throw new Error(error.message);
+  const presentations = ((data ?? []) as PresentationRow[]).map(
+    rowToPresentation,
+  );
+  return selectAuthoritativeSalesLeadPresentation(presentations);
+}
+
 async function saveToSupabase(data: PresentationData): Promise<PresentationData> {
   const supabase = createServerSupabaseClient();
   const row: Record<string, unknown> = {
@@ -410,6 +431,28 @@ export async function getPresentation(
   }
 
   return data ? normalizePresentation(data) : null;
+}
+
+/**
+ * Reuses the authoritative presentation lineage for a field lead. When cloud
+ * persistence is connected, a lookup failure is surfaced instead of falling
+ * back and creating a duplicate record on one server instance.
+ */
+export async function findAuthoritativePresentationForSalesLead(input: {
+  salesRepId: string;
+  salesRepLeadId: string;
+}): Promise<PresentationData | null> {
+  if (isCloudPersistenceConnected()) {
+    return findSalesLeadPresentationFromSupabase(input);
+  }
+
+  const presentations = await listLocalPresentations();
+  const matches = presentations.filter(
+    (presentation) =>
+      presentation.salesRepId === input.salesRepId &&
+      presentation.salesRepLeadId === input.salesRepLeadId,
+  );
+  return selectAuthoritativeSalesLeadPresentation(matches);
 }
 
 export async function savePresentation(
