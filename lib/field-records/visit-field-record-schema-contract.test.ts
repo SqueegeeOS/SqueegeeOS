@@ -14,7 +14,7 @@ const serviceScopeMigration = readFileSync(
     import.meta.url,
   ),
   "utf8",
-);
+).replaceAll("\r\n", "\n");
 const todayLoader = readFileSync(
   new URL("../care-operations/jobber-today.ts", import.meta.url),
   "utf8",
@@ -22,7 +22,7 @@ const todayLoader = readFileSync(
 const todayWorkspace = readFileSync(
   new URL("../../components/admin/today-workspace-page.tsx", import.meta.url),
   "utf8",
-);
+).replaceAll("\r\n", "\n");
 const assessmentRepository = readFileSync(
   new URL("../health/assessment-repository.ts", import.meta.url),
   "utf8",
