@@ -68,6 +68,7 @@ export interface SalesWorkspacePayload {
   leads: SalesRepLead[];
   recentWins: SalesRepRecentWin[];
   recentWinsStatus: "complete" | "unavailable";
+  closeLedgerStatus: "complete" | "needs_attention";
   generatedAt: string;
 }
 

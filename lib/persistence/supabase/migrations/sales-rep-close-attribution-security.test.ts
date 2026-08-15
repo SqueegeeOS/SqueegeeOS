@@ -158,11 +158,14 @@ describe("signature-backed sales attribution security", () => {
     );
     expect(attributionServer).toContain("Math.min(10");
     expect(attributionServer).toContain("const scanLimit = Math.min(100");
+    expect(attributionServer).toContain('.eq("status", "signed")');
+    expect(attributionServer).toContain("remaining: unresolved + Math.max");
     expect(attributionServer).toContain('.from("signed_agreements")');
     expect(attributionServer).toContain('.in("presentation_id", presentationIds)');
     expect(workspaceServer).toContain(
-      "await reconcileSignedMembershipAttributionsForRep(rep.id, 5)",
+      "await reconcileSignedMembershipAttributionsForRep(",
     );
+    expect(workspaceServer).toContain('closeLedgerStatus = "needs_attention"');
     expect(workspaceServer).toContain(
       "nonfatal attribution reconciliation failure",
     );

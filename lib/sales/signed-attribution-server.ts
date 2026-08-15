@@ -72,6 +72,13 @@ export interface SignedMembershipAttributionResult {
   attributedArrCents: number;
 }
 
+export interface SignedAttributionReconciliationResult {
+  inspected: number;
+  repaired: number;
+  failed: number;
+  remaining: number;
+}
+
 function addUtcMonths(value: string, months: number): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -292,7 +299,7 @@ export async function recordSignedMembershipAttribution(input: {
 export async function reconcileSignedMembershipAttributionsForRep(
   repId: string,
   repairLimit = 5,
-): Promise<{ inspected: number; repaired: number; failed: number }> {
+): Promise<SignedAttributionReconciliationResult> {
   const boundedRepairLimit = Math.max(
     1,
     Math.min(10, Math.floor(repairLimit)),
@@ -303,6 +310,7 @@ export async function reconcileSignedMembershipAttributionsForRep(
     .from("presentations")
     .select("id, membership_id, agreement_id, signed_at, updated_at")
     .eq("sales_rep_id", repId)
+    .eq("status", "signed")
     .order("updated_at", { ascending: false })
     .limit(scanLimit);
   if (presentationsResult.error) {
@@ -313,7 +321,7 @@ export async function reconcileSignedMembershipAttributionsForRep(
     []) as ReconciliationPresentationRow[];
   const presentationIds = presentations.map((presentation) => presentation.id);
   if (presentationIds.length === 0) {
-    return { inspected: 0, repaired: 0, failed: 0 };
+    return { inspected: 0, repaired: 0, failed: 0, remaining: 0 };
   }
   const linkedMembershipsResult = await supabase
     .from("memberships")
@@ -346,9 +354,15 @@ export async function reconcileSignedMembershipAttributionsForRep(
       ? [{ presentation, membership: candidates[0] }]
       : [];
   });
+  const unresolved = presentations.length - resolved.length;
   const membershipIds = resolved.map(({ membership }) => membership.id);
   if (membershipIds.length === 0) {
-    return { inspected: presentations.length, repaired: 0, failed: 0 };
+    return {
+      inspected: presentations.length,
+      repaired: 0,
+      failed: 0,
+      remaining: unresolved,
+    };
   }
 
   const existingResult = await supabase
@@ -359,16 +373,17 @@ export async function reconcileSignedMembershipAttributionsForRep(
   const existingMembershipIds = new Set(
     (existingResult.data ?? []).map((row) => String(row.membership_id)),
   );
+  const missing = resolved.filter(
+    ({ membership }) => !existingMembershipIds.has(membership.id),
+  );
 
   let repaired = 0;
   let failed = 0;
-  let attempted = 0;
-  for (const { presentation, membership } of resolved) {
-    if (existingMembershipIds.has(membership.id)) {
-      continue;
-    }
-    if (attempted >= boundedRepairLimit) break;
-    attempted += 1;
+  let cleared = 0;
+  for (const { presentation, membership } of missing.slice(
+    0,
+    boundedRepairLimit,
+  )) {
     try {
       const result = await recordSignedMembershipAttribution({
         presentationId: presentation.id,
@@ -377,6 +392,7 @@ export async function reconcileSignedMembershipAttributionsForRep(
         signedAt: presentation.signed_at,
       });
       if (result.status === "created") repaired += 1;
+      if (result.status !== "not_rep_attributed") cleared += 1;
     } catch (error) {
       failed += 1;
       console.error(
@@ -387,5 +403,10 @@ export async function reconcileSignedMembershipAttributionsForRep(
     }
   }
 
-  return { inspected: presentations.length, repaired, failed };
+  return {
+    inspected: presentations.length,
+    repaired,
+    failed,
+    remaining: unresolved + Math.max(0, missing.length - cleared),
+  };
 }
