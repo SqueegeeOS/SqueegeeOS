@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   createPresentation,
+  findAuthoritativePresentationForLeadIntake,
   findAuthoritativePresentationForSalesLead,
   listPresentations,
   patchPresentation,
 } from "@/lib/presentations/repository";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import {
+  getLeadIntakeById,
+  updateLeadIntakeStatus,
+} from "@/lib/acquisition/leads/repository";
 import {
   resolvePresentationSalesLineage,
   markSalesLeadPresentationCreated,
@@ -17,6 +22,12 @@ const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+}
+
+function leadCreatorLabel(source: "request_form" | "facebook_lead_ad"): string {
+  return source === "facebook_lead_ad"
+    ? "HQ · Facebook lead"
+    : "HQ · Website request";
 }
 
 export async function GET(req: NextRequest) {
@@ -53,12 +64,47 @@ export async function POST(req: NextRequest) {
       typeof body.salesRepLeadId === "string" && body.salesRepLeadId.trim()
         ? body.salesRepLeadId.trim()
         : null;
+    const requestedLeadIntakeId =
+      typeof body.leadIntakeId === "string" && body.leadIntakeId.trim()
+        ? body.leadIntakeId.trim()
+        : null;
     if (requestedLeadId && !UUID_PATTERN.test(requestedLeadId)) {
       return NextResponse.json(
         { error: "Lead reference is invalid." },
         { status: 400 },
       );
     }
+    if (requestedLeadIntakeId && !UUID_PATTERN.test(requestedLeadIntakeId)) {
+      return NextResponse.json(
+        { error: "Inquiry reference is invalid." },
+        { status: 400 },
+      );
+    }
+    if (requestedLeadIntakeId && (requestedRepSlug || requestedLeadId)) {
+      return NextResponse.json(
+        { error: "A presentation can have only one originating lead." },
+        { status: 400 },
+      );
+    }
+
+    // Customer identity for an inquiry-linked presentation is resolved on the
+    // server. Stale or modified browser values can never replace the intake.
+    const leadIntake = requestedLeadIntakeId
+      ? await getLeadIntakeById(requestedLeadIntakeId)
+      : null;
+    if (requestedLeadIntakeId && !leadIntake) {
+      return NextResponse.json(
+        { error: "Customer inquiry was not found." },
+        { status: 404 },
+      );
+    }
+    if (leadIntake?.status === "archived") {
+      return NextResponse.json(
+        { error: "Restore this archived inquiry before scheduling it." },
+        { status: 409 },
+      );
+    }
+
     const lineage = requestedRepSlug
       ? await resolvePresentationSalesLineage(requestedRepSlug, requestedLeadId)
       : null;
@@ -68,30 +114,57 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const existingPresentation = lineage?.leadId
-      ? await findAuthoritativePresentationForSalesLead({
-          salesRepId: lineage.id,
-          salesRepLeadId: lineage.leadId,
+    const existingPresentation = leadIntake
+      ? await findAuthoritativePresentationForLeadIntake({
+          leadIntakeId: leadIntake.id,
         })
-      : null;
-    const presentation =
-      existingPresentation ??
-      (await createPresentation({
-        clientName: lineage?.lead?.fullName || body.clientName,
-        clientAddress: lineage?.lead?.propertyAddress,
-        clientPhone: lineage?.lead?.phone ?? undefined,
-        clientEmail: lineage?.lead?.email ?? undefined,
-        // The creator label remains useful for trusted HQ flows such as the care
-        // plan builder. Only the stable, server-resolved rep ID grants sales
-        // attribution; this display label never does.
-        createdBy: lineage?.displayName ?? requestedCreator,
-        salesRepId: lineage?.id ?? null,
-        salesRepLeadId: lineage?.leadId ?? null,
-        tier: body.tier,
-        homeSqft:
-          typeof body.homeSqft === "number" ? body.homeSqft : undefined,
-        quoteSnapshot: body.quoteSnapshot ?? null,
-      }));
+      : lineage?.leadId
+        ? await findAuthoritativePresentationForSalesLead({
+            salesRepId: lineage.id,
+            salesRepLeadId: lineage.leadId,
+          })
+        : null;
+    let presentation = existingPresentation;
+    let resumed = Boolean(existingPresentation);
+
+    if (!presentation) {
+      try {
+        presentation = await createPresentation({
+          clientName:
+            leadIntake?.name || lineage?.lead?.fullName || body.clientName,
+          clientAddress:
+            leadIntake?.serviceAddress ?? lineage?.lead?.propertyAddress,
+          clientPhone: leadIntake?.phone ?? lineage?.lead?.phone ?? undefined,
+          clientEmail: leadIntake?.email ?? lineage?.lead?.email ?? undefined,
+          // The creator label remains useful for trusted HQ flows such as the
+          // care plan builder. Stable server lineage—not this label—owns the
+          // customer relationship and any sales attribution.
+          createdBy: leadIntake
+            ? leadCreatorLabel(leadIntake.source)
+            : (lineage?.displayName ?? requestedCreator),
+          salesRepId: lineage?.id ?? null,
+          salesRepLeadId: lineage?.leadId ?? null,
+          leadIntakeId: leadIntake?.id ?? null,
+          tier: leadIntake?.membershipTier ?? body.tier,
+          homeSqft:
+            leadIntake?.squareFootage ??
+            (typeof body.homeSqft === "number" ? body.homeSqft : undefined),
+          quoteSnapshot: leadIntake ? null : (body.quoteSnapshot ?? null),
+        });
+      } catch (creationError) {
+        // A second tab can win the unique-index race after our initial lookup.
+        // Re-read the authoritative record instead of surfacing a false failure
+        // or ever manufacturing a duplicate.
+        const racedPresentation = leadIntake
+          ? await findAuthoritativePresentationForLeadIntake({
+              leadIntakeId: leadIntake.id,
+            })
+          : null;
+        if (!racedPresentation) throw creationError;
+        presentation = racedPresentation;
+        resumed = true;
+      }
+    }
 
     if (lineage?.leadId && presentation.status !== "signed") {
       try {
@@ -107,10 +180,30 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (
-      !existingPresentation &&
-      body.quoteSnapshot?.windowCareVisitPrice > 0
-    ) {
+    let leadStatusSynced = true;
+    if (leadIntake && leadIntake.status !== "scheduled") {
+      try {
+        const updatedLead = await updateLeadIntakeStatus(
+          leadIntake.id,
+          "scheduled",
+        );
+        leadStatusSynced = updatedLead?.status === "scheduled";
+        if (!leadStatusSynced) {
+          console.error(
+            "[presentations] inquiry presentation saved but status did not update",
+            { leadIntakeId: leadIntake.id, presentationId: presentation.id },
+          );
+        }
+      } catch (trackingError) {
+        leadStatusSynced = false;
+        console.error(
+          "[presentations] inquiry presentation saved but status update failed",
+          trackingError,
+        );
+      }
+    }
+
+    if (!leadIntake && !resumed && body.quoteSnapshot?.windowCareVisitPrice > 0) {
       const patched = await patchPresentation(presentation.id, {
         monthlyRate: body.quoteSnapshot.windowCareVisitPrice,
         tier:
@@ -119,14 +212,18 @@ export async function POST(req: NextRequest) {
             : "biannual",
       });
       return NextResponse.json(
-        { presentation: patched ?? presentation, resumed: false },
+        {
+          presentation: patched ?? presentation,
+          resumed: false,
+          leadStatusSynced,
+        },
         { status: 201 },
       );
     }
 
     return NextResponse.json(
-      { presentation, resumed: Boolean(existingPresentation) },
-      { status: existingPresentation ? 200 : 201 },
+      { presentation, resumed, leadStatusSynced },
+      { status: resumed ? 200 : 201 },
     );
   } catch (error) {
     if (

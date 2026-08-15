@@ -114,6 +114,7 @@ const checks = [
   ["052", "complete presentation drafts", (s) => hasColumn(s, "presentations", "draft_payload")],
   ["053", "optional triannual plans", (s) => constraintIncludes(s, "presentations", "triannual") && constraintIncludes(s, "memberships", "triannual")],
   ["054", "private visit field records", (s) => hasColumns(s, "property_assets", "storage_bucket", "capture_type", "customer_visible", "captured_by", "field_record_id") && hasColumns(s, "property_assessments", "field_record_id", "follow_up_status", "follow_up_due_at", "follow_up_resolved_at", "follow_up_resolved_by") && s.indexes.has("property_assessments_field_record_uidx") && s.indexes.has("property_assessments_open_follow_up_idx") && s.visitMediaBucket === false && s.fieldPublicPolicies === 0 && s.fieldPublicPrivileges === 0],
+  ["055", "one inquiry, one presentation", (s) => hasColumn(s, "presentations", "lead_intake_id") && constraintIncludes(s, "presentations", "foreign key (lead_intake_id)", "lead_intakes", "on delete restrict") && constraintIncludes(s, "presentations", "sales_rep_lead_id", "lead_intake_id") && s.indexes.has("presentations_lead_intake_uidx") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
 ];
 
 await client.connect();

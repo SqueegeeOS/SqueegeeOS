@@ -24,14 +24,15 @@ describe("sales lead presentation resume contract", () => {
     expect(route).toContain(
       "await findAuthoritativePresentationForSalesLead",
     );
-    expect(route).toContain("existingPresentation ??");
+    expect(route).toContain("let presentation = existingPresentation");
+    expect(route).toContain("if (!presentation)");
   });
 
   it("prefers a signed outcome and never overwrites a resumed quote", () => {
     expect(repository).toContain("selectAuthoritativeSalesLeadPresentation");
-    expect(route).toContain("!existingPresentation &&");
-    expect(route).toContain("resumed: Boolean(existingPresentation)");
-    expect(route).toContain("status: existingPresentation ? 200 : 201");
+    expect(route).toContain("!leadIntake && !resumed &&");
+    expect(route).toContain("let resumed = Boolean(existingPresentation)");
+    expect(route).toContain("status: resumed ? 200 : 201");
     expect(route).toContain(
       'lineage?.leadId && presentation.status !== "signed"',
     );

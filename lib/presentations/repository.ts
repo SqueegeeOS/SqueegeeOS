@@ -36,6 +36,7 @@ interface PresentationRow {
   created_by: string | null;
   sales_rep_id?: string | null;
   sales_rep_lead_id?: string | null;
+  lead_intake_id?: string | null;
   client_name: string;
   client_address: string | null;
   client_email: string | null;
@@ -103,6 +104,7 @@ function normalizePresentation(data: PresentationData): PresentationData {
     ...data,
     salesRepId: data.salesRepId ?? null,
     salesRepLeadId: data.salesRepLeadId ?? null,
+    leadIntakeId: data.leadIntakeId ?? null,
     clientPhone: data.clientPhone ?? "",
     twoStory,
     includeScreens,
@@ -167,6 +169,7 @@ function rowToPresentation(row: PresentationRow): PresentationData {
     createdBy: row.created_by ?? "Team",
     salesRepId: row.sales_rep_id ?? null,
     salesRepLeadId: row.sales_rep_lead_id ?? null,
+    leadIntakeId: row.lead_intake_id ?? null,
     clientName: row.client_name,
     clientAddress: row.client_address ?? "",
     clientPhone: "",
@@ -212,7 +215,7 @@ function rowToPresentation(row: PresentationRow): PresentationData {
 }
 
 function presentationToRow(data: PresentationData): Record<string, unknown> {
-  return {
+  const row: Record<string, unknown> = {
     created_by: data.createdBy,
     sales_rep_id: data.salesRepId,
     sales_rep_lead_id: data.salesRepLeadId,
@@ -239,6 +242,15 @@ function presentationToRow(data: PresentationData): Record<string, unknown> {
     membership_id: data.membershipId,
     onboarding_status: data.onboardingStatus,
   };
+
+  // Null lineage is omitted so unrelated presentation saves remain compatible
+  // while migration 055 rolls out. A linked inquiry never drops the column and
+  // therefore fails closed until the uniqueness constraint is available.
+  if (data.leadIntakeId) {
+    row.lead_intake_id = data.leadIntakeId;
+  }
+
+  return row;
 }
 
 function newPresentationId(): string {
@@ -310,6 +322,20 @@ async function findSalesLeadPresentationFromSupabase(input: {
   return selectAuthoritativeSalesLeadPresentation(presentations);
 }
 
+async function findLeadIntakePresentationFromSupabase(input: {
+  leadIntakeId: string;
+}): Promise<PresentationData | null> {
+  const supabase = createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("presentations")
+    .select("*")
+    .eq("lead_intake_id", input.leadIntakeId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? rowToPresentation(data as PresentationRow) : null;
+}
+
 async function saveToSupabase(data: PresentationData): Promise<PresentationData> {
   const supabase = createServerSupabaseClient();
   const row: Record<string, unknown> = {
@@ -354,6 +380,7 @@ export function createDefaultPresentation(input?: {
   createdBy?: string;
   salesRepId?: string | null;
   salesRepLeadId?: string | null;
+  leadIntakeId?: string | null;
   tier?: PresentationTier;
   homeSqft?: number;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
@@ -368,6 +395,7 @@ export function createDefaultPresentation(input?: {
     createdBy: input?.createdBy ?? "Team",
     salesRepId: input?.salesRepId ?? null,
     salesRepLeadId: input?.salesRepLeadId ?? null,
+    leadIntakeId: input?.leadIntakeId ?? null,
     clientName: input?.clientName ?? "New Client",
     clientAddress: input?.clientAddress ?? "",
     clientPhone: input?.clientPhone ?? "",
@@ -455,6 +483,26 @@ export async function findAuthoritativePresentationForSalesLead(input: {
   return selectAuthoritativeSalesLeadPresentation(matches);
 }
 
+/**
+ * Resolves the sole presentation owned by a website or Meta inquiry. Cloud
+ * lookup failures are surfaced so a server instance can never invent a local
+ * duplicate when durable lineage is unavailable.
+ */
+export async function findAuthoritativePresentationForLeadIntake(input: {
+  leadIntakeId: string;
+}): Promise<PresentationData | null> {
+  if (isCloudPersistenceConnected()) {
+    return findLeadIntakePresentationFromSupabase(input);
+  }
+
+  const presentations = await listLocalPresentations();
+  return (
+    presentations.find(
+      (presentation) => presentation.leadIntakeId === input.leadIntakeId,
+    ) ?? null
+  );
+}
+
 export async function savePresentation(
   data: PresentationData,
 ): Promise<PresentationData> {
@@ -487,6 +535,7 @@ export async function createPresentation(input?: {
   createdBy?: string;
   salesRepId?: string | null;
   salesRepLeadId?: string | null;
+  leadIntakeId?: string | null;
   tier?: PresentationTier;
   homeSqft?: number;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
@@ -511,6 +560,7 @@ export async function patchPresentation(
       createdBy: patch.createdBy ?? "Team",
       salesRepId: patch.salesRepId ?? null,
       salesRepLeadId: patch.salesRepLeadId ?? null,
+      leadIntakeId: patch.leadIntakeId ?? null,
       clientName: patch.clientName,
       clientPhone: patch.clientPhone,
       tier: patch.tier,

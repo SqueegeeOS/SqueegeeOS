@@ -22,39 +22,28 @@ export async function updateLeadIntakeStatusClient(
 export async function schedulePresentationFromLead(
   lead: LeadIntakeRecord,
 ): Promise<string> {
-  await updateLeadIntakeStatusClient(lead.id, "scheduled");
-
   const createResponse = await fetch("/api/presentations", {
     method: "POST",
     headers: getAdminRequestHeaders(),
     body: JSON.stringify({
-      clientName: lead.name,
-      createdBy: "HQ Request",
-      tier: lead.membershipTier ?? "quarterly",
-      homeSqft: lead.squareFootage ?? undefined,
+      leadIntakeId: lead.id,
     }),
   });
 
   if (!createResponse.ok) {
-    throw new Error("Failed to create presentation");
+    const body = (await createResponse.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new Error(body?.error ?? "Failed to prepare presentation");
   }
 
-  const { presentation } = (await createResponse.json()) as {
-    presentation: { id: string };
+  const { presentation, leadStatusSynced } = (await createResponse.json()) as {
+    presentation: { id: string; status: string };
+    leadStatusSynced?: boolean;
   };
-
-  const patchResponse = await fetch(`/api/presentations/${presentation.id}`, {
-    method: "PATCH",
-    headers: getAdminRequestHeaders(),
-    body: JSON.stringify({
-      clientEmail: lead.email,
-      clientAddress: lead.serviceAddress,
-    }),
-  });
-
-  if (!patchResponse.ok) {
-    throw new Error("Failed to prefill presentation");
-  }
-
-  return `/presentations/${presentation.id}/edit`;
+  const href =
+    presentation.status === "signed"
+      ? `/presentations/${presentation.id}/present`
+      : `/presentations/${presentation.id}/edit`;
+  return leadStatusSynced === false ? `${href}?inquirySync=pending` : href;
 }
