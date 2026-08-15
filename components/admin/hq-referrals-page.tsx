@@ -8,6 +8,7 @@ import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 import type { HqReferralRow, ReferralStatus } from "@/lib/referrals/types";
+import { referralMemberAnchorId } from "@/lib/referrals/attention-types";
 
 const STATUS_TONE: Record<ReferralStatus, string> = {
   pending: "text-muted",
@@ -63,67 +64,84 @@ export function HqReferralsPage() {
         ) : (
           <div className="space-y-6">
             {rows.map((row, index) => (
-              <GlassCard key={row.code} tone="subtle" motion="rise" index={index}>
-                <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <div>
-                    <p className="font-medium text-foreground">{row.memberName}</p>
-                    <p className="mt-1 font-mono text-xs tracking-[0.14em] text-accent">
-                      /r/{row.code}
-                    </p>
+              <div
+                key={row.code}
+                id={referralMemberAnchorId(row.membershipId)}
+                className="scroll-mt-24 rounded-[var(--radius-card)] target:ring-2 target:ring-accent/60"
+              >
+                <GlassCard tone="subtle" motion="rise" index={index}>
+                  <div className="flex flex-wrap items-baseline justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">
+                        {row.memberName}
+                      </p>
+                      <p className="mt-1 font-mono text-xs tracking-[0.14em] text-accent">
+                        /r/{row.code}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-mono text-xs tracking-[0.14em] text-muted">
+                        {row.visitCount} link {row.visitCount === 1 ? "visit" : "visits"}
+                      </p>
+                      <p className="mt-1 font-mono text-xs tracking-[0.14em] text-muted">
+                        {row.convertedCount} converted member
+                        {row.convertedCount === 1 ? "" : "s"}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-mono text-xs tracking-[0.14em] text-muted">
-                      {row.visitCount} link {row.visitCount === 1 ? "visit" : "visits"}
-                    </p>
-                    <p className="mt-1 font-mono text-xs tracking-[0.14em] text-muted">
-                      {row.convertedCount} converted member
-                      {row.convertedCount === 1 ? "" : "s"}
-                    </p>
-                  </div>
-                </div>
 
-                {(row.nextMilestoneLabel || row.availableCareCreditLabel) && (
-                  <div className="mt-4 space-y-2 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3">
-                    {row.availableCareCreditLabel ? (
-                      <p className="text-sm text-accent">{row.availableCareCreditLabel}</p>
-                    ) : null}
-                    {row.nextMilestoneLabel ? (
-                      <p className="text-sm text-muted">
-                        Next milestone:{" "}
-                        <span className="text-foreground/85">{row.nextMilestoneLabel}</span>
-                      </p>
-                    ) : null}
-                    {row.availableRewardCount > 0 ? (
-                      <p className="text-xs text-muted">
-                        {row.availableRewardCount} reward
-                        {row.availableRewardCount === 1 ? "" : "s"} awaiting redemption
-                      </p>
-                    ) : null}
-                  </div>
-                )}
-                {row.referrals.length > 0 ? (
-                  <ul className="mt-5 divide-y divide-border/30 border-t border-border/30">
-                    {row.referrals.map((r) => (
-                      <li
-                        key={r.id}
-                        className="grid gap-1 py-3 sm:grid-cols-[1fr_1fr_auto] sm:items-baseline sm:gap-4"
-                      >
-                        <span className="text-sm text-foreground/90">{r.leadName}</span>
-                        <span className="truncate text-xs text-muted">{r.leadEmail}</span>
-                        <span
-                          className={`font-mono text-[11px] uppercase tracking-[0.18em] ${STATUS_TONE[r.status]}`}
+                  {(row.nextMilestoneLabel || row.availableCareCreditLabel) && (
+                    <div className="mt-4 space-y-2 rounded-xl border border-border/60 bg-foreground/[0.02] px-4 py-3">
+                      {row.availableCareCreditLabel ? (
+                        <p className="text-sm text-accent">
+                          {row.availableCareCreditLabel}
+                        </p>
+                      ) : null}
+                      {row.nextMilestoneLabel ? (
+                        <p className="text-sm text-muted">
+                          Next milestone:{" "}
+                          <span className="text-foreground/85">
+                            {row.nextMilestoneLabel}
+                          </span>
+                        </p>
+                      ) : null}
+                      {row.availableRewardCount > 0 ? (
+                        <p className="text-xs text-muted">
+                          {row.availableRewardCount} reward
+                          {row.availableRewardCount === 1 ? "" : "s"} awaiting
+                          redemption
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                  {row.referrals.length > 0 ? (
+                    <ul className="mt-5 divide-y divide-border/30 border-t border-border/30">
+                      {row.referrals.map((r) => (
+                        <li
+                          key={r.id}
+                          className="grid gap-1 py-3 sm:grid-cols-[1fr_1fr_auto] sm:items-baseline sm:gap-4"
                         >
-                          {r.status}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-4 text-sm text-muted">
-                    Link created, no requests yet.
-                  </p>
-                )}
-              </GlassCard>
+                          <span className="text-sm text-foreground/90">
+                            {r.leadName}
+                          </span>
+                          <span className="truncate text-xs text-muted">
+                            {r.leadEmail}
+                          </span>
+                          <span
+                            className={`font-mono text-[11px] uppercase tracking-[0.18em] ${STATUS_TONE[r.status]}`}
+                          >
+                            {r.status}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-4 text-sm text-muted">
+                      Link created, no requests yet.
+                    </p>
+                  )}
+                </GlassCard>
+              </div>
             ))}
           </div>
         )}

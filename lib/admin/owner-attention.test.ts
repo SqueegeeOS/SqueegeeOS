@@ -9,7 +9,9 @@ import type { ProductionHealthReport } from "@/lib/admin/production-health-types
 import type { JobberTodayData, JobberTodayVisit } from "@/lib/care-operations/jobber-today-types";
 import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
 import type { VisitFieldFollowUpView } from "@/lib/field-records/visit-field-record";
+import type { ReferralAttentionSnapshot } from "@/lib/referrals/attention-types";
 import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
+import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
 import type {
   SalesLeadAttentionSnapshot,
   SalesRepLead,
@@ -127,14 +129,24 @@ function davidSnapshot(leads: SalesRepLead[] = []): SalesLeadAttentionSnapshot {
   };
 }
 
+function healthySalesRetention(): SalesRetentionAttentionSnapshot {
+  return { generatedAt: NOW.toISOString(), records: [], truncated: false };
+}
+
+function healthyReferrals(): ReferralAttentionSnapshot {
+  return { generatedAt: NOW.toISOString(), members: [], truncated: false };
+}
+
 function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttentionInput {
   return {
     now: NOW,
     customerLeads: ready([]),
     davidPipeline: ready(davidSnapshot()),
+    salesRetention: ready(healthySalesRetention()),
     today: ready(healthyToday()),
     billing: ready(healthyBilling()),
     communications: ready(healthyCommunications()),
+    referrals: ready(healthyReferrals()),
     productionHealth: ready(healthyProduction()),
     ...overrides,
   };
@@ -404,6 +416,86 @@ describe("owner attention queue", () => {
     expect(item?.detail).toContain("$1,200 potential ARR");
   });
 
+  it("surfaces referral rewards and old pending referral leads", () => {
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        referrals: ready({
+          generatedAt: NOW.toISOString(),
+          truncated: false,
+          members: [
+            {
+              membershipId: "membership-1",
+              memberName: "Mandi Rivera",
+              code: "SKMINTY",
+              pendingReferralCount: 2,
+              oldestPendingAt: "2026-08-01T18:00:00.000Z",
+              convertedUnrewardedCount: 1,
+              oldestConvertedAt: "2026-08-10T18:00:00.000Z",
+              availableRewardCount: 1,
+              availableCareCreditCents: 2_500,
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.items.find((item) => item.id === "referral-reward:membership-1"))
+      .toMatchObject({
+        priority: "high",
+        href: "/hq/referrals#referral-member-membership-1",
+        affectedCount: 1,
+      });
+    expect(response.items.find((item) => item.id === "referral-pending:membership-1"))
+      .toMatchObject({ priority: "normal", affectedCount: 2 });
+  });
+
+  it("surfaces overdue and cancelled salesperson retention drift", () => {
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        salesRetention: ready({
+          generatedAt: NOW.toISOString(),
+          truncated: false,
+          records: [
+            {
+              attributionId: "attribution-due",
+              membershipId: "membership-due",
+              repSlug: "david",
+              repDisplayName: "David",
+              homeownerName: "Jeff Mason",
+              membershipStatus: "active",
+              qualificationStatus: "active",
+              retentionQualifiesAt: "2026-08-12T18:00:00.000Z",
+            },
+            {
+              attributionId: "attribution-cancelled",
+              membershipId: "membership-cancelled",
+              repSlug: "david",
+              repDisplayName: "David",
+              homeownerName: "Joani Hall",
+              membershipStatus: "cancelled",
+              qualificationStatus: "active",
+              retentionQualifiesAt: "2026-09-01T18:00:00.000Z",
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.items.find((item) => item.id === "sales-retention:attribution-due"))
+      .toMatchObject({
+        priority: "critical",
+        href: "/hq/customers/membership/membership-due",
+      });
+    expect(
+      response.items.find(
+        (item) => item.id === "sales-retention:attribution-cancelled",
+      ),
+    ).toMatchObject({
+      priority: "critical",
+      href: "/hq/customers/membership/membership-cancelled",
+    });
+  });
+
   it("fails closed when a source cannot be read", () => {
     const response = buildOwnerAttentionQueue(
       baseInput({
@@ -478,5 +570,30 @@ describe("owner attention queue", () => {
     expect(end).toBeGreaterThan(start);
     expect(loader).toContain("loadAllOpenSalesRepLeadRows");
     expect(loader).not.toContain("reconcileSignedMembershipAttributionsForRep");
+  });
+
+  it("keeps referral and retention attention loaders read-only", () => {
+    const referralSource = readFileSync(
+      new URL("../referrals/attention-server.ts", import.meta.url),
+      "utf8",
+    );
+    expect(referralSource).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
+    expect(referralSource).not.toContain("loadMemberReferralRewards");
+
+    const lifecycleSource = readFileSync(
+      new URL("../sales/attribution-lifecycle-server.ts", import.meta.url),
+      "utf8",
+    );
+    const start = lifecycleSource.indexOf(
+      "export async function loadSalesRetentionAttentionSnapshot",
+    );
+    const end = lifecycleSource.indexOf(
+      "export async function syncMembershipSalesAttributionLifecycle",
+      start,
+    );
+    const loader = lifecycleSource.slice(start, end);
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(loader).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
   });
 });

@@ -13,6 +13,8 @@ import { loadCommunicationsLaunchReadiness } from "@/lib/communications/integrat
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
 import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
+import { loadReferralAttentionSnapshot } from "@/lib/referrals/attention-server";
+import { loadSalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle-server";
 import { loadSalesLeadAttentionSnapshot } from "@/lib/sales/workspace-server";
 
 async function captureSource<T>(input: {
@@ -34,9 +36,11 @@ export async function loadOwnerAttentionQueue(
   const [
     customerLeads,
     davidPipeline,
+    salesRetention,
     today,
     billing,
     communications,
+    referrals,
     productionHealth,
   ] = await Promise.all([
     captureSource({
@@ -54,6 +58,16 @@ export async function loadOwnerAttentionQueue(
       unavailableDetail: "Atlas could not read David’s open pipeline.",
       load: () =>
         loadSalesLeadAttentionSnapshot(DAVID_REP_PROFILE.slug, reference),
+    }),
+    captureSource({
+      id: "sales_retention",
+      unavailableDetail: "Atlas could not verify salesperson retention state.",
+      load: () => {
+        if (!isSupabaseConfigured()) {
+          throw new Error("Supabase is not configured.");
+        }
+        return loadSalesRetentionAttentionSnapshot(reference);
+      },
     }),
     captureSource({
       id: "today",
@@ -76,6 +90,11 @@ export async function loadOwnerAttentionQueue(
       load: loadCommunicationsLaunchReadiness,
     }),
     captureSource({
+      id: "referrals",
+      unavailableDetail: "Atlas could not verify referral and reward state.",
+      load: () => loadReferralAttentionSnapshot(reference),
+    }),
+    captureSource({
       id: "production_health",
       unavailableDetail: "Atlas could not complete the production safeguard audit.",
       load: runProductionHealthReport,
@@ -86,9 +105,11 @@ export async function loadOwnerAttentionQueue(
     now: reference,
     customerLeads,
     davidPipeline,
+    salesRetention,
     today,
     billing,
     communications,
+    referrals,
     productionHealth,
   });
 }
