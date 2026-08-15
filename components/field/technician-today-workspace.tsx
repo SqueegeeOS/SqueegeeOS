@@ -63,6 +63,11 @@ const READINESS_STYLE: Record<
     detail: "Internal memory exists; add something the customer can see.",
     className: "border-sky-300/35 bg-sky-300/10 text-sky-100",
   },
+  follow_up_open: {
+    label: "Exception open",
+    detail: "The visit is documented, but its HQ follow-up is still open.",
+    className: "border-amber-300/40 bg-amber-300/10 text-amber-100",
+  },
   pairing_required: {
     label: "HQ pairing needed",
     detail: "This Jobber property is not paired to a HomeAtlas home yet.",
@@ -190,6 +195,8 @@ function TechnicianVisitCard({
       ? "Finish closeout"
       : readiness === "portal_update_required"
         ? "Add customer update"
+        : readiness === "follow_up_open"
+          ? "Update service exception"
         : visit.homeAtlasFieldRecordCount > 0
           ? "Add visit memory"
           : "Document this visit";
@@ -268,6 +275,38 @@ function TechnicianVisitCard({
           </span>
         </div>
 
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-white/35">
+              Service scope
+            </span>
+            <span
+              className={`text-xs ${
+                visit.scopeReadState === "available"
+                  ? "text-white/70"
+                  : "text-amber-100"
+              }`}
+            >
+              {visit.scopeReadState === "available"
+                ? `${visit.scopeItems.length} Jobber item${visit.scopeItems.length === 1 ? "" : "s"}`
+                : visit.scopeReadState === "partial"
+                  ? `${visit.scopeItems.length}+ Jobber items`
+                  : "Verify in Jobber"}
+            </span>
+          </div>
+          {visit.scopeItems.length > 0 ? (
+            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-white/50">
+              {visit.scopeItems
+                .map((item) =>
+                  item.quantity > 1
+                    ? `${item.name} × ${item.quantity}`
+                    : item.name,
+                )
+                .join(" · ")}
+            </p>
+          ) : null}
+        </div>
+
         <div className={`mt-5 rounded-xl border px-4 py-3 ${readinessStyle.className}`}>
           <p className="text-sm font-medium">{readinessStyle.label}</p>
           <p className="mt-1 text-xs leading-relaxed opacity-70">
@@ -282,6 +321,14 @@ function TechnicianVisitCard({
             {visit.homeAtlasLatestFieldRecordBy
               ? ` · latest by ${visit.homeAtlasLatestFieldRecordBy}`
               : ""}
+          </div>
+        ) : null}
+
+        {visit.homeAtlasOpenFollowUpCount > 0 ? (
+          <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] px-4 py-3 text-xs text-amber-100/80">
+            {visit.homeAtlasOpenFollowUpCount} visit exception
+            {visit.homeAtlasOpenFollowUpCount === 1 ? " is" : "s are"} still
+            open for HQ.
           </div>
         ) : null}
 
@@ -342,6 +389,8 @@ function TechnicianVisitCard({
                   appointmentId={appointmentId}
                   clientName={visit.clientName}
                   serviceLabel={serviceLabel(visit)}
+                  scopeItems={visit.scopeItems}
+                  scopeReadState={visit.scopeReadState}
                   onSaved={() => {
                     setCaptureOpen(false);
                     onSaved();

@@ -28,6 +28,7 @@ import type {
 } from "./jobber-today-types";
 import {
   readJobberTodayVisitAssignment,
+  readJobberTodayVisitScope,
   resolveJobberTodayHomeAtlasContext,
   summarizeJobberTodayVisits,
 } from "./jobber-today-types";
@@ -84,6 +85,7 @@ interface StoredFieldRecordRow {
   technician_name: string;
   created_at: string;
   customer_note_visible: boolean;
+  follow_up_status: string | null;
 }
 
 interface StoredVisibleAssetRow {
@@ -146,6 +148,7 @@ function toTodayVisit(
     scheduledEnd: row.scheduled_end,
     isComplete: row.is_complete,
     ...readJobberTodayVisitAssignment(row.raw_payload),
+    ...readJobberTodayVisitScope(row.raw_payload),
     propertyLabel: property?.name ?? null,
     jobberPropertyWebUri:
       row.jobber_property_web_uri ?? property?.jobberWebUri ?? null,
@@ -159,6 +162,7 @@ function toTodayVisit(
     homeAtlasLatestFieldRecordBy: fieldRecord?.latestTechnicianName ?? null,
     homeAtlasCustomerVisibleRecordCount:
       fieldRecord?.customerVisibleCount ?? 0,
+    homeAtlasOpenFollowUpCount: fieldRecord?.openFollowUpCount ?? 0,
   };
 }
 
@@ -288,7 +292,7 @@ export async function loadJobberTodayBoard(
     const fieldRecordResult = await supabase
       .from("property_assessments")
       .select(
-        "visit_id, field_record_id, technician_name, created_at, customer_note_visible",
+        "visit_id, field_record_id, technician_name, created_at, customer_note_visible, follow_up_status",
       )
       .in("visit_id", appointmentIdChunk)
       .not("field_record_id", "is", null)
@@ -349,6 +353,7 @@ export async function loadJobberTodayBoard(
         (row.field_record_id
           ? visiblePhotoFieldRecordIds.has(row.field_record_id)
           : false),
+      followUpOpen: row.follow_up_status === "open",
     }));
   const fieldRecordsByAppointment =
     summarizeJobberTodayFieldRecords(fieldRecordRows);

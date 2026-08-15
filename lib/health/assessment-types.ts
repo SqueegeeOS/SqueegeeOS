@@ -17,6 +17,15 @@ export interface RecommendedService {
   note: string;
 }
 
+export interface AssessmentServiceScopeItem {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  category: string | null;
+  completed: boolean;
+}
+
 export interface AssessmentFormState {
   propertyId: string;
   visitId?: string;
@@ -54,6 +63,14 @@ export interface PropertyAssessment {
   followUpDueAt: string | null;
   followUpResolvedAt: string | null;
   followUpResolvedBy: string | null;
+  scopeReadState?:
+    | "available"
+    | "partial"
+    | "permission_hidden"
+    | "not_observed"
+    | null;
+  serviceScope?: AssessmentServiceScopeItem[];
+  scopeException?: string | null;
   proposalSent: boolean;
   proposalSentAt: string | null;
   createdAt: string;

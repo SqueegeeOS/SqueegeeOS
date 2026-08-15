@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { businessTodayIsoDate } from "@/lib/admin/company-business-timezone";
 import {
@@ -13,10 +13,13 @@ import {
 import {
   MAX_VISIT_PHOTOS,
   MAX_VISIT_PHOTO_BYTES,
+  buildCompletedScopeCustomerSummary,
   type VisitFieldRecordCommitInput,
   type VisitPhotoCaptureType,
   type VisitPhotoMimeType,
   type VisitPhotoUploadIntent,
+  type VisitServiceScopeItemCompletion,
+  type VisitServiceScopeReadState,
   VISIT_PHOTO_MIME_TYPES,
 } from "@/lib/field-records/visit-field-record";
 
@@ -96,6 +99,8 @@ export function VisitFieldCapture({
   appointmentId,
   clientName,
   serviceLabel,
+  scopeItems,
+  scopeReadState,
   onSaved,
   onDraftStateChange,
 }: {
@@ -103,6 +108,8 @@ export function VisitFieldCapture({
   appointmentId: string;
   clientName: string;
   serviceLabel: string;
+  scopeItems: Array<Omit<VisitServiceScopeItemCompletion, "completed">>;
+  scopeReadState: VisitServiceScopeReadState;
   onSaved?: () => void;
   onDraftStateChange?: (hasDraft: boolean) => void;
 }) {
@@ -129,6 +136,15 @@ export function VisitFieldCapture({
   const [followUpNeeded, setFollowUpNeeded] = useState(
     () => initialDraft?.followUpNeeded ?? false,
   );
+  const [completedScopeItemIds, setCompletedScopeItemIds] = useState<string[]>(
+    () =>
+      (initialDraft?.completedScopeItemIds ?? []).filter((id) =>
+        scopeItems.some((item) => item.id === id),
+      ),
+  );
+  const [scopeException, setScopeException] = useState(
+    () => initialDraft?.scopeException ?? "",
+  );
   const [photos, setPhotos] = useState<PhotoDraft[]>([]);
   const [restoredPhotoCount, setRestoredPhotoCount] = useState(
     () => initialDraft?.selectedPhotoCount ?? 0,
@@ -140,10 +156,32 @@ export function VisitFieldCapture({
   const [saved, setSaved] = useState<{
     photoCount: number;
     customerVisibleCount: number;
+    completedScopeCount: number;
+    scopeTotal: number;
   } | null>(null);
   const previewUrls = useRef(new Set<string>());
   const completedUploads = useRef(new Map<string, UploadedVisitPhoto>());
   const saveInFlight = useRef(false);
+  const serviceScope = useMemo<VisitServiceScopeItemCompletion[]>(
+    () =>
+      scopeItems.map((item) => ({
+        ...item,
+        completed: completedScopeItemIds.includes(item.id),
+      })),
+    [completedScopeItemIds, scopeItems],
+  );
+  const incompleteScopeCount = serviceScope.filter(
+    (item) => !item.completed,
+  ).length;
+  const completedScopeCount = serviceScope.length - incompleteScopeCount;
+  const scopeVisibilityNeedsAttention =
+    scopeReadState === "partial" ||
+    scopeReadState === "permission_hidden" ||
+    scopeReadState === "not_observed";
+  const scopeRequiresException =
+    incompleteScopeCount > 0 || scopeVisibilityNeedsAttention;
+  const automatedScopeFollowUp =
+    scopeException.trim().length > 0;
 
   useEffect(() => {
     const currentUrls = previewUrls.current;
@@ -164,6 +202,8 @@ export function VisitFieldCapture({
       customerSummary.trim().length > 0 ||
       internalNote.trim().length > 0 ||
       followUpNeeded ||
+      completedScopeItemIds.length > 0 ||
+      scopeException.trim().length > 0 ||
       restoredPhotoCount > 0 ||
       photos.length > 0;
     if (!hasMeaningfulDraft) {
@@ -182,12 +222,15 @@ export function VisitFieldCapture({
       customerSummary,
       internalNote,
       followUpNeeded,
+      completedScopeItemIds,
+      scopeException,
       selectedPhotoCount: Math.max(restoredPhotoCount, photos.length),
       savedAt: Date.now(),
     });
     onDraftStateChange?.(draftStored);
   }, [
     appointmentId,
+    completedScopeItemIds,
     customerSummary,
     fieldRecordId,
     followUpNeeded,
@@ -197,6 +240,7 @@ export function VisitFieldCapture({
     propertyId,
     restoredPhotoCount,
     saved,
+    scopeException,
     technicianName,
     visitDate,
   ]);
@@ -258,6 +302,20 @@ export function VisitFieldCapture({
     );
   }
 
+  function toggleScopeItem(itemId: string) {
+    setError(null);
+    setCompletedScopeItemIds((current) =>
+      current.includes(itemId)
+        ? current.filter((id) => id !== itemId)
+        : [...current, itemId],
+    );
+  }
+
+  function buildCustomerUpdateFromScope() {
+    const summary = buildCompletedScopeCustomerSummary(serviceScope);
+    if (summary) setCustomerSummary(summary);
+  }
+
   async function saveRecord(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saveInFlight.current) return;
@@ -265,7 +323,20 @@ export function VisitFieldCapture({
       setError("Enter who is documenting this visit.");
       return;
     }
-    if (!customerSummary.trim() && !internalNote.trim() && photos.length === 0) {
+    if (scopeRequiresException && !scopeException.trim()) {
+      setError(
+        incompleteScopeCount > 0
+          ? "Mark every Jobber service item done, or explain what remains."
+          : "Explain how you verified the service scope before closeout.",
+      );
+      return;
+    }
+    if (
+      !customerSummary.trim() &&
+      !internalNote.trim() &&
+      !serviceScope.some((item) => item.completed) &&
+      photos.length === 0
+    ) {
       setError("Add a customer update, an internal note, or at least one photo.");
       return;
     }
@@ -361,7 +432,10 @@ export function VisitFieldCapture({
           visitDate,
           customerSummary,
           internalNote,
-          followUpNeeded,
+          followUpNeeded: followUpNeeded || automatedScopeFollowUp,
+          scopeReadState,
+          serviceScope,
+          scopeException,
           photos: uploadedPhotos,
         } satisfies VisitFieldRecordCommitInput),
       });
@@ -378,6 +452,8 @@ export function VisitFieldCapture({
       setSaved({
         photoCount: commitBody.photoCount ?? photos.length,
         customerVisibleCount: photos.filter((photo) => photo.customerVisible).length,
+        completedScopeCount: serviceScope.filter((item) => item.completed).length,
+        scopeTotal: serviceScope.length,
       });
       setProgress(null);
       onSaved?.();
@@ -409,6 +485,8 @@ export function VisitFieldCapture({
     setCustomerSummary("");
     setInternalNote("");
     setFollowUpNeeded(false);
+    setCompletedScopeItemIds([]);
+    setScopeException("");
     setRestoredPhotoCount(0);
     setDraftNoticeDismissed(true);
     setFieldRecordId(newClientId());
@@ -425,6 +503,12 @@ export function VisitFieldCapture({
           privately. {saved.customerVisibleCount} will appear in the customer&apos;s
           HomeAtlas portal with the customer update.
         </p>
+        {saved.scopeTotal > 0 ? (
+          <p className="mt-2 text-xs leading-relaxed text-emerald-100/70">
+            {saved.completedScopeCount}/{saved.scopeTotal} Jobber service item
+            {saved.scopeTotal === 1 ? "" : "s"} recorded in the durable closeout.
+          </p>
+        ) : null}
         <button
           type="button"
           onClick={startAnotherRecord}
@@ -480,6 +564,119 @@ export function VisitFieldCapture({
           </div>
         </div>
       ) : null}
+
+      <section className="rounded-2xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.055] p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.17em] text-[#9be2bd]">
+              Jobber worklist
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-foreground/65">
+              Mark the purchased work as it is completed. This exact snapshot
+              becomes part of the HomeAtlas visit record.
+            </p>
+          </div>
+          {serviceScope.length > 0 ? (
+            <span className="shrink-0 rounded-full border border-[#9be2bd]/25 px-3 py-1 text-xs tabular-nums text-[#bff1d5]">
+              {completedScopeCount}/{serviceScope.length}
+            </span>
+          ) : null}
+        </div>
+
+        {scopeReadState === "partial" ? (
+          <p className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] p-3 text-xs leading-relaxed text-amber-100">
+            Jobber returned more than 50 line items. Open Jobber, verify the
+            remaining scope, and record that verification below before closeout.
+          </p>
+        ) : scopeReadState === "permission_hidden" ||
+          scopeReadState === "not_observed" ? (
+          <p className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] p-3 text-xs leading-relaxed text-amber-100">
+            HomeAtlas cannot verify this visit&apos;s line items yet. Check the Jobber
+            job directly and explain how scope was verified before saving.
+          </p>
+        ) : serviceScope.length === 0 ? (
+          <p className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-3 text-xs leading-relaxed text-amber-100/80">
+            Jobber returned no service line items. Confirm the job details before
+            beginning; HomeAtlas will not invent a checklist.
+          </p>
+        ) : (
+          <ul className="mt-4 space-y-2">
+            {serviceScope.map((item) => (
+              <li key={item.id}>
+                <label className="flex min-h-14 cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-black/10 px-3 py-3 active:scale-[0.995]">
+                  <input
+                    type="checkbox"
+                    checked={item.completed}
+                    onChange={() => toggleScopeItem(item.id)}
+                    className="mt-0.5 h-5 w-5 shrink-0 accent-emerald-500"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block text-sm font-medium ${
+                        item.completed
+                          ? "text-emerald-100"
+                          : "text-foreground/85"
+                      }`}
+                    >
+                      {item.name}
+                      {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                    </span>
+                    {item.description ? (
+                      <span className="mt-1 block text-xs leading-relaxed text-muted">
+                        {item.description}
+                      </span>
+                    ) : null}
+                  </span>
+                  <span
+                    className={`shrink-0 text-[10px] uppercase tracking-[0.13em] ${
+                      item.completed ? "text-emerald-300" : "text-muted"
+                    }`}
+                  >
+                    {item.completed ? "Done" : "Open"}
+                  </span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {completedScopeCount > 0 && !customerSummary.trim() ? (
+          <button
+            type="button"
+            onClick={buildCustomerUpdateFromScope}
+            className="mt-3 min-h-11 w-full rounded-xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.07] px-4 text-xs font-medium text-[#c9f3dc] active:scale-[0.995]"
+          >
+            Build customer update from completed work
+          </button>
+        ) : null}
+
+        {scopeRequiresException || scopeException.trim() ? (
+          <label className="mt-4 block">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-amber-200">
+              Scope exception or manual verification
+            </span>
+            <textarea
+              value={scopeException}
+              onChange={(event) => setScopeException(event.target.value)}
+              maxLength={1_200}
+              rows={2}
+              placeholder={
+                incompleteScopeCount > 0
+                  ? "What remains, why, and what should HQ do next?"
+                  : "How did you verify the purchased work in Jobber?"
+              }
+              className="mt-2 w-full rounded-xl border border-amber-300/25 bg-background/80 px-4 py-3 text-base leading-relaxed text-foreground outline-none focus:border-amber-300/60"
+            />
+            <span className="mt-1 block text-[11px] text-amber-100/65">
+              Saving with this note automatically opens an HQ follow-up.
+            </span>
+          </label>
+        ) : serviceScope.length > 0 ? (
+          <p className="mt-3 text-xs text-emerald-200/75">
+            All Jobber service items are ready for durable closeout.
+          </p>
+        ) : null}
+      </section>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
@@ -633,8 +830,9 @@ export function VisitFieldCapture({
       <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-foreground/[0.025] px-4">
         <input
           type="checkbox"
-          checked={followUpNeeded}
+          checked={followUpNeeded || automatedScopeFollowUp}
           onChange={(event) => setFollowUpNeeded(event.target.checked)}
+          disabled={automatedScopeFollowUp}
           className="h-4 w-4 accent-amber-400"
         />
         <span>
@@ -642,7 +840,9 @@ export function VisitFieldCapture({
             Flag a follow-up for HQ
           </span>
           <span className="mt-0.5 block text-[10px] text-muted">
-            Due next business day at 9:00 AM Pacific
+            {automatedScopeFollowUp
+              ? "Automatic because this closeout has a scope exception"
+              : "Due next business day at 9:00 AM Pacific"}
           </span>
         </span>
       </label>

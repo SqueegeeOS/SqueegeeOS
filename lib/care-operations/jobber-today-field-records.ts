@@ -4,6 +4,7 @@ export interface JobberTodayFieldRecordRow {
   technicianName: string;
   createdAt: string;
   customerVisible: boolean;
+  followUpOpen: boolean;
 }
 
 export interface JobberTodayFieldRecordSummary {
@@ -11,6 +12,7 @@ export interface JobberTodayFieldRecordSummary {
   latestFieldRecordAt: string;
   latestTechnicianName: string;
   customerVisibleCount: number;
+  openFollowUpCount: number;
 }
 
 function timestamp(value: string): number {
@@ -39,6 +41,7 @@ export function summarizeJobberTodayFieldRecords(
     JobberTodayFieldRecordSummary & {
       fieldRecordIds: Set<string>;
       customerVisibleFieldRecordIds: Set<string>;
+      openFollowUpFieldRecordIds: Set<string>;
     }
   >();
 
@@ -51,9 +54,13 @@ export function summarizeJobberTodayFieldRecords(
         latestFieldRecordAt: row.createdAt,
         latestTechnicianName: row.technicianName,
         customerVisibleCount: row.customerVisible ? 1 : 0,
+        openFollowUpCount: row.followUpOpen ? 1 : 0,
         fieldRecordIds: new Set([row.fieldRecordId]),
         customerVisibleFieldRecordIds: new Set(
           row.customerVisible ? [row.fieldRecordId] : [],
+        ),
+        openFollowUpFieldRecordIds: new Set(
+          row.followUpOpen ? [row.fieldRecordId] : [],
         ),
       });
       continue;
@@ -70,6 +77,13 @@ export function summarizeJobberTodayFieldRecords(
       existing.customerVisibleFieldRecordIds.add(row.fieldRecordId);
       existing.customerVisibleCount += 1;
     }
+    if (
+      row.followUpOpen &&
+      !existing.openFollowUpFieldRecordIds.has(row.fieldRecordId)
+    ) {
+      existing.openFollowUpFieldRecordIds.add(row.fieldRecordId);
+      existing.openFollowUpCount += 1;
+    }
     if (timestamp(row.createdAt) > timestamp(existing.latestFieldRecordAt)) {
       existing.latestFieldRecordAt = row.createdAt;
       existing.latestTechnicianName = row.technicianName;
@@ -84,6 +98,7 @@ export function summarizeJobberTodayFieldRecords(
         latestFieldRecordAt: summary.latestFieldRecordAt,
         latestTechnicianName: summary.latestTechnicianName,
         customerVisibleCount: summary.customerVisibleCount,
+        openFollowUpCount: summary.openFollowUpCount,
       },
     ]),
   );

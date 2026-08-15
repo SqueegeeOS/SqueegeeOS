@@ -34,6 +34,7 @@ describe("production readiness runway", () => {
       reportWith([
         check("field-record-media-schema", "green"),
         check("field-record-follow-up-schema", "green"),
+        check("field-record-service-scope-schema", "green"),
         check("storage-visit-media", "green"),
       ]),
     ).find((lane) => lane.id === "serve");
@@ -41,8 +42,8 @@ describe("production readiness runway", () => {
     expect(serve).toMatchObject({
       label: "Serve",
       status: "green",
-      readyCheckCount: 3,
-      totalCheckCount: 3,
+      readyCheckCount: 4,
+      totalCheckCount: 4,
     });
     expect(serve?.description).toContain("portal proof");
   });
@@ -52,12 +53,13 @@ describe("production readiness runway", () => {
       reportWith([
         check("field-record-media-schema", "green"),
         check("field-record-follow-up-schema", "green"),
+        check("field-record-service-scope-schema", "green"),
         check("storage-visit-media", "red"),
       ]),
     ).find((lane) => lane.id === "serve");
 
     expect(serve?.status).toBe("red");
-    expect(serve?.readyCheckCount).toBe(2);
+    expect(serve?.readyCheckCount).toBe(3);
   });
 
   it("requires review when a lane check is missing from the live report", () => {

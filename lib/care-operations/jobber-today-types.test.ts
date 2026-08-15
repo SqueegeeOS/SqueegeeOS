@@ -3,6 +3,7 @@ import {
   classifyJobberTodayVisit,
   isJobberTodayDataStale,
   readJobberTodayVisitAssignment,
+  readJobberTodayVisitScope,
   resolveJobberTodayHomeAtlasContext,
   summarizeJobberTodayVisits,
 } from "./jobber-today-types";
@@ -91,6 +92,78 @@ describe("Jobber Today board states", () => {
     ).toEqual({
       assignedUsers: [],
       assignmentReadState: "permission_hidden",
+    });
+  });
+
+  it("reads authoritative Jobber service scope without inventing missing work", () => {
+    expect(
+      readJobberTodayVisitScope({
+        scopeReadState: "available",
+        scopeItems: [
+          {
+            id: "line-1",
+            name: "Exterior window cleaning",
+            description: "Glass and frames",
+            quantity: 1,
+            category: "SERVICE",
+          },
+          {
+            id: "line-1",
+            name: "Exterior window cleaning",
+            description: "Glass and frames",
+            quantity: 1,
+            category: "SERVICE",
+          },
+        ],
+      }),
+    ).toEqual({
+      scopeItems: [
+        {
+          id: "line-1",
+          name: "Exterior window cleaning",
+          description: "Glass and frames",
+          quantity: 1,
+          category: "SERVICE",
+        },
+      ],
+      scopeReadState: "available",
+    });
+    expect(
+      readJobberTodayVisitScope({
+        scopeReadState: "partial",
+        lineItems: {
+          nodes: [
+            {
+              id: "line-2",
+              name: "Screens",
+              description: null,
+              quantity: 12,
+              category: "SERVICE",
+            },
+          ],
+        },
+      }),
+    ).toEqual({
+      scopeItems: [
+        {
+          id: "line-2",
+          name: "Screens",
+          description: null,
+          quantity: 12,
+          category: "SERVICE",
+        },
+      ],
+      scopeReadState: "partial",
+    });
+    expect(
+      readJobberTodayVisitScope({
+        scopeReadState: "permission_hidden",
+        scopeItems: [{ id: "do-not-trust", name: "Hidden" }],
+      }),
+    ).toEqual({ scopeItems: [], scopeReadState: "permission_hidden" });
+    expect(readJobberTodayVisitScope({})).toEqual({
+      scopeItems: [],
+      scopeReadState: "not_observed",
     });
   });
 

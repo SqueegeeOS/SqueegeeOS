@@ -21,6 +21,8 @@ export interface VisitFieldDraft extends VisitFieldDraftScope {
   customerSummary: string;
   internalNote: string;
   followUpNeeded: boolean;
+  completedScopeItemIds?: string[];
+  scopeException?: string;
   selectedPhotoCount: number;
   savedAt: number;
 }
@@ -62,6 +64,17 @@ function isValidVisitFieldDraft(
     typeof draft.internalNote === "string" &&
     draft.internalNote.length <= 2_500 &&
     typeof draft.followUpNeeded === "boolean" &&
+    (draft.completedScopeItemIds === undefined ||
+      (Array.isArray(draft.completedScopeItemIds) &&
+        draft.completedScopeItemIds.length <= 50 &&
+        new Set(draft.completedScopeItemIds).size ===
+          draft.completedScopeItemIds.length &&
+        draft.completedScopeItemIds.every(
+          (id) => typeof id === "string" && id.length > 0 && id.length <= 200,
+        ))) &&
+    (draft.scopeException === undefined ||
+      (typeof draft.scopeException === "string" &&
+        draft.scopeException.length <= 1_200)) &&
     Number.isInteger(draft.selectedPhotoCount) &&
     (draft.selectedPhotoCount ?? -1) >= 0 &&
     (draft.selectedPhotoCount ?? MAX_VISIT_PHOTOS + 1) <= MAX_VISIT_PHOTOS &&
