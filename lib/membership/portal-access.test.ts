@@ -3,6 +3,7 @@ import {
   buildPortalAccessPath,
   buildPortalAccessUrl,
   generatePortalAccessToken,
+  resolvePublicAppOrigin,
 } from "./portal-access";
 
 describe("portal access", () => {
@@ -47,6 +48,11 @@ describe("portal access", () => {
         "https://squeegee-os-abc123.vercel.app",
       ),
     ).toBe("https://www.squeegeeking.net/portal/abc123");
+    expect(
+      resolvePublicAppOrigin(
+        "https://squeegee-os-abc123.vercel.app",
+      ),
+    ).toBe("https://www.squeegeeking.net");
   });
 
   it("falls back to the canonical customer domain", () => {

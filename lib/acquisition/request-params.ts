@@ -1,6 +1,7 @@
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 import {
   buildSqueegeeKingTierQuote,
+  calculateVisitPrice,
   normalizeToSqueegeeKingTier,
 } from "@/lib/membership/tier-config";
 import type { LeadIntakeFormData } from "./types";
@@ -59,5 +60,12 @@ export function estimatedPriceForLead(
   squareFootage: number | null,
 ): number | null {
   if (!tier) return null;
-  return buildSqueegeeKingTierQuote(tier, squareFootage ?? 2500).visitPrice;
+
+  // Public estimates intentionally quote exterior glass only. Screens,
+  // interior cleaning, cobweb removal, and specialty work are selected and
+  // priced later in the personalized care plan.
+  return calculateVisitPrice(tier, squareFootage ?? 2500, {
+    includeScreens: false,
+    includeInterior: false,
+  });
 }

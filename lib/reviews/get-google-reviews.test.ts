@@ -109,7 +109,7 @@ describe("Google reviews source selection", () => {
     expect(response.message).toContain("Places review preview");
   });
 
-  it("keeps owner-only full reviews gated until public use is approved", async () => {
+  it("keeps the explicit full-review kill switch and Places fallback", async () => {
     mocks.publicFull = false;
 
     const response = await getGoogleReviewsResponse();

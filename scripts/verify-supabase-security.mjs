@@ -64,6 +64,7 @@ const sensitiveTables = [
   "ai_quotes",
   "property_assessments",
   "property_visit_health_checks",
+  "member_addon_transactions",
 ];
 
 let failed = false;
@@ -127,7 +128,7 @@ console.log(
 if (!visitBucketPrivate) failed = true;
 
 if (failed) {
-  console.error("\nSecurity verification failed - apply migrations 038 through 055.");
+  console.error("\nSecurity verification failed - apply all required migrations through 064.");
   process.exit(1);
 }
 

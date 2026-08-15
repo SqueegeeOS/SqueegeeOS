@@ -212,16 +212,23 @@ function RequestFormFields() {
               craft your personalized experience.
             </p>
             {form.membershipTier && priceLabel && (
-              <p className="mt-4 rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm text-foreground">
-                Your estimated{" "}
-                <span className="font-medium">
-                  {buildSqueegeeKingTierQuote(form.membershipTier, sqftValue).label}
-                </span>:{" "}
-                <span className="font-medium">{priceLabel}</span>
-                {form.squareFootage
-                  ? ` for ${form.squareFootage.toLocaleString()} sq ft`
-                  : " (example for 2,500 sq ft — adjust below)"}
-              </p>
+              <div className="mt-4 rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm text-foreground">
+                <p>
+                  Your estimated{" "}
+                  <span className="font-medium">
+                    {buildSqueegeeKingTierQuote(form.membershipTier, sqftValue).label}
+                  </span>:{" "}
+                  <span className="font-medium">{priceLabel}</span>
+                  {form.squareFootage
+                    ? ` for ${form.squareFootage.toLocaleString()} sq ft`
+                    : " (example for 2,500 sq ft — adjust below)"}
+                </p>
+                <p className="mt-1.5 text-xs leading-relaxed text-muted">
+                  Exterior glass only. Screens, interior cleaning, cobweb
+                  removal, and specialty work are priced separately in your
+                  personalized plan.
+                </p>
+              </div>
             )}
             <p className="mt-3 text-[11px] tracking-[0.14em] text-muted/80">
               {CUSTOMER_CTAS.requestPlanHint}
