@@ -35,6 +35,10 @@ import {
   summarizeSalesLeadActionQueue,
   type SalesLeadActionMoment,
 } from "@/lib/sales/lead-action-priority";
+import {
+  filterSalesLeadActionQueue,
+  type SalesLeadQueueFilter,
+} from "@/lib/sales/lead-action-filter";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -317,6 +321,9 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
   );
   const [leadActionSaving, setLeadActionSaving] = useState(false);
   const [showAllLeads, setShowAllLeads] = useState(false);
+  const [leadQueueFilter, setLeadQueueFilter] =
+    useState<SalesLeadQueueFilter>("all");
+  const [leadSearchQuery, setLeadSearchQuery] = useState("");
   const [actionClock, setActionClock] = useState(0);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installHelp, setInstallHelp] = useState<string | null>(null);
@@ -945,9 +952,51 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     () => summarizeSalesLeadActionQueue(leadActionQueue),
     [leadActionQueue],
   );
-  const visibleLeadActionQueue = showAllLeads
-    ? leadActionQueue
-    : leadActionQueue.slice(0, 8);
+  const filteredLeadActionQueue = useMemo(
+    () =>
+      filterSalesLeadActionQueue(leadActionQueue, {
+        filter: leadQueueFilter,
+        query: leadSearchQuery,
+      }),
+    [leadActionQueue, leadQueueFilter, leadSearchQuery],
+  );
+  const leadQueueIsNarrowed =
+    leadQueueFilter !== "all" || leadSearchQuery.trim().length > 0;
+  const visibleLeadActionQueue =
+    showAllLeads || leadQueueIsNarrowed
+      ? filteredLeadActionQueue
+      : filteredLeadActionQueue.slice(0, 8);
+  const leadQueueFilters: Array<{
+    filter: SalesLeadQueueFilter;
+    label: string;
+    count: number;
+  }> = [
+    { filter: "all", label: "All", count: leadActionQueue.length },
+    {
+      filter: "needs_action",
+      label: "Needs action",
+      count:
+        leadActionCounts.overdue +
+        leadActionCounts.due_today +
+        leadActionCounts.unscheduled,
+    },
+    { filter: "overdue", label: "Overdue", count: leadActionCounts.overdue },
+    {
+      filter: "due_today",
+      label: "Today",
+      count: leadActionCounts.due_today,
+    },
+    {
+      filter: "unscheduled",
+      label: "No next move",
+      count: leadActionCounts.unscheduled,
+    },
+    {
+      filter: "upcoming",
+      label: "Upcoming",
+      count: leadActionCounts.upcoming,
+    },
+  ];
 
   return (
     <AmbientStage
@@ -1402,6 +1451,74 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
               </button>
             </div>
 
+            {leadActionQueue.length > 0 ? (
+              <div className="mt-5 space-y-3 border-t border-white/[0.07] pt-5">
+                <div>
+                  <label htmlFor="sales-lead-search" className="sr-only">
+                    Search open homeowners by name, address, phone, or email
+                  </label>
+                  <input
+                    id="sales-lead-search"
+                    type="search"
+                    inputMode="search"
+                    autoComplete="off"
+                    value={leadSearchQuery}
+                    onChange={(event) => {
+                      setLeadSearchQuery(event.target.value);
+                      setShowAllLeads(false);
+                    }}
+                    placeholder="Search name, address, phone, or email"
+                    className={craftInput}
+                  />
+                </div>
+                <div
+                  className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  aria-label="Filter open homeowners by next action"
+                >
+                  {leadQueueFilters.map(({ filter, label, count }) => {
+                    const active = leadQueueFilter === filter;
+                    return (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => {
+                          setLeadQueueFilter(filter);
+                          setShowAllLeads(false);
+                        }}
+                        aria-pressed={active}
+                        className={`min-h-11 shrink-0 rounded-full border px-4 text-[10px] font-bold uppercase tracking-[0.11em] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                          active
+                            ? "border-accent/45 bg-accent/[0.12] text-accent"
+                            : "border-white/[0.09] bg-white/[0.025] text-muted"
+                        }`}
+                      >
+                        {label} · {count}
+                      </button>
+                    );
+                  })}
+                </div>
+                {leadQueueIsNarrowed ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-muted" aria-live="polite">
+                      {filteredLeadActionQueue.length} of {leadActionQueue.length}{" "}
+                      open {filteredLeadActionQueue.length === 1 ? "person" : "people"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLeadSearchQuery("");
+                        setLeadQueueFilter("all");
+                        setShowAllLeads(false);
+                      }}
+                      className="min-h-11 rounded-full px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-6 space-y-3">
               {loading ? (
                 <p className="py-8 text-center text-sm text-muted">Loading private queue…</p>
@@ -1411,6 +1528,24 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                   <p className="mt-2 text-sm leading-6 text-muted">
                     Add a homeowner and set the next check-in before leaving the driveway.
                   </p>
+                </div>
+              ) : filteredLeadActionQueue.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/[0.1] px-5 py-9 text-center">
+                  <p className="font-serif text-xl text-foreground">No open people match.</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Try a different name or clear the urgency filter. The complete queue is still safe.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeadSearchQuery("");
+                      setLeadQueueFilter("all");
+                      setShowAllLeads(false);
+                    }}
+                    className="mt-4 min-h-11 rounded-full border border-accent/35 bg-accent/[0.07] px-5 text-[10px] font-bold uppercase tracking-[0.14em] text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  >
+                    Show full queue
+                  </button>
                 </div>
               ) : (
                 visibleLeadActionQueue.map(({ lead, moment }) => {
@@ -1663,7 +1798,7 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                   );
                 })
               )}
-              {leadActionQueue.length > 8 ? (
+              {!leadQueueIsNarrowed && leadActionQueue.length > 8 ? (
                 <button
                   type="button"
                   onClick={() => setShowAllLeads((current) => !current)}
