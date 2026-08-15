@@ -2,6 +2,7 @@ import "server-only";
 
 import { listLeadIntakes } from "@/lib/acquisition/leads/repository";
 import { loadBillingWorkspace } from "@/lib/admin/billing-workspace-server";
+import { loadOwnerLeverageSnapshot } from "@/lib/admin/owner-leverage-server";
 import { loadCustomerAftercareSnapshot } from "@/lib/aftercare/customer-aftercare-server";
 import {
   buildOwnerAttentionQueue,
@@ -39,6 +40,7 @@ export async function loadOwnerAttentionQueue(
     davidPipeline,
     salesRetention,
     today,
+    ownerLeverage,
     billing,
     communications,
     aftercare,
@@ -75,6 +77,18 @@ export async function loadOwnerAttentionQueue(
       id: "today",
       unavailableDetail: "Atlas could not verify today’s schedule and field proof.",
       load: () => loadJobberTodayBoard(reference),
+    }),
+    captureSource({
+      id: "owner_leverage",
+      unavailableDetail:
+        "Atlas could not verify field independence and Growth Hours. Apply migration 061 before trusting the buyback ladder.",
+      load: async () => {
+        const snapshot = await loadOwnerLeverageSnapshot(reference);
+        if (!snapshot.schemaAvailable) {
+          throw new Error(snapshot.warnings[0] ?? "Owner leverage is unavailable.");
+        }
+        return snapshot;
+      },
     }),
     captureSource({
       id: "billing",
@@ -114,6 +128,7 @@ export async function loadOwnerAttentionQueue(
     davidPipeline,
     salesRetention,
     today,
+    ownerLeverage,
     billing,
     communications,
     aftercare,

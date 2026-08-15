@@ -43,7 +43,13 @@ describe("owner leverage operating-system security", () => {
   });
 
   it("fails closed around time, quality, and owner involvement", () => {
-    expect(migration).toContain("ended_at <= started_at + interval '16 hours'");
+    expect(migration).toContain(
+      "status = 'completed' and ended_at is not null and ended_at >= started_at and ended_at <= started_at + interval '16 hours'",
+    );
+    expect(migration).toContain(
+      "status = 'cancelled' and ended_at is not null and ended_at >= started_at and break_minutes = 0",
+    );
+    expect(leverageServer).toContain("if (!input.cancel && elapsedMinutes > 960)");
     expect(migration).toContain(
       "owner_involvement in ('none', 'remote_guidance', 'onsite_assist', 'owner_led')",
     );

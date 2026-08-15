@@ -155,6 +155,8 @@ does not claim a dedicated-day result.
 4. Completed reviews feed the buyback ladder. Failed gates remain visible but
    add zero bought-back time.
 5. Growth Sessions are finished with break time and optional notes.
+6. HQ raises an owner-attention exception for completed visits still awaiting
+   review and for Growth Sessions left open eight hours or longer.
 
 ## Weekly operating review
 
@@ -178,6 +180,9 @@ does not claim a dedicated-day result.
 - Technician performance facts are private and service-role only.
 - The scoreboard fails closed when migration `061` or a supporting source is
   unavailable.
+- A Growth Session can count only if completed within 16 hours. A forgotten
+  timer can still be cancelled later so the ledger recovers without inventing
+  time.
 - Jobber disconnection means appointment and crew truth may be stale; reconnect
   and complete a read-only sync before treating the Today board as current.
 - Gross profit, CAC, capacity utilization, and enterprise-value multiples are

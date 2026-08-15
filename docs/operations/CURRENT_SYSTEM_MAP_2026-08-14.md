@@ -12,14 +12,14 @@ that a provider-backed workflow is live.
 - Current production commit: `41b5e19a88a0600e5bc3bea171986bed044d0a94`
 - Production deployment state: `READY`
 - Local release branch: `codex/communications-readiness`
-- Verified local base before this owner-leverage batch: `0bcee25`
-- Local branch position with this owner-leverage commit: 36 commits ahead of
+- Verified local base before this exception-management batch: `9452ac9`
+- Local branch position with this exception-management commit: 37 commits ahead of
   the deployed production commit
 - Repository size: 76 page entrypoints, 96 API entrypoints, 38 `lib/` domains,
   60 numbered SQL migrations (`002` through `061`), and 192 test source files
 - Full local verification after the owner-leverage work:
   - 189 test files passed
-  - 902 tests passed
+  - 903 tests passed
   - TypeScript passed
   - ESLint passed with 0 errors and 90 inherited warnings
   - Next.js 16.2.10 production Webpack build passed; 133 static-generation
@@ -41,7 +41,7 @@ public acquisition, presentation, enrollment, portal, sales-representative,
 HQ, communications, billing, review, and Jobber integration surfaces all
 exist. The most important constraint today is release and provider state:
 
-1. Production is running commit `41b5e19`, not the 36-commit verified local
+1. Production is running commit `41b5e19`, not the 37-commit verified local
    operations branch.
 2. Production Jobber is currently disconnected. Jobber webhooks are arriving,
    but background synchronization and the reconcile cron cannot use them.
@@ -85,13 +85,13 @@ These capabilities are implemented and verified on
 | Visit event automation | Monotonic On my way → Arrived → Working → Service complete → Departed event ledger; completion requires a saved closeout | Apply `058`; deploy |
 | Customer live service | Bearer-token portals receive a deliberately limited live visit stage without technician IDs, route data, internal notes, or provider IDs | Apply `058`; deploy |
 | Technician dispatch | HQ shows scheduled crew, usable Field Pass state, active stop, proof state, route-complete state, unassigned work, and the exact stop needing attention; refreshes every minute while visible | Apply `054`–`058` and deploy |
-| Owner attention queue | HQ ranks current website/Meta leads, David follow-ups, salesperson retention drift, dispatch drift, field follow-ups and proof gaps, billing exceptions, communication gates, review-ready visits, annual member check-ins, referral rewards, stale referred leads, and uncovered production safeguards; each item deep-links to the exact record when possible and treats unreadable sources as unknown | Deploy the local branch and verify the authorized `/api/admin/attention` response in production |
+| Owner attention queue | HQ ranks current website/Meta leads, David follow-ups, salesperson retention drift, dispatch drift, field follow-ups and proof gaps, completed visits awaiting independence review, stale Growth Sessions, billing exceptions, communication gates, review-ready visits, annual member check-ins, referral rewards, stale referred leads, and uncovered production safeguards; each item deep-links to the exact record when possible and treats unreadable sources as unknown | Deploy the local branch and verify the authorized `/api/admin/attention` response in production |
 | Referral and retention aftercare | Read-only projections identify converted referrals awaiting reward review, available Care Credit, referred leads pending at least seven days, cancelled-member attribution drift, and due salesperson retention checkpoints without invoking the existing reward or lifecycle writers | Deploy and verify exact links against non-customer/internal records; operational changes remain explicit owner actions |
 | Customer aftercare | A private Care workspace derives review opportunities only after a verified completed Jobber visit has a saved field record, customer-visible proof, and no open service follow-up; it also derives annual care check-ins from the real membership start date and stores explicit owner outcomes without sending a message | Apply migrations `054` and `059`; deploy; verify with non-customer/internal records |
 | Customer service recovery | The bearer-token portal can create and re-display a private care case tied only to the server-resolved member/property and an optional verified visit; retries are idempotent, unresolved intake is capped, private owner notes never enter the portal response, HQ can acknowledge/resolve explicitly, and open cases rank in owner attention without sending a message | Apply migration `060`; deploy; verify only with an internal/non-customer portal token before opening to members |
 | Multi-property member portal | A token proves one durable homeowner record, then a mobile-first Your homes switcher projects only that homeowner’s current memberships and navigates each card to the property’s canonical portal so payment, referral, visit, theme, and case actions remain correctly scoped; cancelled history and malformed joins are excluded | Deploy; verify with an internal homeowner who has two current property memberships before exposing it to customers |
-| Owner leverage loop | Today records one private field-independence review per verified, matched, completed, assigned, documented Jobber visit; only normal, quality-verified, zero-owner, measured work with no open exception counts toward the 8 → 16 → 24 → 32 hour ladder. Growth clocks for Noah and Dasan connect completed effort to agreement-backed attributed ARR without sending, charging, compensating, invoicing, or mutating Jobber | Apply migration `061`; deploy; rehearse on an internal/non-customer record while Jobber is connected |
-| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, visit-story history, owner-attributed presentations, and production migration audits through `061` | Deploy the 36-commit local branch with its migrations |
+| Owner leverage loop | Today records one private field-independence review per verified, matched, completed, assigned, documented Jobber visit; only normal, quality-verified, zero-owner, measured work with no open exception counts toward the 8 → 16 → 24 → 32 hour ladder. Growth clocks for Noah and Dasan connect completed effort to agreement-backed attributed ARR, alert after eight hours, and allow an overlong timer to be cancelled but never counted—all without sending, charging, compensating, invoicing, or mutating Jobber | Apply migration `061`; deploy; rehearse on an internal/non-customer record while Jobber is connected |
+| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, visit-story history, owner-attributed presentations, stale-session recovery, and production migration audits through `061` | Deploy the 37-commit local branch with its migrations |
 
 ### PARTIAL
 

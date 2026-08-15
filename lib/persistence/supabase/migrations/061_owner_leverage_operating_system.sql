@@ -83,10 +83,15 @@ create table if not exists public.growth_work_sessions (
   check (
     (status = 'open' and ended_at is null and break_minutes = 0)
     or
-    (status in ('completed', 'cancelled')
+    (status = 'completed'
       and ended_at is not null
       and ended_at >= started_at
       and ended_at <= started_at + interval '16 hours')
+    or
+    (status = 'cancelled'
+      and ended_at is not null
+      and ended_at >= started_at
+      and break_minutes = 0)
   ),
   check (
     status <> 'completed'
