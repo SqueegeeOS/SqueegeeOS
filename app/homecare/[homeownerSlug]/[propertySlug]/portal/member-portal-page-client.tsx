@@ -28,6 +28,7 @@ interface MemberPortalPageClientProps {
   homeHealthHref?: string;
   portalBasePath?: string;
   customerPortalMode?: "token" | "slug";
+  portalToken?: string | null;
 }
 
 export function MemberPortalPageClient({
@@ -39,6 +40,7 @@ export function MemberPortalPageClient({
   homeHealthHref,
   portalBasePath,
   customerPortalMode = "slug",
+  portalToken = null,
 }: MemberPortalPageClientProps) {
   return (
     <MembershipUnlockProvider>
@@ -51,6 +53,7 @@ export function MemberPortalPageClient({
         homeHealthHref={homeHealthHref}
         portalBasePath={portalBasePath}
         customerPortalMode={customerPortalMode}
+        portalToken={portalToken}
       />
     </MembershipUnlockProvider>
   );
@@ -63,6 +66,7 @@ function MemberPortalWithCeremony({
   propertySlug,
   portalBasePath,
   customerPortalMode = "slug",
+  portalToken = null,
 }: MemberPortalPageClientProps) {
   const [showCeremony, setShowCeremony] = useState(false);
 
@@ -109,11 +113,7 @@ function MemberPortalWithCeremony({
           `/homecare/${homeownerSlug}/${propertySlug}/portal`
         }
         customerPortalMode={customerPortalMode}
-        portalToken={
-          customerPortalMode === "token" && portalBasePath
-            ? portalBasePath.match(/^\/portal\/([^/]+)/)?.[1] ?? null
-            : null
-        }
+        portalToken={portalToken}
       />
     </>
   );

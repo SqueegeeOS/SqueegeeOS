@@ -1,6 +1,11 @@
 import "server-only";
 
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
+import type {
+  CustomerServiceCaseAdminView,
+  CustomerServiceCaseCategory,
+  CustomerServiceCaseStatus,
+} from "@/lib/service-cases/customer-service-case";
 import {
   annualCareCheckinOpportunity,
   isReviewOpportunityReady,
@@ -59,6 +64,22 @@ interface ResolutionRow {
   task_key: string;
 }
 
+interface ServiceCaseRow {
+  id: string;
+  membership_id: string;
+  homeowner_id: string;
+  property_id: string;
+  appointment_id: string | null;
+  category: CustomerServiceCaseCategory;
+  details: string;
+  status: CustomerServiceCaseStatus;
+  owner_note: string | null;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 const SOURCE_LIMIT = 500;
 const RESULT_LIMIT = 100;
 const RESOLUTION_QUERY_CHUNK = 75;
@@ -105,7 +126,7 @@ export async function loadCustomerAftercareSnapshot(
     referenceDate.getTime() - REVIEW_OPPORTUNITY_READY_MS,
   );
 
-  const [membershipResult, appointmentResult] = await Promise.all([
+  const [membershipResult, appointmentResult, serviceCaseResult] = await Promise.all([
     supabase
       .from("memberships")
       .select("id, homeowner_id, property_id, started_at")
@@ -125,24 +146,40 @@ export async function loadCustomerAftercareSnapshot(
       .lte("completed_at", completedReadyCutoff.toISOString())
       .order("completed_at", { ascending: false })
       .limit(SOURCE_LIMIT + 1),
+    supabase
+      .from("customer_service_cases")
+      .select(
+        "id, membership_id, homeowner_id, property_id, appointment_id, category, details, status, owner_note, acknowledged_at, resolved_at, created_at, updated_at",
+      )
+      .in("status", ["open", "acknowledged"])
+      .order("created_at", { ascending: true })
+      .limit(SOURCE_LIMIT + 1),
   ]);
   if (membershipResult.error) throw new Error(membershipResult.error.message);
   if (appointmentResult.error) throw new Error(appointmentResult.error.message);
+  if (serviceCaseResult.error) throw new Error(serviceCaseResult.error.message);
 
   const returnedMemberships = (membershipResult.data ?? []) as MembershipRow[];
   const returnedAppointments = (appointmentResult.data ?? []) as AppointmentRow[];
+  const returnedServiceCases = (serviceCaseResult.data ?? []) as ServiceCaseRow[];
   const sourceTruncated =
     returnedMemberships.length > SOURCE_LIMIT ||
-    returnedAppointments.length > SOURCE_LIMIT;
+    returnedAppointments.length > SOURCE_LIMIT ||
+    returnedServiceCases.length > SOURCE_LIMIT;
   const memberships = returnedMemberships.slice(0, SOURCE_LIMIT);
   const appointments = returnedAppointments.slice(0, SOURCE_LIMIT);
+  const serviceCaseRows = returnedServiceCases.slice(0, SOURCE_LIMIT);
 
   const profileIds = unique(appointments.map((row) => row.member_profile_id));
   const appointmentIds = unique(appointments.map((row) => row.id));
-  const homeownerIds = unique(memberships.map((row) => row.homeowner_id));
+  const homeownerIds = unique([
+    ...memberships.map((row) => row.homeowner_id),
+    ...serviceCaseRows.map((row) => row.homeowner_id),
+  ]);
   const propertyIds = unique([
     ...memberships.map((row) => row.property_id),
     ...appointments.map((row) => row.property_id),
+    ...serviceCaseRows.map((row) => row.property_id),
   ]);
 
   const [profileResult, assessmentResult, assetResult, homeownerResult, propertyResult] =
@@ -231,6 +268,30 @@ export async function loadCustomerAftercareSnapshot(
       `${membership.homeowner_id}:${membership.property_id}`,
       membership,
     ]),
+  );
+
+  const serviceCases: CustomerServiceCaseAdminView[] = serviceCaseRows.map(
+    (serviceCase) => ({
+      id: serviceCase.id,
+      membershipId: serviceCase.membership_id,
+      homeownerId: serviceCase.homeowner_id,
+      propertyId: serviceCase.property_id,
+      appointmentId: serviceCase.appointment_id,
+      category: serviceCase.category,
+      details: serviceCase.details,
+      status: serviceCase.status,
+      homeownerName:
+        homeownersById.get(serviceCase.homeowner_id)?.full_name?.trim() ||
+        "HomeAtlas member",
+      propertyLabel: propertyLabel(
+        propertiesById.get(serviceCase.property_id),
+      ),
+      ownerNote: serviceCase.owner_note,
+      acknowledgedAt: serviceCase.acknowledged_at,
+      resolvedAt: serviceCase.resolved_at,
+      createdAt: serviceCase.created_at,
+      updatedAt: serviceCase.updated_at,
+    }),
   );
 
   const tasks: CustomerAftercareTask[] = [];
@@ -325,7 +386,11 @@ export async function loadCustomerAftercareSnapshot(
 
   return {
     generatedAt: referenceDate.toISOString(),
+    serviceCases: serviceCases.slice(0, RESULT_LIMIT),
     tasks: openTasks.slice(0, RESULT_LIMIT),
-    truncated: sourceTruncated || openTasks.length > RESULT_LIMIT,
+    truncated:
+      sourceTruncated ||
+      serviceCases.length > RESULT_LIMIT ||
+      openTasks.length > RESULT_LIMIT,
   };
 }

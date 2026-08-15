@@ -54,6 +54,7 @@ function openSnapshot(): CustomerAftercareSnapshot {
   return {
     generatedAt: "2026-08-14T18:00:00.000Z",
     truncated: false,
+    serviceCases: [],
     tasks: [
       {
         taskKey: `review-opportunity:${IDS.appointment}`,

@@ -29,6 +29,10 @@ import {
 import { buildSalesLeadActionQueue } from "@/lib/sales/lead-action-priority";
 import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
 import type { SalesLeadAttentionSnapshot } from "@/lib/sales/workspace-types";
+import {
+  CUSTOMER_SERVICE_CASE_CATEGORY_LABELS,
+  customerServiceCaseAnchorId,
+} from "@/lib/service-cases/customer-service-case";
 
 export type OwnerAttentionPriority = "critical" | "high" | "normal";
 export type OwnerAttentionDomain =
@@ -935,6 +939,59 @@ function addCustomerAftercareItems(
       actionLabel: "Open aftercare",
       sourceLabel: "Customer aftercare",
       affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+
+  const orderedCases = [...snapshot.serviceCases].sort((left, right) =>
+    left.createdAt.localeCompare(right.createdAt),
+  );
+  const visibleCases = orderedCases.slice(0, 5);
+  for (const serviceCase of visibleCases) {
+    const createdAt = timestamp(serviceCase.createdAt);
+    const waitingMs = createdAt === null ? 0 : now.getTime() - createdAt;
+    const priority: OwnerAttentionPriority =
+      serviceCase.category === "damage_concern"
+        ? "critical"
+        : serviceCase.status === "open" ||
+            waitingMs >= 48 * 60 * 60 * 1_000
+          ? "high"
+          : "normal";
+    const domain: OwnerAttentionDomain =
+      serviceCase.category === "billing_question"
+        ? "billing"
+        : serviceCase.category === "scheduling_question"
+          ? "dispatch"
+          : "field";
+    const detail = serviceCase.details.replace(/\s+/g, " ").trim();
+    items.push({
+      id: `service-case:${serviceCase.id}`,
+      priority,
+      domain,
+      title: `${serviceCase.homeownerName} reported ${CUSTOMER_SERVICE_CASE_CATEGORY_LABELS[serviceCase.category].toLowerCase()}`,
+      detail: `${detail.slice(0, 240)}${detail.length > 240 ? "…" : ""} · ${serviceCase.status === "acknowledged" ? "Acknowledged, still open" : `Waiting ${formatWaiting(Math.max(0, waitingMs))}`}.`,
+      href: `${ROUTES.hqAftercare}#${customerServiceCaseAnchorId(serviceCase.id)}`,
+      actionLabel: "Open customer case",
+      sourceLabel: "Customer aftercare",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: serviceCase.createdAt,
+    });
+  }
+
+  const caseOverflow = orderedCases.length - visibleCases.length;
+  if (caseOverflow > 0) {
+    items.push({
+      id: "service-case:overflow",
+      priority: "high",
+      domain: "field",
+      title: `${caseOverflow} more open customer ${plural(caseOverflow, "case")}`,
+      detail: "Open Customer aftercare to review the remaining member-reported concerns.",
+      href: ROUTES.hqAftercare,
+      actionLabel: "Open customer cases",
+      sourceLabel: "Customer aftercare",
+      affectedCount: caseOverflow,
       observedAt: snapshot.generatedAt,
       dueAt: null,
     });

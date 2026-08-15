@@ -2,6 +2,7 @@ import {
   formatBusinessCalendarDate,
   zonedDateTimeToUtc,
 } from "@/lib/admin/company-business-timezone";
+import type { CustomerServiceCaseAdminView } from "@/lib/service-cases/customer-service-case";
 
 const SAFE_FRAGMENT_CHARACTER = /[^a-zA-Z0-9_-]/g;
 const UUID_PATTERN =
@@ -57,6 +58,7 @@ export type CustomerAftercareTask =
 
 export interface CustomerAftercareSnapshot {
   generatedAt: string;
+  serviceCases: CustomerServiceCaseAdminView[];
   tasks: CustomerAftercareTask[];
   truncated: boolean;
 }

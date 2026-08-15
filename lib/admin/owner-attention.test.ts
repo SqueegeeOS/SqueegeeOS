@@ -139,7 +139,12 @@ function healthyReferrals(): ReferralAttentionSnapshot {
 }
 
 function healthyAftercare(): CustomerAftercareSnapshot {
-  return { generatedAt: NOW.toISOString(), tasks: [], truncated: false };
+  return {
+    generatedAt: NOW.toISOString(),
+    serviceCases: [],
+    tasks: [],
+    truncated: false,
+  };
 }
 
 function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttentionInput {
@@ -510,6 +515,7 @@ describe("owner attention queue", () => {
         aftercare: ready({
           generatedAt: NOW.toISOString(),
           truncated: false,
+          serviceCases: [],
           tasks: [
             {
               taskKey: `review-opportunity:${reviewAppointmentId}`,
@@ -559,6 +565,47 @@ describe("owner attention queue", () => {
         (item) => item.id === `aftercare:annual-care-checkin:${membershipId}:2026`,
       ),
     ).toMatchObject({ priority: "high", actionLabel: "Open care moment" });
+  });
+
+  it("puts customer-reported service cases directly in the owner queue", () => {
+    const caseId = "55555555-5555-4555-8555-555555555555";
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        aftercare: ready({
+          generatedAt: NOW.toISOString(),
+          truncated: false,
+          tasks: [],
+          serviceCases: [
+            {
+              id: caseId,
+              membershipId: "11111111-1111-4111-8111-111111111111",
+              homeownerId: "22222222-2222-4222-8222-222222222222",
+              propertyId: "33333333-3333-4333-8333-333333333333",
+              appointmentId: null,
+              homeownerName: "Mandi Rivera",
+              propertyLabel: "Davis Street Residence",
+              category: "damage_concern",
+              details: "A customer reported a possible screen-frame scratch.",
+              status: "open",
+              ownerNote: null,
+              acknowledgedAt: null,
+              resolvedAt: null,
+              createdAt: "2026-08-14T17:30:00.000Z",
+              updatedAt: "2026-08-14T17:30:00.000Z",
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(
+      response.items.find((item) => item.id === `service-case:${caseId}`),
+    ).toMatchObject({
+      priority: "critical",
+      domain: "field",
+      href: `/hq/aftercare#service-case-${caseId}`,
+      actionLabel: "Open customer case",
+    });
   });
 
   it("fails closed when a source cannot be read", () => {
