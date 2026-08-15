@@ -48,4 +48,13 @@ describe("technician field run contract", () => {
     expect(fieldRun).toContain('label: "Closed out"');
     expect(fieldRun).toContain("Saved on this device");
   });
+
+  it("mirrors Jobber crew coverage without inventing a second schedule", () => {
+    expect(fieldRun).toContain("listTechnicianCrew");
+    expect(fieldRun).toContain("filterTechnicianVisits");
+    expect(fieldRun).toContain("Route lens");
+    expect(fieldRun).toContain("Saved on this phone");
+    expect(fieldRun).toContain("Unassigned in Jobber");
+    expect(fieldRun).toContain("Users read access");
+  });
 });

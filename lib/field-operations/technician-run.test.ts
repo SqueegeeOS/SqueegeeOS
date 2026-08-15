@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  filterTechnicianVisits,
+  listTechnicianCrew,
   resolveTechnicianVisitReadiness,
   selectTechnicianNextAction,
   summarizeTechnicianRun,
+  TECHNICIAN_ALL_CREW,
+  TECHNICIAN_UNASSIGNED_CREW,
+  technicianCrewSelection,
 } from "./technician-run";
 
 function visit(overrides: Record<string, unknown> = {}) {
@@ -94,5 +99,49 @@ describe("technician run automation", () => {
     expect(
       selectTechnicianNextAction([nextStop, missedCloseout], true),
     ).toMatchObject({ id: "closeout" });
+  });
+
+  it("turns mirrored Jobber assignments into stable crew route lenses", () => {
+    const visits = [
+      {
+        id: "one",
+        assignmentReadState: "available" as const,
+        assignedUsers: [{ id: "alex", name: "Alex Rivera" }],
+      },
+      {
+        id: "two",
+        assignmentReadState: "available" as const,
+        assignedUsers: [
+          { id: "alex", name: "Alex Rivera" },
+          { id: "sam", name: "Sam Lee" },
+        ],
+      },
+      {
+        id: "three",
+        assignmentReadState: "available" as const,
+        assignedUsers: [],
+      },
+      {
+        id: "unknown",
+        assignmentReadState: "permission_hidden" as const,
+        assignedUsers: [],
+      },
+    ];
+
+    expect(listTechnicianCrew(visits)).toEqual([
+      { id: "alex", name: "Alex Rivera", stopCount: 2 },
+      { id: "sam", name: "Sam Lee", stopCount: 1 },
+    ]);
+    expect(
+      filterTechnicianVisits(visits, technicianCrewSelection("alex")).map(
+        (candidate) => candidate.id,
+      ),
+    ).toEqual(["one", "two"]);
+    expect(
+      filterTechnicianVisits(visits, TECHNICIAN_UNASSIGNED_CREW).map(
+        (candidate) => candidate.id,
+      ),
+    ).toEqual(["three"]);
+    expect(filterTechnicianVisits(visits, TECHNICIAN_ALL_CREW)).toBe(visits);
   });
 });
