@@ -139,9 +139,11 @@ describe("signature-backed sales attribution security", () => {
   });
 
   it("reports real closes from attributions rather than manual signed taps", () => {
+    expect(workspaceServer).toContain("SALES_ATTRIBUTION_SELECT");
     expect(workspaceServer).toContain(
-      '.select("qualification_status, attributed_arr_cents, attributed_at")',
+      '.select(SALES_ATTRIBUTION_SELECT, { count: "exact" })',
     );
+    expect(workspaceServer).toContain("loadAllSalesRepAttributionRows(rep.id)");
     expect(workspaceServer).toContain("signedToday: attributionsToday.length");
     expect(workspaceServer).toContain("closedArrTodayCents");
     expect(workspaceServer).toContain("closedArrCents");
