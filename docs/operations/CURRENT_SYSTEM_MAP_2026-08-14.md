@@ -12,14 +12,14 @@ that a provider-backed workflow is live.
 - Current production commit: `41b5e19a88a0600e5bc3bea171986bed044d0a94`
 - Production deployment state: `READY`
 - Local release branch: `codex/communications-readiness`
-- Verified local base before the technician-capacity batch: `e32d4f5`
-- Local branch position with this technician-capacity release: 39 commits ahead of
+- Verified local base before the signed-to-scheduled handoff batch: `e4c5a7b`
+- Local branch position with this signed-to-scheduled release: 40 commits ahead of
   the deployed production commit
 - Repository size: 76 page entrypoints, 99 API entrypoints, 38 `lib/` domains,
-  62 numbered SQL migrations (`002` through `063`), and 196 test source files
-- Full local verification after the technician-capacity work:
-  - 193 test files passed
-  - 928 tests passed
+  62 numbered SQL migrations (`002` through `063`), and 198 test source files
+- Full local verification after the signed-to-scheduled handoff work:
+  - 195 test files passed
+  - 940 tests passed
   - TypeScript passed
   - ESLint passed with 0 errors and 90 inherited warnings
   - Next.js 16.2.10 production Webpack build passed; 135 static-generation
@@ -41,7 +41,7 @@ public acquisition, presentation, enrollment, portal, sales-representative,
 HQ, communications, billing, review, and Jobber integration surfaces all
 exist. The most important constraint today is release and provider state:
 
-1. Production is running commit `41b5e19`, not the 39-commit verified local
+1. Production is running commit `41b5e19`, not the 40-commit verified local
    operations branch.
 2. Production Jobber is currently disconnected. Jobber webhooks are arriving,
    but background synchronization and the reconcile cron cannot use them.
@@ -94,7 +94,8 @@ These capabilities are implemented and verified on
 | Owner leverage loop | Today records one private field-independence review per verified, matched, completed, assigned, documented Jobber visit; only normal, quality-verified, zero-owner, measured work with no open exception counts toward the 8 → 16 → 24 → 32 hour ladder. Growth clocks for Noah and Dasan connect completed effort to agreement-backed attributed ARR, alert after eight hours, and allow an overlong timer to be cancelled but never counted—all without sending, charging, compensating, invoicing, or mutating Jobber | Apply migration `061`; deploy; rehearse on an internal/non-customer record while Jobber is connected |
 | Technician readiness + independent-day proof | HQ keeps append-only evidence across eight observable competencies, requires an active assignment-bounded Field Pass and at least one qualifying independent visit, and labels the file only “evidence complete for Noah’s decision.” A planned trial is automatically derived from every assigned Jobber stop; it verifies only when all stops complete, all reviews exist, every review is normal/quality-verified/zero-owner, and no field or customer exception is open. Unknown assignment, a Jobber projection older than six hours, or disconnected Jobber truth fails closed; there is no manual pass button | Apply migrations `061` and `062`; deploy; rehearse a full internal/non-customer route while Jobber is connected |
 | Technician capacity runway | HQ Team keeps append-only owner declarations of weekly production hours and optional planning labor cost, then compares them with four current business weeks of fresh Jobber duration and crew-assignment evidence. Unassigned work consumes team capacity; unreadable, stale, disconnected, or truncated source data becomes unknown; no automatic assignment or Noah fallback occurs | Apply migration `063`; deploy; declare Jarad's real available hours; verify against a fresh read-only Jobber schedule |
-| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, visit-story history, owner-attributed presentations, stale-session recovery, and production migration audits through `063` | Deploy the 39-commit local branch with its migrations |
+| Signed-to-scheduled production handoff | Every non-cancelled, signature-backed David close is read against the authoritative membership lifecycle, active Jobber property link, active recurring-job classification, and a fresh full visit snapshot. `/david` shows a five-proof handoff and next visit; HQ owner attention routes payment, activation, pairing, job-link, and scheduling gaps. Disconnected or stale Jobber data becomes “schedule unverified,” never “unscheduled” | Deploy; reconnect Jobber; verify one internal/non-customer close from signature through a linked upcoming visit without sending, charging, or mutating Jobber |
+| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, visit-story history, owner-attributed presentations, stale-session recovery, and production migration audits through `063` | Deploy the 40-commit local branch with its migrations |
 
 ### PARTIAL
 
@@ -165,7 +166,7 @@ These capabilities are implemented and verified on
    exception, and safe customer portal status. Send no customer message.
 4. Deploy the ranked owner attention queue and owner-leverage scoreboard, then
    verify that production leads,
-   David follow-ups, Jobber visits, field proof, customer-reported cases,
+   David follow-ups, signed-to-scheduled handoffs, Jobber visits, field proof, customer-reported cases,
    customer aftercare, field-independence reviews, technician trials, Growth Sessions, attributed
    ARR, technician capacity, billing, communications, and production safeguards resolve to the
    correct records without causing implicit writes.

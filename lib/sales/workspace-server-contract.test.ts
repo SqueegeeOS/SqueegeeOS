@@ -55,10 +55,34 @@ describe("sales workspace active-queue loading contract", () => {
 
   it("derives the visible close ledger only from signature-backed attribution rows", () => {
     expect(server).toContain("selectRecentSalesRepWinSources");
-    expect(server).toContain("loadRecentSalesRepWins(rep.id, attributions)");
+    expect(server).toContain("loadRecentSalesRepWins(");
     expect(server).toContain('.eq("rep_id", repId)');
     expect(server).toContain('.eq("sales_rep_id", repId)');
     expect(server).toContain('recentWinsStatus = "unavailable"');
     expect(server).not.toContain("recentWins: openLeadRows");
+  });
+
+  it("joins each signed close to the read-only production handoff without hiding a handoff failure", () => {
+    expect(server).toContain("membership_id");
+    expect(server).toContain("loadSalesProductionHandoffSnapshotForAttributions");
+    expect(server).toContain('productionHandoffStatus = "unavailable"');
+    expect(server).toContain("productionHandoffs");
+  });
+
+  it("keeps the owner handoff snapshot free of attribution repair writes", () => {
+    const start = server.indexOf(
+      "export async function loadSalesProductionHandoffAttentionSnapshot",
+    );
+    const end = server.indexOf(
+      "export async function loadSalesLeadAttentionSnapshot",
+      start,
+    );
+    const loader = server.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(loader).toContain("loadAllSalesRepAttributionRows");
+    expect(loader).not.toContain("reconcileSignedMembershipAttributionsForRep");
+    expect(loader).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
   });
 });

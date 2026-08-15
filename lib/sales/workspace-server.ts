@@ -36,6 +36,11 @@ import {
   type SalesRepWinLeadIdentity,
   type SalesRepWinPresentationIdentity,
 } from "./recent-wins";
+import {
+  loadSalesProductionHandoffSnapshotForAttributions,
+  type SalesProductionHandoffAttributionSource,
+} from "./production-handoff-server";
+import type { SalesProductionHandoffSnapshot } from "./production-handoff";
 
 interface SalesRepRow {
   id: string;
@@ -99,6 +104,7 @@ interface SalesAttributionRow {
   id: string;
   lead_id: string | null;
   presentation_id: string | null;
+  membership_id: string | null;
   qualification_status: "pending" | "active" | "qualified" | "cancelled";
   attributed_arr_cents: number;
   attributed_at: string;
@@ -114,7 +120,7 @@ const OPEN_SALES_LEAD_STATUSES: SalesLeadStatus[] = [
 ];
 const SALES_LEAD_PAGE_SIZE = 500;
 const SALES_ATTRIBUTION_SELECT =
-  "id, lead_id, presentation_id, qualification_status, attributed_arr_cents, attributed_at";
+  "id, lead_id, presentation_id, membership_id, qualification_status, attributed_arr_cents, attributed_at";
 const SALES_ATTRIBUTION_PAGE_SIZE = 500;
 
 export class SalesWorkspaceUnavailableError extends Error {
@@ -270,11 +276,16 @@ async function loadRecentWinPresentationIdentities(
 async function loadRecentSalesRepWins(
   repId: string,
   attributions: SalesAttributionRow[],
-): Promise<SalesRepRecentWin[]> {
+  referenceDate: Date,
+): Promise<{
+  wins: SalesRepRecentWin[];
+  productionHandoffStatus: SalesWorkspacePayload["productionHandoffStatus"];
+}> {
   const recentSources = selectRecentSalesRepWinSources(
     attributions.map(
       (attribution): SalesRepWinAttributionSource => ({
         id: attribution.id,
+        membershipId: attribution.membership_id,
         leadId: attribution.lead_id,
         presentationId: attribution.presentation_id,
         attributedArrCents: Number(attribution.attributed_arr_cents) || 0,
@@ -303,11 +314,37 @@ async function loadRecentSalesRepWins(
     loadRecentWinLeadIdentities(supabase, repId, leadIds),
     loadRecentWinPresentationIdentities(supabase, repId, presentationIds),
   ]);
-  return buildSalesRepRecentWins({
-    attributions: recentSources,
-    leads,
-    presentations,
-  });
+  let productionHandoffs: SalesProductionHandoffSnapshot["records"] = [];
+  let productionHandoffStatus: SalesWorkspacePayload["productionHandoffStatus"] =
+    "complete";
+  try {
+    productionHandoffs = (
+      await loadSalesProductionHandoffSnapshotForAttributions(
+        recentSources.map(
+          (attribution): SalesProductionHandoffAttributionSource => ({
+            id: attribution.id,
+            membershipId: attribution.membershipId,
+            qualificationStatus: attribution.status,
+            attributedArrCents: attribution.attributedArrCents,
+            attributedAt: attribution.attributedAt,
+          }),
+        ),
+        referenceDate,
+      )
+    ).records;
+  } catch (error) {
+    productionHandoffStatus = "unavailable";
+    console.error("[sales-workspace] production handoff load failed", error);
+  }
+  return {
+    wins: buildSalesRepRecentWins({
+      attributions: recentSources,
+      leads,
+      presentations,
+      productionHandoffs,
+    }),
+    productionHandoffStatus,
+  };
 }
 
 async function loadAllOpenSalesRepLeadRows(
@@ -510,10 +547,19 @@ export async function loadSalesWorkspace(
   });
   let recentWins: SalesRepRecentWin[] = [];
   let recentWinsStatus: SalesWorkspacePayload["recentWinsStatus"] = "complete";
+  let productionHandoffStatus: SalesWorkspacePayload["productionHandoffStatus"] =
+    "complete";
   try {
-    recentWins = await loadRecentSalesRepWins(rep.id, attributions);
+    const recentWinResult = await loadRecentSalesRepWins(
+      rep.id,
+      attributions,
+      referenceDate,
+    );
+    recentWins = recentWinResult.wins;
+    productionHandoffStatus = recentWinResult.productionHandoffStatus;
   } catch (error) {
     recentWinsStatus = "unavailable";
+    productionHandoffStatus = "unavailable";
     console.error("[sales-workspace] recent signed-close identity load failed", error);
   }
 
@@ -547,9 +593,34 @@ export async function loadSalesWorkspace(
     leads,
     recentWins,
     recentWinsStatus,
+    productionHandoffStatus,
     closeLedgerStatus,
     generatedAt: referenceDate.toISOString(),
   };
+}
+
+/**
+ * Read-only owner view of every non-cancelled, signature-backed close and its
+ * current production handoff. This never repairs attribution or mutates Jobber.
+ */
+export async function loadSalesProductionHandoffAttentionSnapshot(
+  slug: string,
+  referenceDate = new Date(),
+): Promise<SalesProductionHandoffSnapshot> {
+  const rep = await loadRepRow(slug);
+  const attributions = await loadAllSalesRepAttributionRows(rep.id);
+  return loadSalesProductionHandoffSnapshotForAttributions(
+    attributions.map(
+      (attribution): SalesProductionHandoffAttributionSource => ({
+        id: attribution.id,
+        membershipId: attribution.membership_id,
+        qualificationStatus: attribution.qualification_status,
+        attributedArrCents: Number(attribution.attributed_arr_cents) || 0,
+        attributedAt: attribution.attributed_at,
+      }),
+    ),
+    referenceDate,
+  );
 }
 
 /**

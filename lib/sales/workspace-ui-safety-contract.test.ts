@@ -110,4 +110,14 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain("[content-visibility:auto]");
     expect(workspace).toContain("setActionClock(Date.now())");
   });
+
+  it("shows signed-to-scheduled handoff proof without exposing payment identifiers", () => {
+    expect(workspace).toContain("Production handoff");
+    expect(workspace).toContain("handoff.completedSteps");
+    expect(workspace).toContain("handoff.nextScheduledAt");
+    expect(workspace).toContain("handoff.actionHref");
+    expect(workspace).toContain("Production handoff unverified");
+    expect(workspace).not.toContain("stripe_payment_method_id");
+    expect(workspace).not.toContain("stripe_customer_id");
+  });
 });

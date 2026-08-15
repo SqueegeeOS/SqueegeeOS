@@ -127,6 +127,14 @@ const RECENT_WIN_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
   day: "numeric",
   year: "numeric",
 });
+const HANDOFF_VISIT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
 
 const RECENT_WIN_STATUS: Record<
   SalesRepRecentWin["status"],
@@ -144,6 +152,19 @@ const RECENT_WIN_STATUS: Record<
     label: "12-mo qualified",
     className: "border-accent/30 bg-accent/[0.08] text-accent",
   },
+};
+
+const PRODUCTION_HANDOFF_STYLE: Record<
+  NonNullable<SalesRepRecentWin["productionHandoff"]>["stage"],
+  string
+> = {
+  payment_needed: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  membership_attention: "border-red-300/30 bg-red-300/[0.08] text-red-100",
+  property_pairing_needed: "border-sky-300/25 bg-sky-300/[0.07] text-sky-100",
+  job_pairing_needed: "border-sky-300/25 bg-sky-300/[0.07] text-sky-100",
+  source_unavailable: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  schedule_needed: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  ready: "border-emerald-300/30 bg-emerald-300/[0.08] text-emerald-100",
 };
 
 const QUICK_ACTIONS: Array<{
@@ -319,6 +340,13 @@ function recentWinDateLabel(value: string): string {
   return Number.isFinite(date.getTime())
     ? RECENT_WIN_DATE_FORMATTER.format(date)
     : "Date unavailable";
+}
+
+function handoffVisitDateLabel(value: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? HANDOFF_VISIT_DATE_FORMATTER.format(date)
+    : "Visit time unavailable";
 }
 
 async function fetchSalesWorkspace(repSlug: string): Promise<SalesWorkspacePayload> {
@@ -970,6 +998,8 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
   const workspaceLeads = workspace?.leads ?? EMPTY_LEADS;
   const recentWins = workspace?.recentWins ?? EMPTY_RECENT_WINS;
   const recentWinsStatus = workspace?.recentWinsStatus ?? "complete";
+  const productionHandoffStatus =
+    workspace?.productionHandoffStatus ?? "complete";
   const closeLedgerStatus = workspace?.closeLedgerStatus ?? "complete";
   const workspaceGeneratedAt = workspace?.generatedAt ?? null;
   const leadActionQueue = useMemo(
@@ -1919,7 +1949,7 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
           </GlassCard>
         </section>
 
-        <section className="mt-8">
+        <section id="verified-closes" className="mt-8 scroll-mt-24">
           <GlassCard as="section" tone="elevated" padding="lg" rim>
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -1929,7 +1959,8 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
                   Only completed agreement signatures create these credits. Door taps
-                  and manual pipeline changes never count as a close.
+                  and manual pipeline changes never count as a close. Each card then
+                  tracks the verified path from signature to scheduled production.
                 </p>
               </div>
               <span
@@ -1958,6 +1989,12 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                 Close totals are still verified, but HomeAtlas could not load the
                 homeowner labels for this ledger. Refresh before relying on the names.
               </div>
+            ) : productionHandoffStatus === "unavailable" ? (
+              <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/[0.07] px-4 py-4 text-sm leading-6 text-amber-50" role="status">
+                Signed-close totals and names are verified, but the production handoff
+                could not be read. Treat payment, pairing, and schedule status as
+                unknown until this panel refreshes.
+              </div>
             ) : loading ? (
               <p className="mt-6 py-6 text-center text-sm text-muted">
                 Verifying signed memberships…
@@ -1976,6 +2013,7 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
               <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                 {recentWins.map((win) => {
                   const status = RECENT_WIN_STATUS[win.status];
+                  const handoff = win.productionHandoff;
                   return (
                     <article
                       key={win.id}
@@ -2007,6 +2045,53 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                           {recentWinDateLabel(win.attributedAt)}
                         </p>
                       </div>
+                      {handoff ? (
+                        <div className={`mt-4 rounded-xl border p-3 ${PRODUCTION_HANDOFF_STYLE[handoff.stage]}`}>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.15em]">
+                              Production handoff
+                            </p>
+                            <p className="text-[9px] font-bold uppercase tracking-[0.12em]">
+                              {handoff.completedSteps}/{handoff.totalSteps}
+                            </p>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/20" aria-hidden="true">
+                            <div
+                              className="h-full rounded-full bg-current transition-[width]"
+                              style={{
+                                width: `${(handoff.completedSteps / handoff.totalSteps) * 100}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="mt-3 text-sm font-semibold text-current">
+                            {handoff.label}
+                          </p>
+                          <p className="mt-1 text-[11px] leading-5 text-current/80">
+                            {handoff.detail}
+                          </p>
+                          {handoff.nextScheduledAt && handoff.stage === "ready" ? (
+                            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-current">
+                              Next visit · {handoffVisitDateLabel(handoff.nextScheduledAt)}
+                            </p>
+                          ) : null}
+                          <Link
+                            href={handoff.actionHref}
+                            className="mt-3 inline-flex min-h-10 items-center rounded-full border border-current/25 bg-black/10 px-3 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors hover:bg-black/20"
+                          >
+                            {handoff.actionLabel} →
+                          </Link>
+                        </div>
+                      ) : (
+                        <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/[0.07] p-3 text-amber-50">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.15em]">
+                            Production handoff unverified
+                          </p>
+                          <p className="mt-2 text-[11px] leading-5 text-amber-50/80">
+                            The signed credit remains valid. Refresh before relying on
+                            payment, Jobber pairing, or schedule status.
+                          </p>
+                        </div>
+                      )}
                     </article>
                   );
                 })}

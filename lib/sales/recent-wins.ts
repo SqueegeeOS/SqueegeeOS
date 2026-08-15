@@ -1,7 +1,9 @@
 import type { SalesRepRecentWin } from "./workspace-types";
+import type { SalesProductionHandoffRecord } from "./production-handoff";
 
 export interface SalesRepWinAttributionSource {
   id: string;
+  membershipId: string | null;
   leadId: string | null;
   presentationId: string | null;
   attributedArrCents: number;
@@ -47,10 +49,14 @@ export function buildSalesRepRecentWins(input: {
   attributions: SalesRepWinAttributionSource[];
   leads: SalesRepWinLeadIdentity[];
   presentations: SalesRepWinPresentationIdentity[];
+  productionHandoffs: SalesProductionHandoffRecord[];
 }): SalesRepRecentWin[] {
   const leadsById = new Map(input.leads.map((lead) => [lead.id, lead]));
   const presentationsById = new Map(
     input.presentations.map((presentation) => [presentation.id, presentation]),
+  );
+  const productionHandoffByAttributionId = new Map(
+    input.productionHandoffs.map((handoff) => [handoff.attributionId, handoff]),
   );
 
   return input.attributions.map((attribution) => {
@@ -81,6 +87,8 @@ export function buildSalesRepRecentWins(input: {
       ),
       status: attribution.status as SalesRepRecentWin["status"],
       attributedAt: attribution.attributedAt,
+      productionHandoff:
+        productionHandoffByAttributionId.get(attribution.id) ?? null,
     };
   });
 }

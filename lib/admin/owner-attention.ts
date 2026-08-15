@@ -31,6 +31,7 @@ import {
 } from "@/lib/referrals/attention-types";
 import { buildSalesLeadActionQueue } from "@/lib/sales/lead-action-priority";
 import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
+import type { SalesProductionHandoffSnapshot } from "@/lib/sales/production-handoff";
 import type { SalesLeadAttentionSnapshot } from "@/lib/sales/workspace-types";
 import {
   CUSTOMER_SERVICE_CASE_CATEGORY_LABELS,
@@ -51,6 +52,7 @@ export type OwnerAttentionSourceState = "ready" | "degraded";
 export type OwnerAttentionSourceId =
   | "customer_leads"
   | "david_pipeline"
+  | "sales_handoffs"
   | "sales_retention"
   | "today"
   | "owner_leverage"
@@ -105,6 +107,7 @@ export interface OwnerAttentionInput {
   now: Date;
   customerLeads: OwnerAttentionSourceResult<LeadIntakeRecord[]>;
   davidPipeline: OwnerAttentionSourceResult<SalesLeadAttentionSnapshot>;
+  salesHandoffs: OwnerAttentionSourceResult<SalesProductionHandoffSnapshot>;
   salesRetention: OwnerAttentionSourceResult<SalesRetentionAttentionSnapshot>;
   today: OwnerAttentionSourceResult<JobberTodayData>;
   ownerLeverage: OwnerAttentionSourceResult<OwnerLeverageSnapshot>;
@@ -142,6 +145,13 @@ const SOURCE_DEFINITIONS: Array<{
     label: "David pipeline",
     domain: "sales",
     href: "/david#follow-ups",
+    priority: "high",
+  },
+  {
+    id: "sales_handoffs",
+    label: "Signed-to-scheduled handoffs",
+    domain: "sales",
+    href: "/david#verified-closes",
     priority: "high",
   },
   {
@@ -456,6 +466,80 @@ function addSalesRetentionItems(
       href: "/david",
       actionLabel: "Open David workspace",
       sourceLabel: "Sales retention ledger",
+      affectedCount: overflow,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+}
+
+function addSalesProductionHandoffItems(
+  items: OwnerAttentionItem[],
+  snapshot: SalesProductionHandoffSnapshot,
+) {
+  const unknown = snapshot.records.filter(
+    (record) => record.stage === "source_unavailable",
+  );
+  if (unknown.length > 0) {
+    items.push({
+      id: "sales-handoff:schedule-source",
+      priority: "high",
+      domain: "systems",
+      title: `Verify Jobber schedule truth for ${unknown.length} signed ${plural(unknown.length, "member")}`,
+      detail:
+        "Their membership, property, and recurring-job links exist, but current Jobber data is unavailable. Atlas is not calling them unscheduled.",
+      href: ROUTES.hqJobber,
+      actionLabel: "Restore Jobber truth",
+      sourceLabel: "Signed-to-scheduled handoffs",
+      affectedCount: unknown.length,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+
+  const actionable = snapshot.records.filter(
+    (record) =>
+      record.stage !== "ready" && record.stage !== "source_unavailable",
+  );
+  const visible = actionable.slice(0, 5);
+  for (const record of visible) {
+    const priority: OwnerAttentionPriority =
+      record.stage === "payment_needed" ||
+      record.stage === "membership_attention"
+        ? "critical"
+        : "high";
+    items.push({
+      id: `sales-handoff:${record.attributionId}`,
+      priority,
+      domain:
+        record.stage === "payment_needed"
+          ? "billing"
+          : record.stage === "schedule_needed"
+            ? "dispatch"
+            : "sales",
+      title: `${record.homeownerName}: ${record.label}`,
+      detail: `${record.detail} ${record.completedSteps} of ${record.totalSteps} handoff proofs are complete.`,
+      href: record.actionHref,
+      actionLabel: record.actionLabel,
+      sourceLabel: "Signed-to-scheduled handoffs",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: record.attributedAt,
+    });
+  }
+
+  const overflow = actionable.length - visible.length;
+  if (overflow > 0) {
+    items.push({
+      id: "sales-handoff:overflow",
+      priority: "high",
+      domain: "sales",
+      title: `${overflow} more signed ${plural(overflow, "member")} need production handoff`,
+      detail:
+        "Open David’s verified closes and work the remaining payment, pairing, job-link, and scheduling steps.",
+      href: "/david#verified-closes",
+      actionLabel: "Open verified closes",
+      sourceLabel: "Signed-to-scheduled handoffs",
       affectedCount: overflow,
       observedAt: snapshot.generatedAt,
       dueAt: null,
@@ -1415,6 +1499,8 @@ function sourceResultFor(
       return input.customerLeads;
     case "david_pipeline":
       return input.davidPipeline;
+    case "sales_handoffs":
+      return input.salesHandoffs;
     case "sales_retention":
       return input.salesRetention;
     case "today":
@@ -1488,6 +1574,9 @@ export function buildOwnerAttentionQueue(
   }
   if (input.davidPipeline.state === "ready") {
     addDavidPipelineItems(items, input.davidPipeline.data, input.now);
+  }
+  if (input.salesHandoffs.state === "ready") {
+    addSalesProductionHandoffItems(items, input.salesHandoffs.data);
   }
   if (input.salesRetention.state === "ready") {
     addSalesRetentionItems(items, input.salesRetention.data, input.now);
