@@ -238,4 +238,11 @@ describe("customer data route boundaries", () => {
     expect(source).toContain("authorizeAdminRequest");
     expect(source).toContain("authorizeAdminRequest(request.headers)");
   });
+
+  it("protects aftercare reads and dispositions at the route handler", () => {
+    const source = readProjectFile("app/api/admin/aftercare/route.ts");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+    expect(source).toContain("recordCustomerAftercareOutcome");
+  });
 });

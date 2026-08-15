@@ -24,6 +24,7 @@ const FOUNDER_NAV_ITEMS = [
   { label: "Members", href: ROUTES.hqMembership },
   { label: "Jobber", href: ROUTES.hqJobber },
   { label: "Team", href: ROUTES.hqTechnicians },
+  { label: "Care", href: ROUTES.hqAftercare },
   { label: "Billing", href: ROUTES.hqBilling },
   { label: "Growth", href: ROUTES.hqGrowth },
   { label: "Health", href: ROUTES.hqProductionHealth },

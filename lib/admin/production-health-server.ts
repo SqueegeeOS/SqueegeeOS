@@ -239,6 +239,11 @@ async function runSchemaChecks(
       label: "technician_visit_events",
       table: "technician_visit_events",
     },
+    {
+      id: "customer-aftercare-schema",
+      label: "customer_aftercare_resolutions",
+      table: "customer_aftercare_resolutions",
+    },
   ];
 
   const probes = await Promise.all(

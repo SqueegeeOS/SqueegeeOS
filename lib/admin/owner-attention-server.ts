@@ -2,6 +2,7 @@ import "server-only";
 
 import { listLeadIntakes } from "@/lib/acquisition/leads/repository";
 import { loadBillingWorkspace } from "@/lib/admin/billing-workspace-server";
+import { loadCustomerAftercareSnapshot } from "@/lib/aftercare/customer-aftercare-server";
 import {
   buildOwnerAttentionQueue,
   type OwnerAttentionResponse,
@@ -40,6 +41,7 @@ export async function loadOwnerAttentionQueue(
     today,
     billing,
     communications,
+    aftercare,
     referrals,
     productionHealth,
   ] = await Promise.all([
@@ -90,6 +92,11 @@ export async function loadOwnerAttentionQueue(
       load: loadCommunicationsLaunchReadiness,
     }),
     captureSource({
+      id: "aftercare",
+      unavailableDetail: "Atlas could not verify customer aftercare opportunities.",
+      load: () => loadCustomerAftercareSnapshot(reference),
+    }),
+    captureSource({
       id: "referrals",
       unavailableDetail: "Atlas could not verify referral and reward state.",
       load: () => loadReferralAttentionSnapshot(reference),
@@ -109,6 +116,7 @@ export async function loadOwnerAttentionQueue(
     today,
     billing,
     communications,
+    aftercare,
     referrals,
     productionHealth,
   });
