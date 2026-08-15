@@ -970,6 +970,7 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
   const workspaceLeads = workspace?.leads ?? EMPTY_LEADS;
   const recentWins = workspace?.recentWins ?? EMPTY_RECENT_WINS;
   const recentWinsStatus = workspace?.recentWinsStatus ?? "complete";
+  const closeLedgerStatus = workspace?.closeLedgerStatus ?? "complete";
   const workspaceGeneratedAt = workspace?.generatedAt ?? null;
   const leadActionQueue = useMemo(
     () =>
@@ -1931,10 +1932,26 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                   and manual pipeline changes never count as a close.
                 </p>
               </div>
-              <span className="rounded-full border border-emerald-300/25 bg-emerald-300/[0.07] px-3 py-2 text-[9px] font-bold uppercase tracking-[0.15em] text-emerald-100">
-                Signature backed
+              <span
+                className={`rounded-full border px-3 py-2 text-[9px] font-bold uppercase tracking-[0.15em] ${
+                  closeLedgerStatus === "complete"
+                    ? "border-emerald-300/25 bg-emerald-300/[0.07] text-emerald-100"
+                    : "border-amber-300/30 bg-amber-300/[0.08] text-amber-100"
+                }`}
+              >
+                {closeLedgerStatus === "complete"
+                  ? "Signature backed"
+                  : "Sync review"}
               </span>
             </div>
+
+            {closeLedgerStatus === "needs_attention" ? (
+              <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/[0.07] px-4 py-4 text-sm leading-6 text-amber-50" role="alert">
+                At least one recent signed membership still needs attribution repair,
+                so the close total may be low. HomeAtlas did not create substitute or
+                manual credit.
+              </div>
+            ) : null}
 
             {recentWinsStatus === "unavailable" ? (
               <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/[0.07] px-4 py-4 text-sm leading-6 text-amber-50" role="status">

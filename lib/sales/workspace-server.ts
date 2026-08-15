@@ -443,9 +443,21 @@ export async function loadSalesWorkspace(
   const supabase = createPrivilegedServerSupabaseClient();
   const { startUtc, endUtc } = getBusinessCalendarDayUtcBounds(referenceDate);
 
+  let closeLedgerStatus: SalesWorkspacePayload["closeLedgerStatus"] = "complete";
   try {
-    await reconcileSignedMembershipAttributionsForRep(rep.id, 5);
+    const reconciliation = await reconcileSignedMembershipAttributionsForRep(
+      rep.id,
+      5,
+    );
+    if (reconciliation.failed > 0 || reconciliation.remaining > 0) {
+      closeLedgerStatus = "needs_attention";
+      console.warn("[sales-workspace] signed-close repair still has gaps", {
+        repId: rep.id,
+        ...reconciliation,
+      });
+    }
   } catch (error) {
+    closeLedgerStatus = "needs_attention";
     // Sales reporting repair must never make the field workspace unavailable.
     console.error("[sales-workspace] nonfatal attribution reconciliation failure", error);
   }
@@ -534,6 +546,7 @@ export async function loadSalesWorkspace(
     leads,
     recentWins,
     recentWinsStatus,
+    closeLedgerStatus,
     generatedAt: referenceDate.toISOString(),
   };
 }
