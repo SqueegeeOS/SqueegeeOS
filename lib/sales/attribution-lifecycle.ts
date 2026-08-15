@@ -9,6 +9,26 @@ export interface SalesAttributionLifecycleDecision {
   qualifiesNow: boolean;
 }
 
+export interface SalesRetentionAttentionRecord {
+  attributionId: string;
+  membershipId: string;
+  repSlug: string;
+  repDisplayName: string;
+  homeownerName: string;
+  membershipStatus: string;
+  qualificationStatus: Extract<
+    SalesAttributionLifecycleStatus,
+    "pending" | "active"
+  >;
+  retentionQualifiesAt: string;
+}
+
+export interface SalesRetentionAttentionSnapshot {
+  generatedAt: string;
+  records: SalesRetentionAttentionRecord[];
+  truncated: boolean;
+}
+
 const CANCELLED_MEMBERSHIP_STATUSES = new Set([
   "cancelled",
   "archived",

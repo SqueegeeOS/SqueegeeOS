@@ -18,7 +18,12 @@ import {
 import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
 import { classifyVisitFieldFollowUp } from "@/lib/field-records/visit-field-record";
 import { ROUTES } from "@/lib/navigation/config";
+import {
+  referralMemberAnchorId,
+  type ReferralAttentionSnapshot,
+} from "@/lib/referrals/attention-types";
 import { buildSalesLeadActionQueue } from "@/lib/sales/lead-action-priority";
+import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
 import type { SalesLeadAttentionSnapshot } from "@/lib/sales/workspace-types";
 
 export type OwnerAttentionPriority = "critical" | "high" | "normal";
@@ -29,14 +34,17 @@ export type OwnerAttentionDomain =
   | "field"
   | "billing"
   | "communications"
+  | "growth"
   | "systems";
 export type OwnerAttentionSourceState = "ready" | "degraded";
 export type OwnerAttentionSourceId =
   | "customer_leads"
   | "david_pipeline"
+  | "sales_retention"
   | "today"
   | "billing"
   | "communications"
+  | "referrals"
   | "production_health";
 
 export interface OwnerAttentionItem {
@@ -82,9 +90,11 @@ export interface OwnerAttentionInput {
   now: Date;
   customerLeads: OwnerAttentionSourceResult<LeadIntakeRecord[]>;
   davidPipeline: OwnerAttentionSourceResult<SalesLeadAttentionSnapshot>;
+  salesRetention: OwnerAttentionSourceResult<SalesRetentionAttentionSnapshot>;
   today: OwnerAttentionSourceResult<JobberTodayData>;
   billing: OwnerAttentionSourceResult<BillingWorkspaceData>;
   communications: OwnerAttentionSourceResult<CommunicationsLaunchReadiness>;
+  referrals: OwnerAttentionSourceResult<ReferralAttentionSnapshot>;
   productionHealth: OwnerAttentionSourceResult<ProductionHealthReport>;
 }
 
@@ -116,6 +126,13 @@ const SOURCE_DEFINITIONS: Array<{
     priority: "high",
   },
   {
+    id: "sales_retention",
+    label: "Sales retention ledger",
+    domain: "sales",
+    href: "/david",
+    priority: "critical",
+  },
+  {
     id: "today",
     label: "Today & field proof",
     domain: "dispatch",
@@ -134,6 +151,13 @@ const SOURCE_DEFINITIONS: Array<{
     label: "Communications readiness",
     domain: "communications",
     href: ROUTES.hqCommunications,
+    priority: "high",
+  },
+  {
+    id: "referrals",
+    label: "Referral rewards",
+    domain: "growth",
+    href: "/hq/referrals",
     priority: "high",
   },
   {
@@ -307,6 +331,79 @@ function addDavidPipelineItems(
       href: `${snapshot.profile.workspacePath}#follow-ups`,
       actionLabel: "Open pipeline",
       sourceLabel: `${snapshot.profile.displayName} pipeline`,
+      affectedCount: overflow,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+}
+
+function addSalesRetentionItems(
+  items: OwnerAttentionItem[],
+  snapshot: SalesRetentionAttentionSnapshot,
+  now: Date,
+) {
+  if (snapshot.truncated) {
+    items.push({
+      id: "sales-retention:coverage",
+      priority: "high",
+      domain: "systems",
+      title: "Sales retention view reached its coverage limit",
+      detail: "Atlas found more than 500 open retention records. Treat this queue as partial until the ledger is paginated or narrowed.",
+      href: "/david",
+      actionLabel: "Open David workspace",
+      sourceLabel: "Sales retention ledger",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+  const cancelledStatuses = new Set(["cancelled", "archived", "inactive"]);
+  const ordered = [...snapshot.records].sort((left, right) => {
+    const leftCancelled = cancelledStatuses.has(left.membershipStatus);
+    const rightCancelled = cancelledStatuses.has(right.membershipStatus);
+    if (leftCancelled !== rightCancelled) return leftCancelled ? -1 : 1;
+    return left.retentionQualifiesAt.localeCompare(right.retentionQualifiesAt);
+  });
+  const visible = ordered.slice(0, 5);
+  for (const record of visible) {
+    const cancelled = cancelledStatuses.has(record.membershipStatus);
+    const dueAt = timestamp(record.retentionQualifiesAt);
+    const overdueMs = dueAt === null ? 0 : now.getTime() - dueAt;
+    const priority: OwnerAttentionPriority = cancelled
+      ? "critical"
+      : overdueMs >= 36 * 60 * 60 * 1_000
+        ? "critical"
+        : "high";
+    items.push({
+      id: `sales-retention:${record.attributionId}`,
+      priority,
+      domain: "sales",
+      title: cancelled
+        ? `Reconcile ${record.repDisplayName} credit for ${record.homeownerName}`
+        : `${record.homeownerName} reached the retention checkpoint`,
+      detail: cancelled
+        ? `The membership is ${record.membershipStatus}, but its sales attribution is still ${record.qualificationStatus}. The daily lifecycle writer has not caught up.`
+        : `${record.repDisplayName}’s attribution is still ${record.qualificationStatus} ${formatWaiting(overdueMs)} after its retention date. Verify membership health before changing compensation state.`,
+      href: ROUTES.hqCustomerWorkspace("membership", record.membershipId),
+      actionLabel: "Open member record",
+      sourceLabel: "Sales retention ledger",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: record.retentionQualifiesAt,
+    });
+  }
+  const overflow = ordered.length - visible.length;
+  if (overflow > 0) {
+    items.push({
+      id: "sales-retention:overflow",
+      priority: "high",
+      domain: "sales",
+      title: `${overflow} more sales retention ${plural(overflow, "exception")}`,
+      detail: "Review the remaining retained-member attribution records before treating commissions or milestones as final.",
+      href: "/david",
+      actionLabel: "Open David workspace",
+      sourceLabel: "Sales retention ledger",
       affectedCount: overflow,
       observedAt: snapshot.generatedAt,
       dueAt: null,
@@ -734,6 +831,81 @@ function addCommunicationsItems(
   }
 }
 
+function addReferralItems(
+  items: OwnerAttentionItem[],
+  snapshot: ReferralAttentionSnapshot,
+  now: Date,
+) {
+  if (snapshot.truncated) {
+    items.push({
+      id: "referrals:coverage",
+      priority: "high",
+      domain: "systems",
+      title: "Referral attention view reached its coverage limit",
+      detail: "Atlas found more than 100 member referral codes. Treat this queue as partial until the referral ledger is paginated.",
+      href: "/hq/referrals",
+      actionLabel: "Open referrals",
+      sourceLabel: "Referral rewards",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+  for (const member of snapshot.members) {
+    const rewardCount = Math.max(
+      member.convertedUnrewardedCount,
+      member.availableRewardCount,
+    );
+    if (rewardCount > 0) {
+      const rewardParts = [
+        member.convertedUnrewardedCount > 0
+          ? `${member.convertedUnrewardedCount} converted ${plural(member.convertedUnrewardedCount, "referral")}`
+          : null,
+        member.availableRewardCount > 0
+          ? `${member.availableRewardCount} available ${plural(member.availableRewardCount, "reward")}`
+          : null,
+        member.availableCareCreditCents > 0
+          ? `${formatArr(member.availableCareCreditCents)} Care Credit`
+          : null,
+      ].filter(Boolean);
+      items.push({
+        id: `referral-reward:${member.membershipId}`,
+        priority: "high",
+        domain: "growth",
+        title: `Review referral rewards for ${member.memberName}`,
+        detail: `${rewardParts.join(" · ")}. Confirm the member receives exactly what the ledger proves.`,
+        href: `/hq/referrals#${referralMemberAnchorId(member.membershipId)}`,
+        actionLabel: "Open referral record",
+        sourceLabel: "Referral rewards",
+        affectedCount: rewardCount,
+        observedAt: snapshot.generatedAt,
+        dueAt: member.oldestConvertedAt,
+      });
+    }
+
+    const oldestPendingAt = timestamp(member.oldestPendingAt);
+    const pendingAge = oldestPendingAt === null ? 0 : now.getTime() - oldestPendingAt;
+    if (
+      member.pendingReferralCount > 0 &&
+      pendingAge >= 7 * 24 * 60 * 60 * 1_000
+    ) {
+      items.push({
+        id: `referral-pending:${member.membershipId}`,
+        priority: "normal",
+        domain: "growth",
+        title: `${member.pendingReferralCount} referred ${plural(member.pendingReferralCount, "lead")} still pending`,
+        detail: `${member.memberName}’s oldest referred lead has been pending for ${formatWaiting(pendingAge)}. Check the lead record before changing referral status.`,
+        href: `/hq/referrals#${referralMemberAnchorId(member.membershipId)}`,
+        actionLabel: "Open referral record",
+        sourceLabel: "Referral rewards",
+        affectedCount: member.pendingReferralCount,
+        observedAt: snapshot.generatedAt,
+        dueAt: member.oldestPendingAt,
+      });
+    }
+  }
+}
+
 function addProductionHealthItems(
   items: OwnerAttentionItem[],
   report: ProductionHealthReport,
@@ -772,12 +944,16 @@ function sourceResultFor(
       return input.customerLeads;
     case "david_pipeline":
       return input.davidPipeline;
+    case "sales_retention":
+      return input.salesRetention;
     case "today":
       return input.today;
     case "billing":
       return input.billing;
     case "communications":
       return input.communications;
+    case "referrals":
+      return input.referrals;
     case "production_health":
       return input.productionHealth;
   }
@@ -834,6 +1010,9 @@ export function buildOwnerAttentionQueue(
   if (input.davidPipeline.state === "ready") {
     addDavidPipelineItems(items, input.davidPipeline.data, input.now);
   }
+  if (input.salesRetention.state === "ready") {
+    addSalesRetentionItems(items, input.salesRetention.data, input.now);
+  }
   if (input.today.state === "ready") {
     addTodayItems(items, input.today.data, input.now);
   }
@@ -842,6 +1021,9 @@ export function buildOwnerAttentionQueue(
   }
   if (input.communications.state === "ready") {
     addCommunicationsItems(items, input.communications.data);
+  }
+  if (input.referrals.state === "ready") {
+    addReferralItems(items, input.referrals.data, input.now);
   }
   if (input.productionHealth.state === "ready") {
     addProductionHealthItems(items, input.productionHealth.data);

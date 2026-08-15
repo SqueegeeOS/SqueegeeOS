@@ -12,14 +12,14 @@ that a provider-backed workflow is live.
 - Current production commit: `41b5e19a88a0600e5bc3bea171986bed044d0a94`
 - Production deployment state: `READY`
 - Local release branch: `codex/communications-readiness`
-- Verified local base before this owner-attention batch: `7551414`
-- Local branch position before this owner-attention commit: 30 commits ahead of the
+- Verified local base before this aftercare batch: `6d884b6`
+- Local branch position before this aftercare commit: 31 commits ahead of the
   deployed production commit
 - Repository size: 75 page entrypoints, 94 API entrypoints, 36 `lib/` domains,
-  57 numbered SQL migrations (`002` through `058`), and 177 test files
-- Full local verification after the owner-attention work:
-  - 174 test files passed
-  - 839 tests passed
+  57 numbered SQL migrations (`002` through `058`), and 180 test source files
+- Full local verification after the referral-and-retention attention work:
+  - 177 test files passed
+  - 846 tests passed
   - TypeScript passed
   - ESLint passed with 0 errors and 90 inherited warnings
   - Next.js 16.2.10 production Webpack build passed; 131 static-generation
@@ -85,8 +85,9 @@ These capabilities are implemented and verified on
 | Visit event automation | Monotonic On my way → Arrived → Working → Service complete → Departed event ledger; completion requires a saved closeout | Apply `058`; deploy |
 | Customer live service | Bearer-token portals receive a deliberately limited live visit stage without technician IDs, route data, internal notes, or provider IDs | Apply `058`; deploy |
 | Technician dispatch | HQ shows scheduled crew, usable Field Pass state, active stop, proof state, route-complete state, unassigned work, and the exact stop needing attention; refreshes every minute while visible | Apply `054`–`058` and deploy |
-| Owner attention queue | HQ ranks current website/Meta leads, David follow-ups, dispatch drift, field follow-ups and proof gaps, billing exceptions, communication gates, and uncovered production safeguards; each item deep-links to the exact record when possible and treats unreadable sources as unknown | Deploy the local branch and verify the authorized `/api/admin/attention` response in production |
-| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, and visit-story history | Deploy the 31-commit local branch with its migrations |
+| Owner attention queue | HQ ranks current website/Meta leads, David follow-ups, salesperson retention drift, dispatch drift, field follow-ups and proof gaps, billing exceptions, communication gates, referral rewards, stale referred leads, and uncovered production safeguards; each item deep-links to the exact record when possible and treats unreadable sources as unknown | Deploy the local branch and verify the authorized `/api/admin/attention` response in production |
+| Referral and retention aftercare | Read-only projections identify converted referrals awaiting reward review, available Care Credit, referred leads pending at least seven days, cancelled-member attribution drift, and due salesperson retention checkpoints without invoking the existing reward or lifecycle writers | Deploy and verify exact links against non-customer/internal records; operational changes remain explicit owner actions |
+| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, and visit-story history | Deploy the 32-commit local branch with its migrations |
 
 ### PARTIAL
 
@@ -117,8 +118,9 @@ These capabilities are implemented and verified on
 
 ### NOT BUILT
 
-- Complaint, retention-risk, renewal, and review/referral exceptions have not
-  yet been added to the local owner attention queue
+- Complaint, customer-retention-risk, renewal, and review-request exceptions
+  have not yet been added to the local owner attention queue. Referral reward
+  and salesperson-retention exceptions are implemented locally.
 - Automatic lead scoring and duplicate resolution across website, Meta, Jobber,
   sales-rep, email, and phone identities
 - A customer multi-property switcher and household-level account view

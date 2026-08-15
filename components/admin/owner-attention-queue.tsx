@@ -42,6 +42,7 @@ const DOMAIN_LABELS: Record<OwnerAttentionItem["domain"], string> = {
   field: "Field",
   billing: "Billing",
   communications: "Communications",
+  growth: "Growth",
   systems: "Systems",
 };
 
