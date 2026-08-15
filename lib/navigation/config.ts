@@ -26,6 +26,7 @@ export const ROUTES = {
   hqCommunications: "/hq/communications",
   hqPendingRequests: "/hq/requests",
   hqToday: "/hq/today",
+  hqTechnicians: "/hq/technicians",
   hqBilling: "/hq/billing",
   hqGrowth: "/hq/growth",
   hqMembership: "/hq/memberships",

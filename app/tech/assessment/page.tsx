@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireFieldPageActor } from "@/lib/field-operations/field-access-dal";
 
 interface TechAssessmentRedirectProps {
   searchParams: Promise<{
@@ -11,6 +12,7 @@ interface TechAssessmentRedirectProps {
 export default async function TechAssessmentRedirect({
   searchParams,
 }: TechAssessmentRedirectProps) {
+  await requireFieldPageActor("/tech/assessment");
   const params = await searchParams;
   const propertyId = params.propertyId?.trim();
 

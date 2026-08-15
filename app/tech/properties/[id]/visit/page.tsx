@@ -5,6 +5,8 @@ import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { DocumentVisitForm } from "@/components/visit/DocumentVisitForm";
 import { getPropertyHealthHeader } from "@/lib/health/repository";
+import { requireFieldPropertyPageActor } from "@/lib/field-operations/field-access-dal";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Document Visit | Technician",
@@ -18,6 +20,11 @@ export default async function TechDocumentVisitPage({
   params,
 }: TechDocumentVisitPageProps) {
   const { id } = await params;
+  const actor = await requireFieldPropertyPageActor(
+    id,
+    `/tech/properties/${id}/visit`,
+  );
+  if (actor.kind === "technician") redirect("/tech?use=field-closeout");
   const property = await getPropertyHealthHeader(id);
 
   if (!property) {

@@ -101,6 +101,8 @@ export function VisitFieldCapture({
   serviceLabel,
   scopeItems,
   scopeReadState,
+  apiRoutePrefix = "/api/admin",
+  lockedTechnicianName,
   onSaved,
   onDraftStateChange,
 }: {
@@ -110,6 +112,8 @@ export function VisitFieldCapture({
   serviceLabel: string;
   scopeItems: Array<Omit<VisitServiceScopeItemCompletion, "completed">>;
   scopeReadState: VisitServiceScopeReadState;
+  apiRoutePrefix?: "/api/admin" | "/api/field";
+  lockedTechnicianName?: string;
   onSaved?: () => void;
   onDraftStateChange?: (hasDraft: boolean) => void;
 }) {
@@ -122,7 +126,9 @@ export function VisitFieldCapture({
     () => initialDraft?.fieldRecordId ?? newClientId(),
   );
   const [technicianName, setTechnicianName] = useState(() =>
-    initialDraft?.technicianName ?? savedTechnicianName(),
+    lockedTechnicianName ??
+    initialDraft?.technicianName ??
+    savedTechnicianName(),
   );
   const [visitDate, setVisitDate] = useState(
     () => initialDraft?.visitDate ?? businessTodayIsoDate(),
@@ -353,7 +359,7 @@ export function VisitFieldCapture({
       );
       if (pendingPhotos.length > 0) {
         const intentResponse = await fetch(
-          "/api/admin/field-records/upload-intents",
+          `${apiRoutePrefix}/field-records/upload-intents`,
           {
             method: "POST",
             headers: getAdminRequestHeaders(),
@@ -421,7 +427,7 @@ export function VisitFieldCapture({
       });
 
       setProgress("Committing one HomeAtlas visit record…");
-      const commitResponse = await fetch("/api/admin/field-records", {
+      const commitResponse = await fetch(`${apiRoutePrefix}/field-records`, {
         method: "POST",
         headers: getAdminRequestHeaders(),
         body: JSON.stringify({
@@ -685,11 +691,21 @@ export function VisitFieldCapture({
           </span>
           <input
             value={technicianName}
-            onChange={(event) => setTechnicianName(event.target.value)}
+            onChange={(event) => {
+              if (!lockedTechnicianName) setTechnicianName(event.target.value);
+            }}
+            readOnly={Boolean(lockedTechnicianName)}
             autoComplete="name"
             placeholder="Your name"
-            className="mt-2 min-h-12 w-full rounded-xl border border-border bg-background/80 px-4 text-base text-foreground outline-none focus:border-accent/60"
+            className={`mt-2 min-h-12 w-full rounded-xl border border-border px-4 text-base text-foreground outline-none focus:border-accent/60 ${
+              lockedTechnicianName ? "bg-white/[0.045]" : "bg-background/80"
+            }`}
           />
+          {lockedTechnicianName ? (
+            <span className="mt-1 block text-[11px] text-[#9be2bd]/70">
+              Verified by this device&apos;s Field Pass
+            </span>
+          ) : null}
         </label>
         <label className="block">
           <span className="text-[10px] uppercase tracking-[0.15em] text-muted">

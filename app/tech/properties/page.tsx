@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { listTechnicianProperties } from "@/lib/health/repository";
+import { requireFieldPageActor } from "@/lib/field-operations/field-access-dal";
+import { listFieldActorPropertyIds } from "@/lib/field-operations/field-scope";
 
 export const metadata: Metadata = {
   title: "Property Memory | Technician",
@@ -14,7 +16,10 @@ function formatVisitDate(iso: string): string {
 }
 
 export default async function TechnicianPropertiesPage() {
-  const properties = await listTechnicianProperties();
+  const actor = await requireFieldPageActor("/tech/properties");
+  const allowedPropertyIds = await listFieldActorPropertyIds(actor);
+  const properties = await listTechnicianProperties(allowedPropertyIds);
+  const technicianSession = actor.kind === "technician";
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8 pb-16">
@@ -29,10 +34,12 @@ export default async function TechnicianPropertiesPage() {
           Atlas · Property memory
         </p>
         <h1 className="text-3xl font-semibold tracking-[-0.03em] text-white">
-          All homes
+          {technicianSession ? "My homes today" : "All homes"}
         </h1>
         <p className="mt-2 text-sm text-[#777]">
-          Open any home to review prior visits before the crew arrives.
+          {technicianSession
+            ? "Only homes on your assigned Jobber route appear here."
+            : "Open any home to review prior visits before the crew arrives."}
         </p>
       </header>
 
@@ -74,7 +81,9 @@ export default async function TechnicianPropertiesPage() {
       ) : (
         <div className="rounded-2xl border border-[#262c2a] bg-[#111615] px-6 py-12 text-center">
           <p className="text-sm leading-relaxed text-[#777]">
-            No properties yet. Paired HomeAtlas homes will appear here.
+            {technicianSession
+              ? "No paired homes are assigned to this Field Pass today."
+              : "No properties yet. Paired HomeAtlas homes will appear here."}
           </p>
         </div>
       )}

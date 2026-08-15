@@ -12,23 +12,26 @@ const fieldRun = read(
 const technicianHome = read("../../app/tech/page.tsx");
 const propertyDirectory = read("../../app/tech/properties/page.tsx");
 const todayRoute = read(
-  "../../app/api/admin/care-operations/jobber/today/route.ts",
+  "../../app/api/field/today/route.ts",
 );
 const fieldCapture = read("../../components/visit/visit-field-capture.tsx");
 
 describe("technician field run contract", () => {
-  it("keeps every technician surface behind the signed owner session", () => {
+  it("keeps technician surfaces behind a revocable field or owner session", () => {
     expect(proxy).toContain('"/tech/:path*"');
-    expect(todayRoute).toContain("authorizeAdminRequest(request.headers)");
+    expect(proxy).toContain("FIELD_SESSION_COOKIE_NAME");
+    expect(technicianHome).toContain("requireFieldPageActor");
+    expect(todayRoute).toContain("authorizeFieldRequest(request.headers)");
   });
 
   it("uses Jobber read truth and HomeAtlas field proof without mutating Jobber", () => {
     expect(fieldRun).toContain(
-      'fetch("/api/admin/care-operations/jobber/today"',
+      'fetch("/api/field/today"',
     );
     expect(fieldRun).toContain("resolveTechnicianVisitReadiness");
     expect(fieldRun).toContain("selectTechnicianNextAction");
     expect(fieldRun).toContain("VisitFieldCapture");
+    expect(fieldRun).toContain('apiRoutePrefix="/api/field"');
     expect(fieldRun).not.toContain(
       'fetch("/api/admin/care-operations/jobber/sync"',
     );

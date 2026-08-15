@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AmbientStage } from "@/components/craft/ambient-stage";
-import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
   classifyJobberTodayVisit,
   isJobberTodayDataStale,
@@ -127,8 +126,7 @@ function serviceLabel(visit: JobberTodayVisit): string {
 }
 
 async function requestTodayData(): Promise<JobberTodayData> {
-  const response = await fetch("/api/admin/care-operations/jobber/today", {
-    headers: getAdminRequestHeaders(),
+  const response = await fetch("/api/field/today", {
     cache: "no-store",
   });
   const body = (await response.json().catch(() => null)) as
@@ -169,11 +167,13 @@ function TechnicianVisitCard({
   visit,
   timezone,
   fieldRecordStatusAvailable,
+  fieldActorName,
   onSaved,
 }: {
   visit: JobberTodayVisit;
   timezone: string;
   fieldRecordStatusAvailable: boolean;
+  fieldActorName: string | null;
   onSaved: () => void;
 }) {
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -340,6 +340,10 @@ function TechnicianVisitCard({
             >
               Property memory
             </Link>
+          ) : fieldActorName ? (
+            <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-amber-300/25 bg-amber-300/[0.06] px-3 text-center text-sm text-amber-100">
+              HQ pairing needed
+            </span>
           ) : (
             <Link
               href="/hq/jobber"
@@ -391,6 +395,8 @@ function TechnicianVisitCard({
                   serviceLabel={serviceLabel(visit)}
                   scopeItems={visit.scopeItems}
                   scopeReadState={visit.scopeReadState}
+                  apiRoutePrefix="/api/field"
+                  lockedTechnicianName={fieldActorName ?? undefined}
                   onSaved={() => {
                     setCaptureOpen(false);
                     onSaved();
@@ -406,7 +412,14 @@ function TechnicianVisitCard({
   );
 }
 
-export function TechnicianTodayWorkspace() {
+export function TechnicianTodayWorkspace({
+  actorKind,
+  actorDisplayName,
+}: {
+  actorKind: "admin" | "technician";
+  actorDisplayName: string;
+}) {
+  const technicianSession = actorKind === "technician";
   const [data, setData] = useState<JobberTodayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -453,6 +466,7 @@ export function TechnicianTodayWorkspace() {
   }, []);
 
   useEffect(() => {
+    if (technicianSession) return;
     const timer = window.setTimeout(() => {
       const storedSelection = window.localStorage.getItem(
         TECHNICIAN_CREW_STORAGE_KEY,
@@ -460,11 +474,11 @@ export function TechnicianTodayWorkspace() {
       if (storedSelection) setCrewSelection(storedSelection);
     }, 0);
     return () => window.clearTimeout(timer);
-  }, []);
+  }, [technicianSession]);
 
   const crew = useMemo(
-    () => (data ? listTechnicianCrew(data.visits) : []),
-    [data],
+    () => (data && !technicianSession ? listTechnicianCrew(data.visits) : []),
+    [data, technicianSession],
   );
   const activeCrewSelection = useMemo(() => {
     if (
@@ -530,14 +544,25 @@ export function TechnicianTodayWorkspace() {
               href="/tech/properties"
               className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
             >
-              All homes
+              {technicianSession ? "My homes" : "All homes"}
             </Link>
-            <Link
-              href="/hq/today"
-              className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
-            >
-              HQ view
-            </Link>
+            {technicianSession ? (
+              <form action="/api/field/access/logout" method="post">
+                <button
+                  type="submit"
+                  className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
+                >
+                  Sign out
+                </button>
+              </form>
+            ) : (
+              <Link
+                href="/hq/today"
+                className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
+              >
+                HQ view
+              </Link>
+            )}
           </div>
         </nav>
 
@@ -552,6 +577,11 @@ export function TechnicianTodayWorkspace() {
             The real Jobber route, property memory, and required customer proof
             in one phone-first workspace.
           </p>
+          {technicianSession ? (
+            <p className="mt-4 inline-flex min-h-10 items-center rounded-full border border-[#9be2bd]/25 bg-[#9be2bd]/[0.07] px-4 text-xs text-[#c9f3dc]">
+              Field Pass · {actorDisplayName}
+            </p>
+          ) : null}
         </header>
 
         {error ? (
@@ -594,7 +624,8 @@ export function TechnicianTodayWorkspace() {
                 />
               </div>
 
-              {crew.length > 0 || data.summary.unassigned > 0 ? (
+              {!technicianSession &&
+              (crew.length > 0 || data.summary.unassigned > 0) ? (
                 <div className="mt-5 border-t border-white/10 pt-5">
                   <div className="flex items-center justify-between gap-3">
                     <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
@@ -710,6 +741,9 @@ export function TechnicianTodayWorkspace() {
                     fieldRecordStatusAvailable={
                       data.fieldRecordStatusAvailable
                     }
+                    fieldActorName={
+                      technicianSession ? actorDisplayName : null
+                    }
                     onSaved={() => void load()}
                   />
                 ))
@@ -719,7 +753,9 @@ export function TechnicianTodayWorkspace() {
                   <p className="mt-2 text-sm text-white/45">
                     {data.visits.length > 0
                       ? "No stops match this crew lens. Choose All to see the full route."
-                      : "The route is clear. Check All homes for property memory."}
+                      : technicianSession
+                        ? "No Jobber stops are assigned to this Field Pass today."
+                        : "The route is clear. Check All homes for property memory."}
                   </p>
                 </div>
               )}

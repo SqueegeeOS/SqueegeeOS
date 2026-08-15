@@ -7,6 +7,7 @@ import {
 import {
   getPropertyHealthHeader,
 } from "@/lib/health/repository";
+import { requireFieldPropertyPageActor } from "@/lib/field-operations/field-access-dal";
 import { assessmentTypeLabel } from "@/lib/health/assessment-types";
 import {
   craftEyebrow,
@@ -34,6 +35,10 @@ interface TechPropertyPageProps {
 
 export default async function TechPropertyPage({ params }: TechPropertyPageProps) {
   const { id } = await params;
+  const actor = await requireFieldPropertyPageActor(
+    id,
+    `/tech/properties/${id}`,
+  );
   const [property, visits] = await Promise.all([
     getPropertyHealthHeader(id),
     listVisitMemory(id),
@@ -71,26 +76,35 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
         )}
       </header>
 
-      <Link
-        href={`/tech/properties/${id}/visit`}
-        className={`mb-3 block w-full text-center ${craftPrimaryButton}`}
-      >
-        Document today&apos;s visit
-      </Link>
+      {actor.kind === "admin" ? (
+        <>
+          <Link
+            href={`/tech/properties/${id}/visit`}
+            className={`mb-3 block w-full text-center ${craftPrimaryButton}`}
+          >
+            Document today&apos;s visit
+          </Link>
 
-      <Link
-        href={`/tech/properties/${id}/assessment`}
-        className={`mb-3 block w-full text-center ${craftSecondaryButton}`}
-      >
-        Full health assessment
-      </Link>
+          <Link
+            href={`/tech/properties/${id}/assessment`}
+            className={`mb-3 block w-full text-center ${craftSecondaryButton}`}
+          >
+            Full health assessment
+          </Link>
 
-      <Link
-        href={`/tech/properties/${id}/assessment?mode=window_service`}
-        className={`mb-10 block text-center ${craftGhostLink}`}
-      >
-        Quick window check only (~2 min)
-      </Link>
+          <Link
+            href={`/tech/properties/${id}/assessment?mode=window_service`}
+            className={`mb-10 block text-center ${craftGhostLink}`}
+          >
+            Quick window check only (~2 min)
+          </Link>
+        </>
+      ) : (
+        <div className="mb-10 rounded-2xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.06] p-4 text-sm leading-relaxed text-[#c9f3dc]">
+          Return to Field Run to save today&apos;s verified Jobber checklist,
+          photos, and customer update for this home.
+        </div>
+      )}
 
       {latest && (
         <section className="craft-glass-subtle mb-10 rounded-[var(--radius-card)] px-5 py-5 shadow-[var(--shadow-ambient)]">
