@@ -234,6 +234,11 @@ async function runSchemaChecks(
       label: "technician_access_grants",
       table: "technician_access_grants",
     },
+    {
+      id: "technician-visit-automation-schema",
+      label: "technician_visit_events",
+      table: "technician_visit_events",
+    },
   ];
 
   const probes = await Promise.all(

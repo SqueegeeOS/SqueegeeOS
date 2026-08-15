@@ -11,7 +11,8 @@ export type TechnicianVisitReadiness =
   | "follow_up_open"
   | "pairing_required"
   | "appointment_syncing"
-  | "proof_unavailable";
+  | "proof_unavailable"
+  | "jobber_completion_pending";
 
 type TechnicianVisitInput = Pick<
   JobberTodayVisit,
@@ -22,6 +23,7 @@ type TechnicianVisitInput = Pick<
   | "homeAtlasFieldRecordCount"
   | "homeAtlasCustomerVisibleRecordCount"
   | "homeAtlasOpenFollowUpCount"
+  | "homeAtlasFieldStage"
 >;
 
 export interface TechnicianRunSummary {
@@ -98,6 +100,9 @@ export function resolveTechnicianVisitReadiness(
   if (!visit.homeAtlasPropertyId) return "pairing_required";
   if (!visit.homeAtlasAppointmentId) return "appointment_syncing";
   if (!fieldRecordStatusAvailable) return "proof_unavailable";
+  if (visit.homeAtlasFieldStage === "departed" && !visit.isComplete) {
+    return "jobber_completion_pending";
+  }
   if (visit.isComplete && visit.homeAtlasFieldRecordCount === 0) {
     return "closeout_required";
   }
@@ -152,6 +157,8 @@ export function selectTechnicianNextAction<T extends TechnicianVisitInput>(
   let oldestUnfinishedTime = Number.POSITIVE_INFINITY;
   let oldestCloseout: T | null = null;
   let oldestCloseoutTime = Number.POSITIVE_INFINITY;
+  let activeRoute: T | null = null;
+  let activeRouteTime = Number.POSITIVE_INFINITY;
 
   for (const visit of visits) {
     const scheduledAt = new Date(visit.scheduledStart).getTime();
@@ -172,11 +179,23 @@ export function selectTechnicianNextAction<T extends TechnicianVisitInput>(
       oldestCloseout = visit;
       oldestCloseoutTime = time;
     }
-    if (!visit.isComplete && time < oldestUnfinishedTime) {
+    if (
+      visit.homeAtlasFieldStage !== "not_started" &&
+      visit.homeAtlasFieldStage !== "departed" &&
+      time < activeRouteTime
+    ) {
+      activeRoute = visit;
+      activeRouteTime = time;
+    }
+    if (
+      !visit.isComplete &&
+      visit.homeAtlasFieldStage !== "departed" &&
+      time < oldestUnfinishedTime
+    ) {
       oldestUnfinished = visit;
       oldestUnfinishedTime = time;
     }
   }
 
-  return oldestCloseout ?? oldestUnfinished;
+  return oldestCloseout ?? activeRoute ?? oldestUnfinished;
 }

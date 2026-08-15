@@ -18,6 +18,9 @@ const fieldCommit = read("../../app/api/field/field-records/route.ts");
 const fieldUploads = read(
   "../../app/api/field/field-records/upload-intents/route.ts",
 );
+const fieldVisitEvents = read(
+  "../../app/api/field/visit-events/route.ts",
+);
 const adminGrantRoute = read(
   "../../app/api/admin/technicians/access-grants/route.ts",
 );
@@ -56,6 +59,9 @@ describe("technician Field Pass security contract", () => {
     expect(fieldToday).toContain("authorizeFieldRequest(request.headers)");
     expect(fieldCommit).toContain("authorizeFieldRequest(request.headers)");
     expect(fieldUploads).toContain("authorizeFieldRequest(request.headers)");
+    expect(fieldVisitEvents).toContain(
+      "authorizeFieldRequest(request.headers)",
+    );
   });
 
   it("fails closed on unknown Jobber assignments and rechecks writes", () => {
@@ -64,6 +70,7 @@ describe("technician Field Pass security contract", () => {
     expect(scope).toContain("This Jobber stop is not assigned to this Field Pass");
     expect(fieldCommit).toContain("assertFieldActorCanWriteAppointment");
     expect(fieldUploads).toContain("assertFieldActorCanWriteAppointment");
+    expect(fieldVisitEvents).toContain("assertFieldActorCanWriteAppointment");
     expect(fieldCommit).toContain("technicianName: actor.displayName");
   });
 

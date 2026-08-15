@@ -42,6 +42,10 @@ function visit(
     homeAtlasLatestFieldRecordBy: null,
     homeAtlasCustomerVisibleRecordCount: 0,
     homeAtlasOpenFollowUpCount: 0,
+    homeAtlasFieldStage: "not_started",
+    homeAtlasFieldStageAt: null,
+    homeAtlasFieldStageBy: null,
+    homeAtlasFieldEventCount: 0,
   };
 }
 
@@ -78,6 +82,7 @@ describe("technician field scope", () => {
       lastSyncedAt: "2026-08-14T15:00:00.000Z",
       loadedAt: "2026-08-14T15:01:00.000Z",
       fieldRecordStatusAvailable: true,
+      fieldEventStatusAvailable: true,
       summary: {
         total: 2,
         complete: 0,

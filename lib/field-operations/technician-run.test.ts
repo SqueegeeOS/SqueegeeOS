@@ -19,6 +19,7 @@ function visit(overrides: Record<string, unknown> = {}) {
     homeAtlasFieldRecordCount: 0,
     homeAtlasCustomerVisibleRecordCount: 0,
     homeAtlasOpenFollowUpCount: 0,
+    homeAtlasFieldStage: "not_started" as const,
     ...overrides,
   };
 }
@@ -111,6 +112,41 @@ describe("technician run automation", () => {
     expect(
       selectTechnicianNextAction([nextStop, missedCloseout], true),
     ).toMatchObject({ id: "closeout" });
+  });
+
+  it("moves past a departed stop even while Jobber still needs its own close", () => {
+    const departed = visit({
+      id: "departed",
+      homeAtlasFieldStage: "departed",
+      scheduledStart: "2026-08-14T15:00:00.000Z",
+    });
+    const nextStop = visit({
+      id: "next",
+      scheduledStart: "2026-08-14T17:00:00.000Z",
+    });
+    expect(resolveTechnicianVisitReadiness(departed, true)).toBe(
+      "jobber_completion_pending",
+    );
+    expect(selectTechnicianNextAction([departed, nextStop], true)).toMatchObject(
+      { id: "next" },
+    );
+  });
+
+  it("keeps a service-complete stop active until departure is recorded", () => {
+    const serviceComplete = visit({
+      id: "service-complete",
+      isComplete: true,
+      homeAtlasFieldStage: "service_completed",
+      homeAtlasFieldRecordCount: 1,
+      homeAtlasCustomerVisibleRecordCount: 1,
+    });
+    const later = visit({
+      id: "later",
+      scheduledStart: "2026-08-14T18:00:00.000Z",
+    });
+    expect(
+      selectTechnicianNextAction([later, serviceComplete], true),
+    ).toMatchObject({ id: "service-complete" });
   });
 
   it("turns mirrored Jobber assignments into stable crew route lenses", () => {
