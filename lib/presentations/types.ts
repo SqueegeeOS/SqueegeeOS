@@ -158,6 +158,8 @@ export interface PresentationData {
   salesRepId: string | null;
   /** Optional originating lead; database constraints keep it owned by salesRepId. */
   salesRepLeadId: string | null;
+  /** Authoritative website or Meta inquiry; one inquiry owns at most one presentation. */
+  leadIntakeId: string | null;
   clientName: string;
   clientAddress: string;
   clientPhone: string;

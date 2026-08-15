@@ -19,6 +19,7 @@ describe("communications owner UI contract", () => {
     );
     expect(inboxSource).not.toContain("Replies return to this timeline.");
     expect(inboxSource).toContain("Finish text setup");
+    expect(inboxSource).toContain("CommunicationsLaunchReadinessPanel");
     expect(inboxSource).toContain(
       "https://www.squeegeeking.net/api/integrations/twilio/inbound",
     );
@@ -44,11 +45,16 @@ describe("communications owner UI contract", () => {
       "TWILIO_MESSAGING_SERVICE_SID",
       "TWILIO_SENDER_APPROVED",
       "TWILIO_STATUS_CALLBACK_URL",
+      "META_WEBHOOK_VERIFY_TOKEN",
+      "META_APP_SECRET",
+      "META_PAGE_ACCESS_TOKEN",
+      "META_GRAPH_API_VERSION",
     ]) {
       expect(environmentExample).toContain(setting);
     }
     expect(environmentExample).toContain("/api/integrations/resend/webhook");
     expect(environmentExample).toContain("/api/integrations/twilio/status");
     expect(environmentExample).toContain("/api/integrations/twilio/inbound");
+    expect(environmentExample).toContain("/api/integrations/meta/leads");
   });
 });

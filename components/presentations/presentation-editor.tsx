@@ -47,9 +47,11 @@ import {
 export function PresentationEditor({
   presentation: initial,
   recoveredDraft = false,
+  inquirySyncPending = false,
 }: {
   presentation: PresentationData;
   recoveredDraft?: boolean;
+  inquirySyncPending?: boolean;
 }) {
   const router = useRouter();
   const [data, setData] = useState(initial);
@@ -353,6 +355,16 @@ export function PresentationEditor({
             <span className="text-[#666]">{tierLabel(data.tier)}</span>
           </div>
         </header>
+
+        {inquirySyncPending ? (
+          <div
+            className="mb-6 rounded-2xl border border-amber-300/25 bg-amber-300/[0.07] px-4 py-3 text-sm leading-relaxed text-amber-100/80"
+            role="status"
+          >
+            This presentation is safely saved. The request inbox status did not
+            update, so opening that customer again will retry the same record.
+          </div>
+        ) : null}
 
         <div className="space-y-6">
           <section>

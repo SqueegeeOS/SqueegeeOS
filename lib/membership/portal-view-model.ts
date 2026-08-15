@@ -165,6 +165,7 @@ export function buildPortalCareRecordView(
         | "portalTheme"
         | "careAddons"
         | "savingsLedger"
+        | "liveService"
       > &
         Partial<
           Pick<
@@ -173,6 +174,7 @@ export function buildPortalCareRecordView(
             | "portalTheme"
             | "careAddons"
             | "savingsLedger"
+            | "liveService"
           >
         >)
     | null
@@ -291,6 +293,8 @@ export function buildPortalCareRecordView(
   const cadenceNote =
     cadence === "quarterly"
       ? "Quarterly members are visited every 3 months."
+      : cadence === "triannual"
+        ? "3× Per Year members are visited about every 4 months."
       : cadence === "bi-annual"
         ? "Bi-Annual members are visited every 6 months."
         : "Your visits follow your membership cadence.";

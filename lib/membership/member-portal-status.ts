@@ -2,7 +2,12 @@ import { ROUTES } from "@/lib/navigation/config";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import { SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 
-export type MembershipCadence = "quarterly" | "bi-annual" | "monthly" | "one-time";
+export type MembershipCadence =
+  | "quarterly"
+  | "triannual"
+  | "bi-annual"
+  | "monthly"
+  | "one-time";
 
 export interface MemberAddOnService {
   id: string;
@@ -26,6 +31,7 @@ export interface MemberPortalStatus {
 
 export const CADENCE_LABEL: Record<MembershipCadence, string> = {
   quarterly: "Quarterly",
+  triannual: "3× Per Year",
   "bi-annual": "Bi-Annual",
   monthly: "Monthly",
   "one-time": "One-Time",
@@ -34,6 +40,8 @@ export const CADENCE_LABEL: Record<MembershipCadence, string> = {
 export const SERVICE_SUMMARY: Record<MembershipCadence, string> = {
   quarterly:
     "Quarterly exterior stewardship — windows, tracks, gutters, and a full property walkthrough each season.",
+  triannual:
+    "Three-times-yearly exterior care — a documented refresh approximately every four months.",
   "bi-annual":
     "Bi-annual exterior care — scheduled inspection, documented report, and seasonal refresh twice per year.",
   monthly:
@@ -44,6 +52,7 @@ export const SERVICE_SUMMARY: Record<MembershipCadence, string> = {
 /** Member add-on discount by cadence (percent off list price). */
 export const MEMBER_ADD_ON_DISCOUNT: Partial<Record<MembershipCadence, number>> = {
   quarterly: SQUEEGEEKING_TIERS.quarterly.addonDiscount,
+  triannual: SQUEEGEEKING_TIERS.triannual.addonDiscount,
   "bi-annual": SQUEEGEEKING_TIERS.biannual.addonDiscount,
   monthly: SQUEEGEEKING_TIERS.quarterly.addonDiscount,
 };
@@ -77,6 +86,17 @@ export const MEMBER_ADD_ON_CATALOG: MemberAddOnService[] = [
 
 export function inferMembershipCadence(planName: string): MembershipCadence {
   const normalized = planName.toLowerCase();
+  if (
+    normalized.includes("triannual") ||
+    normalized.includes("tri-annual") ||
+    normalized.includes("tri annual") ||
+    normalized.includes("3x") ||
+    normalized.includes("3×") ||
+    normalized.includes("three times") ||
+    normalized.includes("three-times")
+  ) {
+    return "triannual";
+  }
   if (normalized.includes("essential")) return "bi-annual";
   if (normalized.includes("estate")) return "monthly";
   if (normalized.includes("one-time") || normalized.includes("one time")) {

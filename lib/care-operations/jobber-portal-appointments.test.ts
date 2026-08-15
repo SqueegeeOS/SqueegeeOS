@@ -56,6 +56,24 @@ describe("Jobber member portal appointment projection", () => {
     expect(nearest?.external_visit_id).toBe("nearest");
   });
 
+  it("keeps a Chico same-day visit eligible after its start time", () => {
+    const nearest = selectNearestUpcomingJobberVisit(
+      [
+        visit({
+          external_visit_id: "same-day",
+          scheduled_start: "2026-08-12T16:00:00.000Z",
+        }),
+        visit({
+          external_visit_id: "tomorrow",
+          scheduled_start: "2026-08-13T16:00:00.000Z",
+        }),
+      ],
+      new Date("2026-08-12T22:00:00.000Z"),
+    );
+
+    expect(nearest?.external_visit_id).toBe("same-day");
+  });
+
   it("maps Jobber terminal states without leaving stale scheduled visits", () => {
     expect(
       jobberVisitAppointmentStatus({ visit_status: "NO_SHOW", is_complete: true }),

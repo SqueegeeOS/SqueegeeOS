@@ -4,12 +4,15 @@ import { useMemo, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { formatTierPrice } from "@/lib/membership/tier-config";
 import {
+  applyCarePlanServicePolicy,
   applyCarePlanPreset,
   createDefaultCarePlan,
+  deriveCarePlanServicePolicy,
   PRESENTATION_LAYOUT_OPTIONS,
-  serviceStateLabel,
   summarizeCarePlan,
   type CarePlanPresetId,
+  type CarePlanServiceId,
+  type CarePlanServicePolicy,
   type CarePlanServiceState,
   type CarePlanVisit,
   type PresentationCarePlan,
@@ -44,16 +47,53 @@ const PLAN_PRESETS: Array<{
     description: "Exterior every visit, interior once yearly.",
   },
   {
+    id: "flexible_add_ons",
+    label: "Ask each visit",
+    description: "Interior, screens, and cobwebbing stay optional.",
+  },
+  {
     id: "full_service",
-    label: "Full service",
-    description: "Interior, exterior, and screens every visit.",
+    label: "Whole-home care",
+    description: "Interior, screens, and cobwebbing every visit.",
   },
 ];
 
 const ASSISTANT_EXAMPLES = [
   "Quarterly exterior. Interior once a year. Screens only if they ask.",
   "Mandi wants exterior and screens every visit, with interior on the first visit each year.",
-  "Simple bi-annual exterior-only plan. No screens included, but make them optional.",
+  "Bi-annual exterior. Ask about screens, interior, and cobwebbing before each visit.",
+];
+
+const SERVICE_POLICY_OPTIONS: Array<{
+  id: CarePlanServicePolicy;
+  label: string;
+}> = [
+  { id: "always_included", label: "Every visit" },
+  { id: "selected_visits", label: "Choose visits" },
+  { id: "optional_add_on", label: "Ask customer" },
+  { id: "not_offered", label: "Not offered" },
+];
+
+const CARE_PLAN_SERVICES: Array<{
+  id: CarePlanServiceId;
+  label: string;
+  description: string;
+}> = [
+  {
+    id: "screens",
+    label: "Screen cleaning",
+    description: "Standard presentation add-on is $50 when included.",
+  },
+  {
+    id: "interiorWindows",
+    label: "Interior windows",
+    description: "Standard presentation add-on is $100 when included.",
+  },
+  {
+    id: "cobwebRemoval",
+    label: "Cobweb removal",
+    description: "Editable field price; never part of the website estimate.",
+  },
 ];
 
 type AssistantResponse = {
@@ -146,12 +186,24 @@ function VisitEditor({
             Scope
           </p>
           <p className="mt-1 truncate text-sm text-white/65">
-            {serviceStateLabel(visit.interiorWindows)} interior
+            {[
+              visit.interiorWindows,
+              visit.screens,
+              visit.cobwebRemoval,
+            ].filter((state) => state === "included").length} add-on service
+            {[
+              visit.interiorWindows,
+              visit.screens,
+              visit.cobwebRemoval,
+            ].filter((state) => state === "included").length === 1
+              ? ""
+              : "s"}{" "}
+            included
           </p>
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-3">
+      <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <ServiceStateControl
           label="Interior windows"
           value={visit.interiorWindows}
@@ -161,6 +213,11 @@ function VisitEditor({
           label="Screens"
           value={visit.screens}
           onChange={(screens) => onChange({ ...visit, screens })}
+        />
+        <ServiceStateControl
+          label="Cobweb removal"
+          value={visit.cobwebRemoval}
+          onChange={(cobwebRemoval) => onChange({ ...visit, cobwebRemoval })}
         />
       </div>
 
@@ -238,6 +295,25 @@ export function PresentationPlanStudio({
 
   const setPlan = (carePlan: PresentationCarePlan) => {
     onChange({ planMode: "custom", carePlan });
+  };
+
+  const setServicePolicy = (
+    serviceId: CarePlanServiceId,
+    policy: CarePlanServicePolicy,
+  ) => {
+    setPlan(
+      applyCarePlanServicePolicy(presentation.carePlan, serviceId, policy),
+    );
+  };
+
+  const setServicePrice = (serviceId: CarePlanServiceId, value: number) => {
+    setPlan({
+      ...presentation.carePlan,
+      servicePrices: {
+        ...presentation.carePlan.servicePrices,
+        [serviceId]: Number.isFinite(value) && value >= 0 ? value : 0,
+      },
+    });
   };
 
   const updateVisit = (index: number, visit: CarePlanVisit) => {
@@ -437,6 +513,100 @@ export function PresentationPlanStudio({
                   </span>
                 </button>
               ))}
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-[#c9a96e]/20 bg-[#c9a96e]/[0.035] p-4 sm:p-5">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.18em] text-[#c9a96e]">
+                    Service rules
+                  </p>
+                  <h3 className="mt-1 font-serif text-xl text-white">
+                    Decide once, then fine-tune the visits.
+                  </h3>
+                </div>
+                <p className="max-w-sm text-xs leading-relaxed text-white/45 sm:text-right">
+                  Website pricing starts with exterior glass only. These amounts
+                  apply only when a service is deliberately included.
+                </p>
+              </div>
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                {CARE_PLAN_SERVICES.map((service) => {
+                  const policy = deriveCarePlanServicePolicy(
+                    presentation.carePlan,
+                    service.id,
+                  );
+                  return (
+                    <article
+                      key={service.id}
+                      className="rounded-2xl border border-white/[0.09] bg-black/20 p-4"
+                    >
+                      <p className="text-sm font-medium text-white">
+                        {service.label}
+                      </p>
+                      <p className="mt-1 min-h-8 text-[11px] leading-relaxed text-white/40">
+                        {service.description}
+                      </p>
+                      <label className="mt-4 block">
+                        <span className="mb-1.5 block text-[9px] uppercase tracking-[0.14em] text-white/40">
+                          Customer plan
+                        </span>
+                        <select
+                          value={policy}
+                          onChange={(event) =>
+                            setServicePolicy(
+                              service.id,
+                              event.target.value as CarePlanServicePolicy,
+                            )
+                          }
+                          className="min-h-11 w-full rounded-xl border border-white/10 bg-[#121212] px-3 text-sm text-white outline-none focus:border-[#c9a96e]/60"
+                        >
+                          {SERVICE_POLICY_OPTIONS.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="mt-3 block">
+                        <span className="mb-1.5 block text-[9px] uppercase tracking-[0.14em] text-white/40">
+                          Price when included
+                        </span>
+                        <div className="relative">
+                          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/35">
+                            $
+                          </span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            min="0"
+                            step="1"
+                            value={presentation.carePlan.servicePrices[service.id]}
+                            onChange={(event) =>
+                              setServicePrice(
+                                service.id,
+                                Number.parseFloat(event.target.value),
+                              )
+                            }
+                            aria-label={`${service.label} included price`}
+                            className="min-h-11 w-full rounded-xl border border-white/10 bg-[#121212] pl-7 pr-3 text-sm text-white outline-none focus:border-[#c9a96e]/60"
+                          />
+                        </div>
+                      </label>
+                      {policy === "selected_visits" ? (
+                        <p className="mt-2 text-[10px] leading-relaxed text-[#d8c28f]/70">
+                          Choose Included, Optional, or Not included on each visit below.
+                        </p>
+                      ) : policy === "optional_add_on" ? (
+                        <p className="mt-2 text-[10px] leading-relaxed text-emerald-100/60">
+                          The plan shows this as customer choice and adds $0 until selected.
+                        </p>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="mt-5 space-y-3">

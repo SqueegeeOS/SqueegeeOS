@@ -1,0 +1,314 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+
+const migration = readFileSync(
+  new URL(
+    "../persistence/supabase/migrations/054_visit_field_records.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const serviceScopeMigration = readFileSync(
+  new URL(
+    "../persistence/supabase/migrations/056_visit_service_scope.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const todayLoader = readFileSync(
+  new URL("../care-operations/jobber-today.ts", import.meta.url),
+  "utf8",
+);
+const todayWorkspace = readFileSync(
+  new URL("../../components/admin/today-workspace-page.tsx", import.meta.url),
+  "utf8",
+);
+const assessmentRepository = readFileSync(
+  new URL("../health/assessment-repository.ts", import.meta.url),
+  "utf8",
+);
+const propertyHealthShell = readFileSync(
+  new URL("../../components/hq/property-health-page-shell.tsx", import.meta.url),
+  "utf8",
+);
+const assessmentTimeline = readFileSync(
+  new URL("../../components/hq/HQAssessmentTimeline.tsx", import.meta.url),
+  "utf8",
+);
+const productionHealthServer = readFileSync(
+  new URL("../admin/production-health-server.ts", import.meta.url),
+  "utf8",
+);
+const productionHealthRunway = readFileSync(
+  new URL("../admin/production-health-runway.ts", import.meta.url),
+  "utf8",
+);
+const memberPortalExperience = readFileSync(
+  new URL(
+    "../../components/membership/member-portal-experience.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const visitFieldCapture = readFileSync(
+  new URL("../../components/visit/visit-field-capture.tsx", import.meta.url),
+  "utf8",
+);
+const visitFieldDraft = readFileSync(
+  new URL("./visit-field-draft.ts", import.meta.url),
+  "utf8",
+);
+const visitFieldRecordServer = readFileSync(
+  new URL("./visit-field-record-server.ts", import.meta.url),
+  "utf8",
+);
+
+describe("visit field record database contract", () => {
+  it("keeps phone photos in a private, bounded storage bucket", () => {
+    expect(migration).toContain("'homeatlas-visit-media'");
+    expect(migration).toContain("false,");
+    expect(migration).toContain("15728640");
+    expect(migration).toContain("allowed_mime_types");
+    expect(migration).not.toContain("to anon");
+    expect(migration).not.toContain("to authenticated");
+  });
+
+  it("commits one replay-safe assessment and its photo metadata atomically", () => {
+    expect(migration).toContain("property_assessments_field_record_uidx");
+    expect(migration).toContain("pg_advisory_xact_lock");
+    expect(migration).toContain(
+      "Field record ID does not belong to this visit",
+    );
+    expect(migration).toContain("create or replace function public.commit_visit_field_record");
+    expect(migration).toContain("join public.member_appointments appointment");
+    expect(migration).toContain("Appointment does not belong to the HomeAtlas property");
+    expect(migration).toContain("insert into public.property_assessments");
+    expect(migration).toContain("insert into public.property_assets");
+  });
+
+  it("persists the exact Jobber worklist without weakening the existing rollout", () => {
+    for (const column of [
+      "scope_read_state",
+      "service_scope",
+      "scope_exception",
+    ]) {
+      expect(serviceScopeMigration).toContain(
+        `add column if not exists ${column}`,
+      );
+    }
+    expect(serviceScopeMigration).toContain("jsonb_array_length(normalized_scope) > 50");
+    expect(serviceScopeMigration).toContain(
+      "Unverified or unfinished service scope needs an exception",
+    );
+    expect(serviceScopeMigration).toContain(
+      "Service scope exception must create a follow-up",
+    );
+    expect(serviceScopeMigration).toContain(
+      "Field record ID already has different service scope",
+    );
+    expect(serviceScopeMigration).toContain(
+      "from public.commit_visit_field_record(\n    p_field_record_id",
+    );
+    expect(serviceScopeMigration).toContain(
+      "never a billing authorization",
+    );
+    expect(visitFieldRecordServer).toContain(
+      '.from("jobber_visit_projections")',
+    );
+    expect(visitFieldRecordServer).toContain('.select("raw_payload")');
+    expect(visitFieldRecordServer).toContain(
+      "The Jobber service scope changed. Refresh Today.",
+    );
+  });
+
+  it("turns a field flag into a due and idempotently resolvable owner action", () => {
+    for (const column of [
+      "follow_up_status",
+      "follow_up_due_at",
+      "follow_up_resolved_at",
+      "follow_up_resolved_by",
+    ]) {
+      expect(migration).toContain(`add column if not exists ${column}`);
+    }
+    expect(migration).toContain("property_assessments_open_follow_up_idx");
+    expect(migration).toContain("extract(isodow from p_visit_date)");
+    expect(migration).toContain(
+      "create or replace function public.resolve_visit_field_follow_up",
+    );
+    expect(migration).toContain("and assessment.follow_up_status = 'open'");
+    expect(migration).toContain("and assessment.follow_up_status = 'resolved'");
+    expect(migration).toContain(
+      "revoke all on function public.resolve_visit_field_follow_up",
+    );
+  });
+
+  it("surfaces and resolves the owner action from Today without messaging", () => {
+    expect(todayLoader).toContain("loadOpenVisitFieldFollowUps()");
+    expect(todayLoader).toContain("fieldFollowUps,");
+    expect(todayWorkspace).toContain("Owner action queue");
+    expect(todayWorkspace).toContain("/api/admin/field-records/follow-ups");
+    expect(todayWorkspace).toContain("Nothing leaves HomeAtlas");
+    expect(todayWorkspace).not.toContain("/api/admin/communications/");
+    expect(assessmentRepository).toContain("nextVisitFieldFollowUpDueAt");
+    expect(assessmentRepository).toContain(
+      'follow_up_status: followUpNeeded ? "open"',
+    );
+  });
+
+  it("preserves open and resolved follow-up history on the HQ property record", () => {
+    for (const mapping of [
+      "followUpStatus: row.follow_up_status",
+      "followUpDueAt: row.follow_up_due_at",
+      "followUpResolvedAt: row.follow_up_resolved_at",
+      "followUpResolvedBy: row.follow_up_resolved_by",
+    ]) {
+      expect(assessmentRepository).toContain(mapping);
+    }
+    expect(assessmentTimeline).toContain("Owner follow-up open");
+    expect(assessmentTimeline).toContain("Follow-up resolved");
+    expect(assessmentTimeline).toContain("Tap again to complete");
+    expect(propertyHealthShell).toContain(
+      'fetch("/api/admin/field-records/follow-ups"',
+    );
+    expect(propertyHealthShell).toContain('resolvedBy: HQ_OPERATOR_LABEL');
+  });
+
+  it("makes the complete field-service loop visible in production readiness", () => {
+    expect(productionHealthServer).toContain('id: "field-record-media-schema"');
+    expect(productionHealthServer).toContain(
+      'id: "field-record-follow-up-schema"',
+    );
+    expect(productionHealthServer).toContain(
+      'id: "field-record-service-scope-schema"',
+    );
+    expect(productionHealthServer).toContain('"storage-visit-media"');
+    expect(productionHealthRunway).toContain('id: "serve"');
+    expect(productionHealthRunway).toContain(
+      'description: "Today notes, private photos, follow-ups, and portal proof"',
+    );
+    expect(productionHealthRunway).toContain('"storage-visit-media"');
+  });
+
+  it("keeps each customer note with the photos from its exact field record", () => {
+    expect(memberPortalExperience).toContain("buildPortalVisitStories");
+    expect(memberPortalExperience).toContain(
+      "<MemberVisitStories stories={visitStoryCollection.stories}",
+    );
+    expect(memberPortalExperience).toContain(
+      "visitStoryCollection.ungroupedObservations",
+    );
+    expect(memberPortalExperience).toContain(
+      "visitStoryCollection.ungroupedPhotos",
+    );
+  });
+
+  it("resumes only unfinished private photo uploads after a field-network failure", () => {
+    expect(visitFieldCapture).toContain(
+      "const completedUploads = useRef(new Map<string, UploadedVisitPhoto>())",
+    );
+    expect(visitFieldCapture).toContain(
+      "!completedUploads.current.has(photo.clientId)",
+    );
+    expect(visitFieldCapture).toContain(
+      "completedUploads.current.set(intent.clientId",
+    );
+    expect(visitFieldCapture).toContain(
+      "Completed private photo uploads are preserved",
+    );
+  });
+
+  it("restores an expiring device-local field draft without pretending files survive", () => {
+    expect(visitFieldDraft).toContain(
+      "export const VISIT_FIELD_DRAFT_TTL_MS = 72 * 60 * 60 * 1_000",
+    );
+    expect(visitFieldDraft).toContain(
+      "homeatlas:visit-field-draft:v1:${scope.propertyId}:${scope.appointmentId}",
+    );
+    expect(visitFieldCapture).toContain("readVisitFieldDraft");
+    expect(visitFieldCapture).toContain("clearVisitFieldDraft(window.localStorage");
+    expect(visitFieldCapture).toContain("Draft restored from this device");
+    expect(visitFieldCapture).toContain("Re-add the complete set");
+    expect(visitFieldCapture).toContain("onDraftStateChange?.(draftStored)");
+    expect(todayWorkspace).toContain("readVisitFieldDraft(window.localStorage");
+    expect(todayWorkspace).toContain("Resume saved visit draft");
+    expect(todayWorkspace).toContain("Saved on this device");
+    expect(todayWorkspace).toContain("onDraftStateChange={setHasFieldDraft}");
+    expect(visitFieldDraft).not.toContain("File");
+    expect(visitFieldDraft).not.toContain("Blob");
+  });
+
+  it("shows database-backed visit memory on the exact Today appointment", () => {
+    expect(todayLoader).toContain('from("property_assessments")');
+    expect(todayLoader).toContain(
+      '"visit_id, field_record_id, technician_name, created_at, customer_note_visible, follow_up_status"',
+    );
+    expect(todayLoader).toContain("isMissingVisitFieldRecordSchema");
+    expect(todayLoader).toContain("fieldRecordsByAppointment");
+    expect(todayWorkspace).toContain("HomeAtlas visit memory saved");
+    expect(todayWorkspace).toContain("Add another visit update");
+    expect(todayWorkspace).toContain("Visit exception still open");
+  });
+
+  it("does not confuse Jobber completion with proven HomeAtlas closeout", () => {
+    expect(todayLoader).toContain("fieldRecordStatusAvailable = false");
+    expect(todayLoader).toContain("summarizeJobberTodayVisits(visits)");
+    expect(todayWorkspace).toContain("HomeAtlas closeout needed");
+    expect(todayWorkspace).toContain("Needs closeout");
+    expect(todayWorkspace).toContain("completedWithoutRecord");
+    expect(todayWorkspace).toContain(
+      "No jobs are\n            being labeled undocumented from incomplete data",
+    );
+  });
+
+  it("distinguishes internal field memory from customer-visible portal proof", () => {
+    expect(todayLoader).toContain("customer_note_visible");
+    expect(todayLoader).toContain('from("property_assets")');
+    expect(todayLoader).toContain('.eq("customer_visible", true)');
+    expect(todayWorkspace).toContain("Customer portal update needed");
+    expect(todayWorkspace).toContain("Add customer-facing update");
+    expect(todayWorkspace).toContain("completedWithPrivateOnlyRecord");
+    expect(todayWorkspace).toContain("Customer portal updated");
+    expect(todayWorkspace).toContain("Internal record only");
+  });
+
+  it("lets HQ verify the exact paired customer portal without minting a new token", () => {
+    expect(todayLoader).toContain(
+      '.select("external_property_id, property_id, membership_id")',
+    );
+    expect(todayLoader).toContain('.select("id, portal_access_token")');
+    expect(todayLoader).toContain("buildJobberTodayPortalPath");
+    expect(todayWorkspace).toContain("Verify customer portal");
+    expect(todayWorkspace).toContain('target="_blank"');
+    expect(todayWorkspace).toContain('rel="noreferrer"');
+  });
+
+  it("exposes the commit function only to the service role", () => {
+    expect(migration).toContain(
+      "revoke all on function public.commit_visit_field_record",
+    );
+    expect(migration).toContain("from public, anon, authenticated");
+    expect(migration).toContain("to service_role");
+    expect(migration).toContain("security definer");
+    expect(migration).toContain("set search_path = public");
+  });
+
+  it("closes browser access to private field-intelligence tables", () => {
+    for (const table of [
+      "member_profiles",
+      "member_savings_transactions",
+      "service_observations",
+      "ai_quotes",
+      "property_assessments",
+      "property_visit_health_checks",
+    ]) {
+      expect(migration).toContain(
+        `revoke all privileges on table public.${table}`,
+      );
+      expect(migration).toContain(`grant select, insert, update, delete on table public.${table}`);
+    }
+    expect(migration).toContain(
+      "create or replace function public.homeatlas_security_posture()",
+    );
+    expect(migration).toContain("('property_assessments')");
+  });
+});

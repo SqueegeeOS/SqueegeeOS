@@ -117,11 +117,49 @@ export interface GrowthInitiative {
   horizon: GrowthInitiativeHorizon;
   title: string;
   outcome: string;
-  owner: "Founder" | "Founder + David" | "HomeAtlas";
+  owner:
+    | "Founder"
+    | "Founder + David"
+    | "HomeAtlas"
+    | "Growth Team"
+    | "Field Team"
+    | "Founder + Field Team";
   impact: "Critical" | "High" | "Medium";
 }
 
 export const GROWTH_INITIATIVES: GrowthInitiative[] = [
+  {
+    id: "jarad-independent-day",
+    horizon: "now",
+    title: "Jarad's first independent field day",
+    outcome: "One complete normal route runs from verified scope through closeout without Noah physically present.",
+    owner: "Founder + Field Team",
+    impact: "Critical",
+  },
+  {
+    id: "owner-time-buyback",
+    horizon: "now",
+    title: "First 8 owner hours bought back",
+    outcome: "Count only normal, documented, quality-verified production with zero owner involvement.",
+    owner: "Founder + Field Team",
+    impact: "Critical",
+  },
+  {
+    id: "growth-hours-discipline",
+    horizon: "now",
+    title: "Convert bought-back time into Growth Hours",
+    outcome: "Noah and Dasan time every deliberate growth block by operator and channel, then close it with a result note.",
+    owner: "Growth Team",
+    impact: "Critical",
+  },
+  {
+    id: "owner-arr-attribution",
+    horizon: "now",
+    title: "Signed ARR per Growth Hour",
+    outcome: "Every owner-led presentation carries stable lineage through the signed agreement and membership ARR snapshot.",
+    owner: "Growth Team",
+    impact: "Critical",
+  },
   {
     id: "signup-reliability",
     horizon: "now",
@@ -131,43 +169,11 @@ export const GROWTH_INITIATIVES: GrowthInitiative[] = [
     impact: "Critical",
   },
   {
-    id: "ready-customer-sprint",
-    horizon: "now",
-    title: "Ready-customer activation sprint",
-    outcome: "Move the three waiting prospects through the full production flow and record every snag.",
-    owner: "Founder",
-    impact: "Critical",
-  },
-  {
-    id: "speed-to-lead",
-    horizon: "now",
-    title: "Five-minute speed-to-lead",
-    outcome: "Notify the founder immediately and start a compliant customer conversation when consent exists.",
-    owner: "HomeAtlas",
-    impact: "Critical",
-  },
-  {
-    id: "card-completion",
-    horizon: "now",
-    title: "Card-on-file completion queue",
-    outcome: "Make every signed-but-incomplete membership visible and easy to finish without duplicate records.",
-    owner: "Founder",
-    impact: "High",
-  },
-  {
     id: "jobber-visit-truth",
     horizon: "now",
-    title: "Jobber next-visit truth",
-    outcome: "A paired property shows the verified next visit, scope, and billing source in HQ and the portal.",
+    title: "Jobber route and scope truth",
+    outcome: "Every assigned technician sees verified timing, service scope, property memory, and the exact exception needing HQ.",
     owner: "HomeAtlas",
-    impact: "Critical",
-  },
-  {
-    id: "billing-dry-run",
-    horizon: "now",
-    title: "First-of-month billing rehearsal",
-    outcome: "Preview every candidate, blocker, amount, and duplicate guard before any real charge is armed.",
-    owner: "Founder",
     impact: "Critical",
   },
   {

@@ -158,6 +158,7 @@ interface ExistingChargeRow {
 
 export interface AutomaticBillingRunSummary {
   runId: string;
+  triggerSource: AutomaticBillingTriggerSource;
   status: "disabled" | "succeeded" | "partial" | "failed";
   serviceMonth: string;
   executionMode: string;
@@ -1496,6 +1497,7 @@ export async function runAutomaticMembershipBilling(input: {
   const runId = runResult.data.id as string;
   const summary: AutomaticBillingRunSummary = {
     runId,
+    triggerSource: input.triggerSource,
     status: settings.enabled ? "succeeded" : "disabled",
     serviceMonth,
     executionMode: settings.executionMode,

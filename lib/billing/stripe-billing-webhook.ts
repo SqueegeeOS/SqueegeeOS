@@ -10,9 +10,10 @@ import {
   billingPaymentIntentBindingIssues,
   stripePaymentIntentReference,
 } from "./stripe-payment-intent-binding";
+import { reconcileMemberAddonPaymentIntent } from "./member-addon-checkout";
 
 export type StripeBillingWebhookResult =
-  | { status: "processed"; billingOrderId: string }
+  | { status: "processed"; billingOrderId: string | null }
   | { status: "duplicate" | "ignored"; billingOrderId: string | null };
 
 interface WebhookOrderRow {
@@ -338,6 +339,26 @@ export async function processStripeBillingWebhook(input: {
   const billingOrderId =
     intent?.metadata.homeatlas_billing_order_id?.trim() || null;
   try {
+    if (
+      intent &&
+      !billingOrderId &&
+      intent.metadata.homeatlas_operation === "member_addon_checkout" &&
+      [
+        "payment_intent.succeeded",
+        "payment_intent.payment_failed",
+        "payment_intent.requires_action",
+      ].includes(input.event.type)
+    ) {
+      const outcome = await reconcileMemberAddonPaymentIntent({
+        eventType: input.event.type,
+        intent,
+      });
+      await markWebhookProcessed(input.event);
+      return {
+        status: outcome === "ignored" ? "ignored" : "processed",
+        billingOrderId: null,
+      };
+    }
     if (!intent || !billingOrderId) {
       await markWebhookProcessed(input.event);
       return { status: "ignored", billingOrderId };

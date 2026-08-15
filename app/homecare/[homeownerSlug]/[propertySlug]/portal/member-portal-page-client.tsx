@@ -13,6 +13,7 @@ import {
 import type { CustomerHealthView } from "@/lib/health/types";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
+import type { PortalHouseholdSnapshot } from "@/lib/membership/portal-household";
 import {
   consumeMemberWelcomePending,
   hasSeenUnlockCeremony,
@@ -28,6 +29,8 @@ interface MemberPortalPageClientProps {
   homeHealthHref?: string;
   portalBasePath?: string;
   customerPortalMode?: "token" | "slug";
+  portalToken?: string | null;
+  portalHousehold?: PortalHouseholdSnapshot | null;
 }
 
 export function MemberPortalPageClient({
@@ -39,6 +42,8 @@ export function MemberPortalPageClient({
   homeHealthHref,
   portalBasePath,
   customerPortalMode = "slug",
+  portalToken = null,
+  portalHousehold = null,
 }: MemberPortalPageClientProps) {
   return (
     <MembershipUnlockProvider>
@@ -51,6 +56,8 @@ export function MemberPortalPageClient({
         homeHealthHref={homeHealthHref}
         portalBasePath={portalBasePath}
         customerPortalMode={customerPortalMode}
+        portalToken={portalToken}
+        portalHousehold={portalHousehold}
       />
     </MembershipUnlockProvider>
   );
@@ -63,6 +70,8 @@ function MemberPortalWithCeremony({
   propertySlug,
   portalBasePath,
   customerPortalMode = "slug",
+  portalToken = null,
+  portalHousehold = null,
 }: MemberPortalPageClientProps) {
   const [showCeremony, setShowCeremony] = useState(false);
 
@@ -109,11 +118,8 @@ function MemberPortalWithCeremony({
           `/homecare/${homeownerSlug}/${propertySlug}/portal`
         }
         customerPortalMode={customerPortalMode}
-        portalToken={
-          customerPortalMode === "token" && portalBasePath
-            ? portalBasePath.match(/^\/portal\/([^/]+)/)?.[1] ?? null
-            : null
-        }
+        portalToken={portalToken}
+        portalHousehold={portalHousehold}
       />
     </>
   );

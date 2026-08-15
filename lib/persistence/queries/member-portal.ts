@@ -15,8 +15,10 @@ import type {
   MemberAppointmentSummary,
   MemberProfile,
   MemberSavingsEntry,
+  PropertyPhotoView,
   PropertyRecord,
 } from "@/lib/member-intelligence/types";
+import { VISIT_MEDIA_BUCKET } from "@/lib/field-records/visit-field-record";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import { resolvePortalMembershipStatus } from "@/lib/membership/membership-status";
 import { normalizeToSqueegeeKingTier, SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
@@ -35,9 +37,20 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
 } from "@/lib/care-operations/model";
+import {
+  portalAppointmentLowerBoundIso,
+  selectNextScheduledPortalAppointment,
+} from "@/lib/membership/portal-next-appointment";
+import { loadTechnicianVisitEventSnapshots } from "@/lib/field-operations/technician-visit-event-server";
+import {
+  buildPortalLiveServiceStatus,
+  portalLiveServiceAppointmentIds,
+  type PortalLiveServiceStatus,
+} from "@/lib/membership/portal-live-service";
 
 export interface ServiceObservationView {
   id: string;
+  fieldRecordId: string | null;
   observedAt: string;
   observedBy: string | null;
   notes: string;
@@ -91,6 +104,7 @@ export interface MemberPortalData {
   paymentMethodLabel: string | null;
   careAddons: MemberCareAddonRecord[];
   savingsLedger: MemberSavingsLedgerView | null;
+  liveService: PortalLiveServiceStatus | null;
 }
 
 interface HomeownerRow {
@@ -200,6 +214,28 @@ interface ObservationRow {
   observed_at: string;
 }
 
+interface AssessmentNoteRow {
+  id: string;
+  field_record_id: string | null;
+  technician_name: string;
+  customer_note: string;
+  visit_date: string;
+}
+
+interface PortalPhotoRow {
+  id: string;
+  field_record_id: string | null;
+  storage_bucket: string | null;
+  storage_path: string;
+  title: string;
+  description: string | null;
+  capture_type: "before" | "after" | "detail" | null;
+  captured_by: string | null;
+  is_primary: boolean;
+  captured_at: string | null;
+  created_at: string;
+}
+
 function parsePriceDisplay(priceDisplay: string): number {
   const digits = priceDisplay.replace(/[^\d.]/g, "");
   const value = Number.parseFloat(digits);
@@ -305,11 +341,24 @@ function mapObservation(row: ObservationRow): ServiceObservationView {
   const flag = row.observation_flags?.[0];
   return {
     id: row.id,
+    fieldRecordId: null,
     observedAt: row.observed_at,
     observedBy: row.observed_by,
     notes: row.notes,
     category: flag?.category ?? null,
     severity: flag?.severity ?? null,
+  };
+}
+
+function mapAssessmentNote(row: AssessmentNoteRow): ServiceObservationView {
+  return {
+    id: `assessment-${row.id}`,
+    fieldRecordId: row.field_record_id,
+    observedAt: `${row.visit_date}T12:00:00.000Z`,
+    observedBy: row.technician_name,
+    notes: row.customer_note,
+    category: "visit_update",
+    severity: null,
   };
 }
 
@@ -388,7 +437,11 @@ function buildMemberProfile(
   };
 }
 
-function buildPropertyRecord(row: PropertyRow, memberProfileId: string): PropertyRecord {
+function buildPropertyRecord(
+  row: PropertyRow,
+  memberProfileId: string,
+  photos: PropertyPhotoView[],
+): PropertyRecord {
   return {
     id: row.id,
     memberId: memberProfileId,
@@ -397,7 +450,7 @@ function buildPropertyRecord(row: PropertyRow, memberProfileId: string): Propert
     state: row.state,
     zip: row.zip,
     zillowUrl: row.zillow_url,
-    photos: [],
+    photos,
     details: row.property_details ?? {},
     serviceNotes: [],
     preferredProducts: [],
@@ -408,6 +461,7 @@ function buildPropertyRecord(row: PropertyRow, memberProfileId: string): Propert
 export async function getMemberPortalDataBySlugs(
   homeownerSlug: string,
   propertySlug: string,
+  options?: { includeLiveService?: boolean },
 ): Promise<MemberPortalData | null> {
   if (!isSupabaseConfigured()) {
     return null;
@@ -527,21 +581,51 @@ export async function getMemberPortalDataBySlugs(
     mapAppointment,
   );
 
-  const today = new Date().toISOString();
-  const authoritativeNextAppointment =
-    authoritativeAppointments.find(
-      (a) => a.status === "scheduled" && a.date >= today,
-    ) ??
-    authoritativeAppointments.find((a) => a.status === "scheduled") ??
-    null;
+  const portalReferenceDate = new Date();
+  const appointmentLowerBound = portalAppointmentLowerBoundIso(
+    portalReferenceDate,
+  );
+  const authoritativeNextAppointment = selectNextScheduledPortalAppointment(
+    authoritativeAppointments,
+    portalReferenceDate,
+  );
   const pairedJobberNextAppointment = authoritativeNextAppointment
     ? null
-    : await loadNextPairedJobberAppointment(supabase, propertyRow.id, today);
+    : await loadNextPairedJobberAppointment(
+        supabase,
+        propertyRow.id,
+        appointmentLowerBound,
+      );
   const nextAppointment =
     authoritativeNextAppointment ?? pairedJobberNextAppointment;
   const appointments = pairedJobberNextAppointment
     ? [...authoritativeAppointments, pairedJobberNextAppointment]
     : authoritativeAppointments;
+
+  let liveService: PortalLiveServiceStatus | null = null;
+  const liveServiceAppointmentIds = portalLiveServiceAppointmentIds(
+    authoritativeAppointments,
+    portalReferenceDate,
+  );
+  if (options?.includeLiveService && liveServiceAppointmentIds.length > 0) {
+    try {
+      const fieldEvents = await loadTechnicianVisitEventSnapshots(
+        liveServiceAppointmentIds,
+      );
+      if (fieldEvents.available) {
+        liveService = buildPortalLiveServiceStatus({
+          appointments: authoritativeAppointments,
+          snapshotsByAppointmentId: fieldEvents.byAppointmentId,
+          referenceDate: portalReferenceDate,
+        });
+      }
+    } catch (error) {
+      console.error("[member-portal] live service status unavailable", {
+        propertyId: propertyRow.id,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
 
   const yearStart = `${new Date().getFullYear()}-01-01T00:00:00Z`;
 
@@ -579,16 +663,89 @@ export async function getMemberPortalDataBySlugs(
     { savings: 0, retail: 0, paid: 0 },
   );
 
-  const { data: observationRows } = await supabase
-    .from("service_observations")
-    .select("id, observed_by, notes, observation_flags, observed_at")
-    .eq("property_id", propertyRow.id)
-    .order("observed_at", { ascending: false })
-    .limit(5);
+  const [observationResult, assessmentNoteResult, portalPhotoResult] =
+    await Promise.all([
+      supabase
+        .from("service_observations")
+        .select("id, observed_by, notes, observation_flags, observed_at")
+        .eq("property_id", propertyRow.id)
+        .order("observed_at", { ascending: false })
+        .limit(8),
+      supabase
+        .from("property_assessments")
+        .select("id, field_record_id, technician_name, customer_note, visit_date")
+        .eq("property_id", propertyRow.id)
+        .eq("customer_note_visible", true)
+        .not("customer_note", "is", null)
+        .order("visit_date", { ascending: false })
+        .limit(8),
+      supabase
+        .from("property_assets")
+        .select(
+          "id, field_record_id, storage_bucket, storage_path, title, description, capture_type, captured_by, is_primary, captured_at, created_at",
+        )
+        .eq("property_id", propertyRow.id)
+        .eq("kind", "photo")
+        .eq("category", "visit")
+        .eq("customer_visible", true)
+        .eq("storage_bucket", VISIT_MEDIA_BUCKET)
+        .order("captured_at", { ascending: false })
+        .limit(24),
+    ]);
 
-  const observations = ((observationRows ?? []) as ObservationRow[]).map(
-    mapObservation,
-  );
+  for (const [surface, table, result] of [
+    ["member-portal.observations", "service_observations", observationResult],
+    ["member-portal.visit-notes", "property_assessments", assessmentNoteResult],
+    ["member-portal.visit-photos", "property_assets", portalPhotoResult],
+  ] as const) {
+    logProtectedQueryResult(
+      {
+        surface,
+        table,
+        propertyId: propertyRow.id,
+        membershipId: membershipRow?.id ?? null,
+      },
+      {
+        count: result.data?.length ?? 0,
+        error: result.error,
+      },
+    );
+  }
+
+  const observations = [
+    ...((observationResult.data ?? []) as ObservationRow[]).map(mapObservation),
+    ...((assessmentNoteResult.data ?? []) as AssessmentNoteRow[]).map(
+      mapAssessmentNote,
+    ),
+  ]
+    .filter((observation) => observation.notes.trim().length > 0)
+    .sort((left, right) => right.observedAt.localeCompare(left.observedAt))
+    .slice(0, 8);
+
+  const portalPhotos = (
+    await Promise.all(
+      ((portalPhotoResult.data ?? []) as PortalPhotoRow[]).map(
+        async (photo): Promise<PropertyPhotoView | null> => {
+        if (photo.storage_bucket !== VISIT_MEDIA_BUCKET) return null;
+        const signed = await supabase.storage
+          .from(VISIT_MEDIA_BUCKET)
+          .createSignedUrl(photo.storage_path, 60 * 60);
+        if (signed.error || !signed.data?.signedUrl) return null;
+        return {
+          id: photo.id,
+          fieldRecordId: photo.field_record_id,
+          source: "our_team",
+          url: signed.data.signedUrl,
+          caption: photo.title || photo.description,
+          isPrimary: photo.is_primary,
+          uploadedAt: photo.captured_at ?? photo.created_at,
+          captureType: photo.capture_type,
+          capturedBy: photo.captured_by,
+        };
+        },
+      ),
+    )
+  ).filter((photo): photo is PropertyPhotoView => photo !== null);
 
   const memberProfile = profile
     ? buildMemberProfile(
@@ -679,7 +836,7 @@ export async function getMemberPortalDataBySlugs(
 
   return {
     profile: memberProfile,
-    property: buildPropertyRecord(propertyRow, memberProfile.id),
+    property: buildPropertyRecord(propertyRow, memberProfile.id, portalPhotos),
     propertyName: propertyRow.name,
     appointments,
     nextAppointment,
@@ -725,6 +882,7 @@ export async function getMemberPortalDataBySlugs(
     paymentMethodLabel,
     careAddons,
     savingsLedger,
+    liveService,
   };
 }
 

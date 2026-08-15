@@ -226,6 +226,7 @@ async function buildProgrammaticAgreement(
         "Exterior windows included",
         `Interior windows: ${serviceStateLabel(visit.interiorWindows).toLowerCase()}`,
         `Screens: ${serviceStateLabel(visit.screens).toLowerCase()}`,
+        `Cobweb removal: ${serviceStateLabel(visit.cobwebRemoval).toLowerCase()}`,
       ].join("; ");
       layout.drawParagraph(
         `${index + 1}. ${visit.label} (${visit.timing})${

@@ -125,10 +125,15 @@ export interface PropertyAssetRow {
   title: string;
   description: string | null;
   storage_path: string;
+  storage_bucket: string | null;
   mime_type: string | null;
   file_size_bytes: number | null;
   visit_id: string | null;
   signed_agreement_id: string | null;
+  capture_type: string | null;
+  customer_visible: boolean;
+  captured_by: string | null;
+  field_record_id: string | null;
   photo_source: string | null;
   is_primary: boolean;
   external_url: string | null;
@@ -271,10 +276,15 @@ export function propertyAssetFromRow(row: PropertyAssetRow): PersistedPhotoDocum
     title: row.title,
     description: row.description,
     storagePath: row.storage_path,
+    storageBucket: row.storage_bucket ?? null,
     mimeType: row.mime_type,
     fileSizeBytes: row.file_size_bytes,
     visitId: row.visit_id,
     signedAgreementId: row.signed_agreement_id,
+    captureType: (row.capture_type ?? null) as PersistedPhotoDocument["captureType"],
+    customerVisible: row.customer_visible ?? false,
+    capturedBy: row.captured_by ?? null,
+    fieldRecordId: row.field_record_id ?? null,
     photoSource: row.photo_source as PersistedPhotoDocument["photoSource"],
     isPrimary: row.is_primary ?? false,
     externalUrl: row.external_url,

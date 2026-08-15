@@ -229,6 +229,12 @@ export function toJobberVisitProjectionRow(
       visit.visitStatus,
       visit.job.jobStatus,
       visit.job.jobNumber,
+      ...visit.assignedUsers.map((user) => user.name),
+      ...visit.scopeItems.flatMap((item) => [
+        item.name,
+        item.description,
+        item.category,
+      ]),
     ]),
     source_payload_hash: hashJobberVisitPayload(visit),
     source_observed_at: observedAt,

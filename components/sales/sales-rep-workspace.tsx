@@ -17,6 +17,7 @@ import type {
   SalesActivityReceipt,
   SalesActivityType,
   SalesRepLead,
+  SalesRepRecentWin,
   SalesWorkspaceMetrics,
   SalesWorkspacePayload,
   UpdateSalesLeadInput,
@@ -30,6 +31,15 @@ import {
   craftSecondaryButton,
   craftTextarea,
 } from "@/lib/craft/tokens";
+import {
+  buildSalesLeadActionQueue,
+  summarizeSalesLeadActionQueue,
+  type SalesLeadActionMoment,
+} from "@/lib/sales/lead-action-priority";
+import {
+  filterSalesLeadActionQueue,
+  type SalesLeadQueueFilter,
+} from "@/lib/sales/lead-action-filter";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -78,6 +88,8 @@ const EMPTY_METRICS: SalesWorkspaceMetrics = {
   closedArrCents: 0,
   closedArrTodayCents: 0,
 };
+const EMPTY_LEADS: SalesRepLead[] = [];
+const EMPTY_RECENT_WINS: SalesRepRecentWin[] = [];
 
 const EMPTY_LEAD_FORM: CreateSalesLeadInput = {
   fullName: "",
@@ -109,6 +121,51 @@ const PACIFIC_DAY_FORMATTER = new Intl.DateTimeFormat("en-CA", {
   month: "2-digit",
   day: "2-digit",
 });
+const RECENT_WIN_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+const HANDOFF_VISIT_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  weekday: "short",
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+});
+
+const RECENT_WIN_STATUS: Record<
+  SalesRepRecentWin["status"],
+  { label: string; className: string }
+> = {
+  pending: {
+    label: "Signed",
+    className: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  },
+  active: {
+    label: "Activated",
+    className: "border-emerald-300/30 bg-emerald-300/[0.08] text-emerald-100",
+  },
+  qualified: {
+    label: "12-mo qualified",
+    className: "border-accent/30 bg-accent/[0.08] text-accent",
+  },
+};
+
+const PRODUCTION_HANDOFF_STYLE: Record<
+  NonNullable<SalesRepRecentWin["productionHandoff"]>["stage"],
+  string
+> = {
+  payment_needed: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  membership_attention: "border-red-300/30 bg-red-300/[0.08] text-red-100",
+  property_pairing_needed: "border-sky-300/25 bg-sky-300/[0.07] text-sky-100",
+  job_pairing_needed: "border-sky-300/25 bg-sky-300/[0.07] text-sky-100",
+  source_unavailable: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  schedule_needed: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  ready: "border-emerald-300/30 bg-emerald-300/[0.08] text-emerald-100",
+};
 
 const QUICK_ACTIONS: Array<{
   type: ManualPulseActivity;
@@ -148,6 +205,28 @@ const LEAD_STAGE_OPTIONS: Array<{
   { value: "considering", label: "Customer considering" },
   { value: "lost", label: "Closed / not moving forward" },
 ];
+
+const NEXT_ACTION_STYLES: Record<
+  SalesLeadActionMoment,
+  { label: string; className: string }
+> = {
+  overdue: {
+    label: "Overdue",
+    className: "border-red-300/30 bg-red-300/[0.08] text-red-100",
+  },
+  due_today: {
+    label: "Due today",
+    className: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  },
+  unscheduled: {
+    label: "Needs next move",
+    className: "border-sky-300/25 bg-sky-300/[0.07] text-sky-100",
+  },
+  upcoming: {
+    label: "Upcoming",
+    className: "border-white/[0.08] bg-white/[0.025] text-muted",
+  },
+};
 
 const FOLLOW_UP_SHORTCUTS = [
   { days: 0, label: "Today 5 PM" },
@@ -256,6 +335,20 @@ function statusLabel(status: SalesRepLead["status"]) {
   return status.replaceAll("_", " ");
 }
 
+function recentWinDateLabel(value: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? RECENT_WIN_DATE_FORMATTER.format(date)
+    : "Date unavailable";
+}
+
+function handoffVisitDateLabel(value: string): string {
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? HANDOFF_VISIT_DATE_FORMATTER.format(date)
+    : "Visit time unavailable";
+}
+
 async function fetchSalesWorkspace(repSlug: string): Promise<SalesWorkspacePayload> {
   const response = await fetch(
     `/api/sales/${encodeURIComponent(repSlug)}/workspace`,
@@ -288,6 +381,11 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     null,
   );
   const [leadActionSaving, setLeadActionSaving] = useState(false);
+  const [showAllLeads, setShowAllLeads] = useState(false);
+  const [leadQueueFilter, setLeadQueueFilter] =
+    useState<SalesLeadQueueFilter>("all");
+  const [leadSearchQuery, setLeadSearchQuery] = useState("");
+  const [actionClock, setActionClock] = useState(0);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installHelp, setInstallHelp] = useState<string | null>(null);
   const [isStandalone, setIsStandalone] = useState(false);
@@ -405,6 +503,11 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     const timeout = window.setTimeout(() => setNotice(null), 5_000);
     return () => window.clearTimeout(timeout);
   }, [notice, undoableActivity]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setActionClock(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!undoableActivity) return;
@@ -892,17 +995,74 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
     }
   };
 
-  const dueLeads = useMemo(() => {
-    const leads = workspace?.leads ?? [];
-    return [...leads]
-      .filter((lead) => !["signed", "won", "lost"].includes(lead.status))
-      .sort((left, right) => {
-        if (!left.nextFollowUpAt) return 1;
-        if (!right.nextFollowUpAt) return -1;
-        return left.nextFollowUpAt.localeCompare(right.nextFollowUpAt);
-      })
-      .slice(0, 8);
-  }, [workspace?.leads]);
+  const workspaceLeads = workspace?.leads ?? EMPTY_LEADS;
+  const recentWins = workspace?.recentWins ?? EMPTY_RECENT_WINS;
+  const recentWinsStatus = workspace?.recentWinsStatus ?? "complete";
+  const productionHandoffStatus =
+    workspace?.productionHandoffStatus ?? "complete";
+  const closeLedgerStatus = workspace?.closeLedgerStatus ?? "complete";
+  const workspaceGeneratedAt = workspace?.generatedAt ?? null;
+  const leadActionQueue = useMemo(
+    () =>
+      buildSalesLeadActionQueue(
+        workspaceLeads,
+        actionClock > 0
+          ? new Date(actionClock)
+          : workspaceGeneratedAt
+            ? new Date(workspaceGeneratedAt)
+            : new Date(),
+      ),
+    [actionClock, workspaceGeneratedAt, workspaceLeads],
+  );
+  const leadActionCounts = useMemo(
+    () => summarizeSalesLeadActionQueue(leadActionQueue),
+    [leadActionQueue],
+  );
+  const filteredLeadActionQueue = useMemo(
+    () =>
+      filterSalesLeadActionQueue(leadActionQueue, {
+        filter: leadQueueFilter,
+        query: leadSearchQuery,
+      }),
+    [leadActionQueue, leadQueueFilter, leadSearchQuery],
+  );
+  const leadQueueIsNarrowed =
+    leadQueueFilter !== "all" || leadSearchQuery.trim().length > 0;
+  const visibleLeadActionQueue =
+    showAllLeads || leadQueueIsNarrowed
+      ? filteredLeadActionQueue
+      : filteredLeadActionQueue.slice(0, 8);
+  const leadQueueFilters: Array<{
+    filter: SalesLeadQueueFilter;
+    label: string;
+    count: number;
+  }> = [
+    { filter: "all", label: "All", count: leadActionQueue.length },
+    {
+      filter: "needs_action",
+      label: "Needs action",
+      count:
+        leadActionCounts.overdue +
+        leadActionCounts.due_today +
+        leadActionCounts.unscheduled,
+    },
+    { filter: "overdue", label: "Overdue", count: leadActionCounts.overdue },
+    {
+      filter: "due_today",
+      label: "Today",
+      count: leadActionCounts.due_today,
+    },
+    {
+      filter: "unscheduled",
+      label: "No next move",
+      count: leadActionCounts.unscheduled,
+    },
+    {
+      filter: "upcoming",
+      label: "Upcoming",
+      count: leadActionCounts.upcoming,
+    },
+  ];
 
   return (
     <AmbientStage
@@ -1336,6 +1496,17 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
               <div>
                 <p className={craftEyebrow}>Next-action queue</p>
                 <h2 className={`mt-2 text-2xl sm:text-3xl ${craftHeading}`}>People worth remembering</h2>
+                {leadActionQueue.length > 0 ? (
+                  <p className="mt-2 text-[11px] leading-5 text-muted">
+                    {leadActionCounts.overdue > 0
+                      ? `${leadActionCounts.overdue} overdue`
+                      : "Nothing overdue"}
+                    {" · "}
+                    {leadActionCounts.due_today} due today
+                    {" · "}
+                    {leadActionCounts.unscheduled} need a next move
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -1346,38 +1517,131 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
               </button>
             </div>
 
+            {leadActionQueue.length > 0 ? (
+              <div className="mt-5 space-y-3 border-t border-white/[0.07] pt-5">
+                <div>
+                  <label htmlFor="sales-lead-search" className="sr-only">
+                    Search open homeowners by name, address, phone, or email
+                  </label>
+                  <input
+                    id="sales-lead-search"
+                    type="search"
+                    inputMode="search"
+                    autoComplete="off"
+                    value={leadSearchQuery}
+                    onChange={(event) => {
+                      setLeadSearchQuery(event.target.value);
+                      setShowAllLeads(false);
+                    }}
+                    placeholder="Search name, address, phone, or email"
+                    className={craftInput}
+                  />
+                </div>
+                <div
+                  className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  aria-label="Filter open homeowners by next action"
+                >
+                  {leadQueueFilters.map(({ filter, label, count }) => {
+                    const active = leadQueueFilter === filter;
+                    return (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => {
+                          setLeadQueueFilter(filter);
+                          setShowAllLeads(false);
+                        }}
+                        aria-pressed={active}
+                        className={`min-h-11 shrink-0 rounded-full border px-4 text-[10px] font-bold uppercase tracking-[0.11em] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                          active
+                            ? "border-accent/45 bg-accent/[0.12] text-accent"
+                            : "border-white/[0.09] bg-white/[0.025] text-muted"
+                        }`}
+                      >
+                        {label} · {count}
+                      </button>
+                    );
+                  })}
+                </div>
+                {leadQueueIsNarrowed ? (
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[11px] text-muted" aria-live="polite">
+                      {filteredLeadActionQueue.length} of {leadActionQueue.length}{" "}
+                      open {filteredLeadActionQueue.length === 1 ? "person" : "people"}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLeadSearchQuery("");
+                        setLeadQueueFilter("all");
+                        setShowAllLeads(false);
+                      }}
+                      className="min-h-11 rounded-full px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                    >
+                      Clear filters
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="mt-6 space-y-3">
               {loading ? (
                 <p className="py-8 text-center text-sm text-muted">Loading private queue…</p>
-              ) : dueLeads.length === 0 ? (
+              ) : leadActionQueue.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/[0.1] px-5 py-9 text-center">
                   <p className="font-serif text-xl text-foreground">Your first doorstep starts here.</p>
                   <p className="mt-2 text-sm leading-6 text-muted">
                     Add a homeowner and set the next check-in before leaving the driveway.
                   </p>
                 </div>
+              ) : filteredLeadActionQueue.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/[0.1] px-5 py-9 text-center">
+                  <p className="font-serif text-xl text-foreground">No open people match.</p>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    Try a different name or clear the urgency filter. The complete queue is still safe.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLeadSearchQuery("");
+                      setLeadQueueFilter("all");
+                      setShowAllLeads(false);
+                    }}
+                    className="mt-4 min-h-11 rounded-full border border-accent/35 bg-accent/[0.07] px-5 text-[10px] font-bold uppercase tracking-[0.14em] text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                  >
+                    Show full queue
+                  </button>
+                </div>
               ) : (
-                dueLeads.map((lead) => {
+                visibleLeadActionQueue.map(({ lead, moment }) => {
                   const phone = lead.phone?.replace(/[^\d+]/g, "") ?? "";
-                  const canUsePhone =
-                    phone.length > 0 && lead.smsConsentStatus === "opted_in";
+                  const canCall = phone.length > 0;
+                  const canText =
+                    canCall && lead.smsConsentStatus === "opted_in";
                   const canUseEmail =
                     Boolean(lead.email) &&
                     lead.emailConsentStatus === "opted_in";
+                  const nextActionStyle = NEXT_ACTION_STYLES[moment];
 
                   return (
                     <article
                     key={lead.id}
-                    className="rounded-2xl border border-white/[0.07] bg-black/10 p-4 sm:p-5"
+                    className="rounded-2xl border border-white/[0.07] bg-black/10 p-4 [contain-intrinsic-size:0_420px] [content-visibility:auto] sm:p-5"
                     >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">
                         <h3 className="truncate font-serif text-xl text-foreground">{lead.fullName}</h3>
                         <p className="mt-1 truncate text-xs text-muted">{lead.propertyAddress}</p>
                       </div>
-                      <span className="shrink-0 rounded-full border border-white/[0.08] px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] text-muted">
-                        {statusLabel(lead.status)}
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] ${nextActionStyle.className}`}>
+                          {nextActionStyle.label}
+                        </span>
+                        <span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-[9px] uppercase tracking-[0.16em] text-muted">
+                          {statusLabel(lead.status)}
+                        </span>
+                      </div>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
                       <p className="text-xs text-foreground/70">{followUpLabel(lead.nextFollowUpAt)}</p>
@@ -1385,7 +1649,11 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                         {moneyFromCents(lead.estimatedArrCents)} est. ARR
                       </p>
                     </div>
-                    <div className="mt-3 flex gap-2 text-[9px] uppercase tracking-[0.14em]">
+                    <div className="mt-3 flex flex-wrap gap-x-2 gap-y-1 text-[9px] uppercase tracking-[0.14em]">
+                      <span className={canCall ? "text-emerald-200" : "text-muted/60"}>
+                        Call {canCall ? "ready" : "unavailable"}
+                      </span>
+                      <span className="text-muted/30">·</span>
                       <span className={lead.smsConsentStatus === "opted_in" ? "text-emerald-200" : "text-muted/60"}>
                         Text {lead.smsConsentStatus === "opted_in" ? "approved" : "not approved"}
                       </span>
@@ -1394,30 +1662,30 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                         Email {lead.emailConsentStatus === "opted_in" ? "approved" : "not approved"}
                       </span>
                     </div>
-                    {canUsePhone || canUseEmail ? (
-                      <div className="mt-4 grid grid-cols-3 gap-2" aria-label={`Contact ${lead.fullName}`}>
-                        {canUsePhone ? (
-                          <>
-                            <a
-                              href={`tel:${phone}`}
-                              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                              aria-label={`Call ${lead.fullName}`}
-                            >
-                              Call
-                            </a>
+                    {canCall || canUseEmail ? (
+                      <div className="mt-4 flex flex-wrap gap-2" aria-label={`Contact ${lead.fullName}`}>
+                        {canCall ? (
+                          <a
+                            href={`tel:${phone}`}
+                            className="inline-flex min-h-11 min-w-[5.5rem] flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            aria-label={`Call ${lead.fullName}`}
+                          >
+                            Call
+                          </a>
+                        ) : null}
+                        {canText ? (
                             <a
                               href={`sms:${phone}`}
-                              className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                              className="inline-flex min-h-11 min-w-[5.5rem] flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                               aria-label={`Text ${lead.fullName}`}
                             >
                               Text
                             </a>
-                          </>
                         ) : null}
                         {canUseEmail ? (
                           <a
                             href={`mailto:${encodeURIComponent(lead.email ?? "")}`}
-                            className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                            className="inline-flex min-h-11 min-w-[5.5rem] flex-1 items-center justify-center rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                             aria-label={`Email ${lead.fullName}`}
                           >
                             Email
@@ -1596,6 +1864,18 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                   );
                 })
               )}
+              {!leadQueueIsNarrowed && leadActionQueue.length > 8 ? (
+                <button
+                  type="button"
+                  onClick={() => setShowAllLeads((current) => !current)}
+                  aria-expanded={showAllLeads}
+                  className="min-h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.025] px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-muted transition hover:border-accent/25 hover:text-accent"
+                >
+                  {showAllLeads
+                    ? "Show highest-priority 8"
+                    : `Show all ${leadActionQueue.length} open people`}
+                </button>
+              ) : null}
             </div>
           </GlassCard>
 
@@ -1666,6 +1946,157 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
                 ))}
               </div>
             ) : null}
+          </GlassCard>
+        </section>
+
+        <section id="verified-closes" className="mt-8 scroll-mt-24">
+          <GlassCard as="section" tone="elevated" padding="lg" rim>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className={craftEyebrow}>Verified closes</p>
+                <h2 className={`mt-2 text-2xl sm:text-3xl ${craftHeading}`}>
+                  The wins HomeAtlas can prove
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+                  Only completed agreement signatures create these credits. Door taps
+                  and manual pipeline changes never count as a close. Each card then
+                  tracks the verified path from signature to scheduled production.
+                </p>
+              </div>
+              <span
+                className={`rounded-full border px-3 py-2 text-[9px] font-bold uppercase tracking-[0.15em] ${
+                  closeLedgerStatus === "complete"
+                    ? "border-emerald-300/25 bg-emerald-300/[0.07] text-emerald-100"
+                    : "border-amber-300/30 bg-amber-300/[0.08] text-amber-100"
+                }`}
+              >
+                {closeLedgerStatus === "complete"
+                  ? "Signature backed"
+                  : "Sync review"}
+              </span>
+            </div>
+
+            {closeLedgerStatus === "needs_attention" ? (
+              <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/[0.07] px-4 py-4 text-sm leading-6 text-amber-50" role="alert">
+                At least one recent signed membership still needs attribution repair,
+                so the close total may be low. HomeAtlas did not create substitute or
+                manual credit.
+              </div>
+            ) : null}
+
+            {recentWinsStatus === "unavailable" ? (
+              <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/[0.07] px-4 py-4 text-sm leading-6 text-amber-50" role="status">
+                Close totals are still verified, but HomeAtlas could not load the
+                homeowner labels for this ledger. Refresh before relying on the names.
+              </div>
+            ) : productionHandoffStatus === "unavailable" ? (
+              <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/[0.07] px-4 py-4 text-sm leading-6 text-amber-50" role="status">
+                Signed-close totals and names are verified, but the production handoff
+                could not be read. Treat payment, pairing, and schedule status as
+                unknown until this panel refreshes.
+              </div>
+            ) : loading ? (
+              <p className="mt-6 py-6 text-center text-sm text-muted">
+                Verifying signed memberships…
+              </p>
+            ) : recentWins.length === 0 ? (
+              <div className="mt-6 rounded-2xl border border-dashed border-white/[0.1] px-5 py-8 text-center">
+                <p className="font-serif text-xl text-foreground">
+                  The first verified close will land here automatically.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  No manual signed counter is used, so an accidental field tap cannot
+                  create a fake win.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {recentWins.map((win) => {
+                  const status = RECENT_WIN_STATUS[win.status];
+                  const handoff = win.productionHandoff;
+                  return (
+                    <article
+                      key={win.id}
+                      className="rounded-2xl border border-white/[0.08] bg-black/10 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h3 className="truncate font-serif text-xl text-foreground">
+                            {win.fullName}
+                          </h3>
+                          <p className="mt-1 truncate text-xs text-muted">
+                            {win.propertyAddress}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[8px] font-bold uppercase tracking-[0.12em] ${status.className}`}>
+                          {status.label}
+                        </span>
+                      </div>
+                      <div className="mt-5 flex items-end justify-between gap-3 border-t border-white/[0.07] pt-4">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-[0.16em] text-muted">
+                            Credited ARR
+                          </p>
+                          <p className="mt-1 font-serif text-2xl text-accent">
+                            {moneyFromCents(win.attributedArrCents)}
+                          </p>
+                        </div>
+                        <p className="pb-1 text-[10px] text-muted">
+                          {recentWinDateLabel(win.attributedAt)}
+                        </p>
+                      </div>
+                      {handoff ? (
+                        <div className={`mt-4 rounded-xl border p-3 ${PRODUCTION_HANDOFF_STYLE[handoff.stage]}`}>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.15em]">
+                              Production handoff
+                            </p>
+                            <p className="text-[9px] font-bold uppercase tracking-[0.12em]">
+                              {handoff.completedSteps}/{handoff.totalSteps}
+                            </p>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/20" aria-hidden="true">
+                            <div
+                              className="h-full rounded-full bg-current transition-[width]"
+                              style={{
+                                width: `${(handoff.completedSteps / handoff.totalSteps) * 100}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="mt-3 text-sm font-semibold text-current">
+                            {handoff.label}
+                          </p>
+                          <p className="mt-1 text-[11px] leading-5 text-current/80">
+                            {handoff.detail}
+                          </p>
+                          {handoff.nextScheduledAt && handoff.stage === "ready" ? (
+                            <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-current">
+                              Next visit · {handoffVisitDateLabel(handoff.nextScheduledAt)}
+                            </p>
+                          ) : null}
+                          <Link
+                            href={handoff.actionHref}
+                            className="mt-3 inline-flex min-h-10 items-center rounded-full border border-current/25 bg-black/10 px-3 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors hover:bg-black/20"
+                          >
+                            {handoff.actionLabel} →
+                          </Link>
+                        </div>
+                      ) : (
+                        <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/[0.07] p-3 text-amber-50">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.15em]">
+                            Production handoff unverified
+                          </p>
+                          <p className="mt-2 text-[11px] leading-5 text-amber-50/80">
+                            The signed credit remains valid. Refresh before relying on
+                            payment, Jobber pairing, or schedule status.
+                          </p>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })}
+              </div>
+            )}
           </GlassCard>
         </section>
 

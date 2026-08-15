@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { buildProductionHealthActions } from "@/lib/admin/production-health-actions";
+import { buildProductionReadinessLanes } from "@/lib/admin/production-health-runway";
 import type {
   ProductionHealthCheck,
   ProductionHealthReport,
@@ -95,53 +96,9 @@ function SectionCard({ section }: { section: ProductionHealthSection }) {
   );
 }
 
-const readinessLanes = [
-  {
-    label: "Sell",
-    description: "Jobber, AI plans, and accurate addresses",
-    checkIds: [
-      "jobber-oauth-config",
-      "jobber-connection",
-      "atlas-ai",
-      "address-search",
-    ],
-  },
-  {
-    label: "Follow up",
-    description: "Email, text, replies, and incoming leads",
-    checkIds: [
-      "email-provider",
-      "resend-webhook",
-      "sms-provider",
-      "twilio-webhook",
-      "meta-lead-ads",
-    ],
-  },
-  {
-    label: "Collect",
-    description: "Safe schedules, Stripe proof, and exceptions",
-    checkIds: [
-      "automation-scheduler",
-      "billing-webhook",
-      "automatic-billing",
-      "billing-exceptions",
-    ],
-  },
-] as const;
+function AutomationRunway({ report }: { report: ProductionHealthReport }) {
+  const readinessLanes = buildProductionReadinessLanes(report);
 
-function laneStatus(
-  section: ProductionHealthSection,
-  checkIds: readonly string[],
-): ProductionHealthStatus {
-  const statuses = section.checks
-    .filter((item) => checkIds.includes(item.id))
-    .map((item) => item.status);
-  if (statuses.includes("red")) return "red";
-  if (statuses.includes("yellow") || statuses.length === 0) return "yellow";
-  return "green";
-}
-
-function AutomationRunway({ section }: { section: ProductionHealthSection }) {
   return (
     <section
       aria-labelledby="automation-runway-title"
@@ -163,12 +120,11 @@ function AutomationRunway({ section }: { section: ProductionHealthSection }) {
         </p>
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
+      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {readinessLanes.map((lane, index) => {
-          const status = laneStatus(section, lane.checkIds);
           return (
             <div
-              key={lane.label}
+              key={lane.id}
               className="relative rounded-xl border border-border/60 bg-card/40 px-4 py-4"
             >
               <div className="flex items-center justify-between gap-3">
@@ -176,13 +132,16 @@ function AutomationRunway({ section }: { section: ProductionHealthSection }) {
                   {index + 1}. {lane.label}
                 </p>
                 <span
-                  className={`rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusTone(status)}`}
+                  className={`rounded-full border px-2 py-0.5 text-[9px] uppercase tracking-[0.14em] ${statusTone(lane.status)}`}
                 >
-                  {statusLabel(status)}
+                  {statusLabel(lane.status)}
                 </span>
               </div>
               <p className="mt-2 text-xs leading-relaxed text-muted">
                 {lane.description}
+              </p>
+              <p className="mt-3 text-[10px] uppercase tracking-[0.14em] text-muted/80">
+                {lane.readyCheckCount}/{lane.totalCheckCount} checks ready
               </p>
             </div>
           );
@@ -263,10 +222,6 @@ export function ProductionHealthDashboard({
 }: {
   report: ProductionHealthReport;
 }) {
-  const integrationSection = report.sections.find(
-    (section) => section.id === "integrations",
-  );
-
   return (
     <div className="space-y-6">
       <div
@@ -300,9 +255,7 @@ export function ProductionHealthDashboard({
 
       <NextOperatorActions report={report} />
 
-      {integrationSection ? (
-        <AutomationRunway section={integrationSection} />
-      ) : null}
+      <AutomationRunway report={report} />
 
       <div className="grid gap-4">
         {report.sections.map((section) => (

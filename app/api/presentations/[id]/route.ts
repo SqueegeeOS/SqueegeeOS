@@ -47,6 +47,7 @@ export async function PATCH(
     const editableBody = { ...body };
     delete editableBody.salesRepId;
     delete editableBody.salesRepLeadId;
+    delete editableBody.leadIntakeId;
     const presentation = await patchPresentation(id, editableBody);
     if (!presentation) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

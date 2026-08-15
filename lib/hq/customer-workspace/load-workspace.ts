@@ -12,7 +12,10 @@ import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
-import { getPresentation } from "@/lib/presentations/repository";
+import {
+  findAuthoritativePresentationForLeadIntake,
+  getPresentation,
+} from "@/lib/presentations/repository";
 import { customerWorkspaceHref } from "./routes";
 import type {
   CustomerWorkspace,
@@ -537,13 +540,44 @@ export async function loadCustomerWorkspace(
       });
     }
 
-    const closedJobsRes = await listClosedJobsFromSupabase();
+    const [closedJobsRes, linkedPresentation] = await Promise.all([
+      listClosedJobsFromSupabase(),
+      findAuthoritativePresentationForLeadIntake({ leadIntakeId: lead.id }),
+    ]);
+    const stage: CustomerWorkspaceStage = linkedPresentation
+      ? linkedPresentation.status === "signed"
+        ? "onboarding"
+        : "presenting"
+      : "request";
+    const actions: CustomerWorkspaceAction[] = linkedPresentation
+      ? [
+          {
+            id: "present",
+            label:
+              linkedPresentation.status === "signed"
+                ? "Continue onboarding"
+                : "Present",
+            href: `/presentations/${linkedPresentation.id}/present`,
+            primary: true,
+          },
+          {
+            id: "edit_presentation",
+            label: "Edit presentation",
+            href: `/presentations/${linkedPresentation.id}/edit`,
+          },
+        ]
+      : [];
+    actions.push({
+      id: "open_request",
+      label: "Open request inbox",
+      href: customerWorkspaceHref("lead", id),
+    });
 
     return {
       ref: { type, id },
       canonical: null,
-      stage: "request",
-      stageLabel: stageLabel("request"),
+      stage,
+      stageLabel: stageLabel(stage),
       headline: lead.name,
       subheadline: lead.serviceAddress,
       contact: {
@@ -554,7 +588,16 @@ export async function loadCustomerWorkspace(
       },
       property: null,
       lead,
-      presentation: null,
+      presentation: linkedPresentation
+        ? {
+            id: linkedPresentation.id,
+            status: linkedPresentation.status,
+            onboardingStatus: linkedPresentation.onboardingStatus,
+            tier: linkedPresentation.tier,
+            editHref: `/presentations/${linkedPresentation.id}/edit`,
+            presentHref: `/presentations/${linkedPresentation.id}/present`,
+          }
+        : null,
       membership: null,
       agreement: null,
       portalUrl: null,
@@ -564,6 +607,16 @@ export async function loadCustomerWorkspace(
       upcomingWork: [],
       completedWork: [],
       timeline: [
+        ...(linkedPresentation
+          ? [
+              {
+                id: `presentation-${linkedPresentation.id}`,
+                date: linkedPresentation.updatedAt,
+                title: "Presentation ready",
+                detail: linkedPresentation.status,
+              },
+            ]
+          : []),
         {
           id: `lead-${lead.id}`,
           date: lead.submittedAt,
@@ -576,13 +629,7 @@ export async function loadCustomerWorkspace(
         lead.name,
         lead.serviceAddress,
       ),
-      actions: [
-        {
-          id: "open_request",
-          label: "Open request inbox",
-          href: customerWorkspaceHref("lead", id),
-        },
-      ],
+      actions,
     };
   }
 

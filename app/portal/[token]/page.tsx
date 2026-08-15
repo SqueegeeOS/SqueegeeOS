@@ -39,6 +39,8 @@ export default async function TokenPortalPage({ params }: TokenPortalPageProps) 
       homeHealthHref={model.homeHealthHref}
       portalBasePath={model.portalBasePath}
       customerPortalMode={model.customerPortalMode}
+      portalToken={token}
+      portalHousehold={model.portalHousehold}
     />
   );
 }

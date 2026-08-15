@@ -85,6 +85,36 @@ function addCalendarDays(calendarDate: string, days: number): string {
   return shifted.toISOString().slice(0, 10);
 }
 
+/** Monday-start business week containing `reference`, with DST-aware UTC edges. */
+export function getBusinessCalendarWeekUtcBounds(
+  reference: Date = new Date(),
+  timeZone: string = COMPANY_BUSINESS_TIMEZONE,
+): {
+  startUtc: Date;
+  endUtc: Date;
+  startCalendarDate: string;
+  endCalendarDateExclusive: string;
+} {
+  const calendarDate = formatBusinessCalendarDate(reference, timeZone);
+  const [year, month, day] = calendarDate.split("-").map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  const daysSinceMonday = (weekday + 6) % 7;
+  const startCalendarDate = addCalendarDays(calendarDate, -daysSinceMonday);
+  const endCalendarDateExclusive = addCalendarDays(startCalendarDate, 7);
+  return {
+    startUtc: zonedDateTimeToUtc(startCalendarDate, 0, 0, 0, timeZone),
+    endUtc: zonedDateTimeToUtc(
+      endCalendarDateExclusive,
+      0,
+      0,
+      0,
+      timeZone,
+    ),
+    startCalendarDate,
+    endCalendarDateExclusive,
+  };
+}
+
 /** Inclusive start and exclusive end (UTC) for the company calendar day of `reference`. */
 export function getBusinessCalendarDayUtcBounds(
   reference: Date = new Date(),

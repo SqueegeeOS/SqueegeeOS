@@ -3,6 +3,7 @@ import "server-only";
 import { isMembershipActive } from "@/lib/membership/membership-status";
 import { MEMBERSHIP_APPOINTMENT_TYPE } from "@/lib/membership/membership-appointment-types";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
+import { getBusinessCalendarDayUtcBounds } from "@/lib/admin/company-business-timezone";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 
 const PORTAL_PROJECTION_ACTOR = "atlas_pulse_jobber_projection";
@@ -142,7 +143,7 @@ export function selectNearestUpcomingJobberVisit(
   visits: JobberPortalVisitCandidate[],
   referenceDate = new Date(),
 ): JobberPortalVisitCandidate | null {
-  const referenceTime = referenceDate.getTime();
+  const referenceTime = getBusinessCalendarDayUtcBounds(referenceDate).startUtc.getTime();
   return (
     visits
       .filter((visit) => {

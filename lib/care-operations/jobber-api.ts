@@ -19,6 +19,20 @@ export interface JobberAccountIdentity {
   name: string;
 }
 
+export interface JobberAssignedUserNode {
+  id: string;
+  name: string;
+}
+
+export interface JobberServiceScopeItemNode {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  category: string | null;
+  totalPrice: number;
+}
+
 export interface JobberVisitNode {
   id: string;
   title: string | null;
@@ -31,6 +45,10 @@ export interface JobberVisitNode {
   completedAt: string | null;
   invoice: { id: string; invoiceStatus: string } | null;
   invoiceReadState: "available" | "permission_hidden";
+  assignedUsers: JobberAssignedUserNode[];
+  assignmentReadState: "available" | "permission_hidden";
+  scopeItems: JobberServiceScopeItemNode[];
+  scopeReadState: "available" | "partial" | "permission_hidden";
   client: { id: string; name: string };
   property: { id: string; jobberWebUri: string };
   job: {
@@ -114,68 +132,114 @@ interface JobberGraphqlPayload<T> {
   extensions?: { cost?: JobberGraphqlCostPayload };
 }
 
-export const JOBBER_VISITS_QUERY = `
-  query HomeAtlasVisits($first: Int!, $after: String) {
-    visits(first: $first, after: $after) {
-      nodes {
-        id
-        title
-        visitStatus
-        isComplete
-        clientConfirmed
-        isLastScheduledVisit
-        startAt
-        endAt
-        completedAt
-        invoice { id invoiceStatus }
-        client { id name }
-        property { id jobberWebUri }
-        job {
+function buildJobberVisitsQuery(options: {
+  operationName: string;
+  includeInvoice: boolean;
+  includeAssignments: boolean;
+  includeScope: boolean;
+}): string {
+  return `
+    query ${options.operationName}($first: Int!, $after: String) {
+      visits(first: $first, after: $after) {
+        nodes {
           id
-          jobNumber
           title
-          jobStatus
-          jobType
-          billingType
-          total
-          willClientBeAutomaticallyCharged
+          visitStatus
+          isComplete
+          clientConfirmed
+          isLastScheduledVisit
+          startAt
+          endAt
+          completedAt
+          ${options.includeInvoice ? "invoice { id invoiceStatus }" : ""}
+          ${
+            options.includeAssignments
+              ? "assignedUsers(first: 25) { nodes { id name { full } } }"
+              : ""
+          }
+          ${
+            options.includeScope
+              ? `lineItems(first: 50) {
+                  nodes { id name description quantity category totalPrice }
+                  pageInfo { hasNextPage }
+                }`
+              : ""
+          }
+          client { id name }
+          property { id jobberWebUri }
+          job {
+            id
+            jobNumber
+            title
+            jobStatus
+            jobType
+            billingType
+            total
+            willClientBeAutomaticallyCharged
+          }
         }
+        pageInfo { endCursor hasNextPage }
       }
-      pageInfo { endCursor hasNextPage }
     }
-  }
-`;
+  `;
+}
 
-export const JOBBER_VISITS_WITHOUT_INVOICE_QUERY = `
-  query HomeAtlasVisitsWithoutInvoice($first: Int!, $after: String) {
-    visits(first: $first, after: $after) {
-      nodes {
-        id
-        title
-        visitStatus
-        isComplete
-        clientConfirmed
-        isLastScheduledVisit
-        startAt
-        endAt
-        completedAt
-        client { id name }
-        property { id jobberWebUri }
-        job {
-          id
-          jobNumber
-          title
-          jobStatus
-          jobType
-          billingType
-          total
-          willClientBeAutomaticallyCharged
-        }
-      }
-      pageInfo { endCursor hasNextPage }
-    }
-  }
-`;
+export const JOBBER_VISITS_QUERY = buildJobberVisitsQuery({
+  operationName: "HomeAtlasVisits",
+  includeInvoice: true,
+  includeAssignments: true,
+  includeScope: true,
+});
+
+export const JOBBER_VISITS_WITHOUT_INVOICE_QUERY = buildJobberVisitsQuery({
+  operationName: "HomeAtlasVisitsWithoutInvoice",
+  includeInvoice: false,
+  includeAssignments: true,
+  includeScope: true,
+});
+
+export const JOBBER_VISITS_WITHOUT_ASSIGNMENTS_QUERY =
+  buildJobberVisitsQuery({
+    operationName: "HomeAtlasVisitsWithoutAssignments",
+    includeInvoice: true,
+    includeAssignments: false,
+    includeScope: true,
+  });
+
+export const JOBBER_VISITS_WITHOUT_SCOPE_QUERY = buildJobberVisitsQuery({
+  operationName: "HomeAtlasVisitsWithoutScope",
+  includeInvoice: true,
+  includeAssignments: true,
+  includeScope: false,
+});
+
+const JOBBER_VISITS_WITH_SCOPE_ONLY_QUERY = buildJobberVisitsQuery({
+  operationName: "HomeAtlasVisitsWithScopeOnly",
+  includeInvoice: false,
+  includeAssignments: false,
+  includeScope: true,
+});
+
+const JOBBER_VISITS_WITH_ASSIGNMENTS_ONLY_QUERY = buildJobberVisitsQuery({
+  operationName: "HomeAtlasVisitsWithAssignmentsOnly",
+  includeInvoice: false,
+  includeAssignments: true,
+  includeScope: false,
+});
+
+const JOBBER_VISITS_WITH_INVOICE_ONLY_QUERY = buildJobberVisitsQuery({
+  operationName: "HomeAtlasVisitsWithInvoiceOnly",
+  includeInvoice: true,
+  includeAssignments: false,
+  includeScope: false,
+});
+
+export const JOBBER_VISITS_SCHEDULING_ONLY_QUERY = buildJobberVisitsQuery({
+  operationName: "HomeAtlasVisitsSchedulingOnly",
+  includeInvoice: false,
+  includeAssignments: false,
+  includeScope: false,
+});
 
 export const JOBBER_CLIENTS_QUERY = `
   query HomeAtlasClients($first: Int!, $after: String) {
@@ -469,50 +533,201 @@ export async function fetchJobberVisitPage(
   const first = options.first ?? JOBBER_PAGE_SIZE;
   validatePageSize(first);
   const variables = { first, after: options.after ?? null };
-  type VisitWithInvoice = Omit<JobberVisitNode, "invoiceReadState">;
-  type VisitWithoutInvoice = Omit<VisitWithInvoice, "invoice">;
-  type VisitPage<T> = Omit<JobberVisitPage, "nodes"> & { nodes: T[] };
-
-  try {
-    const data = await fetchJobberGraphql<{
-      visits?: VisitPage<VisitWithInvoice>;
-    }>(accessToken, JOBBER_VISITS_QUERY, variables, "visit");
-    if (!data.visits) {
-      throw new Error("Jobber visit query returned no visit connection");
-    }
-    return {
-      ...data.visits,
-      nodes: data.visits.nodes.map((visit) => ({
-        ...visit,
-        invoiceReadState: "available" as const,
-      })),
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (!/object of type invoice was hidden due to permissions/i.test(message)) {
-      throw error;
-    }
-  }
-
-  const fallback = await fetchJobberGraphql<{
-    visits?: VisitPage<VisitWithoutInvoice>;
-  }>(
-    accessToken,
-    JOBBER_VISITS_WITHOUT_INVOICE_QUERY,
-    variables,
-    "visit without invoice visibility",
-  );
-  if (!fallback.visits) {
-    throw new Error("Jobber visit fallback query returned no visit connection");
-  }
-  return {
-    ...fallback.visits,
-    nodes: fallback.visits.nodes.map((visit) => ({
-      ...visit,
-      invoice: null,
-      invoiceReadState: "permission_hidden" as const,
-    })),
+  type VisitTransport = Omit<
+    JobberVisitNode,
+    | "assignedUsers"
+    | "assignmentReadState"
+    | "invoice"
+    | "invoiceReadState"
+    | "scopeItems"
+    | "scopeReadState"
+  > & {
+    invoice?: { id: string; invoiceStatus: string } | null;
+    assignedUsers?: {
+      nodes: Array<{ id: string; name: { full: string } }>;
+    } | null;
+    lineItems?: {
+      nodes: Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        quantity: number;
+        category: string | null;
+        totalPrice: number;
+      }>;
+      pageInfo: { hasNextPage: boolean };
+    } | null;
   };
+  type VisitPage = Omit<JobberVisitPage, "nodes"> & {
+    nodes: VisitTransport[];
+  };
+  type QueryVariant = {
+    query: string;
+    operationLabel: string;
+    includeInvoice: boolean;
+    includeAssignments: boolean;
+    includeScope: boolean;
+  };
+
+  const variants: QueryVariant[] = [
+    {
+      query: JOBBER_VISITS_QUERY,
+      operationLabel: "visit",
+      includeInvoice: true,
+      includeAssignments: true,
+      includeScope: true,
+    },
+    {
+      query: JOBBER_VISITS_WITHOUT_INVOICE_QUERY,
+      operationLabel: "visit without invoice visibility",
+      includeInvoice: false,
+      includeAssignments: true,
+      includeScope: true,
+    },
+    {
+      query: JOBBER_VISITS_WITHOUT_ASSIGNMENTS_QUERY,
+      operationLabel: "visit without crew visibility",
+      includeInvoice: true,
+      includeAssignments: false,
+      includeScope: true,
+    },
+    {
+      query: JOBBER_VISITS_WITHOUT_SCOPE_QUERY,
+      operationLabel: "visit without service scope visibility",
+      includeInvoice: true,
+      includeAssignments: true,
+      includeScope: false,
+    },
+    {
+      query: JOBBER_VISITS_WITH_SCOPE_ONLY_QUERY,
+      operationLabel: "visit with service scope only",
+      includeInvoice: false,
+      includeAssignments: false,
+      includeScope: true,
+    },
+    {
+      query: JOBBER_VISITS_WITH_ASSIGNMENTS_ONLY_QUERY,
+      operationLabel: "visit with crew visibility only",
+      includeInvoice: false,
+      includeAssignments: true,
+      includeScope: false,
+    },
+    {
+      query: JOBBER_VISITS_WITH_INVOICE_ONLY_QUERY,
+      operationLabel: "visit with invoice visibility only",
+      includeInvoice: true,
+      includeAssignments: false,
+      includeScope: false,
+    },
+    {
+      query: JOBBER_VISITS_SCHEDULING_ONLY_QUERY,
+      operationLabel: "visit scheduling truth only",
+      includeInvoice: false,
+      includeAssignments: false,
+      includeScope: false,
+    },
+  ];
+  let variant = variants[0];
+  const attempted = new Set<string>();
+
+  while (variant && !attempted.has(variant.query)) {
+    attempted.add(variant.query);
+    try {
+      const data = await fetchJobberGraphql<{ visits?: VisitPage }>(
+        accessToken,
+        variant.query,
+        variables,
+        variant.operationLabel,
+      );
+      if (!data.visits) {
+        throw new Error("Jobber visit query returned no visit connection");
+      }
+      return {
+        ...data.visits,
+        nodes: data.visits.nodes.map((visit) => {
+          const {
+            assignedUsers: assignedUsersConnection,
+            lineItems: lineItemsConnection,
+            ...visitFields
+          } = visit;
+          const assignmentsAvailable = Boolean(
+            variant.includeAssignments &&
+              assignedUsersConnection &&
+              Array.isArray(assignedUsersConnection.nodes),
+          );
+          const scopeAvailable = Boolean(
+            variant.includeScope &&
+              lineItemsConnection &&
+              Array.isArray(lineItemsConnection.nodes),
+          );
+          return {
+            ...visitFields,
+            invoice: variant.includeInvoice ? (visit.invoice ?? null) : null,
+            invoiceReadState: variant.includeInvoice
+              ? ("available" as const)
+              : ("permission_hidden" as const),
+            assignedUsers: assignmentsAvailable
+              ? assignedUsersConnection!.nodes.map((user) => ({
+                  id: user.id,
+                  name: user.name.full,
+                }))
+              : [],
+            assignmentReadState: assignmentsAvailable
+              ? ("available" as const)
+              : ("permission_hidden" as const),
+            scopeItems: scopeAvailable
+              ? lineItemsConnection!.nodes.map((item) => ({
+                  id: item.id,
+                  name: item.name,
+                  description: item.description ?? null,
+                  quantity: item.quantity,
+                  category: item.category ?? null,
+                  totalPrice: item.totalPrice,
+                }))
+              : [],
+            scopeReadState: scopeAvailable
+              ? lineItemsConnection!.pageInfo?.hasNextPage
+                ? ("partial" as const)
+                : ("available" as const)
+              : ("permission_hidden" as const),
+          };
+        }),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const invoiceHidden =
+        variant.includeInvoice &&
+        /(?:object of type invoice|invoice).*hidden due to permissions/i.test(
+          message,
+        );
+      const assignmentsHidden =
+        variant.includeAssignments &&
+        /(?:object of type user|assignedusers).*hidden due to permissions/i.test(
+          message,
+        );
+      const scopeHidden =
+        variant.includeScope &&
+        /(?:object of type joblineitem|lineitems).*hidden due to permissions/i.test(
+          message,
+        );
+      if (!invoiceHidden && !assignmentsHidden && !scopeHidden) throw error;
+
+      const nextInvoiceVisibility = variant.includeInvoice && !invoiceHidden;
+      const nextAssignmentVisibility =
+        variant.includeAssignments && !assignmentsHidden;
+      const nextScopeVisibility = variant.includeScope && !scopeHidden;
+      const nextVariant = variants.find(
+        (candidate) =>
+          candidate.includeInvoice === nextInvoiceVisibility &&
+          candidate.includeAssignments === nextAssignmentVisibility &&
+          candidate.includeScope === nextScopeVisibility,
+      );
+      if (!nextVariant) throw error;
+      variant = nextVariant;
+    }
+  }
+
+  throw new Error("Jobber visit permission fallback could not be resolved");
 }
 
 export async function fetchJobberClientPage(

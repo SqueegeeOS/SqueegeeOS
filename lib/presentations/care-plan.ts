@@ -1,10 +1,35 @@
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 
-export const PRESENTATION_CARE_PLAN_VERSION = 1 as const;
+export const PRESENTATION_CARE_PLAN_VERSION = 2 as const;
 
 export type PresentationPlanMode = "simple" | "custom";
 export type PresentationLayout = "signature" | "concise" | "story";
 export type CarePlanServiceState = "included" | "optional" | "not_included";
+export type CarePlanServiceId =
+  | "interiorWindows"
+  | "screens"
+  | "cobwebRemoval";
+export type CarePlanServicePolicy =
+  | "always_included"
+  | "selected_visits"
+  | "optional_add_on"
+  | "not_offered";
+
+export interface CarePlanServicePrices {
+  interiorWindows: number;
+  screens: number;
+  cobwebRemoval: number;
+}
+
+/**
+ * Presentation defaults only. Public estimates remain exterior-only until the
+ * owner deliberately includes one of these services in a customer plan.
+ */
+export const DEFAULT_CARE_PLAN_SERVICE_PRICES: CarePlanServicePrices = {
+  interiorWindows: 100,
+  screens: 50,
+  cobwebRemoval: 50,
+};
 
 export interface CarePlanVisit {
   id: string;
@@ -12,6 +37,7 @@ export interface CarePlanVisit {
   timing: string;
   interiorWindows: CarePlanServiceState;
   screens: CarePlanServiceState;
+  cobwebRemoval: CarePlanServiceState;
   notes: string;
   /** Final quoted total for this visit. Null uses the pricing engine. */
   priceOverride: number | null;
@@ -22,6 +48,7 @@ export interface PresentationCarePlan {
   tier: SqueegeeKingTierId;
   summary: string;
   customerChoiceNote: string;
+  servicePrices: CarePlanServicePrices;
   visits: CarePlanVisit[];
 }
 
@@ -29,6 +56,7 @@ export type CarePlanPresetId =
   | "exterior_only"
   | "screens_every_visit"
   | "annual_interior"
+  | "flexible_add_ons"
   | "full_service";
 
 export const PRESENTATION_LAYOUT_OPTIONS: Array<{
@@ -95,6 +123,8 @@ export function createDefaultCarePlan(input: {
   tier: SqueegeeKingTierId;
   includeInterior?: boolean;
   includeScreens?: boolean;
+  includeCobwebRemoval?: boolean;
+  servicePrices?: Partial<CarePlanServicePrices>;
 }): PresentationCarePlan {
   const count = visitsForTier(input.tier);
   const summary = input.includeInterior
@@ -109,12 +139,19 @@ export function createDefaultCarePlan(input: {
     tier: input.tier,
     summary,
     customerChoiceNote: "Optional services are confirmed before each visit.",
+    servicePrices: {
+      ...DEFAULT_CARE_PLAN_SERVICE_PRICES,
+      ...input.servicePrices,
+    },
     visits: Array.from({ length: count }, (_, index) => ({
       id: createVisitId(index),
       label: VISIT_LABELS[input.tier][index] ?? `Visit ${index + 1}`,
       timing: VISIT_TIMING[input.tier][index] ?? "Scheduled with your care team",
       interiorWindows: input.includeInterior ? "included" : "not_included",
       screens: input.includeScreens ? "included" : "not_included",
+      cobwebRemoval: input.includeCobwebRemoval
+        ? "included"
+        : "not_included",
       notes: "",
       priceOverride: null,
     })),
@@ -140,6 +177,15 @@ function finitePrice(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) && value > 0
     ? Math.round(value * 100) / 100
     : null;
+}
+
+function servicePrice(value: unknown, fallback: number): number {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= 100_000
+    ? Math.round(value * 100) / 100
+    : fallback;
 }
 
 function tierValue(
@@ -176,6 +222,9 @@ export function normalizeCarePlan(
   const tier = tierValue(value.tier, fallback.tier);
   const defaults = createDefaultCarePlan({ tier });
   const sourceVisits = Array.isArray(value.visits) ? value.visits : [];
+  const rawServicePrices = isRecord(value.servicePrices)
+    ? value.servicePrices
+    : {};
   const expectedCount = visitsForTier(tier);
 
   const visits = Array.from({ length: expectedCount }, (_, index) => {
@@ -199,6 +248,10 @@ export function normalizeCarePlan(
         base.interiorWindows,
       ),
       screens: serviceState(raw.screens, base.screens),
+      cobwebRemoval: serviceState(
+        raw.cobwebRemoval,
+        base.cobwebRemoval,
+      ),
       notes:
         typeof raw.notes === "string" ? raw.notes.trim().slice(0, 240) : "",
       priceOverride: finitePrice(raw.priceOverride),
@@ -216,6 +269,20 @@ export function normalizeCarePlan(
       typeof value.customerChoiceNote === "string"
         ? value.customerChoiceNote.trim().slice(0, 320)
         : fallback.customerChoiceNote,
+    servicePrices: {
+      interiorWindows: servicePrice(
+        rawServicePrices.interiorWindows,
+        fallback.servicePrices.interiorWindows,
+      ),
+      screens: servicePrice(
+        rawServicePrices.screens,
+        fallback.servicePrices.screens,
+      ),
+      cobwebRemoval: servicePrice(
+        rawServicePrices.cobwebRemoval,
+        fallback.servicePrices.cobwebRemoval,
+      ),
+    },
     visits,
   };
 }
@@ -255,6 +322,7 @@ export function applyCarePlanPreset(
         ...visit,
         screens: "included" as const,
         interiorWindows: "not_included" as const,
+        cobwebRemoval: "not_included" as const,
       };
     }
     if (preset === "annual_interior") {
@@ -262,6 +330,15 @@ export function applyCarePlanPreset(
         ...visit,
         screens: "not_included" as const,
         interiorWindows: index === 0 ? ("included" as const) : ("not_included" as const),
+        cobwebRemoval: "not_included" as const,
+      };
+    }
+    if (preset === "flexible_add_ons") {
+      return {
+        ...visit,
+        screens: "optional" as const,
+        interiorWindows: "optional" as const,
+        cobwebRemoval: "optional" as const,
       };
     }
     if (preset === "full_service") {
@@ -269,12 +346,14 @@ export function applyCarePlanPreset(
         ...visit,
         screens: "included" as const,
         interiorWindows: "included" as const,
+        cobwebRemoval: "included" as const,
       };
     }
     return {
       ...visit,
       screens: "not_included" as const,
       interiorWindows: "not_included" as const,
+      cobwebRemoval: "not_included" as const,
     };
   });
 
@@ -284,11 +363,57 @@ export function applyCarePlanPreset(
       "Exterior windows and screens are cared for on every scheduled visit.",
     annual_interior:
       "Exterior windows every visit, with one complete interior cleaning each year.",
+    flexible_add_ons:
+      "Exterior windows every visit, with interior, screens, and cobweb removal available by request.",
     full_service:
-      "Interior windows, exterior windows, and screens on every scheduled visit.",
+      "Interior windows, exterior windows, screens, and cobweb removal on every scheduled visit.",
   };
 
   return { ...plan, summary: summaryByPreset[preset], visits };
+}
+
+export function deriveCarePlanServicePolicy(
+  plan: PresentationCarePlan,
+  serviceId: CarePlanServiceId,
+): CarePlanServicePolicy {
+  const states = plan.visits.map((visit) => visit[serviceId]);
+  if (states.every((state) => state === "included")) {
+    return "always_included";
+  }
+  if (states.every((state) => state === "optional")) {
+    return "optional_add_on";
+  }
+  if (states.every((state) => state === "not_included")) {
+    return "not_offered";
+  }
+  return "selected_visits";
+}
+
+export function applyCarePlanServicePolicy(
+  plan: PresentationCarePlan,
+  serviceId: CarePlanServiceId,
+  policy: CarePlanServicePolicy,
+): PresentationCarePlan {
+  const visits = plan.visits.map((visit, index) => {
+    let state: CarePlanServiceState;
+    if (policy === "always_included") state = "included";
+    else if (policy === "optional_add_on") state = "optional";
+    else if (policy === "not_offered") state = "not_included";
+    else {
+      const hasSelectedVisit = plan.visits.some(
+        (candidate) => candidate[serviceId] === "included",
+      );
+      state = hasSelectedVisit
+        ? visit[serviceId] === "included"
+          ? "included"
+          : "not_included"
+        : index === 0
+          ? "included"
+          : "not_included";
+    }
+    return { ...visit, [serviceId]: state };
+  });
+  return { ...plan, visits };
 }
 
 export interface CarePlanPricingVisit {
@@ -314,15 +439,20 @@ export function calculateCarePlanPricing(input: {
   baseVisitPrice: number;
   interiorAddOn?: number;
   screensAddOn?: number;
+  cobwebAddOn?: number;
 }): CarePlanPricing {
-  const interiorAddOn = input.interiorAddOn ?? 100;
-  const screensAddOn = input.screensAddOn ?? 50;
+  const interiorAddOn =
+    input.interiorAddOn ?? input.plan.servicePrices.interiorWindows;
+  const screensAddOn = input.screensAddOn ?? input.plan.servicePrices.screens;
+  const cobwebAddOn =
+    input.cobwebAddOn ?? input.plan.servicePrices.cobwebRemoval;
   const baseVisitPrice = roundMoney(Math.max(0, input.baseVisitPrice));
   const visits = input.plan.visits.map((visit) => {
     const computed =
       baseVisitPrice +
       (visit.interiorWindows === "included" ? interiorAddOn : 0) +
-      (visit.screens === "included" ? screensAddOn : 0);
+      (visit.screens === "included" ? screensAddOn : 0) +
+      (visit.cobwebRemoval === "included" ? cobwebAddOn : 0);
     const usedOverride = !!visit.priceOverride && visit.priceOverride > 0;
     return {
       id: visit.id,
@@ -357,6 +487,12 @@ export function summarizeCarePlan(plan: PresentationCarePlan): string {
   const screensOptional = plan.visits.filter(
     (visit) => visit.screens === "optional",
   ).length;
+  const cobwebIncluded = plan.visits.filter(
+    (visit) => visit.cobwebRemoval === "included",
+  ).length;
+  const cobwebOptional = plan.visits.filter(
+    (visit) => visit.cobwebRemoval === "optional",
+  ).length;
   const parts = [`Exterior ${total}×/yr`];
 
   if (interiorIncluded > 0) parts.push(`interior ${interiorIncluded}×`);
@@ -365,6 +501,10 @@ export function summarizeCarePlan(plan: PresentationCarePlan): string {
   if (screensIncluded === total) parts.push("screens every visit");
   else if (screensIncluded > 0) parts.push(`screens ${screensIncluded}×`);
   else if (screensOptional > 0) parts.push("screens optional");
+
+  if (cobwebIncluded === total) parts.push("cobwebs every visit");
+  else if (cobwebIncluded > 0) parts.push(`cobwebs ${cobwebIncluded}×`);
+  else if (cobwebOptional > 0) parts.push("cobwebs optional");
 
   return parts.join(" · ");
 }

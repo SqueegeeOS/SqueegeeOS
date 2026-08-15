@@ -5,6 +5,7 @@ import { createPrivilegedServerSupabaseClient } from "@/lib/persistence/supabase
 import {
   resolveSalesAttributionLifecycle,
   type SalesAttributionLifecycleStatus,
+  type SalesRetentionAttentionSnapshot,
 } from "./attribution-lifecycle";
 
 interface MembershipLifecycleRow {
@@ -23,6 +24,23 @@ interface AttributionLifecycleRow {
   qualified_at: string | null;
 }
 
+interface SalesRetentionRepRow {
+  id: string;
+  slug: string;
+  display_name: string;
+}
+
+interface SalesRetentionMembershipRow {
+  id: string;
+  homeowner_id: string;
+  status: string;
+}
+
+interface SalesRetentionHomeownerRow {
+  id: string;
+  full_name: string;
+}
+
 export interface MembershipAttributionLifecycleResult {
   membershipId: string;
   attributionId: string | null;
@@ -39,6 +57,99 @@ export interface DueAttributionQualificationSummary {
   cancelled: number;
   unchanged: number;
   failed: number;
+}
+
+/**
+ * Read-only view of retention rows that should have changed by now.
+ * The daily cron remains the only automatic lifecycle writer.
+ */
+export async function loadSalesRetentionAttentionSnapshot(
+  referenceDate = new Date(),
+): Promise<SalesRetentionAttentionSnapshot> {
+  const supabase = createPrivilegedServerSupabaseClient();
+  const attributionResult = await supabase
+    .from("sales_rep_attributions")
+    .select(
+      "id, rep_id, lead_id, membership_id, qualification_status, retention_qualifies_at, qualified_at",
+    )
+    .in("qualification_status", ["pending", "active"])
+    .not("retention_qualifies_at", "is", null)
+    .order("retention_qualifies_at", { ascending: true })
+    .limit(501);
+  if (attributionResult.error) throw new Error(attributionResult.error.message);
+
+  const returnedAttributions = (attributionResult.data ?? []) as AttributionLifecycleRow[];
+  const truncated = returnedAttributions.length > 500;
+  const attributions = returnedAttributions.slice(0, 500);
+  if (attributions.length === 0) {
+    return { generatedAt: referenceDate.toISOString(), records: [], truncated };
+  }
+
+  const repIds = [...new Set(attributions.map((row) => row.rep_id))];
+  const membershipIds = [
+    ...new Set(attributions.map((row) => row.membership_id)),
+  ];
+  const [repResult, membershipResult] = await Promise.all([
+    supabase
+      .from("sales_reps")
+      .select("id, slug, display_name")
+      .in("id", repIds),
+    supabase
+      .from("memberships")
+      .select("id, homeowner_id, status")
+      .in("id", membershipIds),
+  ]);
+  if (repResult.error) throw new Error(repResult.error.message);
+  if (membershipResult.error) throw new Error(membershipResult.error.message);
+
+  const repsById = new Map(
+    ((repResult.data ?? []) as SalesRetentionRepRow[]).map((rep) => [rep.id, rep]),
+  );
+  const memberships = (membershipResult.data ?? []) as SalesRetentionMembershipRow[];
+  const membershipsById = new Map(
+    memberships.map((membership) => [membership.id, membership]),
+  );
+  const homeownerIds = [
+    ...new Set(memberships.map((membership) => membership.homeowner_id)),
+  ];
+  const homeownerResult = homeownerIds.length
+    ? await supabase
+        .from("homeowners")
+        .select("id, full_name")
+        .in("id", homeownerIds)
+    : { data: [], error: null };
+  if (homeownerResult.error) throw new Error(homeownerResult.error.message);
+  const homeownersById = new Map(
+    ((homeownerResult.data ?? []) as SalesRetentionHomeownerRow[]).map(
+      (homeowner) => [homeowner.id, homeowner],
+    ),
+  );
+
+  const cancelledStatuses = new Set(["cancelled", "archived", "inactive"]);
+  const records = attributions.flatMap((attribution) => {
+    const membership = membershipsById.get(attribution.membership_id);
+    const rep = repsById.get(attribution.rep_id);
+    const qualifiesAt = attribution.retention_qualifies_at;
+    if (!membership || !rep || !qualifiesAt) return [];
+    const dueAt = Date.parse(qualifiesAt);
+    const due = Number.isFinite(dueAt) && dueAt <= referenceDate.getTime();
+    if (!due && !cancelledStatuses.has(membership.status)) return [];
+    const homeowner = homeownersById.get(membership.homeowner_id);
+    return [
+      {
+        attributionId: attribution.id,
+        membershipId: membership.id,
+        repSlug: rep.slug,
+        repDisplayName: rep.display_name,
+        homeownerName: homeowner?.full_name?.trim() || "HomeAtlas member",
+        membershipStatus: membership.status,
+        qualificationStatus: attribution.qualification_status as "pending" | "active",
+        retentionQualifiesAt: qualifiesAt,
+      },
+    ];
+  });
+
+  return { generatedAt: referenceDate.toISOString(), records, truncated };
 }
 
 /**

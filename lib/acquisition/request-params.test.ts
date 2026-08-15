@@ -39,9 +39,9 @@ describe("buildLeadFormFromParams", () => {
 });
 
 describe("estimatedPriceForLead", () => {
-  it("returns visit price for tier and sqft", () => {
-    const price = estimatedPriceForLead("quarterly", 2500);
-    expect(price).toBeGreaterThan(0);
+  it("returns the exterior-only visit price for tier and sqft", () => {
+    expect(estimatedPriceForLead("quarterly", 2500)).toBe(250);
+    expect(estimatedPriceForLead("biannual", 2500)).toBe(312);
   });
 
   it("returns null without a tier", () => {

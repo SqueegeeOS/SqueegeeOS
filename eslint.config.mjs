@@ -6,6 +6,7 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    files: ["**/*.{js,jsx,ts,tsx}"],
     rules: {
       // React 19 introduced this rule after many existing client workflows were
       // built. Keep every occurrence visible while we migrate them by domain;

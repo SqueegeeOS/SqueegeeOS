@@ -5,7 +5,7 @@ const EXISTING_APPOINTMENT = {
   member_profile_id: null,
   property_id: "property-1",
   service_type: "window_cleaning",
-  scheduled_at: "2026-08-15T14:00:00.000Z",
+  scheduled_at: "2099-08-15T14:00:00.000Z",
   status: "scheduled",
   technician_name: "Noah",
   notes: null,
@@ -29,6 +29,54 @@ let jobberVisitFixture: {
   scheduled_start: string;
   title: string | null;
 } | null = null;
+let assessmentNoteFixture: Array<{
+  id: string;
+  field_record_id: string | null;
+  technician_name: string;
+  customer_note: string;
+  visit_date: string;
+}> = [];
+let propertyAssetFixture: Array<{
+  id: string;
+  field_record_id: string | null;
+  storage_bucket: string;
+  storage_path: string;
+  title: string;
+  description: string | null;
+  capture_type: "before" | "after" | "detail";
+  captured_by: string | null;
+  is_primary: boolean;
+  captured_at: string;
+  created_at: string;
+}> = [];
+let fieldEventSnapshotsFixture: {
+  available: boolean;
+  byAppointmentId: Map<
+    string,
+    {
+      stage:
+        | "not_started"
+        | "en_route"
+        | "arrived"
+        | "service_started"
+        | "service_completed"
+        | "departed";
+      occurredAt: string | null;
+      actorDisplayName: string | null;
+      eventCount: number;
+    }
+  >;
+} = { available: true, byAppointmentId: new Map() };
+const loadTechnicianVisitEventSnapshotsSpy = vi.fn(
+  async (appointmentIds: string[]) => {
+    void appointmentIds;
+    return fieldEventSnapshotsFixture;
+  },
+);
+const createSignedUrlSpy = vi.fn(async (path: string) => ({
+  data: { signedUrl: `https://storage.example.test/signed/${path}` },
+  error: null,
+}));
 
 function chain(result: { data?: unknown; error?: unknown; count?: number }) {
   const promise = Promise.resolve(result);
@@ -39,6 +87,7 @@ function chain(result: { data?: unknown; error?: unknown; count?: number }) {
     "in",
     "gte",
     "neq",
+    "not",
     "order",
     "limit",
     "update",
@@ -125,6 +174,10 @@ function mockSupabaseFrom(table: string) {
       return chain({ data: jobberVisitFixture });
     case "service_observations":
       return chain({ data: [] });
+    case "property_assessments":
+      return chain({ data: assessmentNoteFixture });
+    case "property_assets":
+      return chain({ data: propertyAssetFixture });
     case "member_addon_transactions":
       return chain({ data: [] });
     case "member_savings_transactions":
@@ -135,6 +188,9 @@ function mockSupabaseFrom(table: string) {
 
 const mockPrivilegedClient = {
   from: vi.fn((table: string) => mockSupabaseFrom(table)),
+  storage: {
+    from: vi.fn(() => ({ createSignedUrl: createSignedUrlSpy })),
+  },
 };
 
 vi.mock("@/lib/persistence/supabase/client", () => ({
@@ -175,6 +231,11 @@ vi.mock("@/lib/membership/member-savings-ledger-server", () => ({
   loadMemberSavingsLedgerView: vi.fn(async () => null),
 }));
 
+vi.mock("@/lib/field-operations/technician-visit-event-server", () => ({
+  loadTechnicianVisitEventSnapshots: (appointmentIds: string[]) =>
+    loadTechnicianVisitEventSnapshotsSpy(appointmentIds),
+}));
+
 describe("migration 030 portal appointment regression", () => {
   afterEach(() => {
     insertSpy.mockClear();
@@ -182,6 +243,12 @@ describe("migration 030 portal appointment regression", () => {
     appointmentRowsFixture = [EXISTING_APPOINTMENT];
     propertyLinkFixture = null;
     jobberVisitFixture = null;
+    assessmentNoteFixture = [];
+    propertyAssetFixture = [];
+    fieldEventSnapshotsFixture = {
+      available: true,
+      byAppointmentId: new Map(),
+    };
     vi.clearAllMocks();
   });
 
@@ -266,5 +333,220 @@ describe("migration 030 portal appointment regression", () => {
 
     expect(data?.nextAppointment).toBeNull();
     expect(data?.appointments).toEqual([]);
+  });
+
+  it("does not present a stale scheduled appointment as the next visit", async () => {
+    appointmentRowsFixture = [
+      {
+        ...EXISTING_APPOINTMENT,
+        id: "stale-appointment",
+        scheduled_at: "2020-08-15T14:00:00.000Z",
+      },
+    ];
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.appointments).toHaveLength(1);
+    expect(data?.nextAppointment).toBeNull();
+  });
+
+  it("uses a paired future Jobber visit when authoritative rows are stale", async () => {
+    appointmentRowsFixture = [
+      {
+        ...EXISTING_APPOINTMENT,
+        id: "stale-appointment",
+        scheduled_at: "2020-08-15T14:00:00.000Z",
+      },
+    ];
+    propertyLinkFixture = {
+      connection_id: "squeegeeking-jobber",
+      external_property_id: "jobber-property-1",
+    };
+    jobberVisitFixture = {
+      external_visit_id: "future-jobber-visit",
+      scheduled_start: "2099-09-06T16:00:00.000Z",
+      title: "Exterior window care",
+    };
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.nextAppointment).toMatchObject({
+      id: "jobber-future-jobber-visit",
+      date: "2099-09-06T16:00:00.000Z",
+      status: "scheduled",
+    });
+  });
+
+  it("projects customer-visible field notes and private signed visit photos", async () => {
+    assessmentNoteFixture = [
+      {
+        id: "assessment-1",
+        field_record_id: "field-record-1",
+        technician_name: "Noah",
+        customer_note: "Exterior glass cleaned and inspected.",
+        visit_date: "2026-08-14",
+      },
+    ];
+    propertyAssetFixture = [
+      {
+        id: "asset-1",
+        field_record_id: "field-record-1",
+        storage_bucket: "homeatlas-visit-media",
+        storage_path: "properties/property-1/visits/visit-1/after.jpg",
+        title: "After service",
+        description: null,
+        capture_type: "after",
+        captured_by: "Noah",
+        is_primary: false,
+        captured_at: "2026-08-14T18:00:00.000Z",
+        created_at: "2026-08-14T18:00:00.000Z",
+      },
+    ];
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+
+    expect(data?.observations).toContainEqual(
+      expect.objectContaining({
+        fieldRecordId: "field-record-1",
+        observedBy: "Noah",
+        notes: "Exterior glass cleaned and inspected.",
+      }),
+    );
+    expect(data?.property.photos).toEqual([
+      expect.objectContaining({
+        fieldRecordId: "field-record-1",
+        source: "our_team",
+        caption: "After service",
+        captureType: "after",
+        capturedBy: "Noah",
+        url: expect.stringContaining("/signed/properties/property-1"),
+      }),
+    ]);
+    expect(createSignedUrlSpy).toHaveBeenCalledWith(
+      propertyAssetFixture[0].storage_path,
+      3600,
+    );
+  });
+
+  it("projects only today's customer-safe live service status", async () => {
+    const now = new Date();
+    appointmentRowsFixture = [
+      {
+        ...EXISTING_APPOINTMENT,
+        id: "live-appointment",
+        scheduled_at: now.toISOString(),
+        technician_name: "Private Technician Name",
+      },
+    ];
+    fieldEventSnapshotsFixture = {
+      available: true,
+      byAppointmentId: new Map([
+        [
+          "live-appointment",
+          {
+            stage: "arrived",
+            occurredAt: now.toISOString(),
+            actorDisplayName: "Private Technician Name",
+            eventCount: 2,
+          },
+        ],
+      ]),
+    };
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+    const data = await getMemberPortalDataBySlugs(
+      "sylvia-siegel",
+      "chico-estate",
+      { includeLiveService: true },
+    );
+
+    expect(loadTechnicianVisitEventSnapshotsSpy).toHaveBeenCalledWith([
+      "live-appointment",
+    ]);
+    expect(data?.liveService).toMatchObject({
+      stage: "arrived",
+      statusLabel: "Arrived",
+      headline: "Your SqueegeeKing team has arrived.",
+      progress: { completed: 2, total: 5 },
+    });
+    const serialized = JSON.stringify(data?.liveService);
+    expect(serialized).not.toContain("Private Technician Name");
+  });
+
+  it("does not expose live arrival timing through the legacy slug portal", async () => {
+    const now = new Date();
+    appointmentRowsFixture = [
+      {
+        ...EXISTING_APPOINTMENT,
+        id: "live-appointment",
+        scheduled_at: now.toISOString(),
+      },
+    ];
+    fieldEventSnapshotsFixture = {
+      available: true,
+      byAppointmentId: new Map([
+        [
+          "live-appointment",
+          {
+            stage: "arrived",
+            occurredAt: now.toISOString(),
+            actorDisplayName: "Private Technician Name",
+            eventCount: 2,
+          },
+        ],
+      ]),
+    };
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+    const data = await getMemberPortalDataBySlugs(
+      "sylvia-siegel",
+      "chico-estate",
+    );
+
+    expect(data?.liveService).toBeNull();
+    expect(loadTechnicianVisitEventSnapshotsSpy).not.toHaveBeenCalled();
+  });
+
+  it("keeps the portal usable when live field status is unavailable", async () => {
+    const now = new Date();
+    appointmentRowsFixture = [
+      {
+        ...EXISTING_APPOINTMENT,
+        id: "live-appointment",
+        scheduled_at: now.toISOString(),
+      },
+    ];
+    fieldEventSnapshotsFixture = {
+      available: false,
+      byAppointmentId: new Map(),
+    };
+
+    const { getMemberPortalDataBySlugs } = await import(
+      "@/lib/persistence/queries/member-portal"
+    );
+    const data = await getMemberPortalDataBySlugs(
+      "sylvia-siegel",
+      "chico-estate",
+      { includeLiveService: true },
+    );
+
+    expect(data).not.toBeNull();
+    expect(data?.liveService).toBeNull();
+    expect(data?.appointments).toHaveLength(1);
   });
 });
