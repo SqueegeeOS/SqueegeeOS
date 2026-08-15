@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { TechnicianDispatchBoard } from "@/components/admin/technician-dispatch-board";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
@@ -10,6 +11,12 @@ import type {
   TechnicianAccessGrantView,
   TechnicianRosterMember,
 } from "@/lib/field-operations/field-access";
+import type { JobberTodayData } from "@/lib/care-operations/jobber-today-types";
+import {
+  buildTechnicianDispatchBoard,
+  resolveTechnicianFieldPassState,
+} from "@/lib/field-operations/technician-dispatch";
+import { technicianFieldPassAnchorId } from "@/lib/care-operations/jobber-today-links";
 
 interface RosterResponse {
   crew: TechnicianRosterMember[];
@@ -34,30 +41,41 @@ function formatDateTime(value: string | null): string {
   }).format(new Date(value));
 }
 
-function statusCopy(grant: TechnicianAccessGrantView | null): {
+function statusCopy(
+  grant: TechnicianAccessGrantView | null,
+  referenceDate: Date,
+): {
   label: string;
   className: string;
   detail: string;
 } {
-  if (!grant) {
+  const state = resolveTechnicianFieldPassState(grant, referenceDate);
+  if (!grant || state === "missing") {
     return {
       label: "No pass",
       className: "border-white/10 bg-white/[0.035] text-white/50",
       detail: "Create a one-time phone install link when this technician is ready.",
     };
   }
-  if (grant.status === "active") {
+  if (state === "active") {
     return {
       label: "Active",
       className: "border-emerald-300/30 bg-emerald-300/[0.08] text-emerald-100",
       detail: `Phone session expires ${formatDateTime(grant.sessionExpiresAt)}.`,
     };
   }
-  if (new Date(grant.inviteExpiresAt).getTime() <= Date.now()) {
+  if (state === "expiring") {
     return {
-      label: "Invite expired",
+      label: "Expiring",
+      className: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+      detail: `Replace before ${formatDateTime(grant?.sessionExpiresAt ?? null)} to avoid field interruption.`,
+    };
+  }
+  if (state === "expired" || state === "revoked") {
+    return {
+      label: state === "revoked" ? "Revoked" : "Expired",
       className: "border-red-300/25 bg-red-300/[0.07] text-red-100",
-      detail: "Replace this expired link before the technician installs it.",
+      detail: "Create a replacement before this technician returns to the field.",
     };
   }
   return {
@@ -70,28 +88,58 @@ function statusCopy(grant: TechnicianAccessGrantView | null): {
 export function TechnicianAccessPage() {
   const [unlocked, setUnlocked] = useAdminUnlockedState();
   const [crew, setCrew] = useState<TechnicianRosterMember[]>([]);
+  const [today, setToday] = useState<JobberTodayData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dispatchError, setDispatchError] = useState<string | null>(null);
   const [workingUserId, setWorkingUserId] = useState<string | null>(null);
   const [issuedPass, setIssuedPass] = useState<IssuedPass | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (silent = false) => {
     if (!unlocked) return;
-    setLoading(true);
-    setError(null);
+    if (!silent) setLoading(true);
+    if (!silent) setError(null);
     try {
-      const response = await fetch("/api/admin/technicians/access-grants", {
-        headers: getAdminRequestHeaders(),
-        cache: "no-store",
-      });
-      const body = (await response.json().catch(() => null)) as
-        | RosterResponse
-        | null;
-      if (!response.ok || !body) {
-        throw new Error(body?.error ?? "Could not load the field roster.");
+      const [rosterResult, todayResult] = await Promise.allSettled([
+        fetch("/api/admin/technicians/access-grants", {
+          headers: getAdminRequestHeaders(),
+          cache: "no-store",
+        }),
+        fetch("/api/admin/care-operations/jobber/today", {
+          headers: getAdminRequestHeaders(),
+          cache: "no-store",
+        }),
+      ]);
+
+      if (rosterResult.status === "rejected") {
+        throw new Error("Could not load the field roster.");
       }
-      setCrew(body.crew);
+      const rosterBody = (await rosterResult.value
+        .json()
+        .catch(() => null)) as RosterResponse | null;
+      if (!rosterResult.value.ok || !rosterBody) {
+        throw new Error(
+          rosterBody?.error ?? "Could not load the field roster.",
+        );
+      }
+      setCrew(rosterBody.crew);
+
+      if (todayResult.status === "rejected") {
+        setDispatchError("Could not load today's dispatch truth.");
+      } else {
+        const todayBody = (await todayResult.value
+          .json()
+          .catch(() => null)) as (JobberTodayData & { error?: string }) | null;
+        if (!todayResult.value.ok || !todayBody) {
+          setDispatchError(
+            todayBody?.error ?? "Could not load today's dispatch truth.",
+          );
+        } else {
+          setToday(todayBody);
+          setDispatchError(null);
+        }
+      }
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -99,7 +147,7 @@ export function TechnicianAccessPage() {
           : "Could not load the field roster.",
       );
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [unlocked]);
 
@@ -107,6 +155,25 @@ export function TechnicianAccessPage() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (!unlocked) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load(true);
+    };
+    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [load, unlocked]);
+
+  const dispatchBoard = useMemo(
+    () => (today ? buildTechnicianDispatchBoard({ roster: crew, today }) : null),
+    [crew, today],
+  );
+  const referenceDate = today ? new Date(today.loadedAt) : new Date();
 
   async function issue(member: TechnicianRosterMember) {
     setWorkingUserId(member.jobberUserId);
@@ -216,6 +283,24 @@ export function TechnicianAccessPage() {
           </p>
         </header>
 
+        {dispatchBoard ? (
+          <TechnicianDispatchBoard board={dispatchBoard} />
+        ) : loading ? (
+          <section className="mt-8 rounded-[2rem] border border-white/10 bg-black/20 p-10 text-center text-sm text-muted">
+            Building today&apos;s dispatch board…
+          </section>
+        ) : null}
+
+        {dispatchError ? (
+          <p
+            role="alert"
+            className="mt-4 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-4 text-sm text-amber-100"
+          >
+            Dispatch board unavailable: {dispatchError} Field Pass controls remain
+            available below.
+          </p>
+        ) : null}
+
         <section className="mt-8 grid gap-3 sm:grid-cols-3">
           {[
             ["1", "Create one-time link", "Shown once and valid for 24 hours."],
@@ -291,10 +376,14 @@ export function TechnicianAccessPage() {
           {crew.length > 0 ? (
             <ul className="mt-4 grid gap-4 lg:grid-cols-2">
               {crew.map((member) => {
-                const status = statusCopy(member.currentGrant);
+                const status = statusCopy(member.currentGrant, referenceDate);
                 const working = workingUserId === member.jobberUserId;
                 return (
-                  <li key={member.jobberUserId} className="rounded-[1.4rem] border border-white/10 bg-[#111615] p-5">
+                  <li
+                    id={technicianFieldPassAnchorId(member.jobberUserId)}
+                    key={member.jobberUserId}
+                    className="scroll-mt-24 rounded-[1.4rem] border border-white/10 bg-[#111615] p-5 target:ring-2 target:ring-accent/50"
+                  >
                     <div className="flex items-start justify-between gap-4">
                       <div>
                         <p className="text-xl font-semibold text-white">{member.displayName}</p>
