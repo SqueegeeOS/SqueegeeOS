@@ -6,6 +6,10 @@ import type {
   BillingWorkspaceData,
 } from "@/lib/admin/billing-workspace-types";
 import type { ProductionHealthReport } from "@/lib/admin/production-health-types";
+import {
+  emptyOwnerLeverageMetrics,
+  type OwnerLeverageSnapshot,
+} from "@/lib/admin/owner-leverage";
 import type { CustomerAftercareSnapshot } from "@/lib/aftercare/customer-aftercare";
 import type { JobberTodayData, JobberTodayVisit } from "@/lib/care-operations/jobber-today-types";
 import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
@@ -148,6 +152,34 @@ function healthyAftercare(): CustomerAftercareSnapshot {
   };
 }
 
+function healthyOwnerLeverage(
+  overrides: Partial<OwnerLeverageSnapshot> = {},
+): OwnerLeverageSnapshot {
+  return {
+    generatedAt: NOW.toISOString(),
+    source: "supabase",
+    schemaAvailable: true,
+    period: {
+      businessWeekStart: "2026-08-10",
+      businessWeekEndExclusive: "2026-08-17",
+      today: "2026-08-14",
+    },
+    operators: [],
+    openSessions: [],
+    recentSessions: [],
+    metrics: emptyOwnerLeverageMetrics(),
+    unreviewedCompletedVisits: 0,
+    sources: {
+      fieldReviews: "ready",
+      growthSessions: "ready",
+      signedArrAttribution: "ready",
+      jobberCompletion: "ready",
+    },
+    warnings: [],
+    ...overrides,
+  };
+}
+
 function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttentionInput {
   return {
     now: NOW,
@@ -155,6 +187,7 @@ function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttention
     davidPipeline: ready(davidSnapshot()),
     salesRetention: ready(healthySalesRetention()),
     today: ready(healthyToday()),
+    ownerLeverage: ready(healthyOwnerLeverage()),
     billing: ready(healthyBilling()),
     communications: ready(healthyCommunications()),
     aftercare: ready(healthyAftercare()),
@@ -427,6 +460,64 @@ describe("owner attention queue", () => {
       affectedCount: 1,
     });
     expect(item?.detail).toContain("$1,200 potential ARR");
+  });
+
+  it("surfaces unreviewed field time and stale Growth Sessions", () => {
+    const baseMetrics = emptyOwnerLeverageMetrics();
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        ownerLeverage: ready(
+          healthyOwnerLeverage({
+            unreviewedCompletedVisits: 2,
+            openSessions: [
+              {
+                id: "growth-session-1",
+                operatorId: "operator-1",
+                operatorSlug: "noah",
+                operatorName: "Noah Thomas",
+                businessDate: "2026-08-13",
+                channel: "door_to_door",
+                status: "open",
+                startedAt: "2026-08-13T23:00:00.000Z",
+                endedAt: null,
+                breakMinutes: 0,
+                notes: null,
+              },
+            ],
+            metrics: {
+              ...baseMetrics,
+              dedicatedGrowthDays: 1,
+              newArrPerDedicatedGrowthDay: 250,
+              growthDayBand: "below_floor",
+            },
+          }),
+        ),
+      }),
+    );
+
+    expect(
+      response.items.find(
+        (item) => item.id === "owner-leverage:unreviewed-visits",
+      ),
+    ).toMatchObject({
+      priority: "high",
+      affectedCount: 2,
+      href: "/hq/today",
+    });
+    expect(
+      response.items.find(
+        (item) => item.id === "owner-leverage:open-session:growth-session-1",
+      ),
+    ).toMatchObject({
+      priority: "critical",
+      actionLabel: "Cancel stale session",
+      href: "/hq/growth",
+    });
+    expect(
+      response.items.find(
+        (item) => item.id === "owner-leverage:growth-day-below-floor",
+      )?.detail,
+    ).toContain("$250 signed ARR");
   });
 
   it("surfaces referral rewards and old pending referral leads", () => {

@@ -543,8 +543,10 @@ export async function finishGrowthWorkSession(input: {
   if (!input.cancel && elapsedMinutes <= input.breakMinutes) {
     throw new Error("Break time must be shorter than the Growth Session.");
   }
-  if (elapsedMinutes > 960) {
-    throw new Error("Close or cancel sessions within 16 hours of starting them.");
+  if (!input.cancel && elapsedMinutes > 960) {
+    throw new Error(
+      "Sessions older than 16 hours cannot count. Cancel this timer and start a clean session.",
+    );
   }
   const saved = await supabase
     .from("growth_work_sessions")

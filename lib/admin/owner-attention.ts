@@ -5,6 +5,7 @@ import type {
 } from "@/lib/admin/billing-workspace-types";
 import { billingMembershipAnchorId } from "@/lib/admin/billing-workspace-links";
 import type { ProductionHealthReport } from "@/lib/admin/production-health-types";
+import type { OwnerLeverageSnapshot } from "@/lib/admin/owner-leverage";
 import {
   customerAftercareTaskAnchorId,
   type CustomerAftercareSnapshot,
@@ -50,6 +51,7 @@ export type OwnerAttentionSourceId =
   | "david_pipeline"
   | "sales_retention"
   | "today"
+  | "owner_leverage"
   | "billing"
   | "communications"
   | "aftercare"
@@ -101,6 +103,7 @@ export interface OwnerAttentionInput {
   davidPipeline: OwnerAttentionSourceResult<SalesLeadAttentionSnapshot>;
   salesRetention: OwnerAttentionSourceResult<SalesRetentionAttentionSnapshot>;
   today: OwnerAttentionSourceResult<JobberTodayData>;
+  ownerLeverage: OwnerAttentionSourceResult<OwnerLeverageSnapshot>;
   billing: OwnerAttentionSourceResult<BillingWorkspaceData>;
   communications: OwnerAttentionSourceResult<CommunicationsLaunchReadiness>;
   aftercare: OwnerAttentionSourceResult<CustomerAftercareSnapshot>;
@@ -148,6 +151,13 @@ const SOURCE_DEFINITIONS: Array<{
     domain: "dispatch",
     href: ROUTES.hqToday,
     priority: "critical",
+  },
+  {
+    id: "owner_leverage",
+    label: "Owner leverage ledger",
+    domain: "growth",
+    href: ROUTES.hqGrowth,
+    priority: "high",
   },
   {
     id: "billing",
@@ -662,6 +672,117 @@ function addTodayItems(
   });
 }
 
+const STALE_GROWTH_SESSION_MS = 8 * 60 * 60 * 1_000;
+const MAX_COUNTABLE_GROWTH_SESSION_MS = 16 * 60 * 60 * 1_000;
+
+function addOwnerLeverageItems(
+  items: OwnerAttentionItem[],
+  snapshot: OwnerLeverageSnapshot,
+  now: Date,
+) {
+  if (!snapshot.schemaAvailable) {
+    items.push({
+      id: "owner-leverage:schema",
+      priority: "high",
+      domain: "systems",
+      title: "Owner leverage cannot be verified",
+      detail:
+        snapshot.warnings[0] ??
+        "Apply the owner-leverage migration before using the buyback ladder.",
+      href: ROUTES.hqProductionHealth,
+      actionLabel: "Open production health",
+      sourceLabel: "Owner leverage ledger",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+    return;
+  }
+
+  if (snapshot.unreviewedCompletedVisits > 0) {
+    items.push({
+      id: "owner-leverage:unreviewed-visits",
+      priority: "high",
+      domain: "field",
+      title: `${snapshot.unreviewedCompletedVisits} completed ${plural(snapshot.unreviewedCompletedVisits, "visit")} await independence review`,
+      detail:
+        "Review the actual job class, technician, quality, and owner involvement. Unreviewed work adds zero bought-back time.",
+      href: ROUTES.hqToday,
+      actionLabel: "Review completed visits",
+      sourceLabel: "Owner leverage ledger",
+      affectedCount: snapshot.unreviewedCompletedVisits,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+
+  const staleSessions = snapshot.openSessions
+    .map((session) => ({
+      session,
+      ageMs: now.getTime() - (timestamp(session.startedAt) ?? now.getTime()),
+    }))
+    .filter(({ ageMs }) => ageMs >= STALE_GROWTH_SESSION_MS)
+    .sort((left, right) => right.ageMs - left.ageMs);
+  const visibleSessions = staleSessions.slice(0, 3);
+  for (const { session, ageMs } of visibleSessions) {
+    const overCountableLimit = ageMs >= MAX_COUNTABLE_GROWTH_SESSION_MS;
+    items.push({
+      id: `owner-leverage:open-session:${session.id}`,
+      priority: overCountableLimit ? "critical" : "high",
+      domain: "growth",
+      title: `${session.operatorName}'s Growth Session is still open`,
+      detail: overCountableLimit
+        ? `The timer has run ${formatWaiting(ageMs)} and can no longer count. Cancel it so the ledger recovers without inventing Growth Hours.`
+        : `The timer has run ${formatWaiting(ageMs)}. Finish it with exact break time or cancel it before the 16-hour counting limit.`,
+      href: ROUTES.hqGrowth,
+      actionLabel: overCountableLimit ? "Cancel stale session" : "Close Growth Session",
+      sourceLabel: "Owner leverage ledger",
+      affectedCount: 1,
+      observedAt: session.startedAt,
+      dueAt: new Date(
+        new Date(session.startedAt).getTime() + STALE_GROWTH_SESSION_MS,
+      ).toISOString(),
+    });
+  }
+  const staleOverflow = staleSessions.length - visibleSessions.length;
+  if (staleOverflow > 0) {
+    items.push({
+      id: "owner-leverage:open-session-overflow",
+      priority: "high",
+      domain: "growth",
+      title: `${staleOverflow} more Growth ${plural(staleOverflow, "Session")} need closure`,
+      detail:
+        "Close or cancel every remaining timer before using Growth Hour productivity metrics.",
+      href: ROUTES.hqGrowth,
+      actionLabel: "Open Growth Hours",
+      sourceLabel: "Owner leverage ledger",
+      affectedCount: staleOverflow,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+
+  if (
+    snapshot.metrics.dedicatedGrowthDays > 0 &&
+    snapshot.metrics.growthDayBand === "below_floor" &&
+    snapshot.metrics.newArrPerDedicatedGrowthDay !== null
+  ) {
+    items.push({
+      id: "owner-leverage:growth-day-below-floor",
+      priority: "normal",
+      domain: "growth",
+      title: "Dedicated Growth Day finished below the ARR floor",
+      detail: `${formatDollars(snapshot.metrics.newArrPerDedicatedGrowthDay)} signed ARR per qualifying Growth Day versus the $500 floor. Review the channel, offer, follow-up, and presentation conversion before adding spend.`,
+      href: ROUTES.hqGrowth,
+      actionLabel: "Review growth truth",
+      sourceLabel: "Owner leverage ledger",
+      affectedCount: snapshot.metrics.dedicatedGrowthDays,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+}
+
 function billingIssuePriority(row: BillingRegisterRow): OwnerAttentionPriority | null {
   if (
     row.billingExecutionState === "reconciliation_required" ||
@@ -1093,6 +1214,8 @@ function sourceResultFor(
       return input.salesRetention;
     case "today":
       return input.today;
+    case "owner_leverage":
+      return input.ownerLeverage;
     case "billing":
       return input.billing;
     case "communications":
@@ -1162,6 +1285,9 @@ export function buildOwnerAttentionQueue(
   }
   if (input.today.state === "ready") {
     addTodayItems(items, input.today.data, input.now);
+  }
+  if (input.ownerLeverage.state === "ready") {
+    addOwnerLeverageItems(items, input.ownerLeverage.data, input.now);
   }
   if (input.billing.state === "ready") {
     addBillingItems(items, input.billing.data);
