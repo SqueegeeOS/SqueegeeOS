@@ -6,6 +6,10 @@ import type {
 import { billingMembershipAnchorId } from "@/lib/admin/billing-workspace-links";
 import type { ProductionHealthReport } from "@/lib/admin/production-health-types";
 import {
+  customerAftercareTaskAnchorId,
+  type CustomerAftercareSnapshot,
+} from "@/lib/aftercare/customer-aftercare";
+import {
   isJobberTodayDataStale,
   classifyJobberTodayVisit,
   type JobberTodayData,
@@ -44,6 +48,7 @@ export type OwnerAttentionSourceId =
   | "today"
   | "billing"
   | "communications"
+  | "aftercare"
   | "referrals"
   | "production_health";
 
@@ -94,6 +99,7 @@ export interface OwnerAttentionInput {
   today: OwnerAttentionSourceResult<JobberTodayData>;
   billing: OwnerAttentionSourceResult<BillingWorkspaceData>;
   communications: OwnerAttentionSourceResult<CommunicationsLaunchReadiness>;
+  aftercare: OwnerAttentionSourceResult<CustomerAftercareSnapshot>;
   referrals: OwnerAttentionSourceResult<ReferralAttentionSnapshot>;
   productionHealth: OwnerAttentionSourceResult<ProductionHealthReport>;
 }
@@ -151,6 +157,13 @@ const SOURCE_DEFINITIONS: Array<{
     label: "Communications readiness",
     domain: "communications",
     href: ROUTES.hqCommunications,
+    priority: "high",
+  },
+  {
+    id: "aftercare",
+    label: "Customer aftercare",
+    domain: "growth",
+    href: ROUTES.hqAftercare,
     priority: "high",
   },
   {
@@ -906,6 +919,81 @@ function addReferralItems(
   }
 }
 
+function addCustomerAftercareItems(
+  items: OwnerAttentionItem[],
+  snapshot: CustomerAftercareSnapshot,
+  now: Date,
+) {
+  if (snapshot.truncated) {
+    items.push({
+      id: "aftercare:coverage",
+      priority: "high",
+      domain: "systems",
+      title: "Customer aftercare view reached its coverage limit",
+      detail: "Work the visible care moments, then refresh. Atlas will not treat a bounded result as complete coverage.",
+      href: ROUTES.hqAftercare,
+      actionLabel: "Open aftercare",
+      sourceLabel: "Customer aftercare",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+
+  const ordered = [...snapshot.tasks].sort((left, right) =>
+    left.dueAt.localeCompare(right.dueAt),
+  );
+  const visible = ordered.slice(0, 5);
+  for (const task of visible) {
+    const dueAt = timestamp(task.dueAt);
+    const overdueMs = dueAt === null ? 0 : now.getTime() - dueAt;
+    const priority: OwnerAttentionPriority =
+      task.type === "review_opportunity"
+        ? overdueMs >= 7 * 24 * 60 * 60 * 1_000
+          ? "high"
+          : "normal"
+        : overdueMs >= 14 * 24 * 60 * 60 * 1_000
+          ? "high"
+          : "normal";
+    items.push({
+      id: `aftercare:${task.taskKey}`,
+      priority,
+      domain: "growth",
+      title:
+        task.type === "review_opportunity"
+          ? `${task.homeownerName} has a review-ready visit`
+          : `${task.homeownerName} is due for an annual care check-in`,
+      detail:
+        task.type === "review_opportunity"
+          ? `${task.serviceLabel} has customer-visible proof and no open service follow-up. Decide whether to request a review; Atlas will not send automatically.`
+          : `Year ${task.anniversaryNumber} is ${overdueMs > 0 ? `${formatWaiting(overdueMs)} overdue` : "approaching"}. Check in on the customer and property before recording the outcome.`,
+      href: `${ROUTES.hqAftercare}#${customerAftercareTaskAnchorId(task.taskKey)}`,
+      actionLabel: "Open care moment",
+      sourceLabel: "Customer aftercare",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: task.dueAt,
+    });
+  }
+
+  const overflow = ordered.length - visible.length;
+  if (overflow > 0) {
+    items.push({
+      id: "aftercare:overflow",
+      priority: "normal",
+      domain: "growth",
+      title: `${overflow} more customer care ${plural(overflow, "moment")}`,
+      detail: "Open aftercare to work the remaining verified review and annual check-in opportunities.",
+      href: ROUTES.hqAftercare,
+      actionLabel: "Open aftercare",
+      sourceLabel: "Customer aftercare",
+      affectedCount: overflow,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+}
+
 function addProductionHealthItems(
   items: OwnerAttentionItem[],
   report: ProductionHealthReport,
@@ -952,6 +1040,8 @@ function sourceResultFor(
       return input.billing;
     case "communications":
       return input.communications;
+    case "aftercare":
+      return input.aftercare;
     case "referrals":
       return input.referrals;
     case "production_health":
@@ -1021,6 +1111,9 @@ export function buildOwnerAttentionQueue(
   }
   if (input.communications.state === "ready") {
     addCommunicationsItems(items, input.communications.data);
+  }
+  if (input.aftercare.state === "ready") {
+    addCustomerAftercareItems(items, input.aftercare.data, input.now);
   }
   if (input.referrals.state === "ready") {
     addReferralItems(items, input.referrals.data, input.now);

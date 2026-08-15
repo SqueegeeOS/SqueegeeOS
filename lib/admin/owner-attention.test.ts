@@ -6,6 +6,7 @@ import type {
   BillingWorkspaceData,
 } from "@/lib/admin/billing-workspace-types";
 import type { ProductionHealthReport } from "@/lib/admin/production-health-types";
+import type { CustomerAftercareSnapshot } from "@/lib/aftercare/customer-aftercare";
 import type { JobberTodayData, JobberTodayVisit } from "@/lib/care-operations/jobber-today-types";
 import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
 import type { VisitFieldFollowUpView } from "@/lib/field-records/visit-field-record";
@@ -137,6 +138,10 @@ function healthyReferrals(): ReferralAttentionSnapshot {
   return { generatedAt: NOW.toISOString(), members: [], truncated: false };
 }
 
+function healthyAftercare(): CustomerAftercareSnapshot {
+  return { generatedAt: NOW.toISOString(), tasks: [], truncated: false };
+}
+
 function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttentionInput {
   return {
     now: NOW,
@@ -146,6 +151,7 @@ function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttention
     today: ready(healthyToday()),
     billing: ready(healthyBilling()),
     communications: ready(healthyCommunications()),
+    aftercare: ready(healthyAftercare()),
     referrals: ready(healthyReferrals()),
     productionHealth: ready(healthyProduction()),
     ...overrides,
@@ -496,6 +502,65 @@ describe("owner attention queue", () => {
     });
   });
 
+  it("surfaces verified review moments and overdue annual care check-ins", () => {
+    const reviewAppointmentId = "11111111-1111-4111-8111-111111111111";
+    const membershipId = "22222222-2222-4222-8222-222222222222";
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        aftercare: ready({
+          generatedAt: NOW.toISOString(),
+          truncated: false,
+          tasks: [
+            {
+              taskKey: `review-opportunity:${reviewAppointmentId}`,
+              type: "review_opportunity",
+              homeownerId: "33333333-3333-4333-8333-333333333333",
+              propertyId: "44444444-4444-4444-8444-444444444444",
+              membershipId,
+              appointmentId: reviewAppointmentId,
+              homeownerName: "Mandi Rivera",
+              propertyLabel: "Davis Street Residence",
+              dueAt: "2026-08-10T18:00:00.000Z",
+              evidenceAt: "2026-08-09T18:00:00.000Z",
+              serviceLabel: "Exterior Window Cleaning",
+              completedAt: "2026-08-09T18:00:00.000Z",
+              customerSummaryVisible: true,
+              customerPhotoVisible: true,
+            },
+            {
+              taskKey: `annual-care-checkin:${membershipId}:2026`,
+              type: "annual_care_checkin",
+              homeownerId: "33333333-3333-4333-8333-333333333333",
+              propertyId: "44444444-4444-4444-8444-444444444444",
+              membershipId,
+              appointmentId: null,
+              homeownerName: "Mandi Rivera",
+              propertyLabel: "Davis Street Residence",
+              dueAt: "2026-07-20T16:00:00.000Z",
+              evidenceAt: "2025-07-20T16:00:00.000Z",
+              membershipStartedAt: "2025-07-20T16:00:00.000Z",
+              anniversaryNumber: 1,
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(
+      response.items.find(
+        (item) => item.id === `aftercare:review-opportunity:${reviewAppointmentId}`,
+      ),
+    ).toMatchObject({
+      priority: "normal",
+      href: `/hq/aftercare#aftercare-task-review-opportunity-${reviewAppointmentId}`,
+    });
+    expect(
+      response.items.find(
+        (item) => item.id === `aftercare:annual-care-checkin:${membershipId}:2026`,
+      ),
+    ).toMatchObject({ priority: "high", actionLabel: "Open care moment" });
+  });
+
   it("fails closed when a source cannot be read", () => {
     const response = buildOwnerAttentionQueue(
       baseInput({
@@ -595,5 +660,17 @@ describe("owner attention queue", () => {
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
     expect(loader).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
+
+    const aftercareSource = readFileSync(
+      new URL("../aftercare/customer-aftercare-server.ts", import.meta.url),
+      "utf8",
+    );
+    expect(aftercareSource).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
+    const ownerServerSource = readFileSync(
+      new URL("./owner-attention-server.ts", import.meta.url),
+      "utf8",
+    );
+    expect(ownerServerSource).toContain("loadCustomerAftercareSnapshot");
+    expect(ownerServerSource).not.toContain("customer-aftercare-actions-server");
   });
 });
