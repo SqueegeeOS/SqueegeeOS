@@ -91,6 +91,16 @@ interface SalesAttributionRow {
   attributed_at: string;
 }
 
+const SALES_LEAD_SELECT =
+  "id, full_name, property_address, phone_normalized, email_normalized, status, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at";
+const OPEN_SALES_LEAD_STATUSES: SalesLeadStatus[] = [
+  "new",
+  "follow_up",
+  "presentation",
+  "considering",
+];
+const SALES_LEAD_PAGE_SIZE = 500;
+
 export class SalesWorkspaceUnavailableError extends Error {
   constructor(message: string) {
     super(message);
@@ -161,6 +171,47 @@ function leadFromRow(row: SalesLeadRow): SalesRepLead {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+async function loadAllOpenSalesRepLeadRows(
+  repId: string,
+): Promise<SalesLeadRow[]> {
+  const supabase = createPrivilegedServerSupabaseClient();
+  const rows: SalesLeadRow[] = [];
+  let offset = 0;
+
+  while (true) {
+    const result = await supabase
+      .from("sales_rep_leads")
+      .select(SALES_LEAD_SELECT, { count: "exact" })
+      .eq("rep_id", repId)
+      .in("status", OPEN_SALES_LEAD_STATUSES)
+      .order("next_follow_up_at", { ascending: true, nullsFirst: false })
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: true })
+      .range(offset, offset + SALES_LEAD_PAGE_SIZE - 1);
+
+    if (result.error) {
+      throw new SalesWorkspaceUnavailableError(
+        readableStorageError(result.error.message),
+      );
+    }
+    if (result.count === null) {
+      throw new SalesWorkspaceUnavailableError(
+        "HomeAtlas could not prove that the active lead queue was complete.",
+      );
+    }
+
+    const page = (result.data ?? []) as SalesLeadRow[];
+    rows.push(...page);
+    offset += page.length;
+    if (offset >= result.count) return rows;
+    if (page.length === 0) {
+      throw new SalesWorkspaceUnavailableError(
+        "HomeAtlas could not finish loading the active lead queue.",
+      );
+    }
+  }
 }
 
 async function loadRepRow(slug: string): Promise<SalesRepRow> {
@@ -263,35 +314,40 @@ export async function loadSalesWorkspace(
     console.error("[sales-workspace] nonfatal attribution reconciliation failure", error);
   }
 
-  const [leadsResult, activityResult, attributionResult] = await Promise.all([
-    supabase
-      .from("sales_rep_leads")
-      .select(
-        "id, full_name, property_address, phone_normalized, email_normalized, status, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at",
-      )
-      .eq("rep_id", rep.id)
-      .order("next_follow_up_at", { ascending: true, nullsFirst: false })
-      .order("updated_at", { ascending: false })
-      .limit(100),
-    supabase
-      .from("sales_rep_activity_events")
-      .select("event_type, quantity")
-      .eq("rep_id", rep.id)
-      .is("reversed_at", null)
-      .gte("occurred_at", startUtc.toISOString())
-      .lt("occurred_at", endUtc.toISOString()),
-    supabase
-      .from("sales_rep_attributions")
-      .select("qualification_status, attributed_arr_cents, attributed_at")
-      .eq("rep_id", rep.id),
-  ]);
+  const [openLeadRows, leadsTodayResult, activityResult, attributionResult] =
+    await Promise.all([
+      loadAllOpenSalesRepLeadRows(rep.id),
+      supabase
+        .from("sales_rep_leads")
+        .select("id", { count: "exact", head: true })
+        .eq("rep_id", rep.id)
+        .gte("created_at", startUtc.toISOString())
+        .lt("created_at", endUtc.toISOString()),
+      supabase
+        .from("sales_rep_activity_events")
+        .select("event_type, quantity")
+        .eq("rep_id", rep.id)
+        .is("reversed_at", null)
+        .gte("occurred_at", startUtc.toISOString())
+        .lt("occurred_at", endUtc.toISOString()),
+      supabase
+        .from("sales_rep_attributions")
+        .select("qualification_status, attributed_arr_cents, attributed_at")
+        .eq("rep_id", rep.id),
+    ]);
 
-  const firstError = leadsResult.error ?? activityResult.error ?? attributionResult.error;
+  const firstError =
+    leadsTodayResult.error ?? activityResult.error ?? attributionResult.error;
   if (firstError) {
     throw new SalesWorkspaceUnavailableError(readableStorageError(firstError.message));
   }
+  if (leadsTodayResult.count === null) {
+    throw new SalesWorkspaceUnavailableError(
+      "HomeAtlas could not verify today's lead count.",
+    );
+  }
 
-  const leads = ((leadsResult.data ?? []) as SalesLeadRow[]).map(leadFromRow);
+  const leads = openLeadRows.map(leadFromRow);
   const activities = (activityResult.data ?? []) as SalesActivityRow[];
   const attributions = (attributionResult.data ?? []) as SalesAttributionRow[];
   const activityCount = (eventType: string) =>
@@ -300,9 +356,7 @@ export async function loadSalesWorkspace(
         total + (activity.event_type === eventType ? Number(activity.quantity) || 0 : 0),
       0,
     );
-  const openLeads = leads.filter(
-    (lead) => !["signed", "won", "lost"].includes(lead.status),
-  );
+  const openLeads = leads;
   const closedAttributions = attributions.filter(
     (attribution) => attribution.qualification_status !== "cancelled",
   );
@@ -317,10 +371,7 @@ export async function loadSalesWorkspace(
       doorsToday: activityCount("door_knock"),
       conversationsToday: activityCount("conversation"),
       presentationsToday: activityCount("presentation_started"),
-      leadsToday: leads.filter((lead) => {
-        const createdAt = new Date(lead.createdAt);
-        return createdAt >= startUtc && createdAt < endUtc;
-      }).length,
+      leadsToday: leadsTodayResult.count,
       signedToday: attributionsToday.length,
       closedArrTodayCents: attributionsToday.reduce(
         (total, attribution) =>
