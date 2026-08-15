@@ -40,6 +40,7 @@ export default async function TokenPortalPage({ params }: TokenPortalPageProps) 
       portalBasePath={model.portalBasePath}
       customerPortalMode={model.customerPortalMode}
       portalToken={token}
+      portalHousehold={model.portalHousehold}
     />
   );
 }

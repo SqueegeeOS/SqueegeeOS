@@ -33,6 +33,8 @@ import { GlassCard } from "@/components/craft/glass-card";
 import { PortalStage } from "@/components/portal/portal-stage";
 import { InstallHomeAtlas } from "@/components/pwa/InstallHomeAtlas";
 import { MemberServiceHelp } from "@/components/portal/member-service-help";
+import { PortalPropertySwitcher } from "@/components/portal/portal-property-switcher";
+import type { PortalHouseholdSnapshot } from "@/lib/membership/portal-household";
 import { craftPrimaryButton, craftSecondaryButton } from "@/lib/craft/tokens";
 import { materialize } from "@/lib/motion/system";
 
@@ -42,6 +44,7 @@ interface MemberPortalExperienceProps {
   portalBasePath?: string;
   customerPortalMode?: "token" | "slug";
   portalToken?: string | null;
+  portalHousehold?: PortalHouseholdSnapshot | null;
 }
 
 const PORTAL_PHOTO_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -68,6 +71,7 @@ export function MemberPortalExperience({
   portalBasePath,
   customerPortalMode = "slug",
   portalToken = null,
+  portalHousehold = null,
 }: MemberPortalExperienceProps) {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
@@ -166,6 +170,10 @@ export function MemberPortalExperience({
             </p>
           )}
         </motion.header>
+
+        {isCustomerPortal && portalHousehold ? (
+          <PortalPropertySwitcher household={portalHousehold} />
+        ) : null}
 
         {isCustomerPortal && portalData?.liveService ? (
           <LiveCareStatus status={portalData.liveService} />

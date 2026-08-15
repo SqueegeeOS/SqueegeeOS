@@ -258,4 +258,16 @@ describe("customer data route boundaries", () => {
     expect(actions).toContain("input.access.membershipId");
     expect(actions).not.toMatch(/twilio|resend|sendoutboundcommunication/i);
   });
+
+  it("scopes the multi-property portal projection to the proven homeowner", () => {
+    const source = readProjectFile(
+      "lib/persistence/queries/portal-household.ts",
+    );
+    expect(source).toContain('.eq("homeowner_id", access.homeownerId)');
+    expect(source).toContain('"pending_checkout"');
+    expect(source).toContain('"pending_payment"');
+    expect(source).toContain('"active"');
+    expect(source).toContain('"paused"');
+    expect(source).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
+  });
 });

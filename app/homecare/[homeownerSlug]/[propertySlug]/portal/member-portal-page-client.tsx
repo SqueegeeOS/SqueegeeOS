@@ -13,6 +13,7 @@ import {
 import type { CustomerHealthView } from "@/lib/health/types";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
+import type { PortalHouseholdSnapshot } from "@/lib/membership/portal-household";
 import {
   consumeMemberWelcomePending,
   hasSeenUnlockCeremony,
@@ -29,6 +30,7 @@ interface MemberPortalPageClientProps {
   portalBasePath?: string;
   customerPortalMode?: "token" | "slug";
   portalToken?: string | null;
+  portalHousehold?: PortalHouseholdSnapshot | null;
 }
 
 export function MemberPortalPageClient({
@@ -41,6 +43,7 @@ export function MemberPortalPageClient({
   portalBasePath,
   customerPortalMode = "slug",
   portalToken = null,
+  portalHousehold = null,
 }: MemberPortalPageClientProps) {
   return (
     <MembershipUnlockProvider>
@@ -54,6 +57,7 @@ export function MemberPortalPageClient({
         portalBasePath={portalBasePath}
         customerPortalMode={customerPortalMode}
         portalToken={portalToken}
+        portalHousehold={portalHousehold}
       />
     </MembershipUnlockProvider>
   );
@@ -67,6 +71,7 @@ function MemberPortalWithCeremony({
   portalBasePath,
   customerPortalMode = "slug",
   portalToken = null,
+  portalHousehold = null,
 }: MemberPortalPageClientProps) {
   const [showCeremony, setShowCeremony] = useState(false);
 
@@ -114,6 +119,7 @@ function MemberPortalWithCeremony({
         }
         customerPortalMode={customerPortalMode}
         portalToken={portalToken}
+        portalHousehold={portalHousehold}
       />
     </>
   );

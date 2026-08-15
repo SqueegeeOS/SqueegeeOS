@@ -6,6 +6,7 @@ import { getMemberPortalDataBySlugs } from "@/lib/persistence/queries/member-por
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
 import type { CustomerHealthView } from "@/lib/health/types";
+import type { PortalHouseholdSnapshot } from "@/lib/membership/portal-household";
 
 export interface MemberPortalPageModel {
   planData: HomeCarePlanData;
@@ -16,6 +17,7 @@ export interface MemberPortalPageModel {
   homeHealthHref: string;
   portalBasePath: string;
   customerPortalMode: "token" | "slug";
+  portalHousehold: PortalHouseholdSnapshot | null;
 }
 
 export async function loadMemberPortalPageBySlugs(
@@ -60,6 +62,7 @@ export async function loadMemberPortalPageBySlugs(
     homeHealthHref,
     portalBasePath,
     customerPortalMode,
+    portalHousehold: null,
   };
 }
 
@@ -74,7 +77,7 @@ export async function loadMemberPortalPageByToken(
 
   const portalBasePath = `/portal/${encodeURIComponent(access.portalAccessToken)}`;
 
-  return loadMemberPortalPageBySlugs(
+  const model = await loadMemberPortalPageBySlugs(
     access.homeownerSlug,
     access.propertySlug,
     {
@@ -82,4 +85,21 @@ export async function loadMemberPortalPageByToken(
       customerPortalMode: "token",
     },
   );
+  if (!model) return null;
+
+  try {
+    const { loadPortalHouseholdSnapshot } = await import(
+      "@/lib/persistence/queries/portal-household"
+    );
+    return {
+      ...model,
+      portalHousehold: await loadPortalHouseholdSnapshot(access),
+    };
+  } catch (error) {
+    console.error("[member-portal] household projection unavailable", {
+      membershipId: access.membershipId,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return model;
+  }
 }
