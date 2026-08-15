@@ -26,7 +26,7 @@
   object-fit: cover;
   object-position: center;
   filter: saturate(.9) contrast(1.04);
-  transform: scale(1.055) translate3d(calc(var(--pointer-x) * -7px), calc(var(--pointer-y) * -5px), 0);
+  transform: scale(1.02) translate3d(calc(var(--pointer-x) * -7px), calc(var(--pointer-y) * -5px), 0);
   transition: transform .7s cubic-bezier(.2,.8,.2,1);
   animation: houseIn 1.8s cubic-bezier(.2,.75,.2,1) both;
 }
@@ -355,7 +355,10 @@
 .siteFooter nav a:hover, .footerPhone:hover { color: var(--cream); }
 .footerPhone { color: var(--gold); white-space: nowrap; }
 
-@keyframes houseIn { from { opacity:0; transform:scale(1.12); } to { opacity:1; transform:scale(1.055); } }
+@keyframes houseIn {
+  from { opacity: 0; transform: scale(1.065) translate3d(0, 0, 0); }
+  to { opacity: 1; transform: scale(1.02) translate3d(calc(var(--pointer-x) * -7px), calc(var(--pointer-y) * -5px), 0); }
+}
 @keyframes down { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:none; } }
 @keyframes rise { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:none; } }
 @keyframes cardIn { from { opacity:0; transform:translateY(28px) scale(.98); } to { opacity:1; transform:none; } }

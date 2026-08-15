@@ -36,7 +36,7 @@ describe("local SEO contracts", () => {
   it("uses the promoted homepage image in local business data", () => {
     const schema = buildLocalBusinessJsonLd();
     expect(JSON.stringify(schema)).toContain(
-      "/atlas-glass/hero-house.jpg",
+      "/atlas-glass/hero-house-wide.png",
     );
   });
 

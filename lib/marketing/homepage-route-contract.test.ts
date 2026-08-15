@@ -65,13 +65,13 @@ describe("public homepage route contract", () => {
 
   it("uses the promoted hero in search and sharing metadata", () => {
     expect(readProjectFile("app/atlas-glass/atlas-glass.tsx")).toContain(
-      'import heroHouse from "@/public/atlas-glass/hero-house.jpg"',
+      'import heroHouse from "@/public/atlas-glass/hero-house-wide.png"',
     );
     expect(readProjectFile("app/page.tsx")).toContain(
-      "/atlas-glass/hero-house.jpg",
+      "/atlas-glass/hero-house-wide.png",
     );
     expect(readProjectFile("app/sitemap.ts")).toContain(
-      "/atlas-glass/hero-house.jpg",
+      "/atlas-glass/hero-house-wide.png",
     );
   });
 

@@ -20,9 +20,9 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/atlas-glass/hero-house.jpg",
-        width: 1080,
-        height: 1920,
+        url: "/atlas-glass/hero-house-wide.png",
+        width: 1672,
+        height: 941,
         alt: "A cared-for Chico home connected to its HomeAtlas care record",
       },
     ],
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     title: "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
     description:
       "Professional window cleaning and exterior home care in Chico, powered by a HomeAtlas record for every member home.",
-    images: ["/atlas-glass/hero-house.jpg"],
+    images: ["/atlas-glass/hero-house-wide.png"],
   },
 };
 

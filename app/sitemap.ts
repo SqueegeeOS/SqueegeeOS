@@ -8,7 +8,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${PUBLIC_SITE_URL}/`,
       changeFrequency: "weekly",
       priority: 1,
-      images: [`${PUBLIC_SITE_URL}/atlas-glass/hero-house.jpg`],
+      images: [`${PUBLIC_SITE_URL}/atlas-glass/hero-house-wide.png`],
     },
     {
       url: `${PUBLIC_SITE_URL}/services`,
