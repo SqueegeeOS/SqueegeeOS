@@ -338,6 +338,20 @@ function JobberVisitCard({
             {visit.propertyLabel ? (
               <p className="mt-1 text-xs text-muted/80">{visit.propertyLabel}</p>
             ) : null}
+            <p
+              className={`mt-3 text-xs ${
+                visit.assignmentReadState !== "available" ||
+                visit.assignedUsers.length === 0
+                  ? "text-amber-200"
+                  : "text-muted"
+              }`}
+            >
+              {visit.assignmentReadState !== "available"
+                ? "Crew visibility unavailable"
+                : visit.assignedUsers.length > 0
+                  ? `Crew · ${visit.assignedUsers.map((user) => user.name).join(", ")}`
+                  : "No technician assigned in Jobber"}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:justify-end">
             <span className="rounded-full border border-border px-3 py-1 text-[11px] text-muted">
@@ -727,7 +741,7 @@ function TodayWorkspaceContent() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <MetricCard
                 label="Today's jobs"
                 value={data.summary.total}
@@ -743,6 +757,32 @@ function TodayWorkspaceContent() {
                 label="Complete"
                 value={data.summary.complete}
                 detail="Kept for the full-day view"
+              />
+              <MetricCard
+                label="Crew assigned"
+                value={data.summary.assigned}
+                detail={
+                  data.summary.assignmentUnknown > 0
+                    ? `${data.summary.assignmentUnknown} stop${data.summary.assignmentUnknown === 1 ? "" : "s"} could not be verified`
+                    : "Mirrored from Jobber"
+                }
+              />
+              <MetricCard
+                label="Unassigned"
+                value={
+                  data.summary.assignmentUnknown > 0
+                    ? "—"
+                    : data.summary.unassigned
+                }
+                detail={
+                  data.summary.assignmentUnknown > 0
+                    ? "Crew visibility incomplete"
+                    : "Needs a Jobber crew assignment"
+                }
+                warning={
+                  data.summary.assignmentUnknown > 0 ||
+                  data.summary.unassigned > 0
+                }
               />
               <MetricCard
                 label="Records saved"
@@ -815,6 +855,21 @@ function TodayWorkspaceContent() {
           <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
             This schedule is more than six hours old. Use Sync Jobber now before
             dispatching the route.
+          </div>
+        ) : null}
+
+        {data && data.summary.assignmentUnknown > 0 ? (
+          <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
+            HomeAtlas could not verify crew assignments for {data.summary.assignmentUnknown} visit
+            {data.summary.assignmentUnknown === 1 ? "" : "s"}. Keep dispatching
+            from Jobber until the app has Users read access and a fresh sync.
+          </div>
+        ) : data && data.summary.unassigned > 0 ? (
+          <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
+            {data.summary.unassigned} visit
+            {data.summary.unassigned === 1 ? " has" : "s have"} no technician
+            assigned in Jobber. Assign the crew there; HomeAtlas will mirror it
+            on the next sync.
           </div>
         ) : null}
 

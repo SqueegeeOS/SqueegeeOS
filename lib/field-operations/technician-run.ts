@@ -1,4 +1,7 @@
-import type { JobberTodayVisit } from "@/lib/care-operations/jobber-today-types";
+import type {
+  JobberTodayAssignedUser,
+  JobberTodayVisit,
+} from "@/lib/care-operations/jobber-today-types";
 
 export type TechnicianVisitReadiness =
   | "ready"
@@ -25,6 +28,65 @@ export interface TechnicianRunSummary {
   complete: number;
   actionRequired: number;
   documented: number;
+}
+
+export interface TechnicianCrewMember extends JobberTodayAssignedUser {
+  stopCount: number;
+}
+
+export const TECHNICIAN_ALL_CREW = "all";
+export const TECHNICIAN_UNASSIGNED_CREW = "unassigned";
+
+type TechnicianAssignmentInput = Pick<
+  JobberTodayVisit,
+  "assignedUsers" | "assignmentReadState"
+>;
+
+export function technicianCrewSelection(userId: string): string {
+  return `user:${userId}`;
+}
+
+export function listTechnicianCrew(
+  visits: TechnicianAssignmentInput[],
+): TechnicianCrewMember[] {
+  const crew = new Map<string, TechnicianCrewMember>();
+  for (const visit of visits) {
+    if (visit.assignmentReadState !== "available") continue;
+    const seenOnVisit = new Set<string>();
+    for (const user of visit.assignedUsers) {
+      if (seenOnVisit.has(user.id)) continue;
+      seenOnVisit.add(user.id);
+      const existing = crew.get(user.id);
+      crew.set(user.id, {
+        id: user.id,
+        name: user.name,
+        stopCount: (existing?.stopCount ?? 0) + 1,
+      });
+    }
+  }
+  return [...crew.values()].sort((left, right) =>
+    left.name.localeCompare(right.name, "en-US"),
+  );
+}
+
+export function filterTechnicianVisits<T extends TechnicianAssignmentInput>(
+  visits: T[],
+  crewSelection: string,
+): T[] {
+  if (crewSelection === TECHNICIAN_ALL_CREW) return visits;
+  if (crewSelection === TECHNICIAN_UNASSIGNED_CREW) {
+    return visits.filter(
+      (visit) =>
+        visit.assignmentReadState === "available" &&
+        visit.assignedUsers.length === 0,
+    );
+  }
+  if (!crewSelection.startsWith("user:")) return visits;
+  const userId = crewSelection.slice("user:".length);
+  if (!userId) return visits;
+  return visits.filter((visit) =>
+    visit.assignedUsers.some((user) => user.id === userId),
+  );
 }
 
 export function resolveTechnicianVisitReadiness(

@@ -27,6 +27,7 @@ import type {
   JobberTodayVisit,
 } from "./jobber-today-types";
 import {
+  readJobberTodayVisitAssignment,
   resolveJobberTodayHomeAtlasContext,
   summarizeJobberTodayVisits,
 } from "./jobber-today-types";
@@ -45,6 +46,7 @@ interface StoredVisitRow {
   scheduled_start: string;
   scheduled_end: string | null;
   is_complete: boolean;
+  raw_payload: unknown;
 }
 
 interface StoredClientRow {
@@ -89,7 +91,7 @@ interface StoredVisibleAssetRow {
 }
 
 const TODAY_VISIT_SELECT =
-  "id, external_visit_id, external_client_id, external_property_id, jobber_property_web_uri, job_number, title, client_name, visit_status, job_status, scheduled_start, scheduled_end, is_complete";
+  "id, external_visit_id, external_client_id, external_property_id, jobber_property_web_uri, job_number, title, client_name, visit_status, job_status, scheduled_start, scheduled_end, is_complete, raw_payload";
 
 function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -143,6 +145,7 @@ function toTodayVisit(
     scheduledStart: row.scheduled_start,
     scheduledEnd: row.scheduled_end,
     isComplete: row.is_complete,
+    ...readJobberTodayVisitAssignment(row.raw_payload),
     propertyLabel: property?.name ?? null,
     jobberPropertyWebUri:
       row.jobber_property_web_uri ?? property?.jobberWebUri ?? null,

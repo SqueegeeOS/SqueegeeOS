@@ -6,6 +6,65 @@ export type JobberTodayVisitMoment =
   | "late"
   | "upcoming";
 
+export type JobberTodayAssignmentReadState =
+  | "available"
+  | "permission_hidden"
+  | "not_observed";
+
+export interface JobberTodayAssignedUser {
+  id: string;
+  name: string;
+}
+
+function assignmentString(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function readJobberTodayVisitAssignment(value: unknown): Pick<
+  JobberTodayVisit,
+  "assignedUsers" | "assignmentReadState"
+> {
+  if (!value || typeof value !== "object") {
+    return { assignedUsers: [], assignmentReadState: "not_observed" };
+  }
+
+  const payload = value as Record<string, unknown>;
+  if (payload.assignmentReadState === "permission_hidden") {
+    return { assignedUsers: [], assignmentReadState: "permission_hidden" };
+  }
+
+  const assignedValue = payload.assignedUsers;
+  const assignedNodes = Array.isArray(assignedValue)
+    ? assignedValue
+    : assignedValue &&
+        typeof assignedValue === "object" &&
+        Array.isArray((assignedValue as Record<string, unknown>).nodes)
+      ? ((assignedValue as Record<string, unknown>).nodes as unknown[])
+      : null;
+  if (!assignedNodes) {
+    return { assignedUsers: [], assignmentReadState: "not_observed" };
+  }
+
+  const users = new Map<string, string>();
+  for (const candidate of assignedNodes) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const user = candidate as Record<string, unknown>;
+    const id = assignmentString(user.id);
+    const nameValue = user.name;
+    const name =
+      assignmentString(nameValue) ??
+      (nameValue && typeof nameValue === "object"
+        ? assignmentString((nameValue as Record<string, unknown>).full)
+        : null);
+    if (id && name) users.set(id, name);
+  }
+
+  return {
+    assignedUsers: [...users].map(([id, name]) => ({ id, name })),
+    assignmentReadState: "available",
+  };
+}
+
 export interface JobberTodayVisit {
   projectionId: string;
   externalVisitId: string;
@@ -17,6 +76,8 @@ export interface JobberTodayVisit {
   scheduledStart: string;
   scheduledEnd: string | null;
   isComplete: boolean;
+  assignedUsers: JobberTodayAssignedUser[];
+  assignmentReadState: JobberTodayAssignmentReadState;
   propertyLabel: string | null;
   jobberPropertyWebUri: string | null;
   jobberClientWebUri: string | null;
@@ -64,6 +125,9 @@ export interface JobberTodaySummary {
   portalUpdated: number;
   completedWithoutRecord: number;
   completedWithPrivateOnlyRecord: number;
+  assigned: number;
+  unassigned: number;
+  assignmentUnknown: number;
 }
 
 export function summarizeJobberTodayVisits(
@@ -73,6 +137,8 @@ export function summarizeJobberTodayVisits(
       | "isComplete"
       | "homeAtlasFieldRecordCount"
       | "homeAtlasCustomerVisibleRecordCount"
+      | "assignedUsers"
+      | "assignmentReadState"
     >
   >,
 ): JobberTodaySummary {
@@ -92,6 +158,19 @@ export function summarizeJobberTodayVisits(
       visit.homeAtlasFieldRecordCount > 0 &&
       visit.homeAtlasCustomerVisibleRecordCount === 0,
   ).length;
+  const assigned = visits.filter(
+    (visit) =>
+      visit.assignmentReadState === "available" &&
+      visit.assignedUsers.length > 0,
+  ).length;
+  const unassigned = visits.filter(
+    (visit) =>
+      visit.assignmentReadState === "available" &&
+      visit.assignedUsers.length === 0,
+  ).length;
+  const assignmentUnknown = visits.filter(
+    (visit) => visit.assignmentReadState !== "available",
+  ).length;
   return {
     total: visits.length,
     complete,
@@ -100,6 +179,9 @@ export function summarizeJobberTodayVisits(
     portalUpdated,
     completedWithoutRecord,
     completedWithPrivateOnlyRecord,
+    assigned,
+    unassigned,
+    assignmentUnknown,
   };
 }
 

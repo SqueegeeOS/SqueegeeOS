@@ -13,9 +13,14 @@ import {
 } from "@/lib/care-operations/jobber-today-types";
 import { readVisitFieldDraft } from "@/lib/field-records/visit-field-draft";
 import {
+  filterTechnicianVisits,
+  listTechnicianCrew,
   resolveTechnicianVisitReadiness,
   selectTechnicianNextAction,
   summarizeTechnicianRun,
+  TECHNICIAN_ALL_CREW,
+  TECHNICIAN_UNASSIGNED_CREW,
+  technicianCrewSelection,
   type TechnicianVisitReadiness,
 } from "@/lib/field-operations/technician-run";
 
@@ -76,6 +81,7 @@ const READINESS_STYLE: Record<
 };
 
 const TIME_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+const TECHNICIAN_CREW_STORAGE_KEY = "homeatlas.field-run.crew-v1";
 
 function timeFormatter(timezone: string): Intl.DateTimeFormat {
   let formatter = TIME_FORMATTERS.get(timezone);
@@ -244,6 +250,24 @@ function TechnicianVisitCard({
           <p className="mt-1 text-sm text-white/45">{visit.propertyLabel}</p>
         ) : null}
 
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3 text-xs">
+          <span className="uppercase tracking-[0.15em] text-white/35">Crew</span>
+          <span
+            className={
+              visit.assignmentReadState !== "available" ||
+              visit.assignedUsers.length === 0
+                ? "text-amber-100"
+                : "text-white/75"
+            }
+          >
+            {visit.assignmentReadState !== "available"
+              ? "Visibility unavailable"
+              : visit.assignedUsers.length > 0
+                ? visit.assignedUsers.map((user) => user.name).join(", ")
+                : "Unassigned in Jobber"}
+          </span>
+        </div>
+
         <div className={`mt-5 rounded-xl border px-4 py-3 ${readinessStyle.className}`}>
           <p className="text-sm font-medium">{readinessStyle.label}</p>
           <p className="mt-1 text-xs leading-relaxed opacity-70">
@@ -337,6 +361,7 @@ export function TechnicianTodayWorkspace() {
   const [data, setData] = useState<JobberTodayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [crewSelection, setCrewSelection] = useState(TECHNICIAN_ALL_CREW);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -378,29 +403,68 @@ export function TechnicianTodayWorkspace() {
     };
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const storedSelection = window.localStorage.getItem(
+        TECHNICIAN_CREW_STORAGE_KEY,
+      );
+      if (storedSelection) setCrewSelection(storedSelection);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  const crew = useMemo(
+    () => (data ? listTechnicianCrew(data.visits) : []),
+    [data],
+  );
+  const activeCrewSelection = useMemo(() => {
+    if (
+      crewSelection === TECHNICIAN_ALL_CREW ||
+      (crewSelection === TECHNICIAN_UNASSIGNED_CREW &&
+        (data?.summary.unassigned ?? 0) > 0) ||
+      crew.some(
+        (member) => technicianCrewSelection(member.id) === crewSelection,
+      )
+    ) {
+      return crewSelection;
+    }
+    return TECHNICIAN_ALL_CREW;
+  }, [crew, crewSelection, data?.summary.unassigned]);
+  const filteredVisits = useMemo(
+    () =>
+      data
+        ? filterTechnicianVisits(data.visits, activeCrewSelection)
+        : [],
+    [activeCrewSelection, data],
+  );
+
   const summary = useMemo(
     () =>
       data
         ? summarizeTechnicianRun(
-            data.visits,
+            filteredVisits,
             data.fieldRecordStatusAvailable,
           )
         : null,
-    [data],
+    [data, filteredVisits],
   );
   const nextAction = useMemo(
     () =>
       data
         ? selectTechnicianNextAction(
-            data.visits,
+            filteredVisits,
             data.fieldRecordStatusAvailable,
           )
         : null,
-    [data],
+    [data, filteredVisits],
   );
   const stale = data
     ? isJobberTodayDataStale(data.lastSyncedAt, new Date(data.loadedAt))
     : false;
+  const selectCrew = useCallback((selection: string) => {
+    setCrewSelection(selection);
+    window.localStorage.setItem(TECHNICIAN_CREW_STORAGE_KEY, selection);
+  }, []);
 
   return (
     <AmbientStage className="min-h-[100svh] bg-[#080b0a] px-4 py-6 text-white sm:px-6 sm:py-10">
@@ -480,12 +544,92 @@ export function TechnicianTodayWorkspace() {
                   tone={summary.actionRequired > 0 ? "warning" : "good"}
                 />
               </div>
+
+              {crew.length > 0 || data.summary.unassigned > 0 ? (
+                <div className="mt-5 border-t border-white/10 pt-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                      Route lens
+                    </p>
+                    <p className="text-[10px] text-white/35">
+                      Saved on this phone
+                    </p>
+                  </div>
+                  <div
+                    className="mt-3 flex snap-x gap-2 overflow-x-auto pb-1"
+                    aria-label="Choose a technician route"
+                  >
+                    <button
+                      type="button"
+                      aria-pressed={activeCrewSelection === TECHNICIAN_ALL_CREW}
+                      onClick={() => selectCrew(TECHNICIAN_ALL_CREW)}
+                      className={`min-h-12 shrink-0 snap-start rounded-full border px-4 text-sm active:scale-[0.99] ${
+                        activeCrewSelection === TECHNICIAN_ALL_CREW
+                          ? "border-[#9be2bd]/45 bg-[#9be2bd]/[0.12] text-[#d5f8e4]"
+                          : "border-white/10 bg-white/[0.025] text-white/60"
+                      }`}
+                    >
+                      All · {data.visits.length}
+                    </button>
+                    {crew.map((member) => {
+                      const selection = technicianCrewSelection(member.id);
+                      return (
+                        <button
+                          key={member.id}
+                          type="button"
+                          aria-pressed={activeCrewSelection === selection}
+                          onClick={() => selectCrew(selection)}
+                          className={`min-h-12 shrink-0 snap-start rounded-full border px-4 text-sm active:scale-[0.99] ${
+                            activeCrewSelection === selection
+                              ? "border-[#9be2bd]/45 bg-[#9be2bd]/[0.12] text-[#d5f8e4]"
+                              : "border-white/10 bg-white/[0.025] text-white/60"
+                          }`}
+                        >
+                          {member.name} · {member.stopCount}
+                        </button>
+                      );
+                    })}
+                    {data.summary.unassigned > 0 ? (
+                      <button
+                        type="button"
+                        aria-pressed={
+                          activeCrewSelection === TECHNICIAN_UNASSIGNED_CREW
+                        }
+                        onClick={() => selectCrew(TECHNICIAN_UNASSIGNED_CREW)}
+                        className={`min-h-12 shrink-0 snap-start rounded-full border px-4 text-sm active:scale-[0.99] ${
+                          activeCrewSelection === TECHNICIAN_UNASSIGNED_CREW
+                            ? "border-amber-300/45 bg-amber-300/[0.12] text-amber-100"
+                            : "border-amber-300/20 bg-amber-300/[0.05] text-amber-100/70"
+                        }`}
+                      >
+                        Unassigned · {data.summary.unassigned}
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </section>
 
             {stale ? (
               <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/[0.08] px-4 py-3 text-sm leading-relaxed text-amber-100">
                 Jobber data is stale. Refresh this view; if the time does not
                 change, ask HQ to run a Jobber sync before trusting the route.
+              </div>
+            ) : null}
+
+            {data.summary.assignmentUnknown > 0 ? (
+              <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/[0.08] px-4 py-3 text-sm leading-relaxed text-amber-100">
+                Crew assignments could not be verified for {data.summary.assignmentUnknown} stop
+                {data.summary.assignmentUnknown === 1 ? "" : "s"}. HQ needs
+                Jobber Users read access before technicians should rely on
+                personal route filtering.
+              </div>
+            ) : data.summary.unassigned > 0 ? (
+              <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/[0.08] px-4 py-3 text-sm leading-relaxed text-amber-100">
+                {data.summary.unassigned} stop
+                {data.summary.unassigned === 1 ? " is" : "s are"} unassigned in
+                Jobber. It stays visible here so work cannot disappear between
+                crews.
               </div>
             ) : null}
 
@@ -508,8 +652,8 @@ export function TechnicianTodayWorkspace() {
             ) : null}
 
             <section className="mt-8 space-y-4" aria-label="Today's field route">
-              {data.visits.length > 0 ? (
-                data.visits.map((visit) => (
+              {filteredVisits.length > 0 ? (
+                filteredVisits.map((visit) => (
                   <TechnicianVisitCard
                     key={visit.projectionId}
                     visit={visit}
@@ -524,7 +668,9 @@ export function TechnicianTodayWorkspace() {
                 <div className="rounded-[1.75rem] border border-white/10 bg-[#111615] px-6 py-12 text-center">
                   <p className="text-lg text-white">No Jobber stops today.</p>
                   <p className="mt-2 text-sm text-white/45">
-                    The route is clear. Check All homes for property memory.
+                    {data.visits.length > 0
+                      ? "No stops match this crew lens. Choose All to see the full route."
+                      : "The route is clear. Check All homes for property memory."}
                   </p>
                 </div>
               )}

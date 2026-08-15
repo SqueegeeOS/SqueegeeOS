@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   classifyJobberTodayVisit,
   isJobberTodayDataStale,
+  readJobberTodayVisitAssignment,
   resolveJobberTodayHomeAtlasContext,
   summarizeJobberTodayVisits,
 } from "./jobber-today-types";
@@ -55,6 +56,44 @@ describe("Jobber Today board states", () => {
     ).toBe(true);
   });
 
+  it("reads normalized and provider-shaped crew assignments defensively", () => {
+    expect(
+      readJobberTodayVisitAssignment({
+        assignmentReadState: "available",
+        assignedUsers: [
+          { id: "user-1", name: "Alex Rivera" },
+          { id: "user-1", name: "Alex Rivera" },
+        ],
+      }),
+    ).toEqual({
+      assignedUsers: [{ id: "user-1", name: "Alex Rivera" }],
+      assignmentReadState: "available",
+    });
+    expect(
+      readJobberTodayVisitAssignment({
+        assignedUsers: {
+          nodes: [{ id: "user-2", name: { full: "Sam Lee" } }],
+        },
+      }),
+    ).toEqual({
+      assignedUsers: [{ id: "user-2", name: "Sam Lee" }],
+      assignmentReadState: "available",
+    });
+    expect(readJobberTodayVisitAssignment({})).toEqual({
+      assignedUsers: [],
+      assignmentReadState: "not_observed",
+    });
+    expect(
+      readJobberTodayVisitAssignment({
+        assignmentReadState: "permission_hidden",
+        assignedUsers: [{ id: "do-not-trust", name: "Hidden" }],
+      }),
+    ).toEqual({
+      assignedUsers: [],
+      assignmentReadState: "permission_hidden",
+    });
+  });
+
   it("separates Jobber completion from proven HomeAtlas closeout", () => {
     expect(
       summarizeJobberTodayVisits([
@@ -62,21 +101,29 @@ describe("Jobber Today board states", () => {
           isComplete: true,
           homeAtlasFieldRecordCount: 1,
           homeAtlasCustomerVisibleRecordCount: 1,
+          assignedUsers: [{ id: "user-1", name: "Alex" }],
+          assignmentReadState: "available",
         },
         {
           isComplete: true,
           homeAtlasFieldRecordCount: 1,
           homeAtlasCustomerVisibleRecordCount: 0,
+          assignedUsers: [],
+          assignmentReadState: "available",
         },
         {
           isComplete: true,
           homeAtlasFieldRecordCount: 0,
           homeAtlasCustomerVisibleRecordCount: 0,
+          assignedUsers: [],
+          assignmentReadState: "permission_hidden",
         },
         {
           isComplete: false,
           homeAtlasFieldRecordCount: 0,
           homeAtlasCustomerVisibleRecordCount: 0,
+          assignedUsers: [],
+          assignmentReadState: "not_observed",
         },
       ]),
     ).toEqual({
@@ -87,6 +134,9 @@ describe("Jobber Today board states", () => {
       portalUpdated: 1,
       completedWithoutRecord: 1,
       completedWithPrivateOnlyRecord: 1,
+      assigned: 1,
+      unassigned: 1,
+      assignmentUnknown: 2,
     });
   });
 
