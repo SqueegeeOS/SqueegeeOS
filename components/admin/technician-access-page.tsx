@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { TechnicianDispatchBoard } from "@/components/admin/technician-dispatch-board";
+import { TechnicianReadinessPanel } from "@/components/admin/technician-readiness-panel";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
@@ -300,6 +301,8 @@ export function TechnicianAccessPage() {
             available below.
           </p>
         ) : null}
+
+        <TechnicianReadinessPanel />
 
         <section className="mt-8 grid gap-3 sm:grid-cols-3">
           {[

@@ -22,6 +22,7 @@ import {
 } from "@/lib/care-operations/jobber-today-links";
 import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
 import { classifyVisitFieldFollowUp } from "@/lib/field-records/visit-field-record";
+import type { TechnicianReadinessSnapshot } from "@/lib/field-operations/technician-readiness";
 import { ROUTES } from "@/lib/navigation/config";
 import {
   referralMemberAnchorId,
@@ -52,6 +53,7 @@ export type OwnerAttentionSourceId =
   | "sales_retention"
   | "today"
   | "owner_leverage"
+  | "technician_readiness"
   | "billing"
   | "communications"
   | "aftercare"
@@ -104,6 +106,7 @@ export interface OwnerAttentionInput {
   salesRetention: OwnerAttentionSourceResult<SalesRetentionAttentionSnapshot>;
   today: OwnerAttentionSourceResult<JobberTodayData>;
   ownerLeverage: OwnerAttentionSourceResult<OwnerLeverageSnapshot>;
+  technicianReadiness: OwnerAttentionSourceResult<TechnicianReadinessSnapshot>;
   billing: OwnerAttentionSourceResult<BillingWorkspaceData>;
   communications: OwnerAttentionSourceResult<CommunicationsLaunchReadiness>;
   aftercare: OwnerAttentionSourceResult<CustomerAftercareSnapshot>;
@@ -157,6 +160,13 @@ const SOURCE_DEFINITIONS: Array<{
     label: "Owner leverage ledger",
     domain: "growth",
     href: ROUTES.hqGrowth,
+    priority: "high",
+  },
+  {
+    id: "technician_readiness",
+    label: "Technician readiness",
+    domain: "field",
+    href: ROUTES.hqTechnicians,
     priority: "high",
   },
   {
@@ -783,6 +793,85 @@ function addOwnerLeverageItems(
   }
 }
 
+function addTechnicianReadinessItems(
+  items: OwnerAttentionItem[],
+  snapshot: TechnicianReadinessSnapshot,
+) {
+  const actionableOutcomes = new Set([
+    "needs_schedule",
+    "needs_review",
+    "did_not_verify",
+    "source_unavailable",
+  ]);
+  const actionableTrials = snapshot.trials
+    .filter(
+      (trial) =>
+        trial.trialDate <= snapshot.today &&
+        actionableOutcomes.has(trial.outcome),
+    )
+    .slice(0, 5);
+
+  for (const trial of actionableTrials) {
+    const copy =
+      trial.outcome === "needs_schedule"
+        ? "No assigned Jobber route is visible for the planned date. Assign a normal route or cancel the trial."
+        : trial.outcome === "needs_review"
+          ? `${trial.reviewedStops}/${trial.scheduledStops} assigned stops have an independence review. Complete every closeout before using the result.`
+          : trial.outcome === "source_unavailable"
+            ? "Jobber or assignment evidence is unavailable, so HomeAtlas refuses to score the day. Restore the source before making a staffing decision."
+            : `${trial.qualifyingIndependentStops}/${trial.scheduledStops} assigned stops qualified. Review owner help, rework, safety, and service exceptions before the next trial.`;
+    items.push({
+      id: `technician-readiness:trial:${trial.id}`,
+      priority:
+        trial.outcome === "source_unavailable" ||
+        trial.outcome === "did_not_verify"
+          ? "critical"
+          : "high",
+      domain: "field",
+      title: `${trial.displayName}'s independent-day trial needs review`,
+      detail: copy,
+      href: ROUTES.hqTechnicians,
+      actionLabel: "Open readiness file",
+      sourceLabel: "Technician readiness",
+      affectedCount: 1,
+      observedAt: snapshot.generatedAt,
+      dueAt: `${trial.trialDate}T23:59:59`,
+    });
+  }
+
+  const hasActiveOrVerifiedTrial = new Set(
+    snapshot.trials
+      .filter(
+        (trial) =>
+          (trial.status === "planned" && trial.trialDate >= snapshot.today) ||
+          trial.outcome === "verified",
+      )
+      .map((trial) => trial.jobberUserId),
+  );
+  const readyToPlan = snapshot.technicians.filter(
+    (technician) =>
+      technician.mirroredRosterActive &&
+      technician.evidenceCompleteForOwnerDecision &&
+      !hasActiveOrVerifiedTrial.has(technician.jobberUserId),
+  );
+  if (readyToPlan.length > 0) {
+    items.push({
+      id: "technician-readiness:ready-to-plan",
+      priority: "normal",
+      domain: "field",
+      title: `${readyToPlan.length} ${plural(readyToPlan.length, "technician")} ready for an owner decision`,
+      detail:
+        "Field Pass, all eight competencies, and at least one clean independent visit are evidenced. Noah can now decide whether to schedule a full normal trial day.",
+      href: ROUTES.hqTechnicians,
+      actionLabel: "Plan independent day",
+      sourceLabel: "Technician readiness",
+      affectedCount: readyToPlan.length,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+}
+
 function billingIssuePriority(row: BillingRegisterRow): OwnerAttentionPriority | null {
   if (
     row.billingExecutionState === "reconciliation_required" ||
@@ -1216,6 +1305,8 @@ function sourceResultFor(
       return input.today;
     case "owner_leverage":
       return input.ownerLeverage;
+    case "technician_readiness":
+      return input.technicianReadiness;
     case "billing":
       return input.billing;
     case "communications":
@@ -1288,6 +1379,9 @@ export function buildOwnerAttentionQueue(
   }
   if (input.ownerLeverage.state === "ready") {
     addOwnerLeverageItems(items, input.ownerLeverage.data, input.now);
+  }
+  if (input.technicianReadiness.state === "ready") {
+    addTechnicianReadinessItems(items, input.technicianReadiness.data);
   }
   if (input.billing.state === "ready") {
     addBillingItems(items, input.billing.data);

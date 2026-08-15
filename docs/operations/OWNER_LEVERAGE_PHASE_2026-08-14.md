@@ -34,6 +34,8 @@ Growth Hours, and signed attributed ARR.
 | Actual field execution | Monotonic `technician_visit_events` | Service-start and service-complete duration when both exist | GPS time, productivity, or labor cost |
 | Visit proof | `property_assessments` and field-record media | A HomeAtlas closeout exists and whether an open field follow-up remains | Quality solely because a photo or note exists |
 | Field independence | HQ review in `field_independence_reviews` | Job class, named assigned technician, owner involvement, owner minutes, quality outcome, and verified duration source | Automatic independence inferred from Jobber completion alone |
+| Technician readiness | Append-only `technician_competency_assessments`, Field Pass state, and qualifying field reviews | The latest observed level for eight named competencies and whether the evidence file is complete for an owner decision | Automatic approval, an employment decision, or capability inferred from a self-reported tap |
+| Independent-day trial | `technician_independent_day_trials` joined to the complete assigned Jobber route and HomeAtlas reviews | Planned date, every assigned stop, completion/review coverage, and a derived verified or exception outcome | A manually declared pass or a result while Jobber assignment evidence is unreadable |
 | Deliberate growth effort | Timed `growth_work_sessions` | Completed minutes by operator, day, and channel, less recorded breaks | Productivity from an open timer or undocumented off-clock activity |
 | New recurring revenue | `sales_rep_attributions` created from a signed agreement | Signed membership annual recurring value attributed to Noah or Dasan | Cash collected, gross profit, or attribution for a presentation with no stable rep lineage |
 | Funnel activity | Owner-linked presentations and sales-rep leads | Leads created, presentations started, signed membership closes, and cohort close rate | Universal lead volume or spend efficiency across channels without complete source and cost inputs |
@@ -129,13 +131,38 @@ weekly new ARR but cannot inflate the dedicated-day result.
 If no day reaches four Growth Hours, HomeAtlas shows ARR per Growth Hour but
 does not claim a dedicated-day result.
 
+## Independent-day readiness contract
+
+Readiness is a private evidence file, not an automatic approval. HomeAtlas
+shows “evidence complete for Noah’s decision” only when all three gates are
+true:
+
+1. The technician has a usable assignment-bounded Field Pass.
+2. The latest append-only observation for each of eight competencies is
+   `independent`: route ownership, scope/property context, equipment/setup,
+   safety/stop-work judgment, service quality, customer handoff,
+   closeout/proof, and exception escalation.
+3. At least one normal, quality-verified, measured visit with zero owner help
+   and no open field/customer exception exists.
+
+When Noah plans a full independent day, the date is recorded but the result is
+not editable. HomeAtlas reads every Jobber stop assigned to that technician on
+the date. The day verifies only if every assigned stop is complete, every stop
+has a HomeAtlas independence review, and every review satisfies the bought-back
+time contract. A missing route, missing review, owner assist, rework, safety
+stop, open exception, disconnected Jobber account, or unreadable assignment
+becomes an explicit outcome and owner-attention item rather than a silent pass.
+The latest full Jobber projection must also be no older than six hours.
+
 ## Daily workflow
 
 ### Before production
 
 1. Confirm Jobber is connected and Today shows the expected assignments.
-2. Confirm Jarad has a valid Field Pass and the correct route/scope.
-3. Resolve assignment or safety ambiguity before the work begins.
+2. Open Team and confirm Jarad’s current Field Pass, eight-skill evidence, and
+   independent-visit gate.
+3. Plan the trial date in HomeAtlas, then build the real normal route in Jobber.
+4. Resolve assignment or safety ambiguity before the work begins.
 
 ### During production
 
@@ -156,7 +183,8 @@ does not claim a dedicated-day result.
    add zero bought-back time.
 5. Growth Sessions are finished with break time and optional notes.
 6. HQ raises an owner-attention exception for completed visits still awaiting
-   review and for Growth Sessions left open eight hours or longer.
+   review, an incomplete/failed independent-day trial, and Growth Sessions left
+   open eight hours or longer.
 
 ## Weekly operating review
 
@@ -178,8 +206,8 @@ does not claim a dedicated-day result.
 - Field independence is a private operating assessment and must not be shown in
   the customer portal.
 - Technician performance facts are private and service-role only.
-- The scoreboard fails closed when migration `061` or a supporting source is
-  unavailable.
+- The scoreboard and readiness file fail closed when migration `061`, migration
+  `062`, or a supporting source is unavailable.
 - A Growth Session can count only if completed within 16 hours. A forgotten
   timer can still be cancelled later so the ledger recovers without inventing
   time.
@@ -190,17 +218,21 @@ does not claim a dedicated-day result.
 
 ## Release boundary
 
-The implementation requires migration `061_owner_leverage_operating_system.sql`
-and the matching application release. Apply migrations in order. After release,
-use only an internal/non-customer Jobber record to rehearse a completed visit,
-closeout, independence review, Growth Session, and signed-attribution display.
-No real customer communication or payment is part of that rehearsal.
+The implementation requires migrations
+`061_owner_leverage_operating_system.sql` and
+`062_technician_readiness_and_independent_day.sql` plus the matching application
+release. Apply migrations in order. After release, use only an
+internal/non-customer Jobber record to rehearse a completed visit, closeout,
+independence review, eight-skill evidence, full independent-day trial, Growth
+Session, and signed-attribution display. No real customer communication or
+payment is part of that rehearsal.
 
 ## Next instrumentation after this phase proves useful
 
 1. A durable labor-cost and technician-capacity ledger.
 2. Channel spend tied to lead source for reliable CAC.
-3. Training competencies and independent-day readiness by technician.
+3. Training-remediation history tied to recurring competency gaps and route
+   exceptions.
 4. Recurring service gross margin by plan and property complexity.
 5. A management-by-exception capacity forecast that recommends when to hire,
    never silently scheduling Noah as the default answer.

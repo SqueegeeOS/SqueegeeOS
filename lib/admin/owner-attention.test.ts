@@ -14,6 +14,7 @@ import type { CustomerAftercareSnapshot } from "@/lib/aftercare/customer-afterca
 import type { JobberTodayData, JobberTodayVisit } from "@/lib/care-operations/jobber-today-types";
 import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
 import type { VisitFieldFollowUpView } from "@/lib/field-records/visit-field-record";
+import type { TechnicianReadinessSnapshot } from "@/lib/field-operations/technician-readiness";
 import type { ReferralAttentionSnapshot } from "@/lib/referrals/attention-types";
 import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
 import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
@@ -180,6 +181,24 @@ function healthyOwnerLeverage(
   };
 }
 
+function healthyTechnicianReadiness(
+  overrides: Partial<TechnicianReadinessSnapshot> = {},
+): TechnicianReadinessSnapshot {
+  return {
+    generatedAt: NOW.toISOString(),
+    today: "2026-08-14",
+    schemaAvailable: true,
+    jobberConnected: true,
+    jobberStatus: "connected",
+    jobberDataFresh: true,
+    lastJobberSyncAt: "2026-08-14T17:30:00.000Z",
+    technicians: [],
+    trials: [],
+    warnings: [],
+    ...overrides,
+  };
+}
+
 function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttentionInput {
   return {
     now: NOW,
@@ -188,6 +207,7 @@ function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttention
     salesRetention: ready(healthySalesRetention()),
     today: ready(healthyToday()),
     ownerLeverage: ready(healthyOwnerLeverage()),
+    technicianReadiness: ready(healthyTechnicianReadiness()),
     billing: ready(healthyBilling()),
     communications: ready(healthyCommunications()),
     aftercare: ready(healthyAftercare()),
@@ -518,6 +538,47 @@ describe("owner attention queue", () => {
         (item) => item.id === "owner-leverage:growth-day-below-floor",
       )?.detail,
     ).toContain("$250 signed ARR");
+  });
+
+  it("routes failed independent-day evidence into owner attention", () => {
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        technicianReadiness: ready(
+          healthyTechnicianReadiness({
+            trials: [
+              {
+                id: "trial-1",
+                jobberUserId: "jarad-jobber-id",
+                displayName: "Jarad",
+                trialDate: "2026-08-13",
+                status: "planned",
+                planNote: null,
+                plannedBy: "HomeAtlas HQ",
+                plannedAt: "2026-08-12T18:00:00.000Z",
+                cancelledAt: null,
+                cancelledBy: null,
+                cancellationReason: null,
+                outcome: "did_not_verify",
+                scheduledStops: 4,
+                completedStops: 4,
+                reviewedStops: 4,
+                qualifyingIndependentStops: 3,
+              },
+            ],
+          }),
+        ),
+      }),
+    );
+
+    expect(
+      response.items.find(
+        (item) => item.id === "technician-readiness:trial:trial-1",
+      ),
+    ).toMatchObject({
+      priority: "critical",
+      href: "/hq/technicians",
+      actionLabel: "Open readiness file",
+    });
   });
 
   it("surfaces referral rewards and old pending referral leads", () => {
