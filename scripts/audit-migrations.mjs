@@ -121,6 +121,7 @@ const checks = [
   ["059", "customer aftercare resolutions", (s) => hasTable(s, "customer_aftercare_resolutions") && s.rlsTables.has("customer_aftercare_resolutions") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["060", "customer service cases", (s) => hasTable(s, "customer_service_cases") && s.rlsTables.has("customer_service_cases") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["061", "owner leverage operating system", (s) => hasTable(s, "growth_work_sessions") && hasTable(s, "field_independence_reviews") && s.indexes.has("growth_work_sessions_one_open_per_rep_uidx") && s.rlsTables.has("growth_work_sessions") && s.rlsTables.has("field_independence_reviews") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
+  ["062", "technician readiness and independent day", (s) => hasTable(s, "technician_competency_assessments") && hasTable(s, "technician_independent_day_trials") && s.indexes.has("technician_competency_assessments_latest_idx") && s.indexes.has("technician_independent_day_trials_planned_date_uidx") && s.rlsTables.has("technician_competency_assessments") && s.rlsTables.has("technician_independent_day_trials") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
 ];
 
 await client.connect();

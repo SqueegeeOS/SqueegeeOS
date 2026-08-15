@@ -259,6 +259,16 @@ async function runSchemaChecks(
       label: "field_independence_reviews",
       table: "field_independence_reviews",
     },
+    {
+      id: "technician-competency-assessments-schema",
+      label: "technician_competency_assessments",
+      table: "technician_competency_assessments",
+    },
+    {
+      id: "technician-independent-day-trials-schema",
+      label: "technician_independent_day_trials",
+      table: "technician_independent_day_trials",
+    },
   ];
 
   const probes = await Promise.all(

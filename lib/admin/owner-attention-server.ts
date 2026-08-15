@@ -12,6 +12,7 @@ import {
 import { runProductionHealthReport } from "@/lib/admin/production-health-server";
 import { loadJobberTodayBoard } from "@/lib/care-operations/jobber-today";
 import { loadCommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness";
+import { loadTechnicianReadinessSnapshot } from "@/lib/field-operations/technician-readiness-server";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
 import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
@@ -41,6 +42,7 @@ export async function loadOwnerAttentionQueue(
     salesRetention,
     today,
     ownerLeverage,
+    technicianReadiness,
     billing,
     communications,
     aftercare,
@@ -91,6 +93,20 @@ export async function loadOwnerAttentionQueue(
       },
     }),
     captureSource({
+      id: "technician_readiness",
+      unavailableDetail:
+        "Atlas could not verify technician readiness and independent-day evidence. Apply migrations 061 and 062 before trusting the first owner-free route.",
+      load: async () => {
+        const snapshot = await loadTechnicianReadinessSnapshot(reference);
+        if (!snapshot.schemaAvailable) {
+          throw new Error(
+            snapshot.warnings[0] ?? "Technician readiness is unavailable.",
+          );
+        }
+        return snapshot;
+      },
+    }),
+    captureSource({
       id: "billing",
       unavailableDetail: "Atlas could not verify the billing register.",
       load: () => {
@@ -129,6 +145,7 @@ export async function loadOwnerAttentionQueue(
     salesRetention,
     today,
     ownerLeverage,
+    technicianReadiness,
     billing,
     communications,
     aftercare,
