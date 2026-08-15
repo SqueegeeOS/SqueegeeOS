@@ -21,8 +21,8 @@ export const metadata: Metadata = {
     images: [
       {
         url: "/atlas-glass/hero-house.jpg",
-        width: 1376,
-        height: 768,
+        width: 1080,
+        height: 1920,
         alt: "A cared-for Chico home connected to its HomeAtlas care record",
       },
     ],

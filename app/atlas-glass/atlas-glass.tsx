@@ -6,6 +6,8 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Day2ReviewsWall } from "@/components/marketing/day2-reviews-wall";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { CUSTOMER_CONTACT } from "@/lib/brand/customer";
+import { SQUEEGEEKING_FOUNDERS } from "@/lib/team/founders";
+import heroHouse from "@/public/atlas-glass/hero-house.jpg";
 import styles from "./atlas-glass.module.css";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -98,6 +100,15 @@ const CARE_OPTIONS = [
   },
 ] as const;
 
+const MEMBER_ORBIT_FEATURES = [
+  "RainBlock treatment",
+  "Priority scheduling",
+  "7-day guarantee",
+  "Member pricing",
+  "Property history",
+  "Simple billing",
+] as const;
+
 const HOMEOWNER_QUESTIONS = [
   {
     question: "Do you offer one-time window cleaning?",
@@ -170,10 +181,11 @@ export function AtlasGlass() {
         aria-labelledby="atlas-hero-title"
       >
         <Image
-          src="/atlas-glass/hero-house.jpg"
+          src={heroHouse}
           alt="A cared-for Chico home in warm evening light"
           fill
           preload
+          placeholder="blur"
           sizes="100vw"
           className={styles.heroImage}
           draggable={false}
@@ -210,6 +222,11 @@ export function AtlasGlass() {
               Get your free Home Care Plan <span aria-hidden="true">↗</span>
             </Link>
             <a href="#homeatlas-live" className={styles.secondaryCta}>See the app in motion</a>
+          </div>
+          <div className={styles.heroTrust} aria-label="SqueegeeKing promises">
+            <span><i aria-hidden="true" />Founder-led in Chico</span>
+            <span>7-day workmanship guarantee</span>
+            <span>Your home keeps the record</span>
           </div>
         </div>
 
@@ -251,11 +268,28 @@ export function AtlasGlass() {
               HomeAtlas turns every service into useful memory. Tap the signals
               to see the same home from four different angles.
             </p>
-            <div className={styles.atlasCore} aria-hidden="true">
+            <div className={styles.atlasCore} aria-label="HomeAtlas member care features">
               <div className={styles.orbitOne}><span /></div>
               <div className={styles.orbitTwo}><span /></div>
+              <div className={styles.featureOrbit}>
+                {MEMBER_ORBIT_FEATURES.map((feature, index) => {
+                  const angle = index * (360 / MEMBER_ORBIT_FEATURES.length) - 90;
+                  return (
+                    <span
+                      key={feature}
+                      className={styles.orbitFeature}
+                      style={{
+                        "--orbit-angle": `${angle}deg`,
+                        "--orbit-counter-angle": `${-angle}deg`,
+                      } as React.CSSProperties}
+                    >
+                      <span>{feature}</span>
+                    </span>
+                  );
+                })}
+              </div>
               <div className={styles.coreMark}><AtlasMark size={76} /></div>
-              <p>ONE HOME<br />ONE RECORD</p>
+              <p>MEMBER CARE<br />IN ORBIT</p>
             </div>
           </div>
 
@@ -264,7 +298,7 @@ export function AtlasGlass() {
               <div className={styles.windowControls} aria-hidden="true"><span /><span /><span /></div>
               <div className={styles.portalIdentity}>
                 <AtlasMark size={26} />
-                <span><strong>HomeAtlas</strong><small>The Bennett Home</small></span>
+                <span><strong>HomeAtlas</strong><small>Your Chico home · live example</small></span>
               </div>
               <span className={styles.memberChip}>CARE MEMBER</span>
             </div>
@@ -292,9 +326,10 @@ export function AtlasGlass() {
 
                 <div className={styles.propertyStrip}>
                   <Image
-                    src="/atlas-glass/hero-house.jpg"
+                    src={heroHouse}
                     alt="The example property attached to this HomeAtlas record"
                     fill
+                    placeholder="blur"
                     sizes="(max-width: 800px) 100vw, 55vw"
                     className={styles.propertyImage}
                   />
@@ -366,6 +401,57 @@ export function AtlasGlass() {
           <li><strong>7-day workmanship guarantee</strong><span>We make it right</span></li>
           <li><strong>Member HomeAtlas</strong><span>Visits and proof in one place</span></li>
         </ul>
+      </section>
+
+      <section className={styles.humanSection} aria-labelledby="human-title">
+        <div className={styles.humanSignal} aria-hidden="true">
+          <span>LOCAL CARE</span><i /><span>PROPERTY MEMORY</span><i /><span>HUMAN FOLLOW-THROUGH</span>
+        </div>
+        <div className={styles.humanLayout}>
+          <div className={styles.humanIntro}>
+            <p className={styles.darkEyebrow}>Technology that keeps service personal</p>
+            <h2 id="human-title">Built in Chico.<em>Kept human.</em></h2>
+            <p>
+              HomeAtlas handles the memory so our team can focus on your home.
+              You get real people, a clear plan, and one living record that
+              follows every promise from the first quote through the next visit.
+            </p>
+            <div className={styles.careLoop} aria-label="How SqueegeeKing care stays connected">
+              <span><b>01</b><strong>We listen</strong><small>Your priorities shape the plan</small></span>
+              <span><b>02</b><strong>We document</strong><small>Visits and proof stay attached</small></span>
+              <span><b>03</b><strong>We remember</strong><small>The next step is never a mystery</small></span>
+            </div>
+          </div>
+
+          <div className={styles.founderGrid}>
+            {SQUEEGEEKING_FOUNDERS.map((founder, index) => {
+              const initials = founder.name
+                .split(/\s+/)
+                .map((part) => part[0])
+                .join("")
+                .slice(0, 2)
+                .toUpperCase();
+
+              return (
+                <article key={founder.id} className={styles.founderCard}>
+                  <div className={styles.founderCardTop}>
+                    <div className={styles.founderOrb} aria-hidden="true">
+                      <i /><span>{initials}</span><b />
+                    </div>
+                    <span className={styles.founderNumber}>{String(index + 1).padStart(2, "0")}</span>
+                  </div>
+                  <div className={styles.founderIdentity}>
+                    <small>{founder.role}</small>
+                    <h3>{founder.name}</h3>
+                  </div>
+                  <p>{founder.bio}</p>
+                  {founder.quote ? <blockquote>“{founder.quote}”</blockquote> : null}
+                  <span className={styles.founderStatus}><i aria-hidden="true" />Building your care system</span>
+                </article>
+              );
+            })}
+          </div>
+        </div>
       </section>
 
       <div id="reviews" className={styles.reviewAnchor}>

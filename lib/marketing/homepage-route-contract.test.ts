@@ -64,11 +64,25 @@ describe("public homepage route contract", () => {
   });
 
   it("uses the promoted hero in search and sharing metadata", () => {
+    expect(readProjectFile("app/atlas-glass/atlas-glass.tsx")).toContain(
+      'import heroHouse from "@/public/atlas-glass/hero-house.jpg"',
+    );
     expect(readProjectFile("app/page.tsx")).toContain(
       "/atlas-glass/hero-house.jpg",
     );
     expect(readProjectFile("app/sitemap.ts")).toContain(
       "/atlas-glass/hero-house.jpg",
     );
+  });
+
+  it("keeps the promoted homepage personal and tied to the real founding team", () => {
+    const atlas = readProjectFile("app/atlas-glass/atlas-glass.tsx");
+
+    expect(atlas).toContain("SQUEEGEEKING_FOUNDERS");
+    expect(atlas).toContain("MEMBER_ORBIT_FEATURES");
+    expect(atlas).toContain("RainBlock treatment");
+    expect(atlas).toContain("Built in Chico.");
+    expect(atlas).toContain("Kept human.");
+    expect(atlas).not.toContain("The Bennett Home");
   });
 });
