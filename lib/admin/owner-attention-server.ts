@@ -19,7 +19,10 @@ import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
 import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
 import { loadReferralAttentionSnapshot } from "@/lib/referrals/attention-server";
 import { loadSalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle-server";
-import { loadSalesLeadAttentionSnapshot } from "@/lib/sales/workspace-server";
+import {
+  loadSalesLeadAttentionSnapshot,
+  loadSalesProductionHandoffAttentionSnapshot,
+} from "@/lib/sales/workspace-server";
 
 async function captureSource<T>(input: {
   id: string;
@@ -40,6 +43,7 @@ export async function loadOwnerAttentionQueue(
   const [
     customerLeads,
     davidPipeline,
+    salesHandoffs,
     salesRetention,
     today,
     ownerLeverage,
@@ -66,6 +70,16 @@ export async function loadOwnerAttentionQueue(
       unavailableDetail: "Atlas could not read David’s open pipeline.",
       load: () =>
         loadSalesLeadAttentionSnapshot(DAVID_REP_PROFILE.slug, reference),
+    }),
+    captureSource({
+      id: "sales_handoffs",
+      unavailableDetail:
+        "Atlas could not verify whether David’s signed members reached scheduled production.",
+      load: () =>
+        loadSalesProductionHandoffAttentionSnapshot(
+          DAVID_REP_PROFILE.slug,
+          reference,
+        ),
     }),
     captureSource({
       id: "sales_retention",
@@ -158,6 +172,7 @@ export async function loadOwnerAttentionQueue(
     now: reference,
     customerLeads,
     davidPipeline,
+    salesHandoffs,
     salesRetention,
     today,
     ownerLeverage,

@@ -1,4 +1,5 @@
 import type { SalesRepProfile } from "./rep-config";
+import type { SalesProductionHandoffRecord } from "./production-handoff";
 
 export const SALES_ACTIVITY_TYPES = [
   "door_knock",
@@ -60,6 +61,7 @@ export interface SalesRepRecentWin {
   attributedArrCents: number;
   status: "pending" | "active" | "qualified";
   attributedAt: string;
+  productionHandoff: SalesProductionHandoffRecord | null;
 }
 
 export interface SalesWorkspacePayload {
@@ -68,6 +70,7 @@ export interface SalesWorkspacePayload {
   leads: SalesRepLead[];
   recentWins: SalesRepRecentWin[];
   recentWinsStatus: "complete" | "unavailable";
+  productionHandoffStatus: "complete" | "unavailable";
   closeLedgerStatus: "complete" | "needs_attention";
   generatedAt: string;
 }

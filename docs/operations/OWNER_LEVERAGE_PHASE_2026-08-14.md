@@ -39,6 +39,7 @@ Growth Hours, and signed attributed ARR.
 | Technician capacity | Append-only `technician_capacity_plans` joined to four weeks of fresh Jobber visit durations and exact crew assignments | Owner-declared weekly hours, currently booked hours, remaining or overloaded hours, unassigned work, and an optional planning labor-cost estimate | Payroll, earned revenue, gross profit, an automatic hiring decision, or open capacity when Jobber truth is stale/incomplete |
 | Deliberate growth effort | Timed `growth_work_sessions` | Completed minutes by operator, day, and channel, less recorded breaks | Productivity from an open timer or undocumented off-clock activity |
 | New recurring revenue | `sales_rep_attributions` created from a signed agreement | Signed membership annual recurring value attributed to Noah or Dasan | Cash collected, gross profit, or attribution for a presentation with no stable rep lineage |
+| Sales-to-production handoff | The signed attribution’s membership plus `jobber_property_links`, `jobber_membership_job_links`, and a fresh full `jobber_visit_projections` snapshot | Whether the close has payment readiness, an active property pairing, at least one classified recurring job, and an upcoming linked visit | That a stale or disconnected Jobber source means no visit exists; that every possible add-on job has been classified |
 | Funnel activity | Owner-linked presentations and sales-rep leads | Leads created, presentations started, signed membership closes, and cohort close rate | Universal lead volume or spend efficiency across channels without complete source and cost inputs |
 | CAC and gross profit | Not reliably available yet | Nothing yet | CAC, contribution margin, or valuation multiples |
 
@@ -180,6 +181,27 @@ Capacity is a planning comparison, not a forecast invented by HomeAtlas:
 6. Missing declarations, unassigned stops, unknown source weeks, and overload
    rise into owner attention. HomeAtlas never assigns Noah as the fallback.
 
+## Signed-to-scheduled handoff contract
+
+A signed close becomes production ready only when five independent proofs are
+present:
+
+1. A completed agreement created the durable salesperson attribution.
+2. The exact membership has safe payment evidence and resolves as active under
+   the canonical membership lifecycle.
+3. The membership property has one active, supervised Jobber property link.
+4. At least one observed recurring Jobber job is explicitly classified to that
+   same membership and property.
+5. A current full Jobber snapshot contains an upcoming, non-cancelled visit on
+   one of those linked jobs.
+
+The `/david` close card shows the verified step count and the next safe action.
+Owner attention ranks payment and lifecycle failures as critical, then routes
+pairing, recurring-job, and scheduling gaps. If Jobber is disconnected or its
+latest snapshot is older than six hours, the fifth proof is **unknown**. Stored
+visits may still be displayed elsewhere as historical context, but HomeAtlas
+must not label the member unscheduled from stale evidence.
+
 ## Daily workflow
 
 ### Before production
@@ -215,6 +237,19 @@ Capacity is a planning comparison, not a forecast invented by HomeAtlas:
    open eight hours or longer.
 7. Capacity exceptions rise without scheduling Noah or mutating Jobber.
 
+### After a signed sale
+
+1. The completed agreement creates the salesperson attribution automatically.
+2. Open the verified close in David’s workspace; never add a manual signed
+   counter or duplicate customer record.
+3. Complete payment setup and resolve the membership lifecycle.
+4. Pair the exact HomeAtlas property, then classify the intended recurring
+   Jobber job.
+5. Create the real visit in Jobber. HomeAtlas verifies the next visit only
+   after a current full read-only sync.
+6. Work any incomplete handoff from owner attention. The handoff view itself
+   does not send, charge, schedule, close, or invoice anything.
+
 ## Weekly operating review
 
 1. Review the independent jobs and hours by technician.
@@ -223,11 +258,13 @@ Capacity is a planning comparison, not a forecast invented by HomeAtlas:
    scope, equipment, scheduling, or capacity root cause.
 4. Compare completed Growth Hours with signed attributed ARR.
 5. Review leads, presentations, closes, close rate, and channel mix.
-6. Review the next four weeks of declared, booked, unassigned, and remaining
+6. Clear signed-member payment, pairing, recurring-job, and scheduling handoff
+   gaps before counting new ARR as operationally absorbed.
+7. Review the next four weeks of declared, booked, unassigned, and remaining
    technician hours.
-7. Decide whether to repeat the current buyback rung, advance one rung, or add
+8. Decide whether to repeat the current buyback rung, advance one rung, or add
    field capacity.
-8. When production capacity is the bottleneck, hire/train capacity instead of
+9. When production capacity is the bottleneck, hire/train capacity instead of
    silently returning Noah to permanent field work.
 
 ## Risk gates

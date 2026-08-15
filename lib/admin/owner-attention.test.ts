@@ -23,6 +23,10 @@ import type {
 import type { ReferralAttentionSnapshot } from "@/lib/referrals/attention-types";
 import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
 import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
+import {
+  deriveSalesProductionHandoff,
+  type SalesProductionHandoffSnapshot,
+} from "@/lib/sales/production-handoff";
 import type {
   SalesLeadAttentionSnapshot,
   SalesRepLead,
@@ -145,6 +149,19 @@ function healthySalesRetention(): SalesRetentionAttentionSnapshot {
   return { generatedAt: NOW.toISOString(), records: [], truncated: false };
 }
 
+function healthySalesHandoffs(): SalesProductionHandoffSnapshot {
+  return {
+    generatedAt: NOW.toISOString(),
+    records: [],
+    summary: {
+      signedCount: 0,
+      readyCount: 0,
+      actionCount: 0,
+      scheduleUnknownCount: 0,
+    },
+  };
+}
+
 function healthyReferrals(): ReferralAttentionSnapshot {
   return { generatedAt: NOW.toISOString(), members: [], truncated: false };
 }
@@ -259,6 +276,7 @@ function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttention
     now: NOW,
     customerLeads: ready([]),
     davidPipeline: ready(davidSnapshot()),
+    salesHandoffs: ready(healthySalesHandoffs()),
     salesRetention: ready(healthySalesRetention()),
     today: ready(healthyToday()),
     ownerLeverage: ready(healthyOwnerLeverage()),
@@ -815,6 +833,80 @@ describe("owner attention queue", () => {
     });
   });
 
+  it("routes signed-member production gaps without calling stale Jobber data unscheduled", () => {
+    const paymentNeeded = deriveSalesProductionHandoff({
+      attributionId: "attribution-payment",
+      membershipId: "membership-payment",
+      homeownerName: "Mandi Rivera",
+      propertyAddress: "88 Oak Way",
+      attributedArrCents: 120_000,
+      attributedAt: "2026-08-14T17:00:00.000Z",
+      membership: {
+        id: "membership-payment",
+        homeowner_id: "homeowner-1",
+        property_id: "property-1",
+        status: "pending_payment",
+        payment_setup_completed_at: null,
+        stripe_payment_method_id: null,
+        stripe_customer_id: null,
+        agreement_id: "agreement-1",
+        sales_tier: "quarterly",
+        visit_price: 300,
+        visits_per_year: 4,
+      },
+      propertyLinked: false,
+      recurringJobCount: 0,
+      scheduleSourceState: "unavailable",
+      scheduleObservedAt: null,
+      nextScheduledAt: null,
+    });
+    const scheduleUnknown = {
+      ...paymentNeeded,
+      attributionId: "attribution-unknown",
+      membershipId: "membership-unknown",
+      homeownerName: "Jeff Mason",
+      stage: "source_unavailable" as const,
+      label: "Schedule unverified",
+      detail: "Current Jobber schedule truth is unavailable.",
+      completedSteps: 4,
+      actionLabel: "Restore Jobber truth",
+      actionHref: "/hq/jobber",
+    };
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        salesHandoffs: ready({
+          generatedAt: NOW.toISOString(),
+          records: [paymentNeeded, scheduleUnknown],
+          summary: {
+            signedCount: 2,
+            readyCount: 0,
+            actionCount: 2,
+            scheduleUnknownCount: 1,
+          },
+        }),
+      }),
+    );
+
+    expect(
+      response.items.find(
+        (item) => item.id === "sales-handoff:attribution-payment",
+      ),
+    ).toMatchObject({
+      priority: "critical",
+      domain: "billing",
+      href: "/hq/customers/membership/membership-payment",
+    });
+    const unknownItem = response.items.find(
+      (item) => item.id === "sales-handoff:schedule-source",
+    );
+    expect(unknownItem).toMatchObject({
+      priority: "high",
+      affectedCount: 1,
+      href: "/hq/jobber",
+    });
+    expect(unknownItem?.detail).toContain("not calling them unscheduled");
+  });
+
   it("surfaces verified review moments and overdue annual care check-ins", () => {
     const reviewAppointmentId = "11111111-1111-4111-8111-111111111111";
     const membershipId = "22222222-2222-4222-8222-222222222222";
@@ -1026,6 +1118,9 @@ describe("owner attention queue", () => {
       "utf8",
     );
     expect(ownerServerSource).toContain("loadCustomerAftercareSnapshot");
+    expect(ownerServerSource).toContain(
+      "loadSalesProductionHandoffAttentionSnapshot",
+    );
     expect(ownerServerSource).not.toContain("customer-aftercare-actions-server");
   });
 });

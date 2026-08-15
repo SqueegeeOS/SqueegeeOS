@@ -12,6 +12,7 @@ function attribution(
 ): SalesRepWinAttributionSource {
   return {
     id,
+    membershipId: `membership-${id}`,
     leadId: `lead-${id}`,
     presentationId: `presentation-${id}`,
     attributedArrCents: 120_000,
@@ -76,6 +77,7 @@ describe("signature-backed recent sales wins", () => {
           clientAddress: "1420 Davis Avenue",
         },
       ],
+      productionHandoffs: [],
     });
 
     expect(wins).toEqual([
