@@ -15,6 +15,11 @@ import type { JobberTodayData, JobberTodayVisit } from "@/lib/care-operations/jo
 import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
 import type { VisitFieldFollowUpView } from "@/lib/field-records/visit-field-record";
 import type { TechnicianReadinessSnapshot } from "@/lib/field-operations/technician-readiness";
+import type {
+  TechnicianCapacitySnapshot,
+  TechnicianCapacityWeekDemand,
+  TechnicianCapacityWeekForecast,
+} from "@/lib/field-operations/technician-capacity";
 import type { ReferralAttentionSnapshot } from "@/lib/referrals/attention-types";
 import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
 import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
@@ -199,6 +204,56 @@ function healthyTechnicianReadiness(
   };
 }
 
+function healthyCapacityWeek(
+  overrides: Partial<TechnicianCapacityWeekDemand> = {},
+): TechnicianCapacityWeekDemand {
+  return {
+    weekStart: "2026-08-10",
+    weekEndExclusive: "2026-08-17",
+    sourceAvailable: true,
+    scheduledVisits: 0,
+    scheduledCrewMinutes: 0,
+    declaredCapacityMinutes: 1_920,
+    remainingCrewMinutes: 1_920,
+    unassignedStops: 0,
+    unassignedMinutes: 0,
+    assignmentUnknownStops: 0,
+    ...overrides,
+  };
+}
+
+function healthyTechnicianCapacity(
+  overrides: Partial<TechnicianCapacitySnapshot> = {},
+): TechnicianCapacitySnapshot {
+  return {
+    generatedAt: NOW.toISOString(),
+    today: "2026-08-14",
+    schemaAvailable: true,
+    jobberConnected: true,
+    jobberStatus: "connected",
+    jobberDataFresh: true,
+    lastJobberSyncAt: "2026-08-14T17:30:00.000Z",
+    technicians: [],
+    weeks: [
+      healthyCapacityWeek(),
+      healthyCapacityWeek({
+        weekStart: "2026-08-17",
+        weekEndExclusive: "2026-08-24",
+      }),
+      healthyCapacityWeek({
+        weekStart: "2026-08-24",
+        weekEndExclusive: "2026-08-31",
+      }),
+      healthyCapacityWeek({
+        weekStart: "2026-08-31",
+        weekEndExclusive: "2026-09-07",
+      }),
+    ],
+    warnings: [],
+    ...overrides,
+  };
+}
+
 function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttentionInput {
   return {
     now: NOW,
@@ -208,6 +263,7 @@ function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttention
     today: ready(healthyToday()),
     ownerLeverage: ready(healthyOwnerLeverage()),
     technicianReadiness: ready(healthyTechnicianReadiness()),
+    technicianCapacity: ready(healthyTechnicianCapacity()),
     billing: ready(healthyBilling()),
     communications: ready(healthyCommunications()),
     aftercare: ready(healthyAftercare()),
@@ -579,6 +635,104 @@ describe("owner attention queue", () => {
       href: "/hq/technicians",
       actionLabel: "Open readiness file",
     });
+  });
+
+  it("routes exact technician overload and unassigned work into owner attention", () => {
+    const capacity = healthyTechnicianCapacity();
+    const jaradWeek: TechnicianCapacityWeekForecast = {
+      weekStart: "2026-08-10",
+      weekEndExclusive: "2026-08-17",
+      plan: null,
+      state: "ready",
+      scheduledStops: 7,
+      scheduledMinutes: 2_100,
+      capacityMinutes: 1_920,
+      remainingMinutes: -180,
+      utilizationPercent: 109.375,
+      planningLaborCostCents: null,
+      overCapacity: true,
+      detail: "180 scheduled minutes exceed declared capacity.",
+    };
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        technicianCapacity: ready({
+          ...capacity,
+          technicians: [
+            {
+              jobberUserId: "jarad-jobber-id",
+              displayName: "Jarad",
+              mirroredRosterActive: true,
+              weeks: [jaradWeek],
+            },
+          ],
+          weeks: [
+            healthyCapacityWeek({
+              scheduledVisits: 8,
+              scheduledCrewMinutes: 2_220,
+              declaredCapacityMinutes: 1_920,
+              remainingCrewMinutes: -300,
+              unassignedStops: 1,
+              unassignedMinutes: 120,
+            }),
+          ],
+        }),
+      }),
+    );
+
+    expect(
+      response.items.find(
+        (item) => item.id === "technician-capacity:over:2026-08-10",
+      ),
+    ).toMatchObject({
+      priority: "critical",
+      href: "/hq/technicians",
+      actionLabel: "Resolve field capacity",
+    });
+    expect(
+      response.items.find(
+        (item) => item.id === "technician-capacity:unassigned:2026-08-10",
+      ),
+    ).toMatchObject({ priority: "high", affectedCount: 1 });
+  });
+
+  it("asks for explicit plans instead of treating undeclared hours as open", () => {
+    const capacity = healthyTechnicianCapacity();
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        technicianCapacity: ready({
+          ...capacity,
+          technicians: [
+            {
+              jobberUserId: "jarad-jobber-id",
+              displayName: "Jarad",
+              mirroredRosterActive: true,
+              weeks: [
+                {
+                  weekStart: "2026-08-10",
+                  weekEndExclusive: "2026-08-17",
+                  plan: null,
+                  state: "no_plan",
+                  scheduledStops: 3,
+                  scheduledMinutes: 360,
+                  capacityMinutes: null,
+                  remainingMinutes: null,
+                  utilizationPercent: null,
+                  planningLaborCostCents: null,
+                  overCapacity: false,
+                  detail: "Capacity is not declared.",
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    );
+
+    expect(
+      response.items.find(
+        (item) => item.id === "technician-capacity:missing-plans",
+      ),
+    ).toMatchObject({ priority: "normal", affectedCount: 1 });
   });
 
   it("surfaces referral rewards and old pending referral leads", () => {

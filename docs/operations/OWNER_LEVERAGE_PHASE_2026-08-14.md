@@ -36,10 +36,11 @@ Growth Hours, and signed attributed ARR.
 | Field independence | HQ review in `field_independence_reviews` | Job class, named assigned technician, owner involvement, owner minutes, quality outcome, and verified duration source | Automatic independence inferred from Jobber completion alone |
 | Technician readiness | Append-only `technician_competency_assessments`, Field Pass state, and qualifying field reviews | The latest observed level for eight named competencies and whether the evidence file is complete for an owner decision | Automatic approval, an employment decision, or capability inferred from a self-reported tap |
 | Independent-day trial | `technician_independent_day_trials` joined to the complete assigned Jobber route and HomeAtlas reviews | Planned date, every assigned stop, completion/review coverage, and a derived verified or exception outcome | A manually declared pass or a result while Jobber assignment evidence is unreadable |
+| Technician capacity | Append-only `technician_capacity_plans` joined to four weeks of fresh Jobber visit durations and exact crew assignments | Owner-declared weekly hours, currently booked hours, remaining or overloaded hours, unassigned work, and an optional planning labor-cost estimate | Payroll, earned revenue, gross profit, an automatic hiring decision, or open capacity when Jobber truth is stale/incomplete |
 | Deliberate growth effort | Timed `growth_work_sessions` | Completed minutes by operator, day, and channel, less recorded breaks | Productivity from an open timer or undocumented off-clock activity |
 | New recurring revenue | `sales_rep_attributions` created from a signed agreement | Signed membership annual recurring value attributed to Noah or Dasan | Cash collected, gross profit, or attribution for a presentation with no stable rep lineage |
 | Funnel activity | Owner-linked presentations and sales-rep leads | Leads created, presentations started, signed membership closes, and cohort close rate | Universal lead volume or spend efficiency across channels without complete source and cost inputs |
-| CAC and gross profit | Not reliably available yet | Nothing yet | CAC, contribution margin, capacity utilization, or valuation multiples |
+| CAC and gross profit | Not reliably available yet | Nothing yet | CAC, contribution margin, or valuation multiples |
 
 ## KPI contract
 
@@ -98,6 +99,7 @@ count so an artificially high rate cannot be created by reviewing only wins.
 - Signed memberships and attributed ARR
 - Cohort close rate
 - Independent jobs and production hours by technician
+- Declared, booked, and remaining production hours by technician and week
 - Unreviewed completed visits
 
 ## Guardrails
@@ -109,6 +111,8 @@ count so an artificially high rate cannot be created by reviewing only wins.
 - Missing measured duration
 - Open Growth Sessions older than 16 hours
 - Provider disconnection or stale Jobber truth
+- Undeclared technician hours, scheduled work without a technician, and booked
+  demand beyond declared field capacity
 - Unattributed closes, which remain excluded rather than assigned by guess
 
 ## Growth-day targets
@@ -154,15 +158,39 @@ stop, open exception, disconnected Jobber account, or unreadable assignment
 becomes an explicit outcome and owner-attention item rather than a silent pass.
 The latest full Jobber projection must also be no older than six hours.
 
+## Four-week capacity contract
+
+Capacity is a planning comparison, not a forecast invented by HomeAtlas:
+
+1. Noah declares the production hours a technician can actually work beginning
+   on a Monday. A newer effective plan supersedes the view without deleting the
+   prior assumption.
+2. HomeAtlas reads four current business weeks of Jobber visits. Each assigned
+   technician consumes the visit duration; an unassigned visit still consumes
+   one visit-duration block of team capacity.
+3. Remaining capacity is declared minutes minus visible scheduled crew minutes.
+   Overload begins only when that exact result is negative; there is no hidden
+   utilization threshold.
+4. Missing duration, unreadable assignment, stale or disconnected Jobber data,
+   a failed schedule query, or a truncated result makes the affected runway
+   unknown rather than zero.
+5. The optional labor-cost field—currently expected to be around $25/hour for
+   Jarad—is an owner planning assumption. It is not payroll or proof of loaded
+   labor cost, and the schedule is not earned revenue.
+6. Missing declarations, unassigned stops, unknown source weeks, and overload
+   rise into owner attention. HomeAtlas never assigns Noah as the fallback.
+
 ## Daily workflow
 
 ### Before production
 
 1. Confirm Jobber is connected and Today shows the expected assignments.
-2. Open Team and confirm Jarad’s current Field Pass, eight-skill evidence, and
-   independent-visit gate.
-3. Plan the trial date in HomeAtlas, then build the real normal route in Jobber.
-4. Resolve assignment or safety ambiguity before the work begins.
+2. Open Team and confirm Jarad’s current Field Pass, eight-skill evidence,
+   independent-visit gate, and declared production hours.
+3. Read the four-week runway; resolve unknown, unassigned, or overloaded work
+   before promising more capacity.
+4. Plan the trial date in HomeAtlas, then build the real normal route in Jobber.
+5. Resolve assignment or safety ambiguity before the work begins.
 
 ### During production
 
@@ -185,6 +213,7 @@ The latest full Jobber projection must also be no older than six hours.
 6. HQ raises an owner-attention exception for completed visits still awaiting
    review, an incomplete/failed independent-day trial, and Growth Sessions left
    open eight hours or longer.
+7. Capacity exceptions rise without scheduling Noah or mutating Jobber.
 
 ## Weekly operating review
 
@@ -194,9 +223,11 @@ The latest full Jobber projection must also be no older than six hours.
    scope, equipment, scheduling, or capacity root cause.
 4. Compare completed Growth Hours with signed attributed ARR.
 5. Review leads, presentations, closes, close rate, and channel mix.
-6. Decide whether to repeat the current buyback rung, advance one rung, or add
+6. Review the next four weeks of declared, booked, unassigned, and remaining
+   technician hours.
+7. Decide whether to repeat the current buyback rung, advance one rung, or add
    field capacity.
-7. When production capacity is the bottleneck, hire/train capacity instead of
+8. When production capacity is the bottleneck, hire/train capacity instead of
    silently returning Noah to permanent field work.
 
 ## Risk gates
@@ -206,33 +237,36 @@ The latest full Jobber projection must also be no older than six hours.
 - Field independence is a private operating assessment and must not be shown in
   the customer portal.
 - Technician performance facts are private and service-role only.
-- The scoreboard and readiness file fail closed when migration `061`, migration
-  `062`, or a supporting source is unavailable.
+- The scoreboard, readiness file, and capacity runway fail closed when migration
+  `061`, `062`, `063`, or a supporting source is unavailable.
 - A Growth Session can count only if completed within 16 hours. A forgotten
   timer can still be cancelled later so the ledger recovers without inventing
   time.
 - Jobber disconnection means appointment and crew truth may be stale; reconnect
   and complete a read-only sync before treating the Today board as current.
-- Gross profit, CAC, capacity utilization, and enterprise-value multiples are
-  intentionally unscored until their inputs are durable and comparable.
+- Gross profit, CAC, and enterprise-value multiples are intentionally unscored
+  until their inputs are durable and comparable. Capacity utilization is shown
+  only as current scheduled minutes divided by an owner-declared plan.
 
 ## Release boundary
 
 The implementation requires migrations
 `061_owner_leverage_operating_system.sql` and
-`062_technician_readiness_and_independent_day.sql` plus the matching application
+`062_technician_readiness_and_independent_day.sql`, and
+`063_technician_capacity_planning.sql` plus the matching application
 release. Apply migrations in order. After release, use only an
 internal/non-customer Jobber record to rehearse a completed visit, closeout,
-independence review, eight-skill evidence, full independent-day trial, Growth
-Session, and signed-attribution display. No real customer communication or
-payment is part of that rehearsal.
+independence review, eight-skill evidence, full independent-day trial, declared
+capacity, four-week runway, Growth Session, and signed-attribution display. No
+real customer communication or payment is part of that rehearsal.
 
 ## Next instrumentation after this phase proves useful
 
-1. A durable labor-cost and technician-capacity ledger.
+1. A durable payroll/loaded-labor source that can replace optional planning cost
+   without rewriting the capacity history.
 2. Channel spend tied to lead source for reliable CAC.
 3. Training-remediation history tied to recurring competency gaps and route
    exceptions.
 4. Recurring service gross margin by plan and property complexity.
-5. A management-by-exception capacity forecast that recommends when to hire,
-   never silently scheduling Noah as the default answer.
+5. Hiring lead-time and demand-pipeline inputs that can recommend when to add
+   capacity without inventing bookings or silently scheduling Noah.

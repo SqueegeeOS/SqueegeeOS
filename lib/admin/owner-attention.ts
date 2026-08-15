@@ -23,6 +23,7 @@ import {
 import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
 import { classifyVisitFieldFollowUp } from "@/lib/field-records/visit-field-record";
 import type { TechnicianReadinessSnapshot } from "@/lib/field-operations/technician-readiness";
+import type { TechnicianCapacitySnapshot } from "@/lib/field-operations/technician-capacity";
 import { ROUTES } from "@/lib/navigation/config";
 import {
   referralMemberAnchorId,
@@ -54,6 +55,7 @@ export type OwnerAttentionSourceId =
   | "today"
   | "owner_leverage"
   | "technician_readiness"
+  | "technician_capacity"
   | "billing"
   | "communications"
   | "aftercare"
@@ -107,6 +109,7 @@ export interface OwnerAttentionInput {
   today: OwnerAttentionSourceResult<JobberTodayData>;
   ownerLeverage: OwnerAttentionSourceResult<OwnerLeverageSnapshot>;
   technicianReadiness: OwnerAttentionSourceResult<TechnicianReadinessSnapshot>;
+  technicianCapacity: OwnerAttentionSourceResult<TechnicianCapacitySnapshot>;
   billing: OwnerAttentionSourceResult<BillingWorkspaceData>;
   communications: OwnerAttentionSourceResult<CommunicationsLaunchReadiness>;
   aftercare: OwnerAttentionSourceResult<CustomerAftercareSnapshot>;
@@ -165,6 +168,13 @@ const SOURCE_DEFINITIONS: Array<{
   {
     id: "technician_readiness",
     label: "Technician readiness",
+    domain: "field",
+    href: ROUTES.hqTechnicians,
+    priority: "high",
+  },
+  {
+    id: "technician_capacity",
+    label: "Technician capacity runway",
     domain: "field",
     href: ROUTES.hqTechnicians,
     priority: "high",
@@ -254,6 +264,11 @@ function formatDollars(value: number): string {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(Math.max(0, value));
+}
+
+function formatCapacityHours(minutes: number): string {
+  const value = Math.abs(minutes) / 60;
+  return `${value.toFixed(Number.isInteger(value) ? 0 : 1)}h`;
 }
 
 function firstUsefulLeadContext(lead: LeadIntakeRecord): string {
@@ -872,6 +887,107 @@ function addTechnicianReadinessItems(
   }
 }
 
+function addTechnicianCapacityItems(
+  items: OwnerAttentionItem[],
+  snapshot: TechnicianCapacitySnapshot,
+) {
+  const unavailableWeeks = snapshot.weeks.filter(
+    (week) => !week.sourceAvailable,
+  );
+  if (unavailableWeeks.length > 0) {
+    items.push({
+      id: "technician-capacity:source-unavailable",
+      priority: "high",
+      domain: "field",
+      title: `${unavailableWeeks.length} capacity ${plural(unavailableWeeks.length, "week")} cannot be verified`,
+      detail:
+        "Jobber connection, freshness, assignment, or duration evidence is incomplete. HomeAtlas is treating booked capacity as unknown, not empty.",
+      href: ROUTES.hqTechnicians,
+      actionLabel: "Restore capacity truth",
+      sourceLabel: "Technician capacity runway",
+      affectedCount: unavailableWeeks.length,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+
+  const missingPlans = snapshot.technicians.filter(
+    (technician) =>
+      technician.mirroredRosterActive &&
+      technician.weeks.some((week) => week.state === "no_plan"),
+  );
+  if (missingPlans.length > 0) {
+    const names = missingPlans.slice(0, 4).map((technician) => technician.displayName);
+    items.push({
+      id: "technician-capacity:missing-plans",
+      priority: "normal",
+      domain: "field",
+      title: `${missingPlans.length} ${plural(missingPlans.length, "technician")} need declared capacity`,
+      detail: `${names.join(", ")}${missingPlans.length > names.length ? ", and more" : ""} have at least one undeclared week in the four-week runway. Add an owner planning assumption before treating open hours as real.`,
+      href: ROUTES.hqTechnicians,
+      actionLabel: "Declare capacity",
+      sourceLabel: "Technician capacity runway",
+      affectedCount: missingPlans.length,
+      observedAt: snapshot.generatedAt,
+      dueAt: null,
+    });
+  }
+
+  for (const [weekIndex, week] of snapshot.weeks.entries()) {
+    if (
+      week.sourceAvailable &&
+      week.remainingCrewMinutes !== null &&
+      week.remainingCrewMinutes < 0
+    ) {
+      const overloaded = snapshot.technicians
+        .map((technician) => ({
+          technician,
+          week: technician.weeks.find(
+            (forecast) => forecast.weekStart === week.weekStart,
+          ),
+        }))
+        .filter(({ week: forecast }) => forecast?.overCapacity)
+        .map(
+          ({ technician, week: forecast }) =>
+            `${technician.displayName} ${formatCapacityHours(forecast!.scheduledMinutes ?? 0)} booked / ${formatCapacityHours(forecast!.capacityMinutes ?? 0)} declared`,
+        );
+      items.push({
+        id: `technician-capacity:over:${week.weekStart}`,
+        priority: weekIndex <= 1 ? "critical" : "high",
+        domain: "field",
+        title: `${formatCapacityHours(week.remainingCrewMinutes)} over field capacity the week of ${week.weekStart}`,
+        detail:
+          overloaded.length > 0
+            ? `${overloaded.join(" · ")}. Add or retrain production capacity instead of silently putting Noah back on the route.`
+            : "Scheduled demand, including unassigned work, exceeds the field team's declared hours. Add or retrain production capacity instead of silently putting Noah back on the route.",
+        href: ROUTES.hqTechnicians,
+        actionLabel: "Resolve field capacity",
+        sourceLabel: "Technician capacity runway",
+        affectedCount: Math.max(1, overloaded.length),
+        observedAt: snapshot.generatedAt,
+        dueAt: `${week.weekStart}T08:00:00`,
+      });
+    }
+
+    if (week.sourceAvailable && (week.unassignedStops ?? 0) > 0) {
+      const count = week.unassignedStops ?? 0;
+      items.push({
+        id: `technician-capacity:unassigned:${week.weekStart}`,
+        priority: "high",
+        domain: "dispatch",
+        title: `${count} scheduled ${plural(count, "stop")} unassigned the week of ${week.weekStart}`,
+        detail: `${formatCapacityHours(week.unassignedMinutes ?? 0)} of visible work has no assigned Jobber technician. Assign field capacity before the route becomes an owner fallback.`,
+        href: ROUTES.hqTechnicians,
+        actionLabel: "Assign production",
+        sourceLabel: "Technician capacity runway",
+        affectedCount: count,
+        observedAt: snapshot.generatedAt,
+        dueAt: `${week.weekStart}T08:00:00`,
+      });
+    }
+  }
+}
+
 function billingIssuePriority(row: BillingRegisterRow): OwnerAttentionPriority | null {
   if (
     row.billingExecutionState === "reconciliation_required" ||
@@ -1307,6 +1423,8 @@ function sourceResultFor(
       return input.ownerLeverage;
     case "technician_readiness":
       return input.technicianReadiness;
+    case "technician_capacity":
+      return input.technicianCapacity;
     case "billing":
       return input.billing;
     case "communications":
@@ -1382,6 +1500,9 @@ export function buildOwnerAttentionQueue(
   }
   if (input.technicianReadiness.state === "ready") {
     addTechnicianReadinessItems(items, input.technicianReadiness.data);
+  }
+  if (input.technicianCapacity.state === "ready") {
+    addTechnicianCapacityItems(items, input.technicianCapacity.data);
   }
   if (input.billing.state === "ready") {
     addBillingItems(items, input.billing.data);
