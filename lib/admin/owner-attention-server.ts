@@ -13,6 +13,7 @@ import { runProductionHealthReport } from "@/lib/admin/production-health-server"
 import { loadJobberTodayBoard } from "@/lib/care-operations/jobber-today";
 import { loadCommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness";
 import { loadTechnicianReadinessSnapshot } from "@/lib/field-operations/technician-readiness-server";
+import { loadTechnicianCapacitySnapshot } from "@/lib/field-operations/technician-capacity-server";
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
 import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
@@ -43,6 +44,7 @@ export async function loadOwnerAttentionQueue(
     today,
     ownerLeverage,
     technicianReadiness,
+    technicianCapacity,
     billing,
     communications,
     aftercare,
@@ -107,6 +109,20 @@ export async function loadOwnerAttentionQueue(
       },
     }),
     captureSource({
+      id: "technician_capacity",
+      unavailableDetail:
+        "Atlas could not verify the four-week field capacity runway. Apply migration 063 and restore fresh Jobber schedule evidence before trusting open hours.",
+      load: async () => {
+        const snapshot = await loadTechnicianCapacitySnapshot(reference);
+        if (!snapshot.schemaAvailable) {
+          throw new Error(
+            snapshot.warnings[0] ?? "Technician capacity is unavailable.",
+          );
+        }
+        return snapshot;
+      },
+    }),
+    captureSource({
       id: "billing",
       unavailableDetail: "Atlas could not verify the billing register.",
       load: () => {
@@ -146,6 +162,7 @@ export async function loadOwnerAttentionQueue(
     today,
     ownerLeverage,
     technicianReadiness,
+    technicianCapacity,
     billing,
     communications,
     aftercare,

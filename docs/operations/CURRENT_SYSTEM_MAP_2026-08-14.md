@@ -12,17 +12,17 @@ that a provider-backed workflow is live.
 - Current production commit: `41b5e19a88a0600e5bc3bea171986bed044d0a94`
 - Production deployment state: `READY`
 - Local release branch: `codex/communications-readiness`
-- Verified local base before this technician-readiness batch: `8530087`
-- Local branch position with this technician-readiness release: 38 commits ahead of
+- Verified local base before the technician-capacity batch: `e32d4f5`
+- Local branch position with this technician-capacity release: 39 commits ahead of
   the deployed production commit
-- Repository size: 76 page entrypoints, 97 API entrypoints, 38 `lib/` domains,
-  61 numbered SQL migrations (`002` through `062`), and 192 test source files
-- Full local verification after the technician-readiness work:
-  - 191 test files passed
-  - 915 tests passed
+- Repository size: 76 page entrypoints, 99 API entrypoints, 38 `lib/` domains,
+  62 numbered SQL migrations (`002` through `063`), and 196 test source files
+- Full local verification after the technician-capacity work:
+  - 193 test files passed
+  - 928 tests passed
   - TypeScript passed
   - ESLint passed with 0 errors and 90 inherited warnings
-  - Next.js 16.2.10 production Webpack build passed; 134 static-generation
+  - Next.js 16.2.10 production Webpack build passed; 135 static-generation
     units completed
 - Live public checks:
   - `https://www.squeegeeking.net/` returned 200
@@ -41,13 +41,13 @@ public acquisition, presentation, enrollment, portal, sales-representative,
 HQ, communications, billing, review, and Jobber integration surfaces all
 exist. The most important constraint today is release and provider state:
 
-1. Production is running commit `41b5e19`, not the 37-commit verified local
+1. Production is running commit `41b5e19`, not the 39-commit verified local
    operations branch.
 2. Production Jobber is currently disconnected. Jobber webhooks are arriving,
    but background synchronization and the reconcile cron cannot use them.
 3. The field evidence, property-memory, technician access, visit-event, portal
    proof, dispatch, customer-aftercare, member case-intake, owner-leverage, and
-   technician-readiness release requires migrations `054` through `062` and an
+   technician-readiness/capacity release requires migrations `054` through `063` and an
    application deployment.
 4. Customer messaging and unattended billing are correctly fail-closed. They
    must not be described as active until provider verification and owner
@@ -86,14 +86,15 @@ These capabilities are implemented and verified on
 | Visit event automation | Monotonic On my way → Arrived → Working → Service complete → Departed event ledger; completion requires a saved closeout | Apply `058`; deploy |
 | Customer live service | Bearer-token portals receive a deliberately limited live visit stage without technician IDs, route data, internal notes, or provider IDs | Apply `058`; deploy |
 | Technician dispatch | HQ shows scheduled crew, usable Field Pass state, active stop, proof state, route-complete state, unassigned work, and the exact stop needing attention; refreshes every minute while visible | Apply `054`–`058` and deploy |
-| Owner attention queue | HQ ranks current website/Meta leads, David follow-ups, salesperson retention drift, dispatch drift, field follow-ups and proof gaps, completed visits awaiting independence review, stale Growth Sessions, incomplete or failed independent-day trials, billing exceptions, communication gates, review-ready visits, annual member check-ins, referral rewards, stale referred leads, and uncovered production safeguards; each item deep-links to the exact record when possible and treats unreadable sources as unknown | Deploy the local branch and verify the authorized `/api/admin/attention` response in production |
+| Owner attention queue | HQ ranks current website/Meta leads, David follow-ups, salesperson retention drift, dispatch drift, field follow-ups and proof gaps, completed visits awaiting independence review, stale Growth Sessions, incomplete or failed independent-day trials, undeclared/unknown/overloaded technician capacity, unassigned scheduled work, billing exceptions, communication gates, review-ready visits, annual member check-ins, referral rewards, stale referred leads, and uncovered production safeguards; each item deep-links to the exact record when possible and treats unreadable sources as unknown | Deploy the local branch and verify the authorized `/api/admin/attention` response in production |
 | Referral and retention aftercare | Read-only projections identify converted referrals awaiting reward review, available Care Credit, referred leads pending at least seven days, cancelled-member attribution drift, and due salesperson retention checkpoints without invoking the existing reward or lifecycle writers | Deploy and verify exact links against non-customer/internal records; operational changes remain explicit owner actions |
 | Customer aftercare | A private Care workspace derives review opportunities only after a verified completed Jobber visit has a saved field record, customer-visible proof, and no open service follow-up; it also derives annual care check-ins from the real membership start date and stores explicit owner outcomes without sending a message | Apply migrations `054` and `059`; deploy; verify with non-customer/internal records |
 | Customer service recovery | The bearer-token portal can create and re-display a private care case tied only to the server-resolved member/property and an optional verified visit; retries are idempotent, unresolved intake is capped, private owner notes never enter the portal response, HQ can acknowledge/resolve explicitly, and open cases rank in owner attention without sending a message | Apply migration `060`; deploy; verify only with an internal/non-customer portal token before opening to members |
 | Multi-property member portal | A token proves one durable homeowner record, then a mobile-first Your homes switcher projects only that homeowner’s current memberships and navigates each card to the property’s canonical portal so payment, referral, visit, theme, and case actions remain correctly scoped; cancelled history and malformed joins are excluded | Deploy; verify with an internal homeowner who has two current property memberships before exposing it to customers |
 | Owner leverage loop | Today records one private field-independence review per verified, matched, completed, assigned, documented Jobber visit; only normal, quality-verified, zero-owner, measured work with no open exception counts toward the 8 → 16 → 24 → 32 hour ladder. Growth clocks for Noah and Dasan connect completed effort to agreement-backed attributed ARR, alert after eight hours, and allow an overlong timer to be cancelled but never counted—all without sending, charging, compensating, invoicing, or mutating Jobber | Apply migration `061`; deploy; rehearse on an internal/non-customer record while Jobber is connected |
 | Technician readiness + independent-day proof | HQ keeps append-only evidence across eight observable competencies, requires an active assignment-bounded Field Pass and at least one qualifying independent visit, and labels the file only “evidence complete for Noah’s decision.” A planned trial is automatically derived from every assigned Jobber stop; it verifies only when all stops complete, all reviews exist, every review is normal/quality-verified/zero-owner, and no field or customer exception is open. Unknown assignment, a Jobber projection older than six hours, or disconnected Jobber truth fails closed; there is no manual pass button | Apply migrations `061` and `062`; deploy; rehearse a full internal/non-customer route while Jobber is connected |
-| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, visit-story history, owner-attributed presentations, stale-session recovery, and production migration audits through `062` | Deploy the 38-commit local branch with its migrations |
+| Technician capacity runway | HQ Team keeps append-only owner declarations of weekly production hours and optional planning labor cost, then compares them with four current business weeks of fresh Jobber duration and crew-assignment evidence. Unassigned work consumes team capacity; unreadable, stale, disconnected, or truncated source data becomes unknown; no automatic assignment or Noah fallback occurs | Apply migration `063`; deploy; declare Jarad's real available hours; verify against a fresh read-only Jobber schedule |
+| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, visit-story history, owner-attributed presentations, stale-session recovery, and production migration audits through `063` | Deploy the 39-commit local branch with its migrations |
 
 ### PARTIAL
 
@@ -105,7 +106,7 @@ These capabilities are implemented and verified on
 | Communications | Durable conversations/messages, Resend and Twilio providers, signed webhooks, consent ledger, STOP handling, quiet hours, manual send, lead acknowledgement, and appointment reminder workers exist | Twilio sender approval and current webhook proof are not confirmed; Resend readiness is not re-verified in this audit; no real message was sent during validation |
 | Automatic billing | First-business-day cron, fresh-Jobber-snapshot gate, standing authorization checks, Stripe PaymentIntent idempotency, amount caps, leases, retries, webhook reconciliation, preview, pause, and kill switches exist | Jobber is disconnected; live Stripe webhook verification and the founder's armed state were not proven here; no charge was attempted |
 | AI presentation assistant | A private, schema-constrained OpenAI plan assistant turns owner notes into editable visit scope without making the model a source of truth | Production `OPENAI_API_KEY` configuration is not proven; the broader operational copilot is not built |
-| Technician workflow | Legacy `/tech` field and property routes exist in production | The secure assignment-bound Field Pass, automated Field Run, readiness evidence, and first independent-day trial are still local |
+| Technician workflow | Legacy `/tech` field and property routes exist in production | The secure assignment-bound Field Pass, automated Field Run, readiness evidence, first independent-day trial, and capacity runway are still local |
 | Meta lead ads | Signed Meta webhook intake, source attribution fields, idempotency, owner-alert state, and lead acknowledgement integration exist | Meta app/page/form subscription and current provider verification are not proven |
 | Payments | Stripe payment-method onboarding and membership activation are deployed | This audit did not make a real payment; unattended monthly collection remains gated as described above |
 
@@ -146,7 +147,7 @@ These capabilities are implemented and verified on
 | --- | --- | --- |
 | Jobber production disconnected | OAuth authorization cannot be fabricated by code | Owner reconnects Jobber once; then run read-only full sync and verify account identity |
 | Field and aftercare release not deployed | GitHub push/PR access is unavailable from this current session; production follows `main` | Preserve a complete Git bundle and publish the verified branch when access returns |
-| Migrations `054`–`062` not proven in production | Local checkout has no production DB URL and no database connector was available in this audit | Apply in order, verify each schema effect, then deploy matching code |
+| Migrations `054`–`063` not proven in production | Local checkout has no production DB URL and no database connector was available in this audit | Apply in order, verify each schema effect, then deploy matching code |
 | Twilio not armed | Sender registration/approval and signed webhook verification are provider-controlled | Keep SMS rules off; after approval, verify with the owner's opted-in number |
 | Meta lead subscription unproven | Requires the correct Meta business, page, form, and webhook subscription | Connect one test form, use a provider test lead, verify source attribution, then enable |
 | Automatic billing unproven | Requires connected Jobber, current Stripe webhook proof, signed authorization, owner cap, and explicit arming | Use preview only until every gate is green; rehearse with a non-customer/internal record |
@@ -158,7 +159,7 @@ These capabilities are implemented and verified on
    automation—Today, portal appointment truth, field assignment, scope,
    billing preview, and dispatch—depends on it.
 2. Release the verified field, aftercare, service-recovery, and owner-leverage
-   branch with migrations `054` through `062`.
+   branch with migrations `054` through `063`.
 3. Run the technician acceptance test using an internal/demo Jobber client:
    assigned route, Field Pass, scope, proof, closeout, departure, owner
    exception, and safe customer portal status. Send no customer message.
@@ -166,7 +167,7 @@ These capabilities are implemented and verified on
    verify that production leads,
    David follow-ups, Jobber visits, field proof, customer-reported cases,
    customer aftercare, field-independence reviews, technician trials, Growth Sessions, attributed
-   ARR, billing, communications, and production safeguards resolve to the
+   ARR, technician capacity, billing, communications, and production safeguards resolve to the
    correct records without causing implicit writes.
 5. Verify provider readiness in order: Resend, Twilio, Meta, Stripe. Only then
    enable narrowly scoped automation rules with kill switches and audit logs.

@@ -269,6 +269,11 @@ async function runSchemaChecks(
       label: "technician_independent_day_trials",
       table: "technician_independent_day_trials",
     },
+    {
+      id: "technician-capacity-plans-schema",
+      label: "technician_capacity_plans",
+      table: "technician_capacity_plans",
+    },
   ];
 
   const probes = await Promise.all(
