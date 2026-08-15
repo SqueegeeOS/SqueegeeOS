@@ -5,6 +5,10 @@ import { getPropertyHealthHeader } from "@/lib/health/repository";
 import { assessmentTypeLabel } from "@/lib/health/assessment-types";
 import { getAreaDefinition } from "@/lib/health/assessment-areas";
 import { SCORE_COLORS } from "@/lib/health/assessment-types";
+import {
+  requireFieldPageActor,
+  requireFieldPropertyPageActor,
+} from "@/lib/field-operations/field-access-dal";
 
 export const metadata: Metadata = {
   title: "Proposal Preview | Technician",
@@ -18,6 +22,7 @@ interface ProposalPreviewPageProps {
 export default async function ProposalPreviewPage({
   searchParams,
 }: ProposalPreviewPageProps) {
+  await requireFieldPageActor("/tech/proposal-preview");
   const { propertyId, assessmentId } = await searchParams;
 
   if (!propertyId || !assessmentId) {
@@ -27,6 +32,11 @@ export default async function ProposalPreviewPage({
       </div>
     );
   }
+
+  await requireFieldPropertyPageActor(
+    propertyId,
+    `/tech/proposal-preview?propertyId=${encodeURIComponent(propertyId)}&assessmentId=${encodeURIComponent(assessmentId)}`,
+  );
 
   const [property, assessment] = await Promise.all([
     getPropertyHealthHeader(propertyId),

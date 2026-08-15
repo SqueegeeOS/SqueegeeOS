@@ -31,6 +31,11 @@ export function buildPortalAccessUrl(
   return `${base.replace(/\/$/, "")}${path}`;
 }
 
+/** Canonical public origin for provider redirects; never returns a protected Vercel preview. */
+export function resolvePublicAppOrigin(origin?: string | null): string {
+  return resolveAppOrigin(origin) ?? CANONICAL_PUBLIC_ORIGIN;
+}
+
 function resolveAppOrigin(explicit?: string | null): string | null {
   const configured = normalizePublicOrigin(process.env.NEXT_PUBLIC_APP_URL);
   if (configured) return configured;

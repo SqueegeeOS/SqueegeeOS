@@ -21,6 +21,7 @@ export function NewPresentationPage({
   const [unlocked, setUnlocked] = useState(false);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isLeadPitch = Boolean(repSlug && salesRepLeadId);
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
@@ -36,13 +37,18 @@ export function NewPresentationPage({
         body: JSON.stringify({ repSlug, salesRepLeadId }),
       });
       const body = (await response.json().catch(() => null)) as {
-        presentation?: { id: string };
+        presentation?: { id: string; status?: string };
+        resumed?: boolean;
         error?: string;
       } | null;
       if (!response.ok || !body?.presentation?.id) {
         throw new Error(body?.error ?? "Could not create presentation");
       }
-      router.replace(`/presentations/${body.presentation.id}/edit`);
+      router.replace(
+        body.presentation.status === "signed"
+          ? `/presentations/${body.presentation.id}/present`
+          : `/presentations/${body.presentation.id}/edit`,
+      );
     } catch (createError) {
       setError(
         createError instanceof Error
@@ -59,9 +65,13 @@ export function NewPresentationPage({
         <p className="text-[10px] uppercase tracking-[0.24em] text-[#c9a96e]">
           Field presentation
         </p>
-        <h1 className="mt-4 font-serif text-3xl">Start a new client</h1>
+        <h1 className="mt-4 font-serif text-3xl">
+          {isLeadPitch ? "Open this homeowner" : "Start a new client"}
+        </h1>
         <p className="mt-3 text-sm leading-relaxed text-white/50">
-          This creates a private draft, then opens the details and pricing editor.
+          {isLeadPitch
+            ? "HomeAtlas will resume this homeowner’s presentation or create it once, then open the pricing editor."
+            : "This creates a private draft, then opens the details and pricing editor."}
         </p>
         {repSlug ? (
           <p className="mt-3 text-xs font-medium text-[#c9a96e]">
@@ -75,7 +85,11 @@ export function NewPresentationPage({
           disabled={creating}
           className="mt-7 min-h-[52px] w-full rounded-full bg-[#c9a96e] px-6 text-sm font-medium text-[#090909] disabled:opacity-50"
         >
-          {creating ? "Creating…" : "Create presentation"}
+          {creating
+            ? "Opening…"
+            : isLeadPitch
+              ? "Open homeowner presentation"
+              : "Create presentation"}
         </button>
         <Link
           href={backHref}

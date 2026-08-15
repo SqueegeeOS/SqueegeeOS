@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { PropertyAssessmentTool } from "@/components/assessment/PropertyAssessmentTool";
 import { getPropertyHealthHeader } from "@/lib/health/repository";
+import { requireFieldPropertyPageActor } from "@/lib/field-operations/field-access-dal";
+import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
   title: "Property Assessment | Technician",
@@ -16,13 +18,18 @@ export default async function TechPropertyAssessmentPage({
   params,
 }: TechPropertyAssessmentPageProps) {
   const { id } = await params;
+  const actor = await requireFieldPropertyPageActor(
+    id,
+    `/tech/properties/${id}/assessment`,
+  );
+  if (actor.kind === "technician") redirect("/tech?use=field-closeout");
   const property = await getPropertyHealthHeader(id);
 
   if (!property) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16 text-center">
         <p className="text-sm text-[#555]">Property not found.</p>
-        <Link href="/tech" className="mt-4 inline-block text-sm text-[#c9a96e]">
+        <Link href="/tech/properties" className="mt-4 inline-block text-sm text-[#c9a96e]">
           ← All properties
         </Link>
       </div>

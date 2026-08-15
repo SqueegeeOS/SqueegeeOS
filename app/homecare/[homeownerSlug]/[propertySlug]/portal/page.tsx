@@ -36,6 +36,7 @@ export default async function MemberPortalPage({ params }: MemberPortalPageProps
       homeHealthHref={model.homeHealthHref}
       portalBasePath={model.portalBasePath}
       customerPortalMode={model.customerPortalMode}
+      portalHousehold={model.portalHousehold}
     />
   );
 }

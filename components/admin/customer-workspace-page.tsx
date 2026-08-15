@@ -273,7 +273,7 @@ export function CustomerWorkspacePage({
                 </button>
               ) : null}
               {workspace.lead &&
-              workspace.lead.status !== "scheduled" &&
+              !workspace.presentation &&
               workspace.lead.status !== "archived" ? (
                 <button
                   type="button"
@@ -286,7 +286,9 @@ export function CustomerWorkspacePage({
                   }
                   className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 disabled:opacity-40"
                 >
-                  Schedule presentation
+                  {workspace.lead.status === "scheduled"
+                    ? "Repair presentation"
+                    : "Schedule presentation"}
                 </button>
               ) : null}
               {workspace.lead && workspace.lead.status !== "archived" ? (

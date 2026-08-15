@@ -8,11 +8,22 @@ export type AssessmentType =
   | "custom"
   | "visit_note";
 
+export type AssessmentFollowUpStatus = "open" | "resolved";
+
 export interface RecommendedService {
   id: string;
   service: string;
   priority: "high" | "medium" | "low";
   note: string;
+}
+
+export interface AssessmentServiceScopeItem {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  category: string | null;
+  completed: boolean;
 }
 
 export interface AssessmentFormState {
@@ -35,6 +46,7 @@ export interface PropertyAssessment {
   id: string;
   propertyId: string;
   visitId: string | null;
+  fieldRecordId: string | null;
   assessmentType: AssessmentType;
   technicianName: string;
   visitDate: string;
@@ -47,6 +59,18 @@ export interface PropertyAssessment {
   customerNoteVisible: boolean;
   proposalSummary: string | null;
   recommendedServices: RecommendedService[];
+  followUpStatus: AssessmentFollowUpStatus | null;
+  followUpDueAt: string | null;
+  followUpResolvedAt: string | null;
+  followUpResolvedBy: string | null;
+  scopeReadState?:
+    | "available"
+    | "partial"
+    | "permission_hidden"
+    | "not_observed"
+    | null;
+  serviceScope?: AssessmentServiceScopeItem[];
+  scopeException?: string | null;
   proposalSent: boolean;
   proposalSentAt: string | null;
   createdAt: string;

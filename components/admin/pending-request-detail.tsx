@@ -132,7 +132,7 @@ export function PendingRequestDetail({ id }: { id: string }) {
                   Mark Contacted
                 </button>
               ) : null}
-              {lead.status !== "scheduled" && lead.status !== "archived" ? (
+              {lead.status !== "archived" ? (
                 <button
                   type="button"
                   disabled={acting}
@@ -144,7 +144,9 @@ export function PendingRequestDetail({ id }: { id: string }) {
                   }
                   className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 disabled:opacity-40"
                 >
-                  Schedule Presentation
+                  {lead.status === "scheduled"
+                    ? "Open Presentation"
+                    : "Schedule Presentation"}
                 </button>
               ) : null}
               {lead.status !== "archived" ? (

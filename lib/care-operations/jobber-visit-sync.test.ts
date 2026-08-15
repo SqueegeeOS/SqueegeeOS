@@ -2,8 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchAllJobberVisits,
   fetchJobberVisitPage,
+  JOBBER_VISITS_SCHEDULING_ONLY_QUERY,
   JOBBER_VISITS_QUERY,
+  JOBBER_VISITS_WITHOUT_ASSIGNMENTS_QUERY,
   JOBBER_VISITS_WITHOUT_INVOICE_QUERY,
+  JOBBER_VISITS_WITHOUT_SCOPE_QUERY,
   type JobberVisitNode,
 } from "./jobber-api";
 import {
@@ -23,6 +26,27 @@ const visit: JobberVisitNode = {
   completedAt: null,
   invoice: null,
   invoiceReadState: "available",
+  assignedUsers: [{ id: "user-1", name: "Alex Rivera" }],
+  assignmentReadState: "available",
+  scopeItems: [
+    {
+      id: "line-1",
+      name: "Exterior window cleaning",
+      description: "Exterior glass and frames",
+      quantity: 1,
+      category: "SERVICE",
+      totalPrice: 225,
+    },
+    {
+      id: "line-2",
+      name: "Screens",
+      description: null,
+      quantity: 12,
+      category: "SERVICE",
+      totalPrice: 50,
+    },
+  ],
+  scopeReadState: "available",
   client: { id: "client-1", name: "Home Owner" },
   property: {
     id: "jobber-property-1",
@@ -40,6 +64,33 @@ const visit: JobberVisitNode = {
   },
 };
 
+function jobberVisitTransport(source: JobberVisitNode = visit) {
+  const {
+    invoiceReadState: _invoiceReadState,
+    assignmentReadState: _assignmentReadState,
+    assignedUsers,
+    scopeReadState: _scopeReadState,
+    scopeItems,
+    ...rest
+  } = source;
+  void _invoiceReadState;
+  void _assignmentReadState;
+  void _scopeReadState;
+  return {
+    ...rest,
+    assignedUsers: {
+      nodes: assignedUsers.map((user) => ({
+        id: user.id,
+        name: { full: user.name },
+      })),
+    },
+    lineItems: {
+      nodes: scopeItems,
+      pageInfo: { hasNextPage: source.scopeReadState === "partial" },
+    },
+  };
+}
+
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
@@ -55,7 +106,23 @@ describe("complete read-only Jobber visit synchronization", () => {
     expect(JOBBER_VISITS_QUERY).toContain("willClientBeAutomaticallyCharged");
     expect(JOBBER_VISITS_QUERY).toContain("jobberWebUri");
     expect(JOBBER_VISITS_QUERY).toContain("invoice { id invoiceStatus }");
+    expect(JOBBER_VISITS_QUERY).toContain(
+      "assignedUsers(first: 25) { nodes { id name { full } } }",
+    );
+    expect(JOBBER_VISITS_QUERY).toContain("lineItems(first: 50)");
+    expect(JOBBER_VISITS_QUERY).toContain(
+      "nodes { id name description quantity category totalPrice }",
+    );
     expect(JOBBER_VISITS_WITHOUT_INVOICE_QUERY).not.toContain("invoice {");
+    expect(JOBBER_VISITS_WITHOUT_ASSIGNMENTS_QUERY).not.toContain(
+      "assignedUsers(",
+    );
+    expect(JOBBER_VISITS_WITHOUT_SCOPE_QUERY).not.toContain("lineItems(");
+    expect(JOBBER_VISITS_SCHEDULING_ONLY_QUERY).not.toContain("invoice {");
+    expect(JOBBER_VISITS_SCHEDULING_ONLY_QUERY).not.toContain(
+      "assignedUsers(",
+    );
+    expect(JOBBER_VISITS_SCHEDULING_ONLY_QUERY).not.toContain("lineItems(");
   });
 
   it("requests a bounded visit page using JSON and the pinned API version", async () => {
@@ -64,7 +131,7 @@ describe("complete read-only Jobber visit synchronization", () => {
         JSON.stringify({
           data: {
             visits: {
-              nodes: [visit],
+              nodes: [jobberVisitTransport()],
               pageInfo: { endCursor: "cursor-1", hasNextPage: true },
             },
           },
@@ -105,10 +172,8 @@ describe("complete read-only Jobber visit synchronization", () => {
   });
 
   it("falls back to scheduling truth and marks invoice visibility hidden", async () => {
-    const { invoice: _invoice, invoiceReadState: _invoiceReadState, ...restrictedVisit } =
-      visit;
+    const { invoice: _invoice, ...restrictedVisit } = jobberVisitTransport();
     void _invoice;
-    void _invoiceReadState;
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -153,6 +218,163 @@ describe("complete read-only Jobber visit synchronization", () => {
     expect(fallbackBody.query).toBe(JOBBER_VISITS_WITHOUT_INVOICE_QUERY);
   });
 
+  it("keeps the schedule available when Jobber hides crew users", async () => {
+    const { assignedUsers: _assignedUsers, ...visitWithoutCrew } =
+      jobberVisitTransport();
+    void _assignedUsers;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message: "An object of type User was hidden due to permissions",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              visits: {
+                nodes: [visitWithoutCrew],
+                pageInfo: { endCursor: null, hasNextPage: false },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const sample = await fetchJobberVisitPage("access-token", { first: 5 });
+
+    expect(sample.nodes[0]).toMatchObject({
+      id: "visit-1",
+      assignedUsers: [],
+      assignmentReadState: "permission_hidden",
+      invoiceReadState: "available",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const fallbackBody = JSON.parse(
+      String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
+    ) as { query: string };
+    expect(fallbackBody.query).toBe(JOBBER_VISITS_WITHOUT_ASSIGNMENTS_QUERY);
+  });
+
+  it("falls back to schedule-only truth when every optional scope is hidden", async () => {
+    const transport = jobberVisitTransport();
+    const {
+      invoice: _invoice,
+      assignedUsers: _assignedUsers,
+      lineItems: _lineItems,
+      ...scheduleOnlyVisit
+    } = transport;
+    void _invoice;
+    void _assignedUsers;
+    void _lineItems;
+    const permissionResponse = (type: "Invoice" | "User" | "JobLineItem") =>
+      new Response(
+        JSON.stringify({
+          errors: [
+            {
+              message: `An object of type ${type} was hidden due to permissions`,
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(permissionResponse("Invoice"))
+      .mockResolvedValueOnce(permissionResponse("User"))
+      .mockResolvedValueOnce(permissionResponse("JobLineItem"))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              visits: {
+                nodes: [scheduleOnlyVisit],
+                pageInfo: { endCursor: null, hasNextPage: false },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const sample = await fetchJobberVisitPage("access-token", { first: 5 });
+
+    expect(sample.nodes[0]).toMatchObject({
+      invoice: null,
+      invoiceReadState: "permission_hidden",
+      assignedUsers: [],
+      assignmentReadState: "permission_hidden",
+      scopeItems: [],
+      scopeReadState: "permission_hidden",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    const finalBody = JSON.parse(
+      String((fetchMock.mock.calls[3] as [string, RequestInit])[1].body),
+    ) as { query: string };
+    expect(finalBody.query).toBe(JOBBER_VISITS_SCHEDULING_ONLY_QUERY);
+  });
+
+  it("keeps the schedule and crew available when Jobber hides service line items", async () => {
+    const { lineItems: _lineItems, ...visitWithoutScope } =
+      jobberVisitTransport();
+    void _lineItems;
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            errors: [
+              {
+                message:
+                  "An object of type JobLineItem was hidden due to permissions",
+              },
+            ],
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              visits: {
+                nodes: [visitWithoutScope],
+                pageInfo: { endCursor: null, hasNextPage: false },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const sample = await fetchJobberVisitPage("access-token", { first: 5 });
+
+    expect(sample.nodes[0]).toMatchObject({
+      id: "visit-1",
+      assignedUsers: [{ id: "user-1", name: "Alex Rivera" }],
+      assignmentReadState: "available",
+      scopeItems: [],
+      scopeReadState: "permission_hidden",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const fallbackBody = JSON.parse(
+      String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
+    ) as { query: string };
+    expect(fallbackBody.query).toBe(JOBBER_VISITS_WITHOUT_SCOPE_QUERY);
+  });
+
   it("waits for Jobber capacity and retries a throttled query", async () => {
     vi.useFakeTimers();
     const fetchMock = vi
@@ -183,7 +405,7 @@ describe("complete read-only Jobber visit synchronization", () => {
           JSON.stringify({
             data: {
               visits: {
-                nodes: [visit],
+                nodes: [jobberVisitTransport()],
                 pageInfo: { endCursor: null, hasNextPage: false },
               },
             },
@@ -209,7 +431,7 @@ describe("complete read-only Jobber visit synchronization", () => {
           JSON.stringify({
             data: {
               visits: {
-                nodes: [visit],
+                nodes: [jobberVisitTransport()],
                 pageInfo: { endCursor: "cursor-1", hasNextPage: true },
               },
             },
@@ -222,7 +444,7 @@ describe("complete read-only Jobber visit synchronization", () => {
           JSON.stringify({
             data: {
               visits: {
-                nodes: [secondVisit],
+                nodes: [jobberVisitTransport(secondVisit)],
                 pageInfo: { endCursor: "cursor-2", hasNextPage: false },
               },
             },
@@ -261,7 +483,15 @@ describe("complete read-only Jobber visit synchronization", () => {
       job_will_auto_charge: false,
       visit_invoice_status: "NONE",
       is_complete: false,
+      raw_payload: {
+        assignedUsers: [{ id: "user-1", name: "Alex Rivera" }],
+        assignmentReadState: "available",
+        scopeItems: visit.scopeItems,
+        scopeReadState: "available",
+      },
     });
+    expect(row.search_text).toContain("alex rivera");
+    expect(row.search_text).toContain("exterior window cleaning");
     expect(row).not.toHaveProperty("matched_property_id");
     expect(row).not.toHaveProperty("matched_obligation_id");
     expect(row).not.toHaveProperty("match_state");
@@ -284,6 +514,12 @@ describe("complete read-only Jobber visit synchronization", () => {
     expect(hashJobberVisitPayload(visit)).toBe(hashJobberVisitPayload({ ...visit }));
     expect(hashJobberVisitPayload(visit)).not.toBe(
       hashJobberVisitPayload({ ...visit, visitStatus: "COMPLETED" }),
+    );
+    expect(hashJobberVisitPayload(visit)).not.toBe(
+      hashJobberVisitPayload({ ...visit, assignedUsers: [] }),
+    );
+    expect(hashJobberVisitPayload(visit)).not.toBe(
+      hashJobberVisitPayload({ ...visit, scopeItems: [] }),
     );
   });
 });

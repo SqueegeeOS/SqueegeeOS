@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { requireFieldPageActor } from "@/lib/field-operations/field-access-dal";
 
 interface LegacyHealthCheckRedirectProps {
   searchParams: Promise<{ propertyId?: string; visitId?: string; technician?: string }>;
@@ -8,6 +9,7 @@ interface LegacyHealthCheckRedirectProps {
 export default async function LegacyHealthCheckRedirect({
   searchParams,
 }: LegacyHealthCheckRedirectProps) {
+  await requireFieldPageActor("/tech/health-check");
   const params = await searchParams;
   const propertyId = params.propertyId?.trim();
 

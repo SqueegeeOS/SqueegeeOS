@@ -6,6 +6,8 @@ import { buildPortalAccessUrl } from "@/lib/membership/portal-access";
 
 export interface PortalAccessContext {
   membershipId: string;
+  homeownerId: string;
+  propertyId: string;
   memberName: string;
   homeownerSlug: string;
   propertySlug: string;
@@ -14,6 +16,8 @@ export interface PortalAccessContext {
 
 interface PortalAccessRow {
   id: string;
+  homeowner_id: string;
+  property_id: string;
   portal_access_token: string;
   homeowners:
     | { slug: string; full_name: string }
@@ -39,7 +43,7 @@ export async function resolvePortalAccessByToken(
   const { data, error } = await supabase
     .from("memberships")
     .select(
-      "id, portal_access_token, homeowners!inner(slug, full_name), properties!inner(slug)",
+      "id, homeowner_id, property_id, portal_access_token, homeowners!inner(slug, full_name), properties!inner(slug)",
     )
     .eq("portal_access_token", normalized)
     .maybeSingle();
@@ -54,12 +58,21 @@ export async function resolvePortalAccessByToken(
   const memberName = homeowner?.full_name;
   const propertySlug = firstRelation(row.properties)?.slug;
 
-  if (!homeownerSlug || !memberName || !propertySlug || !row.portal_access_token) {
+  if (
+    !row.homeowner_id ||
+    !row.property_id ||
+    !homeownerSlug ||
+    !memberName ||
+    !propertySlug ||
+    !row.portal_access_token
+  ) {
     return null;
   }
 
   return {
     membershipId: row.id,
+    homeownerId: row.homeowner_id,
+    propertyId: row.property_id,
     memberName,
     homeownerSlug,
     propertySlug,

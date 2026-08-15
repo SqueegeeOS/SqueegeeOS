@@ -6,14 +6,15 @@ function read(relativePath: string): string {
 }
 
 describe("HQ automatic-billing UI safety contract", () => {
-  it("keeps eligibility preview explicitly non-charging", () => {
+  it("keeps the billing rehearsal explicit, useful, and non-charging", () => {
     const panel = read("../../components/admin/billing-automation-panel.tsx");
 
     expect(panel).toContain('body: JSON.stringify({ action: "preview" })');
-    expect(panel).toContain("Preview eligibility (no charge)");
-    expect(panel).toContain(
-      "This action did not create or confirm a Stripe charge.",
-    );
+    expect(panel).toContain("Run billing rehearsal (no charge)");
+    expect(panel).toContain("Stripe not contacted");
+    expect(panel).toContain("eligibleAmountCents");
+    expect(panel).toContain("What needs fixing");
+    expect(panel).toContain("it cannot claim an order or contact Stripe");
   });
 
   it("offers an explicit no-charge live webhook verification", () => {

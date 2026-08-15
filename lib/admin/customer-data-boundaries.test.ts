@@ -108,6 +108,21 @@ describe("customer data route boundaries", () => {
     }
   });
 
+  it("keeps communications launch diagnostics behind HQ authorization", () => {
+    const source = readProjectFile(
+      "app/api/admin/communications/readiness/route.ts",
+    );
+    expect(source).toContain("authorizeAdminRequest");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+  });
+
+  it("keeps the owner attention queue behind HQ authorization", () => {
+    const source = readProjectFile("app/api/admin/attention/route.ts");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+  });
+
   it("keeps membership history while allowing only one current plan", () => {
     const migration = readProjectFile(
       "lib/persistence/supabase/migrations/039_preserve_membership_history.sql",
@@ -206,9 +221,85 @@ describe("customer data route boundaries", () => {
     expect(source).toMatch(/authorizeAdminRequest\(request\.headers\)/);
   });
 
+  it("protects visit field-record uploads and commits at the route handler", () => {
+    for (const route of [
+      "app/api/admin/field-records/upload-intents/route.ts",
+      "app/api/admin/field-records/route.ts",
+      "app/api/admin/field-records/follow-ups/route.ts",
+    ]) {
+      const source = readProjectFile(route);
+      expect(source).toContain("authorizeAdminRequest(request.headers)");
+      expect(source).toContain('"Cache-Control": "private, no-store"');
+    }
+  });
+
   it("protects source-backed growth truth at the route handler", () => {
     const source = readProjectFile("app/api/admin/growth/route.ts");
     expect(source).toContain("authorizeAdminRequest");
     expect(source).toContain("authorizeAdminRequest(request.headers)");
+  });
+
+  it("keeps owner-leverage reads and reviews behind HQ authorization", () => {
+    const source = readProjectFile("app/api/admin/owner-leverage/route.ts");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+    expect(source).toContain("recordFieldIndependenceReview");
+    expect(source).not.toMatch(
+      /sendOutboundCommunication|sendSms|sendEmail|twilio|resend|stripe|paymentIntent/i,
+    );
+  });
+
+  it("keeps technician readiness and trial planning behind HQ authorization", () => {
+    const source = readProjectFile(
+      "app/api/admin/technicians/readiness/route.ts",
+    );
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+    expect(source).not.toMatch(
+      /sendOutboundCommunication|sendSms|sendEmail|twilio|resend|stripe|paymentIntent/i,
+    );
+  });
+
+  it("keeps technician capacity planning behind HQ authorization", () => {
+    const source = readProjectFile(
+      "app/api/admin/technicians/capacity/route.ts",
+    );
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+    expect(source).not.toMatch(
+      /sendOutboundCommunication|sendSms|sendEmail|twilio|resend|stripe|paymentIntent/i,
+    );
+  });
+
+  it("protects aftercare reads and dispositions at the route handler", () => {
+    const source = readProjectFile("app/api/admin/aftercare/route.ts");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+    expect(source).toContain("recordCustomerAftercareOutcome");
+    expect(source).toContain("recordCustomerServiceCaseAction");
+  });
+
+  it("binds customer service-case intake to a portal token header", () => {
+    const source = readProjectFile("app/api/portal/service-cases/route.ts");
+    const actions = readProjectFile(
+      "lib/service-cases/customer-service-case-actions-server.ts",
+    );
+    expect(source).toContain('request.headers.get("x-portal-token")');
+    expect(source).toContain("resolvePortalAccessByToken");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+    expect(actions).toContain("input.access.membershipId");
+    expect(actions).not.toMatch(/twilio|resend|sendoutboundcommunication/i);
+  });
+
+  it("scopes the multi-property portal projection to the proven homeowner", () => {
+    const source = readProjectFile(
+      "lib/persistence/queries/portal-household.ts",
+    );
+    expect(source).toContain('.eq("homeowner_id", access.homeownerId)');
+    expect(source).toContain('"pending_checkout"');
+    expect(source).toContain('"pending_payment"');
+    expect(source).toContain('"active"');
+    expect(source).toContain('"paused"');
+    expect(source).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
   });
 });

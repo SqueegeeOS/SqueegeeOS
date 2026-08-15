@@ -119,7 +119,7 @@ function RequestInboxRow({
         >
           {formatLeadIntakeStatus(lead.status)}
         </span>
-        {lead.status === "new" ? (
+        {lead.status !== "archived" ? (
           <button
             type="button"
             disabled={busy}
@@ -130,7 +130,9 @@ function RequestInboxRow({
             }}
             className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-muted shadow-[var(--shadow-ambient)] backdrop-blur-sm transition-[border-color,color,opacity] duration-300 hover:border-accent/25 hover:text-foreground disabled:opacity-40 max-sm:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
           >
-            Schedule presentation
+            {lead.status === "scheduled"
+              ? "Open presentation"
+              : "Schedule presentation"}
           </button>
         ) : null}
       </div>

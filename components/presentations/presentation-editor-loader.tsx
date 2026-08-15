@@ -11,7 +11,13 @@ import {
 import type { PresentationData } from "@/lib/presentations/types";
 import { PresentationEditor } from "./presentation-editor";
 
-export function PresentationEditorLoader({ id }: { id: string }) {
+export function PresentationEditorLoader({
+  id,
+  inquirySyncPending = false,
+}: {
+  id: string;
+  inquirySyncPending?: boolean;
+}) {
   const [unlocked, setUnlocked] = useState(false);
   const [presentation, setPresentation] = useState<PresentationData | null>(null);
   const [recoveredDraft, setRecoveredDraft] = useState(false);
@@ -96,6 +102,7 @@ export function PresentationEditorLoader({ id }: { id: string }) {
     <PresentationEditor
       presentation={presentation}
       recoveredDraft={recoveredDraft}
+      inquirySyncPending={inquirySyncPending}
     />
   );
 }

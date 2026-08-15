@@ -41,7 +41,7 @@ export function buildLocalBusinessJsonLd() {
           "Window cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for homeowners in Chico, California.",
         slogan: "Done the right way. When you join, you are family.",
         image: [
-          `${PUBLIC_SITE_URL}/atlas-glass/hero-house.jpg`,
+          `${PUBLIC_SITE_URL}/atlas-glass/hero-house-wide.png`,
           `${PUBLIC_SITE_URL}/day/hour-window.jpg`,
           `${PUBLIC_SITE_URL}/day/hour-pressure.jpg`,
         ],

@@ -1,5 +1,6 @@
 import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import { nextVisitFieldFollowUpDueAt } from "@/lib/field-records/visit-field-record";
 import { isAssessmentAreaKey, type AssessmentAreaKey } from "./assessment-areas";
 import {
   getLocalAssessmentById,
@@ -10,6 +11,7 @@ import {
   calculateAssessmentOverallScore,
   parseScoreValue,
   type AssessmentFormState,
+  type AssessmentServiceScopeItem,
   type AssessmentType,
   type PropertyAssessment,
   type RecommendedService,
@@ -22,6 +24,7 @@ interface AssessmentRow {
   id: string;
   property_id: string;
   visit_id: string | null;
+  field_record_id: string | null;
   assessment_type: AssessmentType;
   technician_name: string;
   visit_date: string;
@@ -34,6 +37,18 @@ interface AssessmentRow {
   customer_note_visible: boolean;
   proposal_summary: string | null;
   recommended_services: RecommendedService[] | null;
+  follow_up_status: "open" | "resolved" | null;
+  follow_up_due_at: string | null;
+  follow_up_resolved_at: string | null;
+  follow_up_resolved_by: string | null;
+  scope_read_state:
+    | "available"
+    | "partial"
+    | "permission_hidden"
+    | "not_observed"
+    | null;
+  service_scope: AssessmentServiceScopeItem[] | null;
+  scope_exception: string | null;
   proposal_sent: boolean;
   proposal_sent_at: string | null;
   created_at: string;
@@ -54,6 +69,7 @@ function rowToAssessment(row: AssessmentRow): PropertyAssessment {
     id: row.id,
     propertyId: row.property_id,
     visitId: row.visit_id,
+    fieldRecordId: row.field_record_id,
     assessmentType: row.assessment_type,
     technicianName: row.technician_name,
     visitDate: row.visit_date,
@@ -67,6 +83,13 @@ function rowToAssessment(row: AssessmentRow): PropertyAssessment {
     customerNoteVisible: row.customer_note_visible,
     proposalSummary: row.proposal_summary,
     recommendedServices: row.recommended_services ?? [],
+    followUpStatus: row.follow_up_status,
+    followUpDueAt: row.follow_up_due_at,
+    followUpResolvedAt: row.follow_up_resolved_at,
+    followUpResolvedBy: row.follow_up_resolved_by,
+    scopeReadState: row.scope_read_state ?? null,
+    serviceScope: row.service_scope ?? [],
+    scopeException: row.scope_exception ?? null,
     proposalSent: row.proposal_sent,
     proposalSentAt: row.proposal_sent_at,
     createdAt: row.created_at,
@@ -129,6 +152,9 @@ export async function createPropertyAssessment(
   );
   const scoresJson = buildScoresJson(form);
   const now = new Date().toISOString();
+  const followUpNeeded =
+    form.proposalSummary.trim() === "Follow-up recommended" ||
+    form.recommendedServices.some((service) => service.id === "follow-up");
 
   if (isCloudPersistenceConnected()) {
     const supabase = createServerSupabaseClient();
@@ -152,6 +178,10 @@ export async function createPropertyAssessment(
           form.recommendedServices.length > 0
             ? form.recommendedServices
             : null,
+        follow_up_status: followUpNeeded ? "open" : null,
+        follow_up_due_at: followUpNeeded
+          ? nextVisitFieldFollowUpDueAt(form.visitDate)
+          : null,
       })
       .select("*")
       .single();
@@ -168,6 +198,7 @@ export async function createPropertyAssessment(
     id: newAssessmentId(),
     propertyId: form.propertyId,
     visitId: form.visitId ?? null,
+    fieldRecordId: null,
     assessmentType: form.assessmentType,
     technicianName: form.technicianName.trim(),
     visitDate: form.visitDate,
@@ -180,6 +211,10 @@ export async function createPropertyAssessment(
     customerNoteVisible: form.customerNoteVisible,
     proposalSummary: form.proposalSummary.trim() || null,
     recommendedServices: [...form.recommendedServices],
+    followUpStatus: null,
+    followUpDueAt: null,
+    followUpResolvedAt: null,
+    followUpResolvedBy: null,
     proposalSent: false,
     proposalSentAt: null,
     createdAt: now,

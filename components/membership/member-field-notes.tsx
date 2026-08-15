@@ -4,13 +4,15 @@ import { motion, useReducedMotion } from "framer-motion";
 import type { ServiceObservationView } from "@/lib/persistence/queries/member-portal";
 
 const easeLuxury = [0.16, 1, 0.3, 1] as const;
+const OBSERVATION_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+});
 
 function formatObservationDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
+  return OBSERVATION_DATE_FORMATTER.format(new Date(iso));
 }
 
 export function MemberFieldNotes({
@@ -52,18 +54,18 @@ export function MemberFieldNotes({
           <li key={observation.id} className="px-5 py-5 sm:px-7">
             <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted">
               <span>{formatObservationDate(observation.observedAt)}</span>
-              {observation.observedBy && (
+              {observation.observedBy ? (
                 <>
                   <span aria-hidden>·</span>
                   <span>{observation.observedBy}</span>
                 </>
-              )}
-              {observation.severity && (
+              ) : null}
+              {observation.severity ? (
                 <>
                   <span aria-hidden>·</span>
                   <span className="text-foreground/70">{observation.severity}</span>
                 </>
-              )}
+              ) : null}
             </div>
             <p className="mt-3 text-sm leading-relaxed text-foreground/90">
               {observation.notes}

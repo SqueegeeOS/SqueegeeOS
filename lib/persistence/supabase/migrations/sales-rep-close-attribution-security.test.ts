@@ -38,7 +38,9 @@ describe("signature-backed sales attribution security", () => {
       "foreign key (presentation_id, rep_id) references public.presentations(id, sales_rep_id)",
     );
     expect(presentationRoute).toContain("resolvePresentationSalesLineage");
-    expect(presentationRoute).toContain("clientPhone: lineage?.lead?.phone");
+    expect(presentationRoute).toContain(
+      "leadIntake?.phone ?? lineage?.lead?.phone ?? undefined",
+    );
     expect(presentationRoute).toContain("markSalesLeadPresentationCreated");
     expect(presentationRoute).not.toContain("createdBy: body.createdBy");
   });
@@ -139,9 +141,11 @@ describe("signature-backed sales attribution security", () => {
   });
 
   it("reports real closes from attributions rather than manual signed taps", () => {
+    expect(workspaceServer).toContain("SALES_ATTRIBUTION_SELECT");
     expect(workspaceServer).toContain(
-      '.select("qualification_status, attributed_arr_cents, attributed_at")',
+      '.select(SALES_ATTRIBUTION_SELECT, { count: "exact" })',
     );
+    expect(workspaceServer).toContain("loadAllSalesRepAttributionRows(rep.id)");
     expect(workspaceServer).toContain("signedToday: attributionsToday.length");
     expect(workspaceServer).toContain("closedArrTodayCents");
     expect(workspaceServer).toContain("closedArrCents");
@@ -156,11 +160,14 @@ describe("signature-backed sales attribution security", () => {
     );
     expect(attributionServer).toContain("Math.min(10");
     expect(attributionServer).toContain("const scanLimit = Math.min(100");
+    expect(attributionServer).toContain('.eq("status", "signed")');
+    expect(attributionServer).toContain("remaining: unresolved + Math.max");
     expect(attributionServer).toContain('.from("signed_agreements")');
     expect(attributionServer).toContain('.in("presentation_id", presentationIds)');
     expect(workspaceServer).toContain(
-      "await reconcileSignedMembershipAttributionsForRep(rep.id, 5)",
+      "await reconcileSignedMembershipAttributionsForRep(",
     );
+    expect(workspaceServer).toContain('closeLedgerStatus = "needs_attention"');
     expect(workspaceServer).toContain(
       "nonfatal attribution reconciliation failure",
     );

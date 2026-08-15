@@ -16,7 +16,6 @@ import type {
 } from "./types";
 import { resolveEnrollmentSavings } from "@/lib/membership/enrollment-savings";
 import { tierCertaintyCopy } from "./tier-benefits";
-import { DEFAULT_COMPANY_SETTINGS } from "@/lib/pricing/company-settings";
 import {
   calculateCarePlanPricing,
   type PresentationCarePlan,
@@ -199,8 +198,6 @@ export function computePresentationRates(input: PresentationPricingInput) {
                 includeScreens: false,
                 includeInterior: false,
               }),
-        interiorAddOn: DEFAULT_COMPANY_SETTINGS.interiorCleaningAddOn,
-        screensAddOn: DEFAULT_COMPANY_SETTINGS.screenCleaningAddOn,
       })
     : null;
 

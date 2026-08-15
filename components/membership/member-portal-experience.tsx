@@ -19,15 +19,22 @@ import { FoundingMemberHonor } from "@/components/membership/founding-member-hon
 import { MemberWalletCard } from "@/components/membership/member-wallet-card";
 import type { MemberWalletCardData } from "@/lib/membership/member-wallet-card-data";
 import { HomeAtlasJourneySection } from "@/components/membership/homeatlas-journey-section";
+import { MemberFieldNotes } from "@/components/membership/member-field-notes";
+import { MemberVisitStories } from "@/components/membership/member-visit-stories";
 import { buildPortalCareRecordView } from "@/lib/membership/portal-view-model";
+import { buildPortalVisitStories } from "@/lib/membership/portal-visit-stories";
 import { HomeAtlasSavingsSection } from "@/components/portal/homeatlas-savings-section";
 import { CareAddonsSection } from "@/components/portal/care-addons-section";
 import { NextCareVisitHero } from "@/components/portal/next-care-visit-hero";
+import { LiveCareStatus } from "@/components/portal/live-care-status";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
 import { ReferralSection } from "@/components/portal/referral-section";
 import { GlassCard } from "@/components/craft/glass-card";
 import { PortalStage } from "@/components/portal/portal-stage";
 import { InstallHomeAtlas } from "@/components/pwa/InstallHomeAtlas";
+import { MemberServiceHelp } from "@/components/portal/member-service-help";
+import { PortalPropertySwitcher } from "@/components/portal/portal-property-switcher";
+import type { PortalHouseholdSnapshot } from "@/lib/membership/portal-household";
 import { craftPrimaryButton, craftSecondaryButton } from "@/lib/craft/tokens";
 import { materialize } from "@/lib/motion/system";
 
@@ -37,7 +44,15 @@ interface MemberPortalExperienceProps {
   portalBasePath?: string;
   customerPortalMode?: "token" | "slug";
   portalToken?: string | null;
+  portalHousehold?: PortalHouseholdSnapshot | null;
 }
+
+const PORTAL_PHOTO_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "America/Los_Angeles",
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+});
 
 function CheckBullet({ children }: { children: React.ReactNode }) {
   return (
@@ -56,10 +71,21 @@ export function MemberPortalExperience({
   portalBasePath,
   customerPortalMode = "slug",
   portalToken = null,
+  portalHousehold = null,
 }: MemberPortalExperienceProps) {
   const router = useRouter();
   const reduceMotion = useReducedMotion();
   const view = buildPortalCareRecordView(data, portalData);
+  const portalPhotos = portalData?.property.photos ?? [];
+  const visitStoryCollection = buildPortalVisitStories(
+    portalData?.observations ?? [],
+    portalPhotos,
+  );
+  const portalHeroImage =
+    data.property.heroImage ||
+    portalPhotos.find((photo) => photo.captureType === "after")?.url ||
+    portalPhotos[0]?.url ||
+    "";
   const isCustomerPortal = customerPortalMode === "token";
   const resolvedPortalPath =
     portalBasePath ??
@@ -145,7 +171,13 @@ export function MemberPortalExperience({
           )}
         </motion.header>
 
-        {(view.membershipActive || view.pendingPayment) && (
+        {isCustomerPortal && portalHousehold ? (
+          <PortalPropertySwitcher household={portalHousehold} />
+        ) : null}
+
+        {isCustomerPortal && portalData?.liveService ? (
+          <LiveCareStatus status={portalData.liveService} />
+        ) : (view.membershipActive || view.pendingPayment) && (
           <NextCareVisitHero visit={view.nextCareVisit} />
         )}
 
@@ -407,6 +439,13 @@ export function MemberPortalExperience({
             )}
           </PortalSection>
 
+          {isCustomerPortal && resolvedPortalToken && portalData ? (
+            <MemberServiceHelp
+              portalToken={resolvedPortalToken}
+              appointments={portalData.appointments}
+            />
+          ) : null}
+
           {/* §6 — Care Record */}
           <PortalSection
             id="care-record"
@@ -416,10 +455,10 @@ export function MemberPortalExperience({
             support={view.propertyAddress}
           >
             <div className="craft-glass-subtle relative mb-8 overflow-hidden rounded-[var(--radius-card-lg)] shadow-[var(--shadow-float)]">
-              {data.property.heroImage ? (
+              {portalHeroImage ? (
                 <div className="relative aspect-[16/10] w-full">
                   <Image
-                    src={data.property.heroImage}
+                    src={portalHeroImage}
                     alt={view.propertyName}
                     fill
                     className="object-cover"
@@ -443,6 +482,10 @@ export function MemberPortalExperience({
                 </span>
               ))}
             </div>
+            <MemberVisitStories stories={visitStoryCollection.stories} />
+            <MemberFieldNotes
+              observations={visitStoryCollection.ungroupedObservations}
+            />
           </PortalSection>
 
           {/* §7 — Timeline */}
@@ -484,28 +527,62 @@ export function MemberPortalExperience({
             )}
           </PortalSection>
 
-          {/* §8 — Photos */}
-          <PortalSection
-            id="photos"
-            index={7}
-            eyebrow="Photos"
-            headline={`${view.propertyName}, cared for.`}
-          >
-            {view.completedVisitCount > 0 ? (
-              <PortalCard>
-                <p className="text-sm text-foreground/60">
-                  Photos from your visits appear here.
-                </p>
-              </PortalCard>
-            ) : (
-              <div className="craft-glass-subtle rounded-[var(--radius-card-lg)] border-accent/10 bg-gradient-to-b from-accent/[0.05] to-transparent py-12 text-center shadow-[var(--shadow-ambient)]">
-                <AtlasMark size={104} className="mx-auto" />
-                <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-foreground/60">
-                  {view.photosEmptyCopy}
-                </p>
-              </div>
-            )}
-          </PortalSection>
+          {/* §8 — Legacy / unpaired photos */}
+          {visitStoryCollection.ungroupedPhotos.length > 0 ||
+          visitStoryCollection.stories.length === 0 ? (
+            <PortalSection
+              id="photos"
+              index={7}
+              eyebrow="Photos"
+              headline={`${view.propertyName}, cared for.`}
+            >
+              {visitStoryCollection.ungroupedPhotos.length > 0 ? (
+                <ul className="grid gap-4 sm:grid-cols-2">
+                  {visitStoryCollection.ungroupedPhotos.map((photo, index) => (
+                    <li
+                      key={photo.id ?? `${photo.uploadedAt}-${index}`}
+                      className="craft-glass-subtle overflow-hidden rounded-[var(--radius-card-lg)] shadow-[var(--shadow-ambient)]"
+                    >
+                      <div className="relative aspect-[4/3] bg-black/20">
+                        <Image
+                          src={photo.url}
+                          alt={
+                            photo.caption ||
+                            `Documented visit photo ${index + 1}`
+                          }
+                          fill
+                          sizes="(max-width: 640px) 100vw, 320px"
+                          className="object-cover"
+                        />
+                        {photo.captureType ? (
+                          <span className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[10px] uppercase tracking-[0.14em] text-white">
+                            {photo.captureType}
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="p-4">
+                        <p className="text-sm text-foreground/80">
+                          {photo.caption || "Visit photo"}
+                        </p>
+                        <p className="mt-1 text-[11px] text-muted">
+                          {PORTAL_PHOTO_DATE_FORMATTER.format(
+                            new Date(photo.uploadedAt),
+                          )}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="craft-glass-subtle rounded-[var(--radius-card-lg)] border-accent/10 bg-gradient-to-b from-accent/[0.05] to-transparent py-12 text-center shadow-[var(--shadow-ambient)]">
+                  <AtlasMark size={104} className="mx-auto" />
+                  <p className="mx-auto mt-6 max-w-xs text-sm leading-relaxed text-foreground/60">
+                    {view.photosEmptyCopy}
+                  </p>
+                </div>
+              )}
+            </PortalSection>
+          ) : null}
         </div>
 
         {isCustomerPortal && (

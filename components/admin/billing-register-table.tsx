@@ -13,6 +13,7 @@ import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-lin
 import { craftEyebrow, craftTableHead } from "@/lib/craft/tokens";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { billingMembershipAnchorId } from "@/lib/admin/billing-workspace-links";
 
 function stripeDashboardCustomerUrl(
   customerId: string,
@@ -422,7 +423,8 @@ export function BillingRegisterTable({
             {rows.map((row) => (
               <tr
                 key={row.membershipId}
-                className="border-b border-border/40 align-top"
+                id={billingMembershipAnchorId(row.membershipId)}
+                className="scroll-mt-24 border-b border-border/40 align-top target:bg-accent/[0.06] target:outline target:outline-1 target:outline-accent/40"
               >
                 <td className="py-4 pr-4">
                   <CustomerWorkspaceLink type="property" id={row.propertyId}>

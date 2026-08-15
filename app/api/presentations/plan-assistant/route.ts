@@ -33,6 +33,7 @@ const assistantOutputSchema = z.object({
         timing: z.string().min(1).max(100),
         interiorWindows: serviceStateSchema,
         screens: serviceStateSchema,
+        cobwebRemoval: serviceStateSchema,
         notes: z.string().max(240),
         priceOverride: z.number().positive().max(100_000).nullable(),
       }),
@@ -86,11 +87,11 @@ Rules:
 - "Always" means included on every visit.
 - "Once a year" means included on exactly one visit and not included on the others.
 - "If they want", "ask to add", or similar means optional, not included.
-- Screens and interior windows have three states only: included, optional, or not included.
+- Screens, interior windows, and cobweb removal have three states only: included, optional, or not included.
 - Never place a priceOverride unless the owner explicitly supplied a final dollar price for that exact visit.
 - Use concise customer-friendly language, never internal jargon.
 - Pick concise layout for a fast/simple close, story for a customer needing education, otherwise signature.
-- Do not add pressure washing, gutter cleaning, cobweb removal, or other services to the structured scope. Mention them only in notes if the owner explicitly said them.
+- Cobweb removal is a supported structured service. Do not add pressure washing, gutter cleaning, or other services to the structured scope; mention those only in notes when the owner explicitly said them.
 - Return exactly the visit count required by the chosen cadence.
 - The explanation should plainly summarize what you understood so the owner can verify it before saving.`,
       prompt: `Current cadence: ${input.currentTier}

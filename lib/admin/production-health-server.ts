@@ -24,6 +24,7 @@ import { getStripePublishableKey } from "@/lib/stripe/client";
 import { isStripeLiveMode, resolveStripeKeyMode } from "@/lib/stripe/mode";
 import { normalizeToSqueegeeKingTier } from "@/lib/membership/tier-config";
 import { isMembershipActive } from "@/lib/membership/membership-status";
+import { VISIT_MEDIA_BUCKET } from "@/lib/field-records/visit-field-record";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 interface ColumnProbeResult {
@@ -126,59 +127,162 @@ function schemaCheck(
 async function runSchemaChecks(
   supabase: SupabaseClient,
 ): Promise<ProductionHealthSection> {
-  const probes = await Promise.all([
-    probeTableColumn(supabase, "presentations", "enrollment_savings"),
-    probeTableColumn(supabase, "memberships", "membership_enrollment_savings"),
-    probeTableColumn(supabase, "website_membership_sales"),
-    probeTableColumn(supabase, "membership_billing_charges"),
-    probeTableColumn(supabase, "obligations"),
-    probeTableColumn(supabase, "obligation_events"),
-    probeTableColumn(
-      supabase,
-      "signed_agreements",
-      "signature_image_storage_path",
-    ),
-    probeTableColumn(supabase, "signed_agreements", "agreement_pdf_url"),
-    probeTableColumn(
-      supabase,
-      "signed_agreements",
-      "authorized_visit_price_cents",
-    ),
-    probeTableColumn(supabase, "memberships", "automatic_billing_enabled"),
-    probeTableColumn(supabase, "billing_automation_settings"),
-    probeTableColumn(supabase, "jobber_membership_job_links"),
-    probeTableColumn(
-      supabase,
-      "lead_intakes",
-      "sms_consent_disclosure_version",
-    ),
-    probeTableColumn(supabase, "customer_contact_consent_events"),
-    probeTableColumn(
-      supabase,
-      "customer_communication_provider_verifications",
-    ),
-  ]);
-
-  const labels = [
-    "presentations.enrollment_savings",
-    "memberships.membership_enrollment_savings",
-    "website_membership_sales",
-    "membership_billing_charges",
-    "obligations",
-    "obligation_events",
-    "signed_agreements.signature_image_storage_path",
-    "signed_agreements.agreement_pdf_url",
-    "signed_agreements.authorized_visit_price_cents",
-    "memberships.automatic_billing_enabled",
-    "billing_automation_settings",
-    "jobber_membership_job_links",
-    "lead_intakes.sms_consent_disclosure_version",
-    "customer_contact_consent_events",
-    "customer_communication_provider_verifications",
+  const targets: Array<{
+    id: string;
+    label: string;
+    table: string;
+    column?: string;
+  }> = [
+    {
+      id: "presentation-enrollment-savings-schema",
+      label: "presentations.enrollment_savings",
+      table: "presentations",
+      column: "enrollment_savings",
+    },
+    {
+      id: "membership-enrollment-savings-schema",
+      label: "memberships.membership_enrollment_savings",
+      table: "memberships",
+      column: "membership_enrollment_savings",
+    },
+    {
+      id: "website-membership-sales-schema",
+      label: "website_membership_sales",
+      table: "website_membership_sales",
+    },
+    {
+      id: "membership-billing-charges-schema",
+      label: "membership_billing_charges",
+      table: "membership_billing_charges",
+    },
+    { id: "obligations-schema", label: "obligations", table: "obligations" },
+    {
+      id: "obligation-events-schema",
+      label: "obligation_events",
+      table: "obligation_events",
+    },
+    {
+      id: "agreement-signature-storage-schema",
+      label: "signed_agreements.signature_image_storage_path",
+      table: "signed_agreements",
+      column: "signature_image_storage_path",
+    },
+    {
+      id: "agreement-pdf-schema",
+      label: "signed_agreements.agreement_pdf_url",
+      table: "signed_agreements",
+      column: "agreement_pdf_url",
+    },
+    {
+      id: "agreement-authorized-price-schema",
+      label: "signed_agreements.authorized_visit_price_cents",
+      table: "signed_agreements",
+      column: "authorized_visit_price_cents",
+    },
+    {
+      id: "automatic-billing-membership-schema",
+      label: "memberships.automatic_billing_enabled",
+      table: "memberships",
+      column: "automatic_billing_enabled",
+    },
+    {
+      id: "billing-automation-settings-schema",
+      label: "billing_automation_settings",
+      table: "billing_automation_settings",
+    },
+    {
+      id: "jobber-membership-links-schema",
+      label: "jobber_membership_job_links",
+      table: "jobber_membership_job_links",
+    },
+    {
+      id: "lead-sms-consent-schema",
+      label: "lead_intakes.sms_consent_disclosure_version",
+      table: "lead_intakes",
+      column: "sms_consent_disclosure_version",
+    },
+    {
+      id: "customer-contact-consent-schema",
+      label: "customer_contact_consent_events",
+      table: "customer_contact_consent_events",
+    },
+    {
+      id: "provider-verification-schema",
+      label: "customer_communication_provider_verifications",
+      table: "customer_communication_provider_verifications",
+    },
+    {
+      id: "field-record-media-schema",
+      label: "property_assets.storage_bucket",
+      table: "property_assets",
+      column: "storage_bucket",
+    },
+    {
+      id: "field-record-follow-up-schema",
+      label: "property_assessments.follow_up_status",
+      table: "property_assessments",
+      column: "follow_up_status",
+    },
+    {
+      id: "field-record-service-scope-schema",
+      label: "property_assessments.service_scope",
+      table: "property_assessments",
+      column: "service_scope",
+    },
+    {
+      id: "technician-field-access-schema",
+      label: "technician_access_grants",
+      table: "technician_access_grants",
+    },
+    {
+      id: "technician-visit-automation-schema",
+      label: "technician_visit_events",
+      table: "technician_visit_events",
+    },
+    {
+      id: "customer-aftercare-schema",
+      label: "customer_aftercare_resolutions",
+      table: "customer_aftercare_resolutions",
+    },
+    {
+      id: "customer-service-cases-schema",
+      label: "customer_service_cases",
+      table: "customer_service_cases",
+    },
+    {
+      id: "growth-work-sessions-schema",
+      label: "growth_work_sessions",
+      table: "growth_work_sessions",
+    },
+    {
+      id: "field-independence-reviews-schema",
+      label: "field_independence_reviews",
+      table: "field_independence_reviews",
+    },
+    {
+      id: "technician-competency-assessments-schema",
+      label: "technician_competency_assessments",
+      table: "technician_competency_assessments",
+    },
+    {
+      id: "technician-independent-day-trials-schema",
+      label: "technician_independent_day_trials",
+      table: "technician_independent_day_trials",
+    },
+    {
+      id: "technician-capacity-plans-schema",
+      label: "technician_capacity_plans",
+      table: "technician_capacity_plans",
+    },
   ];
 
-  const checks = probes.map((probe, index) =>
-    schemaCheck(`schema-${index}`, labels[index]!, probe),
+  const probes = await Promise.all(
+    targets.map((target) =>
+      probeTableColumn(supabase, target.table, target.column),
+    ),
+  );
+  const checks = targets.map((target, index) =>
+    schemaCheck(target.id, target.label, probes[index]!),
   );
 
   return sectionFromChecks("schema", "Database migrations / schema", checks);
@@ -320,6 +424,8 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
   let bucketExists = false;
   let bucketPrivate = false;
   let signedUrlWorks = false;
+  let visitMediaBucketExists = false;
+  let visitMediaBucketPrivate = false;
   let storageMessage: string | undefined;
 
   if (isSupabaseConfigured()) {
@@ -337,6 +443,15 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
           bucketPrivate = !bucket.public;
         } else if (bucketError) {
           storageMessage = bucketError.message;
+        }
+
+        const { data: visitBucket, error: visitBucketError } =
+          await supabase.storage.getBucket(VISIT_MEDIA_BUCKET);
+        if (!visitBucketError && visitBucket) {
+          visitMediaBucketExists = true;
+          visitMediaBucketPrivate = !visitBucket.public;
+        } else if (visitBucketError && !storageMessage) {
+          storageMessage = visitBucketError.message;
         }
 
         const signed = await resolveAgreementPdfAccessUrl(
@@ -384,6 +499,16 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
         : serviceRole
           ? "Signed URL generation unavailable"
           : "Requires service role",
+    ),
+    check(
+      "storage-visit-media",
+      "Private visit-photo storage",
+      visitMediaBucketExists && visitMediaBucketPrivate ? "green" : "red",
+      visitMediaBucketExists
+        ? visitMediaBucketPrivate
+          ? `${VISIT_MEDIA_BUCKET} bucket is private and reachable`
+          : `${VISIT_MEDIA_BUCKET} must not be public`
+        : `${VISIT_MEDIA_BUCKET} missing — apply migration 054`,
     ),
   ];
 

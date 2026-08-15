@@ -1,12 +1,22 @@
 import type { NextConfig } from "next";
 
+const supabaseImageHostname = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_SUPABASE_URL
+      ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
+      : null;
+  } catch {
+    return null;
+  }
+})();
+
 const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "SAMEORIGIN" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+    value: "camera=(self), microphone=(), geolocation=(), browsing-topics=()",
   },
   { key: "X-DNS-Prefetch-Control", value: "on" },
   {
@@ -52,6 +62,7 @@ const nextConfig: NextConfig = {
     ];
   },
   images: {
+    qualities: [75, 90],
     remotePatterns: [
       {
         protocol: "https",
@@ -61,6 +72,15 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "lh3.googleusercontent.com",
       },
+      ...(supabaseImageHostname
+        ? [
+            {
+              protocol: "https" as const,
+              hostname: supabaseImageHostname,
+              pathname: "/storage/v1/object/sign/**",
+            },
+          ]
+        : []),
     ],
   },
 };

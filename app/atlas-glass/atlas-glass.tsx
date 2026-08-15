@@ -7,7 +7,7 @@ import { Day2ReviewsWall } from "@/components/marketing/day2-reviews-wall";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { CUSTOMER_CONTACT } from "@/lib/brand/customer";
 import { SQUEEGEEKING_FOUNDERS } from "@/lib/team/founders";
-import heroHouse from "@/public/atlas-glass/hero-house.jpg";
+import heroHouse from "@/public/atlas-glass/hero-house-wide.png";
 import styles from "./atlas-glass.module.css";
 
 const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
@@ -186,6 +186,7 @@ export function AtlasGlass() {
           fill
           preload
           placeholder="blur"
+          quality={90}
           sizes="100vw"
           className={styles.heroImage}
           draggable={false}
