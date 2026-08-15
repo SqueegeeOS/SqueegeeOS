@@ -9,6 +9,7 @@ const IDS = {
   profile: "44444444-4444-4444-8444-444444444444",
   appointment: "55555555-5555-4555-8555-555555555555",
   fieldRecord: "66666666-6666-4666-8666-666666666666",
+  serviceCase: "77777777-7777-4777-8777-777777777777",
 };
 
 let results: Record<string, QueryResult> = {};
@@ -104,6 +105,7 @@ function healthyResults(): Record<string, QueryResult> {
       error: null,
     },
     customer_aftercare_resolutions: { data: [], error: null },
+    customer_service_cases: { data: [], error: null },
   };
 }
 
@@ -124,6 +126,7 @@ describe("customer aftercare snapshot", () => {
 
     expect(snapshot).toMatchObject({
       generatedAt: "2026-08-14T18:00:00.000Z",
+      serviceCases: [],
       truncated: false,
     });
     expect(snapshot.tasks).toEqual([
@@ -144,6 +147,46 @@ describe("customer aftercare snapshot", () => {
     expect(fromSpy.mock.calls.map(([table]) => table)).toContain(
       "customer_aftercare_resolutions",
     );
+  });
+
+  it("puts customer-reported concerns ahead of derived aftercare work", async () => {
+    results = healthyResults();
+    results.customer_service_cases = {
+      data: [
+        {
+          id: IDS.serviceCase,
+          membership_id: IDS.membership,
+          homeowner_id: IDS.homeowner,
+          property_id: IDS.property,
+          appointment_id: IDS.appointment,
+          category: "service_quality",
+          details: "A lower window still has visible spotting after the visit.",
+          status: "open",
+          owner_note: null,
+          acknowledged_at: null,
+          resolved_at: null,
+          created_at: "2026-08-14T16:00:00.000Z",
+          updated_at: "2026-08-14T16:00:00.000Z",
+        },
+      ],
+      error: null,
+    };
+    const { loadCustomerAftercareSnapshot } = await import(
+      "./customer-aftercare-server"
+    );
+    const snapshot = await loadCustomerAftercareSnapshot(
+      new Date("2026-08-14T18:00:00.000Z"),
+    );
+
+    expect(snapshot.serviceCases).toEqual([
+      expect.objectContaining({
+        id: IDS.serviceCase,
+        homeownerName: "Mandi Rivera",
+        category: "service_quality",
+        status: "open",
+        appointmentId: IDS.appointment,
+      }),
+    ]);
   });
 
   it("does not suggest a review while service recovery is still open", async () => {

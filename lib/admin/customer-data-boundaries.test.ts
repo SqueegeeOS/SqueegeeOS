@@ -244,5 +244,18 @@ describe("customer data route boundaries", () => {
     expect(source).toContain("authorizeAdminRequest(request.headers)");
     expect(source).toContain('"Cache-Control": "private, no-store"');
     expect(source).toContain("recordCustomerAftercareOutcome");
+    expect(source).toContain("recordCustomerServiceCaseAction");
+  });
+
+  it("binds customer service-case intake to a portal token header", () => {
+    const source = readProjectFile("app/api/portal/service-cases/route.ts");
+    const actions = readProjectFile(
+      "lib/service-cases/customer-service-case-actions-server.ts",
+    );
+    expect(source).toContain('request.headers.get("x-portal-token")');
+    expect(source).toContain("resolvePortalAccessByToken");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+    expect(actions).toContain("input.access.membershipId");
+    expect(actions).not.toMatch(/twilio|resend|sendoutboundcommunication/i);
   });
 });

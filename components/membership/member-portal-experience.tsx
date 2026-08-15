@@ -32,6 +32,7 @@ import { ReferralSection } from "@/components/portal/referral-section";
 import { GlassCard } from "@/components/craft/glass-card";
 import { PortalStage } from "@/components/portal/portal-stage";
 import { InstallHomeAtlas } from "@/components/pwa/InstallHomeAtlas";
+import { MemberServiceHelp } from "@/components/portal/member-service-help";
 import { craftPrimaryButton, craftSecondaryButton } from "@/lib/craft/tokens";
 import { materialize } from "@/lib/motion/system";
 
@@ -429,6 +430,13 @@ export function MemberPortalExperience({
               </div>
             )}
           </PortalSection>
+
+          {isCustomerPortal && resolvedPortalToken && portalData ? (
+            <MemberServiceHelp
+              portalToken={resolvedPortalToken}
+              appointments={portalData.appointments}
+            />
+          ) : null}
 
           {/* §6 — Care Record */}
           <PortalSection

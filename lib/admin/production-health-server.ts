@@ -244,6 +244,11 @@ async function runSchemaChecks(
       label: "customer_aftercare_resolutions",
       table: "customer_aftercare_resolutions",
     },
+    {
+      id: "customer-service-cases-schema",
+      label: "customer_service_cases",
+      table: "customer_service_cases",
+    },
   ];
 
   const probes = await Promise.all(

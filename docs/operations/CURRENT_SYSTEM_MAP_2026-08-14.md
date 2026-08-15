@@ -12,14 +12,14 @@ that a provider-backed workflow is live.
 - Current production commit: `41b5e19a88a0600e5bc3bea171986bed044d0a94`
 - Production deployment state: `READY`
 - Local release branch: `codex/communications-readiness`
-- Verified local base before this customer-aftercare batch: `72d1387`
-- Local branch position before this customer-aftercare commit: 32 commits ahead of the
-  deployed production commit
-- Repository size: 76 page entrypoints, 94 API entrypoints, 37 `lib/` domains,
-  58 numbered SQL migrations (`002` through `059`), and 184 test source files
-- Full local verification after the customer-aftercare work:
-  - 181 test files passed
-  - 864 tests passed
+- Verified local base before this customer-service-recovery batch: `fd0f9ce`
+- Local branch position with this service-recovery commit: 34 commits ahead of
+  the deployed production commit
+- Repository size: 76 page entrypoints, 95 API entrypoints, 38 `lib/` domains,
+  59 numbered SQL migrations (`002` through `060`), and 188 test source files
+- Full local verification after the customer-service-recovery work:
+  - 185 test files passed
+  - 881 tests passed
   - TypeScript passed
   - ESLint passed with 0 errors and 90 inherited warnings
   - Next.js 16.2.10 production Webpack build passed; 132 static-generation
@@ -41,13 +41,13 @@ public acquisition, presentation, enrollment, portal, sales-representative,
 HQ, communications, billing, review, and Jobber integration surfaces all
 exist. The most important constraint today is release and provider state:
 
-1. Production is running commit `41b5e19`, not the 33-commit verified local
+1. Production is running commit `41b5e19`, not the 34-commit verified local
    operations branch.
 2. Production Jobber is currently disconnected. Jobber webhooks are arriving,
    but background synchronization and the reconcile cron cannot use them.
 3. The field evidence, property-memory, technician access, visit-event, portal
-   proof, dispatch, and customer-aftercare release requires migrations `054`
-   through `059` and an application deployment.
+   proof, dispatch, customer-aftercare, and member case-intake release requires
+   migrations `054` through `060` and an application deployment.
 4. Customer messaging and unattended billing are correctly fail-closed. They
    must not be described as active until provider verification and owner
    controls prove that they are armed.
@@ -88,14 +88,15 @@ These capabilities are implemented and verified on
 | Owner attention queue | HQ ranks current website/Meta leads, David follow-ups, salesperson retention drift, dispatch drift, field follow-ups and proof gaps, billing exceptions, communication gates, review-ready visits, annual member check-ins, referral rewards, stale referred leads, and uncovered production safeguards; each item deep-links to the exact record when possible and treats unreadable sources as unknown | Deploy the local branch and verify the authorized `/api/admin/attention` response in production |
 | Referral and retention aftercare | Read-only projections identify converted referrals awaiting reward review, available Care Credit, referred leads pending at least seven days, cancelled-member attribution drift, and due salesperson retention checkpoints without invoking the existing reward or lifecycle writers | Deploy and verify exact links against non-customer/internal records; operational changes remain explicit owner actions |
 | Customer aftercare | A private Care workspace derives review opportunities only after a verified completed Jobber visit has a saved field record, customer-visible proof, and no open service follow-up; it also derives annual care check-ins from the real membership start date and stores explicit owner outcomes without sending a message | Apply migrations `054` and `059`; deploy; verify with non-customer/internal records |
-| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, and visit-story history | Deploy the 33-commit local branch with its migrations |
+| Customer service recovery | The bearer-token portal can create and re-display a private care case tied only to the server-resolved member/property and an optional verified visit; retries are idempotent, unresolved intake is capped, private owner notes never enter the portal response, HQ can acknowledge/resolve explicitly, and open cases rank in owner attention without sending a message | Apply migration `060`; deploy; verify only with an internal/non-customer portal token before opening to members |
+| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, and visit-story history | Deploy the 34-commit local branch with its migrations |
 
 ### PARTIAL
 
 | System | What exists | What prevents a complete claim |
 | --- | --- | --- |
 | Jobber | OAuth/PKCE, encrypted tokens, full client/property/visit pagination, supervised HomeAtlas pairing, assignment/scope/invoice visibility degradation, webhook inbox, daily reconcile, portal projection, and billing snapshots | Production is currently disconnected. Runtime errors show webhook and cron work stopping at `jobber_not_connected` |
-| Customer portal | Strong token portal, care plan, payment/referral state, and deployed next-appointment support | Current Jobber data cannot stay fresh; field proof, visit stories, and live-stage cards remain local; no multi-property switcher exists |
+| Customer portal | Strong token portal, care plan, payment/referral state, deployed next-appointment support, and a locally verified private customer-care intake/receipt surface | Current Jobber data cannot stay fresh; field proof, visit stories, live-stage cards, and service-case intake remain local; no multi-property switcher exists |
 | Property memory | Properties, assessments, health checks, notes, assets, observations, and portal structures exist | The coherent visit evidence/follow-up layer is local behind migration `054`; property summaries and cross-visit intelligence are not yet complete |
 | Communications | Durable conversations/messages, Resend and Twilio providers, signed webhooks, consent ledger, STOP handling, quiet hours, manual send, lead acknowledgement, and appointment reminder workers exist | Twilio sender approval and current webhook proof are not confirmed; Resend readiness is not re-verified in this audit; no real message was sent during validation |
 | Automatic billing | First-business-day cron, fresh-Jobber-snapshot gate, standing authorization checks, Stripe PaymentIntent idempotency, amount caps, leases, retries, webhook reconciliation, preview, pause, and kill switches exist | Jobber is disconnected; live Stripe webhook verification and the founder's armed state were not proven here; no charge was attempted |
@@ -119,10 +120,9 @@ These capabilities are implemented and verified on
 
 ### NOT BUILT
 
-- Direct customer complaint/case intake, churn-risk scoring, and a contractual
-  renewal workflow are not built. Annual care check-ins, review opportunities,
-  referral rewards, and salesperson-retention exceptions are implemented
-  locally.
+- Churn-risk scoring and a contractual renewal workflow are not built. Direct
+  customer case intake, annual care check-ins, review opportunities, referral
+  rewards, and salesperson-retention exceptions are implemented locally.
 - Automatic lead scoring and duplicate resolution across website, Meta, Jobber,
   sales-rep, email, and phone identities
 - A customer multi-property switcher and household-level account view
@@ -141,7 +141,7 @@ These capabilities are implemented and verified on
 | --- | --- | --- |
 | Jobber production disconnected | OAuth authorization cannot be fabricated by code | Owner reconnects Jobber once; then run read-only full sync and verify account identity |
 | Field and aftercare release not deployed | GitHub push/PR access is unavailable from this current session; production follows `main` | Preserve a complete Git bundle and publish the verified branch when access returns |
-| Migrations `054`–`059` not proven in production | Local checkout has no production DB URL and no database connector was available in this audit | Apply in order, verify each schema effect, then deploy matching code |
+| Migrations `054`–`060` not proven in production | Local checkout has no production DB URL and no database connector was available in this audit | Apply in order, verify each schema effect, then deploy matching code |
 | Twilio not armed | Sender registration/approval and signed webhook verification are provider-controlled | Keep SMS rules off; after approval, verify with the owner's opted-in number |
 | Meta lead subscription unproven | Requires the correct Meta business, page, form, and webhook subscription | Connect one test form, use a provider test lead, verify source attribution, then enable |
 | Automatic billing unproven | Requires connected Jobber, current Stripe webhook proof, signed authorization, owner cap, and explicit arming | Use preview only until every gate is green; rehearse with a non-customer/internal record |
@@ -152,15 +152,15 @@ These capabilities are implemented and verified on
 1. Reconnect Jobber and prove a complete read-only sync. Almost every next
    automation—Today, portal appointment truth, field assignment, scope,
    billing preview, and dispatch—depends on it.
-2. Release the verified field and aftercare branch with migrations `054`
-   through `059`.
+2. Release the verified field, aftercare, and service-recovery branch with
+   migrations `054` through `060`.
 3. Run the technician acceptance test using an internal/demo Jobber client:
    assigned route, Field Pass, scope, proof, closeout, departure, owner
    exception, and safe customer portal status. Send no customer message.
 4. Deploy the ranked owner attention queue, then verify that production leads,
-   David follow-ups, Jobber visits, field proof, customer aftercare, billing,
-   communications, and production safeguards resolve to the correct records
-   without causing implicit writes.
+   David follow-ups, Jobber visits, field proof, customer-reported cases,
+   customer aftercare, billing, communications, and production safeguards
+   resolve to the correct records without causing implicit writes.
 5. Verify provider readiness in order: Resend, Twilio, Meta, Stripe. Only then
    enable narrowly scoped automation rules with kill switches and audit logs.
 6. Build the household/multi-property account layer on top of the trustworthy
