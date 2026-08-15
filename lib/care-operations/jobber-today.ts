@@ -9,6 +9,8 @@ import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/clie
 import { loadOpenVisitFieldFollowUps } from "@/lib/field-records/visit-field-follow-up-server";
 import { loadTechnicianVisitEventSnapshots } from "@/lib/field-operations/technician-visit-event-server";
 import type { TechnicianVisitEventSnapshot } from "@/lib/field-operations/technician-visit-events";
+import { loadFieldIndependenceReviews } from "@/lib/field-operations/independence-review-server";
+import type { FieldIndependenceReview } from "@/lib/field-operations/independence-review";
 import { readJobberConnectionStatus } from "./jobber-connection-store";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 import { chunkItems } from "./jobber-sync-utils";
@@ -125,6 +127,7 @@ function toTodayVisit(
   appointmentLinks: JobberTodayAppointmentLink[],
   fieldRecordsByAppointment: Map<string, JobberTodayFieldRecordSummary>,
   fieldEventsByAppointment: Map<string, TechnicianVisitEventSnapshot>,
+  independenceReviewsByAppointment: Map<string, FieldIndependenceReview>,
   portalPathByMembershipId: Map<string, string>,
 ): JobberTodayVisit {
   const property = readClientProperties(client?.properties).find(
@@ -173,6 +176,11 @@ function toTodayVisit(
     homeAtlasFieldStageAt: fieldEvent?.occurredAt ?? null,
     homeAtlasFieldStageBy: fieldEvent?.actorDisplayName ?? null,
     homeAtlasFieldEventCount: fieldEvent?.eventCount ?? 0,
+    homeAtlasIndependenceReview: homeAtlas.homeAtlasAppointmentId
+      ? (independenceReviewsByAppointment.get(
+          homeAtlas.homeAtlasAppointmentId,
+        ) ?? null)
+      : null,
   };
 }
 
@@ -368,6 +376,8 @@ export async function loadJobberTodayBoard(
   const fieldRecordsByAppointment =
     summarizeJobberTodayFieldRecords(fieldRecordRows);
   const fieldEvents = await loadTechnicianVisitEventSnapshots(appointmentIds);
+  const independenceReviews =
+    await loadFieldIndependenceReviews(appointmentIds);
 
   const visits = visitRows.map((row) =>
     toTodayVisit(
@@ -377,6 +387,7 @@ export async function loadJobberTodayBoard(
       appointmentLinks,
       fieldRecordsByAppointment,
       fieldEvents.byAppointmentId,
+      independenceReviews.byAppointmentId,
       portalPathByMembershipId,
     ),
   );
@@ -397,6 +408,7 @@ export async function loadJobberTodayBoard(
     loadedAt: new Date().toISOString(),
     fieldRecordStatusAvailable,
     fieldEventStatusAvailable: fieldEvents.available,
+    independenceReviewStatusAvailable: independenceReviews.available,
     summary: summarizeJobberTodayVisits(visits),
     visits,
     fieldFollowUps,

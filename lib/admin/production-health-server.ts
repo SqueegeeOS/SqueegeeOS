@@ -249,6 +249,16 @@ async function runSchemaChecks(
       label: "customer_service_cases",
       table: "customer_service_cases",
     },
+    {
+      id: "growth-work-sessions-schema",
+      label: "growth_work_sessions",
+      table: "growth_work_sessions",
+    },
+    {
+      id: "field-independence-reviews-schema",
+      label: "field_independence_reviews",
+      table: "field_independence_reviews",
+    },
   ];
 
   const probes = await Promise.all(

@@ -46,6 +46,7 @@ function visit(
     homeAtlasFieldStageAt: null,
     homeAtlasFieldStageBy: null,
     homeAtlasFieldEventCount: 0,
+    homeAtlasIndependenceReview: null,
   };
 }
 
@@ -83,6 +84,7 @@ describe("technician field scope", () => {
       loadedAt: "2026-08-14T15:01:00.000Z",
       fieldRecordStatusAvailable: true,
       fieldEventStatusAvailable: true,
+      independenceReviewStatusAvailable: true,
       summary: {
         total: 2,
         complete: 0,

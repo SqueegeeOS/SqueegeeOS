@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMPANY_BUSINESS_TIMEZONE,
   getBusinessCalendarDayUtcBounds,
+  getBusinessCalendarWeekUtcBounds,
   isInstantOnBusinessCalendarDay,
   zonedDateTimeToUtc,
 } from "./company-business-timezone";
@@ -79,5 +80,15 @@ describe("company business timezone (America/Los_Angeles)", () => {
     expect(startUtc.toISOString()).toBe("2026-07-09T07:00:00.000Z");
     expect(endUtc.toISOString()).toBe("2026-07-10T07:00:00.000Z");
     expect(COMPANY_BUSINESS_TIMEZONE).toBe("America/Los_Angeles");
+  });
+
+  it("returns a Monday-start Pacific business week", () => {
+    const reference = new Date("2026-08-14T20:00:00.000Z"); // Friday afternoon PT
+    expect(getBusinessCalendarWeekUtcBounds(reference)).toEqual({
+      startUtc: new Date("2026-08-10T07:00:00.000Z"),
+      endUtc: new Date("2026-08-17T07:00:00.000Z"),
+      startCalendarDate: "2026-08-10",
+      endCalendarDateExclusive: "2026-08-17",
+    });
   });
 });

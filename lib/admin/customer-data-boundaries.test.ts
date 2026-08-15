@@ -239,6 +239,16 @@ describe("customer data route boundaries", () => {
     expect(source).toContain("authorizeAdminRequest(request.headers)");
   });
 
+  it("keeps owner-leverage reads and reviews behind HQ authorization", () => {
+    const source = readProjectFile("app/api/admin/owner-leverage/route.ts");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+    expect(source).toContain("recordFieldIndependenceReview");
+    expect(source).not.toMatch(
+      /sendOutboundCommunication|sendSms|sendEmail|twilio|resend|stripe|paymentIntent/i,
+    );
+  });
+
   it("protects aftercare reads and dispositions at the route handler", () => {
     const source = readProjectFile("app/api/admin/aftercare/route.ts");
     expect(source).toContain("authorizeAdminRequest(request.headers)");
