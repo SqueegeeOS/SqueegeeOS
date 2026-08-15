@@ -8,6 +8,7 @@ export type TechnicianVisitReadiness =
   | "complete"
   | "closeout_required"
   | "portal_update_required"
+  | "follow_up_open"
   | "pairing_required"
   | "appointment_syncing"
   | "proof_unavailable";
@@ -20,6 +21,7 @@ type TechnicianVisitInput = Pick<
   | "homeAtlasAppointmentId"
   | "homeAtlasFieldRecordCount"
   | "homeAtlasCustomerVisibleRecordCount"
+  | "homeAtlasOpenFollowUpCount"
 >;
 
 export interface TechnicianRunSummary {
@@ -99,6 +101,7 @@ export function resolveTechnicianVisitReadiness(
   if (visit.isComplete && visit.homeAtlasFieldRecordCount === 0) {
     return "closeout_required";
   }
+  if (visit.homeAtlasOpenFollowUpCount > 0) return "follow_up_open";
   if (
     visit.isComplete &&
     visit.homeAtlasFieldRecordCount > 0 &&
@@ -162,7 +165,8 @@ export function selectTechnicianNextAction<T extends TechnicianVisitInput>(
 
     if (
       (readiness === "closeout_required" ||
-        readiness === "portal_update_required") &&
+        readiness === "portal_update_required" ||
+        readiness === "follow_up_open") &&
       time < oldestCloseoutTime
     ) {
       oldestCloseout = visit;

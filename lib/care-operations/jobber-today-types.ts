@@ -16,6 +16,20 @@ export interface JobberTodayAssignedUser {
   name: string;
 }
 
+export type JobberTodayScopeReadState =
+  | "available"
+  | "partial"
+  | "permission_hidden"
+  | "not_observed";
+
+export interface JobberTodayScopeItem {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  category: string | null;
+}
+
 function assignmentString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
@@ -65,6 +79,61 @@ export function readJobberTodayVisitAssignment(value: unknown): Pick<
   };
 }
 
+export function readJobberTodayVisitScope(value: unknown): Pick<
+  JobberTodayVisit,
+  "scopeItems" | "scopeReadState"
+> {
+  if (!value || typeof value !== "object") {
+    return { scopeItems: [], scopeReadState: "not_observed" };
+  }
+
+  const payload = value as Record<string, unknown>;
+  if (payload.scopeReadState === "permission_hidden") {
+    return { scopeItems: [], scopeReadState: "permission_hidden" };
+  }
+
+  const scopeValue = payload.scopeItems ?? payload.lineItems;
+  const scopeNodes = Array.isArray(scopeValue)
+    ? scopeValue
+    : scopeValue &&
+        typeof scopeValue === "object" &&
+        Array.isArray((scopeValue as Record<string, unknown>).nodes)
+      ? ((scopeValue as Record<string, unknown>).nodes as unknown[])
+      : null;
+  if (!scopeNodes) {
+    return { scopeItems: [], scopeReadState: "not_observed" };
+  }
+
+  const items = new Map<string, JobberTodayScopeItem>();
+  for (const candidate of scopeNodes) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const item = candidate as Record<string, unknown>;
+    const id = assignmentString(item.id);
+    const name = assignmentString(item.name);
+    if (!id || !name) continue;
+    const rawQuantity = item.quantity;
+    const quantity =
+      typeof rawQuantity === "number" &&
+      Number.isFinite(rawQuantity) &&
+      rawQuantity >= 0
+        ? rawQuantity
+        : 1;
+    items.set(id, {
+      id,
+      name,
+      description: assignmentString(item.description),
+      quantity,
+      category: assignmentString(item.category),
+    });
+  }
+
+  return {
+    scopeItems: [...items.values()],
+    scopeReadState:
+      payload.scopeReadState === "partial" ? "partial" : "available",
+  };
+}
+
 export interface JobberTodayVisit {
   projectionId: string;
   externalVisitId: string;
@@ -78,6 +147,8 @@ export interface JobberTodayVisit {
   isComplete: boolean;
   assignedUsers: JobberTodayAssignedUser[];
   assignmentReadState: JobberTodayAssignmentReadState;
+  scopeItems: JobberTodayScopeItem[];
+  scopeReadState: JobberTodayScopeReadState;
   propertyLabel: string | null;
   jobberPropertyWebUri: string | null;
   jobberClientWebUri: string | null;
@@ -89,6 +160,7 @@ export interface JobberTodayVisit {
   homeAtlasLatestFieldRecordAt: string | null;
   homeAtlasLatestFieldRecordBy: string | null;
   homeAtlasCustomerVisibleRecordCount: number;
+  homeAtlasOpenFollowUpCount: number;
 }
 
 export interface JobberTodayPropertyLink {

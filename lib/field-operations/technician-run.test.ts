@@ -18,6 +18,7 @@ function visit(overrides: Record<string, unknown> = {}) {
     homeAtlasAppointmentId: "appointment-1",
     homeAtlasFieldRecordCount: 0,
     homeAtlasCustomerVisibleRecordCount: 0,
+    homeAtlasOpenFollowUpCount: 0,
     ...overrides,
   };
 }
@@ -61,6 +62,17 @@ describe("technician run automation", () => {
         true,
       ),
     ).toBe("complete");
+    expect(
+      resolveTechnicianVisitReadiness(
+        visit({
+          isComplete: true,
+          homeAtlasFieldRecordCount: 1,
+          homeAtlasCustomerVisibleRecordCount: 1,
+          homeAtlasOpenFollowUpCount: 1,
+        }),
+        true,
+      ),
+    ).toBe("follow_up_open");
   });
 
   it("summarizes only fully closed visits as complete", () => {

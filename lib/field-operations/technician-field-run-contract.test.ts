@@ -14,6 +14,7 @@ const propertyDirectory = read("../../app/tech/properties/page.tsx");
 const todayRoute = read(
   "../../app/api/admin/care-operations/jobber/today/route.ts",
 );
+const fieldCapture = read("../../components/visit/visit-field-capture.tsx");
 
 describe("technician field run contract", () => {
   it("keeps every technician surface behind the signed owner session", () => {
@@ -56,5 +57,16 @@ describe("technician field run contract", () => {
     expect(fieldRun).toContain("Saved on this phone");
     expect(fieldRun).toContain("Unassigned in Jobber");
     expect(fieldRun).toContain("Users read access");
+  });
+
+  it("turns Jobber line items into a durable exception-aware worklist", () => {
+    expect(fieldRun).toContain("Service scope");
+    expect(fieldRun).toContain("scopeItems={visit.scopeItems}");
+    expect(fieldCapture).toContain("Jobber worklist");
+    expect(fieldCapture).toContain(
+      "Mark every Jobber service item done, or explain what remains.",
+    );
+    expect(fieldCapture).toContain("automatedScopeFollowUp");
+    expect(fieldCapture).toContain("Build customer update from completed work");
   });
 });

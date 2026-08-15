@@ -223,6 +223,12 @@ async function runSchemaChecks(
       table: "property_assessments",
       column: "follow_up_status",
     },
+    {
+      id: "field-record-service-scope-schema",
+      label: "property_assessments.service_scope",
+      table: "property_assessments",
+      column: "service_scope",
+    },
   ];
 
   const probes = await Promise.all(

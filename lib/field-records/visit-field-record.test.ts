@@ -59,6 +59,9 @@ describe("visit field record validation", () => {
         customerSummary: "Exterior glass cleaned and inspected.",
         internalNote: "Gate code confirmed.",
         followUpNeeded: false,
+        scopeReadState: "available",
+        serviceScope: [],
+        scopeException: "",
         photos: [{ ...photo, storagePath }],
       }),
     ).toBeNull();
@@ -75,6 +78,9 @@ describe("visit field record validation", () => {
         customerSummary: "Service complete.",
         internalNote: "",
         followUpNeeded: false,
+        scopeReadState: "available",
+        serviceScope: [],
+        scopeException: "",
         photos: [
           {
             ...photo,
@@ -134,9 +140,84 @@ describe("visit field record validation", () => {
         customerSummary: "",
         internalNote: "",
         followUpNeeded: false,
+        scopeReadState: "not_observed",
+        serviceScope: [],
+        scopeException: "",
         photos: [],
       }),
     ).toContain("Add a customer update");
+  });
+
+  it("turns unfinished Jobber scope into an explicit owner follow-up", () => {
+    const serviceScope = [
+      {
+        id: "line-1",
+        name: "Exterior window cleaning",
+        description: "Glass and frames",
+        quantity: 1,
+        category: "SERVICE",
+        completed: true,
+      },
+      {
+        id: "line-2",
+        name: "Screens",
+        description: null,
+        quantity: 12,
+        category: "SERVICE",
+        completed: false,
+      },
+    ];
+
+    expect(
+      validateVisitFieldRecordCommit({
+        fieldRecordId,
+        propertyId,
+        appointmentId,
+        technicianName: "Noah",
+        visitDate: "2026-08-14",
+        customerSummary: "Exterior glass completed.",
+        internalNote: "",
+        followUpNeeded: false,
+        scopeReadState: "available",
+        serviceScope,
+        scopeException: "",
+        photos: [],
+      }),
+    ).toContain("Explain any unfinished");
+
+    expect(
+      validateVisitFieldRecordCommit({
+        fieldRecordId,
+        propertyId,
+        appointmentId,
+        technicianName: "Noah",
+        visitDate: "2026-08-14",
+        customerSummary: "Exterior glass completed.",
+        internalNote: "",
+        followUpNeeded: false,
+        scopeReadState: "available",
+        serviceScope,
+        scopeException: "Two screens were locked behind a patio enclosure.",
+        photos: [],
+      }),
+    ).toContain("must create an HQ follow-up");
+
+    expect(
+      validateVisitFieldRecordCommit({
+        fieldRecordId,
+        propertyId,
+        appointmentId,
+        technicianName: "Noah",
+        visitDate: "2026-08-14",
+        customerSummary: "Exterior glass completed.",
+        internalNote: "",
+        followUpNeeded: true,
+        scopeReadState: "available",
+        serviceScope,
+        scopeException: "Two screens were locked behind a patio enclosure.",
+        photos: [],
+      }),
+    ).toBeNull();
   });
 
   it("validates an explicit operator before resolving a follow-up", () => {

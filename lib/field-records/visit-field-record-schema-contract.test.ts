@@ -8,6 +8,13 @@ const migration = readFileSync(
   ),
   "utf8",
 );
+const serviceScopeMigration = readFileSync(
+  new URL(
+    "../persistence/supabase/migrations/056_visit_service_scope.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
 const todayLoader = readFileSync(
   new URL("../care-operations/jobber-today.ts", import.meta.url),
   "utf8",
@@ -51,6 +58,10 @@ const visitFieldDraft = readFileSync(
   new URL("./visit-field-draft.ts", import.meta.url),
   "utf8",
 );
+const visitFieldRecordServer = readFileSync(
+  new URL("./visit-field-record-server.ts", import.meta.url),
+  "utf8",
+);
 
 describe("visit field record database contract", () => {
   it("keeps phone photos in a private, bounded storage bucket", () => {
@@ -73,6 +84,41 @@ describe("visit field record database contract", () => {
     expect(migration).toContain("Appointment does not belong to the HomeAtlas property");
     expect(migration).toContain("insert into public.property_assessments");
     expect(migration).toContain("insert into public.property_assets");
+  });
+
+  it("persists the exact Jobber worklist without weakening the existing rollout", () => {
+    for (const column of [
+      "scope_read_state",
+      "service_scope",
+      "scope_exception",
+    ]) {
+      expect(serviceScopeMigration).toContain(
+        `add column if not exists ${column}`,
+      );
+    }
+    expect(serviceScopeMigration).toContain("jsonb_array_length(normalized_scope) > 50");
+    expect(serviceScopeMigration).toContain(
+      "Unverified or unfinished service scope needs an exception",
+    );
+    expect(serviceScopeMigration).toContain(
+      "Service scope exception must create a follow-up",
+    );
+    expect(serviceScopeMigration).toContain(
+      "Field record ID already has different service scope",
+    );
+    expect(serviceScopeMigration).toContain(
+      "from public.commit_visit_field_record(\n    p_field_record_id",
+    );
+    expect(serviceScopeMigration).toContain(
+      "never a billing authorization",
+    );
+    expect(visitFieldRecordServer).toContain(
+      '.from("jobber_visit_projections")',
+    );
+    expect(visitFieldRecordServer).toContain('.select("raw_payload")');
+    expect(visitFieldRecordServer).toContain(
+      "The Jobber service scope changed. Refresh Today.",
+    );
   });
 
   it("turns a field flag into a due and idempotently resolvable owner action", () => {
@@ -131,6 +177,9 @@ describe("visit field record database contract", () => {
     expect(productionHealthServer).toContain('id: "field-record-media-schema"');
     expect(productionHealthServer).toContain(
       'id: "field-record-follow-up-schema"',
+    );
+    expect(productionHealthServer).toContain(
+      'id: "field-record-service-scope-schema"',
     );
     expect(productionHealthServer).toContain('"storage-visit-media"');
     expect(productionHealthRunway).toContain('id: "serve"');
@@ -191,12 +240,13 @@ describe("visit field record database contract", () => {
   it("shows database-backed visit memory on the exact Today appointment", () => {
     expect(todayLoader).toContain('from("property_assessments")');
     expect(todayLoader).toContain(
-      '"visit_id, field_record_id, technician_name, created_at, customer_note_visible"',
+      '"visit_id, field_record_id, technician_name, created_at, customer_note_visible, follow_up_status"',
     );
     expect(todayLoader).toContain("isMissingVisitFieldRecordSchema");
     expect(todayLoader).toContain("fieldRecordsByAppointment");
     expect(todayWorkspace).toContain("HomeAtlas visit memory saved");
     expect(todayWorkspace).toContain("Add another visit update");
+    expect(todayWorkspace).toContain("Visit exception still open");
   });
 
   it("does not confuse Jobber completion with proven HomeAtlas closeout", () => {

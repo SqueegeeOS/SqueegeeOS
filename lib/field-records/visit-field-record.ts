@@ -3,6 +3,7 @@ import { zonedDateTimeToUtc } from "@/lib/admin/company-business-timezone";
 export const VISIT_MEDIA_BUCKET = "homeatlas-visit-media";
 export const MAX_VISIT_PHOTOS = 8;
 export const MAX_VISIT_PHOTO_BYTES = 15 * 1024 * 1024;
+export const MAX_VISIT_SCOPE_ITEMS = 50;
 
 export const VISIT_PHOTO_MIME_TYPES = [
   "image/jpeg",
@@ -36,6 +37,21 @@ export interface VisitPhotoUploadRequest {
   photos: VisitPhotoDescriptor[];
 }
 
+export type VisitServiceScopeReadState =
+  | "available"
+  | "partial"
+  | "permission_hidden"
+  | "not_observed";
+
+export interface VisitServiceScopeItemCompletion {
+  id: string;
+  name: string;
+  description: string | null;
+  quantity: number;
+  category: string | null;
+  completed: boolean;
+}
+
 export interface VisitFieldRecordCommitInput {
   fieldRecordId: string;
   propertyId: string;
@@ -45,6 +61,9 @@ export interface VisitFieldRecordCommitInput {
   customerSummary: string;
   internalNote: string;
   followUpNeeded: boolean;
+  scopeReadState: VisitServiceScopeReadState;
+  serviceScope: VisitServiceScopeItemCompletion[];
+  scopeException: string;
   photos: Array<Omit<VisitPhotoUploadIntent, "token">>;
 }
 
@@ -238,8 +257,72 @@ export function validateVisitFieldRecordCommit(
   if ((input.internalNote ?? "").trim().length > 2_500) {
     return "Internal note must be 2,500 characters or fewer.";
   }
+  if ((input.scopeException ?? "").trim().length > 1_200) {
+    return "Scope exception must be 1,200 characters or fewer.";
+  }
   if (typeof input.followUpNeeded !== "boolean") {
     return "followUpNeeded must be true or false.";
+  }
+  if (
+    input.scopeReadState !== "available" &&
+    input.scopeReadState !== "partial" &&
+    input.scopeReadState !== "permission_hidden" &&
+    input.scopeReadState !== "not_observed"
+  ) {
+    return "Choose a valid service-scope visibility state.";
+  }
+  if (!Array.isArray(input.serviceScope)) {
+    return "serviceScope must be an array.";
+  }
+  if (input.serviceScope.length > MAX_VISIT_SCOPE_ITEMS) {
+    return `Keep each visit record to ${MAX_VISIT_SCOPE_ITEMS} service items or fewer.`;
+  }
+  if (
+    input.serviceScope.length > 0 &&
+    input.scopeReadState !== "available" &&
+    input.scopeReadState !== "partial"
+  ) {
+    return "Service items cannot be trusted when Jobber scope is unavailable.";
+  }
+
+  const scopeIds = new Set<string>();
+  for (const item of input.serviceScope) {
+    if (!item.id?.trim() || item.id.length > 200) {
+      return "Each service item needs a valid Jobber ID.";
+    }
+    if (scopeIds.has(item.id)) return "Duplicate service-scope item.";
+    scopeIds.add(item.id);
+    if (!item.name?.trim() || item.name.length > 180) {
+      return "Each service item needs a valid name.";
+    }
+    if ((item.description ?? "").length > 500) {
+      return "Service-item descriptions must be 500 characters or fewer.";
+    }
+    if ((item.category ?? "").length > 80) {
+      return "Service-item categories must be 80 characters or fewer.";
+    }
+    if (
+      typeof item.quantity !== "number" ||
+      !Number.isFinite(item.quantity) ||
+      item.quantity < 0 ||
+      item.quantity > 100_000
+    ) {
+      return "Each service item needs a valid quantity.";
+    }
+    if (typeof item.completed !== "boolean") {
+      return "Each service item needs an explicit completion choice.";
+    }
+  }
+
+  const hasIncompleteScope = input.serviceScope.some((item) => !item.completed);
+  if (hasIncompleteScope && !input.scopeException.trim()) {
+    return "Explain any unfinished Jobber service item before closeout.";
+  }
+  if (
+    (hasIncompleteScope || input.scopeException.trim()) &&
+    !input.followUpNeeded
+  ) {
+    return "A service-scope exception must create an HQ follow-up.";
   }
 
   const photoError = validateVisitPhotoDescriptors(input.photos);
@@ -247,6 +330,7 @@ export function validateVisitFieldRecordCommit(
   if (
     !input.customerSummary.trim() &&
     !input.internalNote.trim() &&
+    !input.serviceScope.some((item) => item.completed) &&
     input.photos.length === 0
   ) {
     return "Add a customer update, an internal note, or at least one photo.";
@@ -270,6 +354,18 @@ export function validateVisitFieldRecordCommit(
   }
 
   return null;
+}
+
+export function buildCompletedScopeCustomerSummary(
+  items: VisitServiceScopeItemCompletion[],
+): string {
+  const completed = items
+    .filter((item) => item.completed)
+    .map((item) =>
+      item.quantity > 1 ? `${item.name} × ${item.quantity}` : item.name,
+    );
+  if (completed.length === 0) return "";
+  return `Completed today: ${completed.join(", ")}.`;
 }
 
 export function validateResolveVisitFieldFollowUp(

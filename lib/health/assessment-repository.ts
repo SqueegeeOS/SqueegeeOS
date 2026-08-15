@@ -11,6 +11,7 @@ import {
   calculateAssessmentOverallScore,
   parseScoreValue,
   type AssessmentFormState,
+  type AssessmentServiceScopeItem,
   type AssessmentType,
   type PropertyAssessment,
   type RecommendedService,
@@ -40,6 +41,14 @@ interface AssessmentRow {
   follow_up_due_at: string | null;
   follow_up_resolved_at: string | null;
   follow_up_resolved_by: string | null;
+  scope_read_state:
+    | "available"
+    | "partial"
+    | "permission_hidden"
+    | "not_observed"
+    | null;
+  service_scope: AssessmentServiceScopeItem[] | null;
+  scope_exception: string | null;
   proposal_sent: boolean;
   proposal_sent_at: string | null;
   created_at: string;
@@ -78,6 +87,9 @@ function rowToAssessment(row: AssessmentRow): PropertyAssessment {
     followUpDueAt: row.follow_up_due_at,
     followUpResolvedAt: row.follow_up_resolved_at,
     followUpResolvedBy: row.follow_up_resolved_by,
+    scopeReadState: row.scope_read_state ?? null,
+    serviceScope: row.service_scope ?? [],
+    scopeException: row.scope_exception ?? null,
     proposalSent: row.proposal_sent,
     proposalSentAt: row.proposal_sent_at,
     createdAt: row.created_at,

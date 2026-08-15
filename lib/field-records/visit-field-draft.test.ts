@@ -26,6 +26,8 @@ function validDraft(
     customerSummary: "Exterior glass is clean and ready for the homeowner.",
     internalNote: "Back gate sticks near the latch.",
     followUpNeeded: true,
+    completedScopeItemIds: ["line-1", "line-2"],
+    scopeException: "One screen was locked behind the patio enclosure.",
     selectedPhotoCount: 3,
     savedAt: NOW,
     ...overrides,
@@ -97,6 +99,20 @@ describe("visit field draft", () => {
     ).toBe(false);
     expect(
       writeVisitFieldDraft(storage, validDraft({ selectedPhotoCount: 9 }), NOW),
+    ).toBe(false);
+    expect(
+      writeVisitFieldDraft(
+        storage,
+        validDraft({ completedScopeItemIds: ["duplicate", "duplicate"] }),
+        NOW,
+      ),
+    ).toBe(false);
+    expect(
+      writeVisitFieldDraft(
+        storage,
+        validDraft({ scopeException: "x".repeat(1_201) }),
+        NOW,
+      ),
     ).toBe(false);
     expect(storage.getItem(visitFieldDraftStorageKey(scope))).toBeNull();
   });

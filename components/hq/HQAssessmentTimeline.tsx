@@ -87,6 +87,7 @@ function AssessmentCard({
   onRequestFollowUpResolution: () => void;
 }) {
   const isVisitNote = assessment.assessmentType === "visit_note";
+  const serviceScope = assessment.serviceScope ?? [];
   const openFollowUp = assessment.followUpStatus === "open";
   const resolvedFollowUp = assessment.followUpStatus === "resolved";
   const followUpMoment = assessment.followUpDueAt
@@ -214,6 +215,51 @@ function AssessmentCard({
             {assessment.followUpResolvedBy
               ? ` by ${assessment.followUpResolvedBy}`
               : ""}
+          </p>
+        </div>
+      ) : null}
+
+      {serviceScope.length > 0 ? (
+        <div className="mb-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.045] px-3 py-3.5">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[10px] uppercase tracking-widest text-emerald-200">
+              Jobber service closeout
+            </p>
+            <span className="text-[10px] tabular-nums text-emerald-100/55">
+              {serviceScope.filter((item) => item.completed).length}/
+              {serviceScope.length} done
+            </span>
+          </div>
+          <ul className="mt-3 space-y-2">
+            {serviceScope.map((item) => (
+              <li
+                key={item.id}
+                className="flex items-start justify-between gap-3 text-xs"
+              >
+                <span
+                  className={
+                    item.completed ? "text-[#8ecfaa]" : "text-amber-200"
+                  }
+                >
+                  {item.completed ? "✓" : "○"} {item.name}
+                  {item.quantity > 1 ? ` × ${item.quantity}` : ""}
+                </span>
+                <span className="shrink-0 text-[10px] uppercase tracking-wider text-[#444]">
+                  {item.completed ? "Done" : "Open"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {assessment.scopeException ? (
+        <div className="mb-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-3 py-3.5">
+          <p className="text-[10px] uppercase tracking-widest text-amber-100">
+            Scope exception
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-[#8a7b63]">
+            {assessment.scopeException}
           </p>
         </div>
       ) : null}

@@ -352,6 +352,19 @@ function JobberVisitCard({
                   ? `Crew · ${visit.assignedUsers.map((user) => user.name).join(", ")}`
                   : "No technician assigned in Jobber"}
             </p>
+            <p
+              className={`mt-2 text-xs ${
+                visit.scopeReadState === "available"
+                  ? "text-muted"
+                  : "text-amber-200"
+              }`}
+            >
+              {visit.scopeReadState === "available"
+                ? `Scope · ${visit.scopeItems.length} Jobber item${visit.scopeItems.length === 1 ? "" : "s"}`
+                : visit.scopeReadState === "partial"
+                  ? `Scope · ${visit.scopeItems.length}+ items; verify the rest in Jobber`
+                  : "Service scope visibility unavailable"}
+            </p>
           </div>
           <div className="flex flex-wrap gap-2 sm:justify-end">
             <span className="rounded-full border border-border px-3 py-1 text-[11px] text-muted">
@@ -459,6 +472,18 @@ function JobberVisitCard({
                   ) : null}
                 </div>
               ) : null}
+              {visit.homeAtlasOpenFollowUpCount > 0 ? (
+                <div className="mb-3 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3">
+                  <p className="text-xs font-medium text-amber-100">
+                    Visit exception still open
+                  </p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-amber-100/65">
+                    {visit.homeAtlasOpenFollowUpCount} field follow-up
+                    {visit.homeAtlasOpenFollowUpCount === 1 ? " is" : "s are"}
+                    waiting in the owner action queue.
+                  </p>
+                </div>
+              ) : null}
               <button
                 type="button"
                 aria-expanded={fieldCaptureOpen}
@@ -482,6 +507,8 @@ function JobberVisitCard({
                     appointmentId={appointmentId}
                     clientName={visit.clientName}
                     serviceLabel={service}
+                    scopeItems={visit.scopeItems}
+                    scopeReadState={visit.scopeReadState}
                     onSaved={onFieldRecordSaved}
                     onDraftStateChange={setHasFieldDraft}
                   />

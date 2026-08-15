@@ -36,6 +36,7 @@ export const PRODUCTION_READINESS_LANES = [
     checkIds: [
       "field-record-media-schema",
       "field-record-follow-up-schema",
+      "field-record-service-scope-schema",
       "storage-visit-media",
     ],
   },
