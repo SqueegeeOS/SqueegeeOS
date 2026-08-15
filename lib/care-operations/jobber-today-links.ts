@@ -12,6 +12,10 @@ export function jobberTodayVisitAnchorId(projectionId: string): string {
   return `visit-${safeFragment(projectionId, "unknown")}`;
 }
 
+export function visitFieldFollowUpAnchorId(assessmentId: string): string {
+  return `field-follow-up-${safeFragment(assessmentId, "unknown")}`;
+}
+
 export function technicianFieldPassAnchorId(jobberUserId: string): string {
   return `field-pass-${safeFragment(jobberUserId, "unknown")}`;
 }

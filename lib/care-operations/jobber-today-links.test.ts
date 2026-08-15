@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   jobberTodayVisitAnchorId,
   technicianFieldPassAnchorId,
+  visitFieldFollowUpAnchorId,
 } from "./jobber-today-links";
 
 describe("Jobber Today links", () => {
@@ -11,6 +12,9 @@ describe("Jobber Today links", () => {
     );
     expect(technicianFieldPassAnchorId("user:alex/1")).toBe(
       "field-pass-user-alex-1",
+    );
+    expect(visitFieldFollowUpAnchorId("assessment/1")).toBe(
+      "field-follow-up-assessment-1",
     );
   });
 

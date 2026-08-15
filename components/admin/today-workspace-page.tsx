@@ -26,7 +26,10 @@ import {
   technicianVisitStageLabel,
   technicianVisitStageProgress,
 } from "@/lib/field-operations/technician-visit-events";
-import { jobberTodayVisitAnchorId } from "@/lib/care-operations/jobber-today-links";
+import {
+  jobberTodayVisitAnchorId,
+  visitFieldFollowUpAnchorId,
+} from "@/lib/care-operations/jobber-today-links";
 
 const VisitFieldCapture = dynamic(
   () =>
@@ -194,7 +197,8 @@ function FieldFollowUpQueue({
           return (
             <li
               key={followUp.assessmentId}
-              className="rounded-2xl border border-border/80 bg-background/75 p-4 backdrop-blur-xl sm:p-5"
+              id={visitFieldFollowUpAnchorId(followUp.assessmentId)}
+              className="scroll-mt-24 rounded-2xl border border-border/80 bg-background/75 p-4 backdrop-blur-xl target:ring-2 target:ring-accent/60 sm:p-5"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

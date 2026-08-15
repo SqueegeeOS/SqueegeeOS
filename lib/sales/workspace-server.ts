@@ -10,6 +10,7 @@ import type {
   SalesActivityReceipt,
   SalesActivityReversalReceipt,
   SalesActivityType,
+  SalesLeadAttentionSnapshot,
   SalesLeadStatus,
   SalesRepLead,
   SalesRepRecentWin,
@@ -547,6 +548,23 @@ export async function loadSalesWorkspace(
     recentWins,
     recentWinsStatus,
     closeLedgerStatus,
+    generatedAt: referenceDate.toISOString(),
+  };
+}
+
+/**
+ * Read-only pipeline view for owner attention surfaces.
+ * Unlike loadSalesWorkspace, this never runs attribution reconciliation.
+ */
+export async function loadSalesLeadAttentionSnapshot(
+  slug: string,
+  referenceDate = new Date(),
+): Promise<SalesLeadAttentionSnapshot> {
+  const rep = await loadRepRow(slug);
+  const openLeadRows = await loadAllOpenSalesRepLeadRows(rep.id);
+  return {
+    profile: profileFromRow(rep),
+    leads: openLeadRows.map(leadFromRow),
     generatedAt: referenceDate.toISOString(),
   };
 }

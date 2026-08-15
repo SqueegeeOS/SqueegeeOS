@@ -12,14 +12,14 @@ that a provider-backed workflow is live.
 - Current production commit: `41b5e19a88a0600e5bc3bea171986bed044d0a94`
 - Production deployment state: `READY`
 - Local release branch: `codex/communications-readiness`
-- Verified local base before this dispatch batch: `f4e10f6`
-- Local branch position before this dispatch commit: 29 commits ahead of the
+- Verified local base before this owner-attention batch: `7551414`
+- Local branch position before this owner-attention commit: 30 commits ahead of the
   deployed production commit
-- Repository size: 75 page entrypoints, 92 API entrypoints, 36 `lib/` domains,
-  57 numbered SQL migrations (`002` through `058`), and 175 test files
-- Full local verification after the dispatch work:
-  - 172 test files passed
-  - 830 tests passed
+- Repository size: 75 page entrypoints, 94 API entrypoints, 36 `lib/` domains,
+  57 numbered SQL migrations (`002` through `058`), and 177 test files
+- Full local verification after the owner-attention work:
+  - 174 test files passed
+  - 839 tests passed
   - TypeScript passed
   - ESLint passed with 0 errors and 90 inherited warnings
   - Next.js 16.2.10 production Webpack build passed; 131 static-generation
@@ -41,7 +41,7 @@ public acquisition, presentation, enrollment, portal, sales-representative,
 HQ, communications, billing, review, and Jobber integration surfaces all
 exist. The most important constraint today is release and provider state:
 
-1. Production is running commit `41b5e19`, not the 29-commit verified local
+1. Production is running commit `41b5e19`, not the 31-commit verified local
    operations branch.
 2. Production Jobber is currently disconnected. Jobber webhooks are arriving,
    but background synchronization and the reconcile cron cannot use them.
@@ -84,8 +84,9 @@ These capabilities are implemented and verified on
 | Technician Field Run | Assigned route, active/next stop, service scope, property context, required proof, closeout, and recovery after interrupted saves | Apply `054`–`057`; deploy |
 | Visit event automation | Monotonic On my way → Arrived → Working → Service complete → Departed event ledger; completion requires a saved closeout | Apply `058`; deploy |
 | Customer live service | Bearer-token portals receive a deliberately limited live visit stage without technician IDs, route data, internal notes, or provider IDs | Apply `058`; deploy |
-| Technician dispatch | HQ shows scheduled crew, usable Field Pass state, active stop, proof state, route-complete state, unassigned work, and the exact stop needing attention; refreshes every minute while visible | Finish this batch, then apply `054`–`058` and deploy |
-| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, and visit-story history | Deploy the 29-commit local branch with its migrations |
+| Technician dispatch | HQ shows scheduled crew, usable Field Pass state, active stop, proof state, route-complete state, unassigned work, and the exact stop needing attention; refreshes every minute while visible | Apply `054`–`058` and deploy |
+| Owner attention queue | HQ ranks current website/Meta leads, David follow-ups, dispatch drift, field follow-ups and proof gaps, billing exceptions, communication gates, and uncovered production safeguards; each item deep-links to the exact record when possible and treats unreadable sources as unknown | Deploy the local branch and verify the authorized `/api/admin/attention` response in production |
+| Local reliability improvements | Billing rehearsal explanations, communications readiness proof, safer presentation retries, expanded David follow-up visibility, hardened portal truth, and visit-story history | Deploy the 31-commit local branch with its migrations |
 
 ### PARTIAL
 
@@ -116,9 +117,8 @@ These capabilities are implemented and verified on
 
 ### NOT BUILT
 
-- A single cross-domain owner exception inbox that ranks every lead, schedule,
-  technician, proof, payment, complaint, retention, and integration exception
-  in one action queue
+- Complaint, retention-risk, renewal, and review/referral exceptions have not
+  yet been added to the local owner attention queue
 - Automatic lead scoring and duplicate resolution across website, Meta, Jobber,
   sales-rep, email, and phone identities
 - A customer multi-property switcher and household-level account view
@@ -152,9 +152,9 @@ These capabilities are implemented and verified on
 3. Run the technician acceptance test using an internal/demo Jobber client:
    assigned route, Field Pass, scope, proof, closeout, departure, owner
    exception, and safe customer portal status. Send no customer message.
-4. Convert the owner dashboard toward one ranked exception queue, beginning
-   with already-structured Jobber, field-proof, communication, and billing
-   exceptions.
+4. Deploy the ranked owner attention queue, then verify that production leads,
+   David follow-ups, Jobber visits, field proof, billing, communications, and
+   production safeguards resolve to the correct records without causing writes.
 5. Verify provider readiness in order: Resend, Twilio, Meta, Stripe. Only then
    enable narrowly scoped automation rules with kill switches and audit logs.
 6. Build the household/multi-property account layer on top of the trustworthy

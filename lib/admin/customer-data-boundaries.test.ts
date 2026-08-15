@@ -117,6 +117,12 @@ describe("customer data route boundaries", () => {
     expect(source).toContain('"Cache-Control": "private, no-store"');
   });
 
+  it("keeps the owner attention queue behind HQ authorization", () => {
+    const source = readProjectFile("app/api/admin/attention/route.ts");
+    expect(source).toContain("authorizeAdminRequest(request.headers)");
+    expect(source).toContain('"Cache-Control": "private, no-store"');
+  });
+
   it("keeps membership history while allowing only one current plan", () => {
     const migration = readProjectFile(
       "lib/persistence/supabase/migrations/039_preserve_membership_history.sql",

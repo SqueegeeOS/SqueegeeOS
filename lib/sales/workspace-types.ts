@@ -72,6 +72,12 @@ export interface SalesWorkspacePayload {
   generatedAt: string;
 }
 
+export interface SalesLeadAttentionSnapshot {
+  profile: SalesRepProfile;
+  leads: SalesRepLead[];
+  generatedAt: string;
+}
+
 export interface CreateSalesLeadInput {
   fullName: string;
   propertyAddress: string;
