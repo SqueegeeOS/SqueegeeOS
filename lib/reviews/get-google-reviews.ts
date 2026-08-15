@@ -126,7 +126,7 @@ export async function getGoogleReviewsResponse(): Promise<GoogleReviewsApiRespon
           isCached: false,
         },
         message:
-          "Showing Google's supported Places review preview. Full owner-only review display requires explicit project approval.",
+          "Showing Google's supported Places review preview while the complete owner-connected archive is unavailable.",
         fetchedAt: data.fetchedAt,
       };
     } catch {

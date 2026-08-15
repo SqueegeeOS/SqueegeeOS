@@ -127,20 +127,20 @@ export const PUBLIC_SERVICES: PublicService[] = [
     pageTitle: "Recurring Home Care in Chico, CA",
     headline: "Put the exterior of your home on a rhythm.",
     description:
-      "Quarterly and bi-annual care plans combine preferred scheduling, member benefits, and HomeAtlas: a living record of what your property needs and what has already been done.",
+      "Quarterly and bi-annual care plans combine preferred scheduling, member benefits, and HomeAtlas: a living record of what your property needs and what has already been done. A custom three-times-yearly plan is also available when it better fits the home.",
     metaDescription:
-      "Recurring exterior home care in Chico, CA every 3 or 6 months. SqueegeeKing memberships include preferred care and a HomeAtlas property record.",
+      "Recurring exterior home care in Chico, CA with quarterly, bi-annual, and custom 3x/year options. Membership includes a HomeAtlas property record.",
     image: "/day/hour-dusk.jpg",
     imageAlt: "A cared-for Chico-area home at the end of the day",
     serviceType: "Recurring exterior home maintenance",
-    rhythm: "Every 3 months or every 6 months",
+    rhythm: "Every 3 months, every 6 months, or a custom 3x/year plan",
     promise:
       "The calendar is handled, the property history stays intact, and every visit begins with context instead of starting over.",
     inclusions: [
       {
         title: "A dependable care rhythm",
         description:
-          "Choose quarterly or bi-annual service based on the property and the plan you approve.",
+          "Choose quarterly or bi-annual service based on the property and the plan you approve, with a custom three-times-yearly option when needed.",
       },
       {
         title: "Member treatment",

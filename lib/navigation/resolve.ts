@@ -26,6 +26,7 @@ const HIDDEN_PREFIXES = [
   "/day",
   "/david",
   "/sales",
+  "/atlas-glass",
 ];
 
 function matchesPathPrefix(pathname: string, prefix: string): boolean {
@@ -37,7 +38,10 @@ function isPresentationPresentMode(pathname: string): boolean {
 }
 
 export function getNavigationMode(pathname: string): NavigationMode {
-  if (HIDDEN_PREFIXES.some((prefix) => matchesPathPrefix(pathname, prefix))) {
+  if (
+    pathname === ROUTES.home ||
+    HIDDEN_PREFIXES.some((prefix) => matchesPathPrefix(pathname, prefix))
+  ) {
     return "hidden";
   }
   if (pathname === "/portal" || pathname.startsWith("/portal/")) {
@@ -53,7 +57,13 @@ export function getNavigationMode(pathname: string): NavigationMode {
 }
 
 export function shouldUseOverlayNav(pathname: string): boolean {
-  if (pathname === ROUTES.home || pathname === ROUTES.night2) return true;
+  if (
+    pathname === ROUTES.home ||
+    pathname === "/rightway" ||
+    pathname === ROUTES.night2
+  ) {
+    return true;
+  }
   if (pathname === "/portal" || pathname.startsWith("/portal/")) return true;
   if (pathname.startsWith("/homecare/") && pathname.endsWith("/portal")) {
     return true;
