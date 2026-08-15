@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyCarePlanServicePolicy,
   applyCarePlanPreset,
   calculateCarePlanPricing,
   createDefaultCarePlan,
+  deriveCarePlanServicePolicy,
   normalizeCarePlan,
   resizeCarePlan,
   summarizeCarePlan,
@@ -51,6 +53,56 @@ describe("presentation care plans", () => {
     expect(summarizeCarePlan(plan)).toBe(
       "Exterior 4×/yr · screens optional",
     );
+  });
+
+  it("applies one clear service policy across visits and keeps selected visits editable", () => {
+    const base = createDefaultCarePlan({ tier: "quarterly" });
+    const optional = applyCarePlanServicePolicy(
+      base,
+      "interiorWindows",
+      "optional_add_on",
+    );
+    expect(
+      optional.visits.every((visit) => visit.interiorWindows === "optional"),
+    ).toBe(true);
+    expect(deriveCarePlanServicePolicy(optional, "interiorWindows")).toBe(
+      "optional_add_on",
+    );
+
+    const selected = applyCarePlanServicePolicy(
+      optional,
+      "interiorWindows",
+      "selected_visits",
+    );
+    expect(selected.visits[0]?.interiorWindows).toBe("included");
+    expect(
+      selected.visits.slice(1).every(
+        (visit) => visit.interiorWindows === "not_included",
+      ),
+    ).toBe(true);
+    expect(deriveCarePlanServicePolicy(selected, "interiorWindows")).toBe(
+      "selected_visits",
+    );
+  });
+
+  it("prices cobwebbing only when it is deliberately included", () => {
+    const optional = applyCarePlanPreset(
+      createDefaultCarePlan({ tier: "biannual" }),
+      "flexible_add_ons",
+    );
+    expect(calculateCarePlanPricing({ plan: optional, baseVisitPrice: 200 }).annualTotal).toBe(
+      400,
+    );
+
+    const included = applyCarePlanServicePolicy(
+      optional,
+      "cobwebRemoval",
+      "always_included",
+    );
+    expect(calculateCarePlanPricing({ plan: included, baseVisitPrice: 200 }).annualTotal).toBe(
+      500,
+    );
+    expect(summarizeCarePlan(included)).toContain("cobwebs every visit");
   });
 
   it("calculates mixed visit totals and annual value", () => {
@@ -115,7 +167,13 @@ describe("presentation care plans", () => {
       label: "Spring",
       interiorWindows: "included",
       screens: "not_included",
+      cobwebRemoval: "not_included",
       priceOverride: null,
+    });
+    expect(normalized.servicePrices).toEqual({
+      interiorWindows: 100,
+      screens: 50,
+      cobwebRemoval: 50,
     });
     expect(resizeCarePlan(normalized, "triannual").visits).toHaveLength(3);
   });

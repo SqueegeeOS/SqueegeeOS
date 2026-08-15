@@ -18,7 +18,7 @@ import {
   type PresentationPlanMode,
 } from "./care-plan";
 
-export const PRESENTATION_DRAFT_SCHEMA_VERSION = 3;
+export const PRESENTATION_DRAFT_SCHEMA_VERSION = 4;
 
 export interface PresentationDraftPayload {
   schemaVersion: typeof PRESENTATION_DRAFT_SCHEMA_VERSION;

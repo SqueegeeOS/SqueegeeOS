@@ -12,6 +12,15 @@ describe("presentation draft persistence", () => {
       clientName: "Original",
       homeSqft: 1800,
     });
+    const carePlan = applyCarePlanPreset(
+      createDefaultCarePlan({ tier: "biannual" }),
+      "annual_interior",
+    );
+    carePlan.servicePrices.cobwebRemoval = 75;
+    carePlan.visits[1] = {
+      ...carePlan.visits[1]!,
+      cobwebRemoval: "optional",
+    };
     const edited = {
       ...base,
       clientName: "Saved customer",
@@ -25,10 +34,7 @@ describe("presentation draft persistence", () => {
       tier: "biannual" as const,
       planMode: "custom" as const,
       presentationLayout: "story" as const,
-      carePlan: applyCarePlanPreset(
-        createDefaultCarePlan({ tier: "biannual" }),
-        "annual_interior",
-      ),
+      carePlan,
       monthlyRate: 375,
       overrideTier: "biannual" as const,
       visitRateOverrides: { biannual: 375, quarterly: 290 },

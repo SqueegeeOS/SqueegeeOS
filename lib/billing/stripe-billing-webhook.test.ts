@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   createServiceRoleSupabaseClient: vi.fn(),
   notifyAutomaticBillingResult: vi.fn(),
   recordBillingReconciliationCase: vi.fn(),
+  reconcileMemberAddonPaymentIntent: vi.fn(),
 }));
 
 vi.mock("@/lib/persistence/supabase/client", () => ({
@@ -16,6 +17,9 @@ vi.mock("./automatic-billing-notifications", () => ({
 }));
 vi.mock("./reconciliation", () => ({
   recordBillingReconciliationCase: mocks.recordBillingReconciliationCase,
+}));
+vi.mock("./member-addon-checkout", () => ({
+  reconcileMemberAddonPaymentIntent: mocks.reconcileMemberAddonPaymentIntent,
 }));
 
 import { processStripeBillingWebhook } from "./stripe-billing-webhook";
@@ -152,10 +156,26 @@ function setupIntentCreatedEvent(livemode: boolean): Stripe.Event {
   } as Stripe.Event;
 }
 
+function memberAddonIntentEvent(): Stripe.Event {
+  const event = paymentIntentEvent({
+    type: "payment_intent.succeeded",
+    status: "succeeded",
+  });
+  const intent = event.data.object as Stripe.PaymentIntent;
+  intent.metadata = {
+    homeatlas_operation: "member_addon_checkout",
+    homeatlas_addon_id: "addon_123",
+    membership_id: "membership-123",
+    property_id: "property-123",
+  };
+  return event;
+}
+
 describe("Stripe billing webhook reconciliation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.STRIPE_WEBHOOK_SECRET = "whsec_test";
+    mocks.reconcileMemberAddonPaymentIntent.mockResolvedValue("paid");
   });
 
   it("verifies the current webhook secret from a signed live no-charge event", async () => {
@@ -205,6 +225,22 @@ describe("Stripe billing webhook reconciliation", () => {
       }),
     );
     expect(sideEffectOrder).toEqual(["settings", "ledger"]);
+  });
+
+  it("reconciles customer-approved add-on payments without treating them as billing orders", async () => {
+    const { client } = clientForFinalState("ignored");
+    mocks.createServiceRoleSupabaseClient.mockReturnValue(client);
+
+    await expect(
+      processStripeBillingWebhook({
+        event: memberAddonIntentEvent(),
+        rawBody: "signed-addon-body",
+      }),
+    ).resolves.toEqual({ status: "processed", billingOrderId: null });
+    expect(mocks.reconcileMemberAddonPaymentIntent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "payment_intent.succeeded" }),
+    );
+    expect(mocks.notifyAutomaticBillingResult).not.toHaveBeenCalled();
   });
 
   it("does not send a false failure notice when success already won the race", async () => {

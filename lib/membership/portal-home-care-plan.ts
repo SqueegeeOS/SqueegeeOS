@@ -131,6 +131,8 @@ export function buildPortalHomeCarePlanFromPresentation(
               visit.interiorWindows,
             ).toLowerCase()}; screens ${serviceStateLabel(
               visit.screens,
+            ).toLowerCase()}; cobweb removal ${serviceStateLabel(
+              visit.cobwebRemoval,
             ).toLowerCase()}${visit.notes ? `; ${visit.notes}` : ""}.`,
         ),
         ...(customCarePlan.customerChoiceNote

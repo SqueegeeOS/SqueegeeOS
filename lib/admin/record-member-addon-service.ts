@@ -198,6 +198,15 @@ export async function recordMemberAddonService(
   }
 
   if (existingAddon?.id) {
+    if (
+      Number(existingAddon.retail_price_cents) !== retailPriceCents ||
+      Number(existingAddon.amount_charged_cents) !== amountChargedCents ||
+      Number(existingAddon.saved_cents) !== savedCents
+    ) {
+      throw new Error(
+        "This service and date already exist with different pricing. Edit the existing item or use a distinct service label.",
+      );
+    }
     const existingStatus = existingAddon.status as MemberAddonStatus;
     if (MEMBER_ADDON_REVENUE_STATUSES.includes(existingStatus)) {
       const { upsertAddonLedgerEntry } = await import(
