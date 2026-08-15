@@ -56,6 +56,7 @@ import { RecentClosedJobsTable } from "./recent-closed-jobs-table";
 import { RevenuePeriodFilterBar } from "./revenue-period-filter";
 import { MembershipProductionRevenueSection } from "./membership-production-revenue-section";
 import { MorningBriefSection } from "./morning-brief";
+import { OwnerAttentionQueue } from "./owner-attention-queue";
 import { HqFounderNav } from "./hq-founder-nav";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
@@ -307,6 +308,8 @@ export function AdminCommandCenter({
 
             <div className="mt-14 xl:grid xl:grid-cols-[minmax(0,1fr)_17rem] xl:items-start xl:gap-16">
               <div className="space-y-16">
+                <OwnerAttentionQueue />
+
                 <MorningBriefSection brief={morningBrief} />
 
                 <AdminCeoScoreboard scoreboard={scoreboard} />

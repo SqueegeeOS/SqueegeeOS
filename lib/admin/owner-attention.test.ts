@@ -1,0 +1,482 @@
+import { readFileSync } from "node:fs";
+import { describe, expect, it } from "vitest";
+import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
+import type {
+  BillingRegisterRow,
+  BillingWorkspaceData,
+} from "@/lib/admin/billing-workspace-types";
+import type { ProductionHealthReport } from "@/lib/admin/production-health-types";
+import type { JobberTodayData, JobberTodayVisit } from "@/lib/care-operations/jobber-today-types";
+import type { CommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness-core";
+import type { VisitFieldFollowUpView } from "@/lib/field-records/visit-field-record";
+import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
+import type {
+  SalesLeadAttentionSnapshot,
+  SalesRepLead,
+} from "@/lib/sales/workspace-types";
+import {
+  buildOwnerAttentionQueue,
+  type OwnerAttentionInput,
+} from "./owner-attention";
+
+const NOW = new Date("2026-08-14T18:00:00.000Z");
+
+function ready<T>(data: T) {
+  return { state: "ready" as const, data };
+}
+
+function launchCard(
+  id: "twilio" | "meta",
+  state: "ready" | "waiting" | "needs_action" = "ready",
+) {
+  return {
+    id,
+    label: id === "twilio" ? "Two-way texting" : "Facebook lead intake",
+    state,
+    summary: state === "ready" ? "Verified." : "Setup remains.",
+    completedSteps: state === "ready" ? 1 : 0,
+    totalSteps: 1,
+    actionUrl: "https://example.com",
+    actionLabel: "Open",
+    callbackUrls: [],
+    steps: [
+      {
+        id: "proof",
+        label: "Signed proof",
+        status: state === "ready" ? "complete" : state,
+        detail: "Proof state.",
+      },
+    ],
+  } as CommunicationsLaunchReadiness["twilio"];
+}
+
+function healthyCommunications(): CommunicationsLaunchReadiness {
+  return {
+    generatedAt: NOW.toISOString(),
+    twilio: launchCard("twilio"),
+    meta: launchCard("meta"),
+    scheduler: {
+      state: "ready",
+      label: "Runner secured",
+      detail: "Verified.",
+      route: "/api/cron/jobber-reconcile",
+    },
+  };
+}
+
+function healthyToday(overrides: Partial<JobberTodayData> = {}): JobberTodayData {
+  return {
+    calendarDate: "2026-08-14",
+    timezone: "America/Los_Angeles",
+    connected: true,
+    connectionStatus: "connected",
+    accountName: "Squeegee King",
+    lastSyncedAt: "2026-08-14T17:30:00.000Z",
+    loadedAt: NOW.toISOString(),
+    fieldRecordStatusAvailable: true,
+    fieldEventStatusAvailable: true,
+    summary: {
+      total: 0,
+      complete: 0,
+      remaining: 0,
+      documented: 0,
+      portalUpdated: 0,
+      completedWithoutRecord: 0,
+      completedWithPrivateOnlyRecord: 0,
+      jobberCompletionPending: 0,
+      assigned: 0,
+      unassigned: 0,
+      assignmentUnknown: 0,
+    },
+    visits: [],
+    fieldFollowUps: [],
+    ...overrides,
+  };
+}
+
+function healthyBilling(overrides: Partial<BillingWorkspaceData> = {}): BillingWorkspaceData {
+  return {
+    overview: {
+      readyToBillCount: 0,
+      expectedRevenueThisMonth: 0,
+      collectedThisMonth: 0,
+      upcomingChargesCount: 0,
+      activeMembershipCount: 0,
+    },
+    rows: [],
+    loadedAt: NOW.toISOString(),
+    stripeDashboardLive: true,
+    ...overrides,
+  };
+}
+
+function healthyProduction(): ProductionHealthReport {
+  return {
+    onboardingSafe: "green",
+    summary: "Production is ready.",
+    sections: [],
+    checkedAt: NOW.toISOString(),
+  };
+}
+
+function davidSnapshot(leads: SalesRepLead[] = []): SalesLeadAttentionSnapshot {
+  return {
+    profile: DAVID_REP_PROFILE,
+    leads,
+    generatedAt: NOW.toISOString(),
+  };
+}
+
+function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttentionInput {
+  return {
+    now: NOW,
+    customerLeads: ready([]),
+    davidPipeline: ready(davidSnapshot()),
+    today: ready(healthyToday()),
+    billing: ready(healthyBilling()),
+    communications: ready(healthyCommunications()),
+    productionHealth: ready(healthyProduction()),
+    ...overrides,
+  };
+}
+
+function lead(overrides: Partial<LeadIntakeRecord> = {}): LeadIntakeRecord {
+  return {
+    id: "lead-1",
+    name: "Mandi Rivera",
+    phone: "+15305550123",
+    email: "mandi@example.com",
+    serviceAddress: "1420 Davis Street, Chico, CA",
+    servicesInterested: ["Window Cleaning"],
+    preferredContactMethod: "Text",
+    smsConsentStatus: "opted_in",
+    smsConsentRecordedAt: "2026-08-14T10:00:00.000Z",
+    notes: "",
+    membershipTier: null,
+    squareFootage: null,
+    estimatedVisitPrice: null,
+    preferredStartWindow: null,
+    status: "new",
+    submittedAt: "2026-08-14T10:00:00.000Z",
+    source: "request_form",
+    externalLeadId: null,
+    sourcePageId: null,
+    sourceFormId: null,
+    sourceCampaignId: null,
+    sourceCampaignName: null,
+    sourceAdsetId: null,
+    sourceAdsetName: null,
+    sourceAdId: null,
+    sourceAdName: null,
+    ...overrides,
+  };
+}
+
+function davidLead(overrides: Partial<SalesRepLead> = {}): SalesRepLead {
+  return {
+    id: "david-lead-1",
+    fullName: "Jeff Mason",
+    propertyAddress: "100 Main Street",
+    phone: null,
+    email: null,
+    status: "follow_up",
+    estimatedArrCents: 120_000,
+    nextFollowUpAt: "2026-08-13T17:00:00.000Z",
+    notes: "",
+    smsConsentStatus: "unknown",
+    emailConsentStatus: "unknown",
+    createdAt: "2026-08-12T17:00:00.000Z",
+    updatedAt: "2026-08-13T17:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function visit(overrides: Partial<JobberTodayVisit> = {}): JobberTodayVisit {
+  return {
+    projectionId: "projection-1",
+    externalVisitId: "visit-1",
+    clientName: "Joani Hall",
+    title: "Quarterly windows",
+    jobNumber: 101,
+    visitStatus: "ACTIVE",
+    jobStatus: "ACTIVE",
+    scheduledStart: "2026-08-14T15:00:00.000Z",
+    scheduledEnd: "2026-08-14T16:00:00.000Z",
+    isComplete: true,
+    assignedUsers: [{ id: "tech-1", name: "Alex" }],
+    assignmentReadState: "available",
+    scopeItems: [],
+    scopeReadState: "available",
+    propertyLabel: "Home",
+    jobberPropertyWebUri: null,
+    jobberClientWebUri: null,
+    homeAtlasPropertyId: "property-1",
+    homeAtlasAppointmentId: "appointment-1",
+    homeAtlasMembershipId: "membership-1",
+    homeAtlasPortalPath: "/member/token",
+    homeAtlasFieldRecordCount: 1,
+    homeAtlasLatestFieldRecordAt: "2026-08-14T16:00:00.000Z",
+    homeAtlasLatestFieldRecordBy: "Alex",
+    homeAtlasCustomerVisibleRecordCount: 1,
+    homeAtlasOpenFollowUpCount: 0,
+    homeAtlasFieldStage: "departed",
+    homeAtlasFieldStageAt: "2026-08-14T16:00:00.000Z",
+    homeAtlasFieldStageBy: "Alex",
+    homeAtlasFieldEventCount: 4,
+    ...overrides,
+  };
+}
+
+function followUp(
+  overrides: Partial<VisitFieldFollowUpView> = {},
+): VisitFieldFollowUpView {
+  return {
+    assessmentId: "assessment-1",
+    fieldRecordId: "record-1",
+    propertyId: "property-1",
+    appointmentId: "appointment-1",
+    homeownerName: "Joani Hall",
+    propertyName: "Home",
+    propertyAddress: "100 Main Street",
+    technicianName: "Alex",
+    visitDate: "2026-08-13",
+    customerSummary: "Customer asked about screens.",
+    internalNote: null,
+    dueAt: "2026-08-13T16:00:00.000Z",
+    createdAt: "2026-08-13T15:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function billingRow(overrides: Partial<BillingRegisterRow> = {}): BillingRegisterRow {
+  return {
+    membershipId: "membership-1",
+    homeownerId: "homeowner-1",
+    propertyId: "property-1",
+    homeownerName: "Mandi Rivera",
+    propertyLabel: "Home · 1420 Davis Street",
+    tierLabel: "Quarterly",
+    visitPrice: 325,
+    jobberScheduledAmount: 425,
+    enrollmentSavingsPerVisit: 0,
+    nextAppointmentId: "appointment-1",
+    nextAppointmentDate: "2026-08-20T16:00:00.000Z",
+    stripePaymentStatus: "card_on_file",
+    cardOnFileLabel: "Visa •••• 0406",
+    stripeCustomerId: "cus_example",
+    nextChargeDate: "2026-08-20",
+    lastChargeDate: null,
+    billingPeriod: "2026-08",
+    periodAlreadyPaid: false,
+    canRecordCharge: true,
+    billingStatus: "ready_to_charge",
+    agreementId: "agreement-1",
+    agreementPdfUrl: null,
+    chargeAction: "complete_and_charge",
+    automaticBillingEnabled: true,
+    billingAuthorizationReady: true,
+    jobberPropertyPaired: true,
+    verifiedServiceVisitReady: true,
+    billingOrderId: null,
+    billingExecutionState: null,
+    billingFailureCode: null,
+    billingFailureMessage: null,
+    billingAttemptCount: 0,
+    billingNextAttemptAt: null,
+    ...overrides,
+  };
+}
+
+describe("owner attention queue", () => {
+  it("stays quiet when every source is verified and no action is due", () => {
+    const response = buildOwnerAttentionQueue(baseInput());
+
+    expect(response.items).toEqual([]);
+    expect(response.summary).toEqual({
+      actionCount: 0,
+      itemCount: 0,
+      criticalCount: 0,
+      highCount: 0,
+      normalCount: 0,
+      degradedSourceCount: 0,
+    });
+    expect(response.sources.every((source) => source.state === "ready")).toBe(true);
+  });
+
+  it("ranks overdue customer, field, and billing evidence ahead of setup work", () => {
+    const todayVisit = visit({
+      isComplete: false,
+      homeAtlasFieldStage: "departed",
+      homeAtlasFieldRecordCount: 0,
+      homeAtlasCustomerVisibleRecordCount: 0,
+    });
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        customerLeads: ready([lead()]),
+        today: ready(
+          healthyToday({
+            connected: false,
+            connectionStatus: "disconnected",
+            visits: [todayVisit],
+            fieldFollowUps: [followUp()],
+            summary: {
+              ...healthyToday().summary,
+              total: 1,
+              remaining: 1,
+              jobberCompletionPending: 1,
+            },
+          }),
+        ),
+        billing: ready(
+          healthyBilling({
+            rows: [
+              billingRow({
+                billingStatus: "failed",
+                billingExecutionState: "reconciliation_required",
+                billingFailureCode: "provider_state_unknown",
+                billingAttemptCount: 2,
+              }),
+            ],
+          }),
+        ),
+        communications: ready({
+          ...healthyCommunications(),
+          twilio: launchCard("twilio", "needs_action"),
+        }),
+      }),
+    );
+
+    expect(response.items.slice(0, 5).every((item) => item.priority === "critical")).toBe(true);
+    expect(response.items.map((item) => item.id)).toEqual(
+      expect.arrayContaining([
+        "lead:lead-1",
+        "today:jobber-disconnected",
+        "today:departed-jobber-open",
+        "field-follow-up:assessment-1",
+        "billing:membership-1",
+        "communications:twilio",
+      ]),
+    );
+    expect(response.summary.criticalCount).toBeGreaterThanOrEqual(5);
+  });
+
+  it("links exact operational exceptions to their actionable record", () => {
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        customerLeads: ready([lead()]),
+        today: ready(
+          healthyToday({
+            visits: [visit({ isComplete: true, homeAtlasFieldRecordCount: 0 })],
+            fieldFollowUps: [followUp()],
+          }),
+        ),
+        billing: ready(healthyBilling({ rows: [billingRow()] })),
+      }),
+    );
+
+    expect(response.items.find((item) => item.id === "lead:lead-1")?.href).toBe(
+      "/hq/requests/lead-1",
+    );
+    expect(
+      response.items.find((item) => item.id === "field-follow-up:assessment-1")
+        ?.href,
+    ).toBe("/hq/today#field-follow-up-assessment-1");
+    expect(
+      response.items.find((item) => item.id === "today:completed-without-proof")
+        ?.href,
+    ).toBe("/hq/today#visit-projection-1");
+    expect(response.items.find((item) => item.id === "billing:ready")?.href).toBe(
+      "/hq/billing#billing-membership-1",
+    );
+  });
+
+  it("turns David follow-up timing into read-only owner actions", () => {
+    const response = buildOwnerAttentionQueue(
+      baseInput({ davidPipeline: ready(davidSnapshot([davidLead()])) }),
+    );
+    const item = response.items.find((candidate) => candidate.id === "david-lead:david-lead-1");
+
+    expect(item).toMatchObject({
+      priority: "critical",
+      href: "/david#follow-ups",
+      affectedCount: 1,
+    });
+    expect(item?.detail).toContain("$1,200 potential ARR");
+  });
+
+  it("fails closed when a source cannot be read", () => {
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        billing: {
+          state: "degraded",
+          detail: "Atlas could not verify the billing register.",
+        },
+      }),
+    );
+
+    expect(response.summary.degradedSourceCount).toBe(1);
+    expect(response.items[0]).toMatchObject({
+      id: "source:billing",
+      priority: "critical",
+      href: "/hq/billing",
+    });
+    expect(response.items[0].detail).toContain("unknown, not healthy");
+  });
+
+  it("surfaces uncovered production checks without duplicating provider readiness", () => {
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        productionHealth: ready({
+          onboardingSafe: "red",
+          summary: "Blocked.",
+          checkedAt: NOW.toISOString(),
+          sections: [
+            {
+              id: "schema",
+              title: "Schema",
+              status: "red",
+              checks: [
+                {
+                  id: "field-record-media-schema",
+                  label: "Field media schema",
+                  status: "red",
+                  message: "Migration missing",
+                },
+                {
+                  id: "sms-provider",
+                  label: "SMS provider",
+                  status: "yellow",
+                  message: "Not ready",
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    );
+    const item = response.items.find(
+      (candidate) => candidate.id === "production-health:uncovered",
+    );
+
+    expect(item).toMatchObject({ affectedCount: 1, priority: "critical" });
+    expect(item?.detail).toContain("Field media schema");
+    expect(item?.detail).not.toContain("SMS provider");
+  });
+
+  it("keeps the owner snapshot loader free of reconciliation writes", () => {
+    const source = readFileSync(
+      new URL("../sales/workspace-server.ts", import.meta.url),
+      "utf8",
+    );
+    const start = source.indexOf(
+      "export async function loadSalesLeadAttentionSnapshot",
+    );
+    const end = source.indexOf("export async function createSalesLead", start);
+    const loader = source.slice(start, end);
+
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    expect(loader).toContain("loadAllOpenSalesRepLeadRows");
+    expect(loader).not.toContain("reconcileSignedMembershipAttributionsForRep");
+  });
+});
