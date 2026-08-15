@@ -229,6 +229,11 @@ async function runSchemaChecks(
       table: "property_assessments",
       column: "service_scope",
     },
+    {
+      id: "technician-field-access-schema",
+      label: "technician_access_grants",
+      table: "technician_access_grants",
+    },
   ];
 
   const probes = await Promise.all(

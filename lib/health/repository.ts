@@ -289,15 +289,24 @@ export interface TechnicianPropertySummary {
   lastOverallScore: number | null;
 }
 
-export async function listTechnicianProperties(): Promise<
+export async function listTechnicianProperties(
+  allowedPropertyIds?: string[] | null,
+): Promise<
   TechnicianPropertySummary[]
 > {
+  if (Array.isArray(allowedPropertyIds) && allowedPropertyIds.length === 0) {
+    return [];
+  }
   if (isCloudPersistenceConnected()) {
     const supabase = createServerSupabaseClient();
-    const { data: properties, error } = await supabase
+    let propertyQuery = supabase
       .from("properties")
       .select("id, name, address, city, homeowner_id")
       .order("name", { ascending: true });
+    if (Array.isArray(allowedPropertyIds)) {
+      propertyQuery = propertyQuery.in("id", allowedPropertyIds);
+    }
+    const { data: properties, error } = await propertyQuery;
 
     if (error || !properties?.length) return [];
 
@@ -346,7 +355,10 @@ export async function listTechnicianProperties(): Promise<
     });
   }
 
-  const localIds = await listLocalTechnicianPropertyIds();
+  const localIds = (await listLocalTechnicianPropertyIds()).filter(
+    (id) =>
+      !Array.isArray(allowedPropertyIds) || allowedPropertyIds.includes(id),
+  );
   const summaries: TechnicianPropertySummary[] = [];
 
   for (const id of localIds) {
