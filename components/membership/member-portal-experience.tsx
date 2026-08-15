@@ -26,6 +26,7 @@ import { buildPortalVisitStories } from "@/lib/membership/portal-visit-stories";
 import { HomeAtlasSavingsSection } from "@/components/portal/homeatlas-savings-section";
 import { CareAddonsSection } from "@/components/portal/care-addons-section";
 import { NextCareVisitHero } from "@/components/portal/next-care-visit-hero";
+import { LiveCareStatus } from "@/components/portal/live-care-status";
 import { PortalCard, PortalSection } from "@/components/portal/portal-section";
 import { ReferralSection } from "@/components/portal/referral-section";
 import { GlassCard } from "@/components/craft/glass-card";
@@ -165,7 +166,9 @@ export function MemberPortalExperience({
           )}
         </motion.header>
 
-        {(view.membershipActive || view.pendingPayment) && (
+        {isCustomerPortal && portalData?.liveService ? (
+          <LiveCareStatus status={portalData.liveService} />
+        ) : (view.membershipActive || view.pendingPayment) && (
           <NextCareVisitHero visit={view.nextCareVisit} />
         )}
 

@@ -41,6 +41,12 @@ import {
   portalAppointmentLowerBoundIso,
   selectNextScheduledPortalAppointment,
 } from "@/lib/membership/portal-next-appointment";
+import { loadTechnicianVisitEventSnapshots } from "@/lib/field-operations/technician-visit-event-server";
+import {
+  buildPortalLiveServiceStatus,
+  portalLiveServiceAppointmentIds,
+  type PortalLiveServiceStatus,
+} from "@/lib/membership/portal-live-service";
 
 export interface ServiceObservationView {
   id: string;
@@ -98,6 +104,7 @@ export interface MemberPortalData {
   paymentMethodLabel: string | null;
   careAddons: MemberCareAddonRecord[];
   savingsLedger: MemberSavingsLedgerView | null;
+  liveService: PortalLiveServiceStatus | null;
 }
 
 interface HomeownerRow {
@@ -454,6 +461,7 @@ function buildPropertyRecord(
 export async function getMemberPortalDataBySlugs(
   homeownerSlug: string,
   propertySlug: string,
+  options?: { includeLiveService?: boolean },
 ): Promise<MemberPortalData | null> {
   if (!isSupabaseConfigured()) {
     return null;
@@ -593,6 +601,31 @@ export async function getMemberPortalDataBySlugs(
   const appointments = pairedJobberNextAppointment
     ? [...authoritativeAppointments, pairedJobberNextAppointment]
     : authoritativeAppointments;
+
+  let liveService: PortalLiveServiceStatus | null = null;
+  const liveServiceAppointmentIds = portalLiveServiceAppointmentIds(
+    authoritativeAppointments,
+    portalReferenceDate,
+  );
+  if (options?.includeLiveService && liveServiceAppointmentIds.length > 0) {
+    try {
+      const fieldEvents = await loadTechnicianVisitEventSnapshots(
+        liveServiceAppointmentIds,
+      );
+      if (fieldEvents.available) {
+        liveService = buildPortalLiveServiceStatus({
+          appointments: authoritativeAppointments,
+          snapshotsByAppointmentId: fieldEvents.byAppointmentId,
+          referenceDate: portalReferenceDate,
+        });
+      }
+    } catch (error) {
+      console.error("[member-portal] live service status unavailable", {
+        propertyId: propertyRow.id,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
 
   const yearStart = `${new Date().getFullYear()}-01-01T00:00:00Z`;
 
@@ -849,6 +882,7 @@ export async function getMemberPortalDataBySlugs(
     paymentMethodLabel,
     careAddons,
     savingsLedger,
+    liveService,
   };
 }
 

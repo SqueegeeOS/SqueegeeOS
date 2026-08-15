@@ -165,6 +165,7 @@ export function buildPortalCareRecordView(
         | "portalTheme"
         | "careAddons"
         | "savingsLedger"
+        | "liveService"
       > &
         Partial<
           Pick<
@@ -173,6 +174,7 @@ export function buildPortalCareRecordView(
             | "portalTheme"
             | "careAddons"
             | "savingsLedger"
+            | "liveService"
           >
         >)
     | null

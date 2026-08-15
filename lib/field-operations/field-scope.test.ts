@@ -91,6 +91,7 @@ describe("technician field scope", () => {
         portalUpdated: 0,
         completedWithoutRecord: 0,
         completedWithPrivateOnlyRecord: 0,
+        jobberCompletionPending: 0,
         assigned: 2,
         unassigned: 0,
         assignmentUnknown: 0,

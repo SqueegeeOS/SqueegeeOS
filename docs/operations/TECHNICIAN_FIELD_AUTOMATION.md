@@ -15,6 +15,18 @@ Every write rechecks that the appointment is assigned to that user and remains
 inside the bounded field-work window. HQ can watch the same stage and timestamp
 on Today.
 
+The bearer-token customer portal can show a deliberately limited version of
+the same-day status. It contains customer copy, service label, timestamp, and
+progress only. It does not contain the technician identity, Field Pass or
+Jobber IDs, route order, internal notes, provider links, or alert drafts. The
+legacy slug preview never receives live arrival timing. Active portal cards
+refresh once per minute while the page is visible and stop polling after the
+technician departs.
+
+If a technician reaches Departed while Jobber still reports the visit open,
+Today creates a visible **Close in Jobber** exception. HQ must review and close
+the source visit in Jobber. This release never changes Jobber completion state.
+
 ## Release order
 
 Apply migrations `054` through `058` in order, then deploy the application. The
@@ -52,7 +64,11 @@ Use an internal/demo Jobber client and a dedicated technician Field Pass.
 4. Confirm Field Run advances to Service complete automatically.
 5. Tap I'm leaving and confirm the next assigned stop becomes the Next action.
 6. In `/hq/today`, confirm the same stage, technician, and timestamp appear.
-7. Confirm no Twilio/Resend delivery was created and no Jobber visit was mutated.
+7. Open the demo customer's bearer-token portal and confirm it shows the
+   customer-safe stage without technician identity or internal notes.
+8. After Departed, leave the demo Jobber visit open and confirm Today displays
+   the **Close in Jobber** exception and source-property link.
+9. Confirm no Twilio/Resend delivery was created and no Jobber visit was mutated.
 
 If the closeout saves but route advancement fails, the closeout remains valid.
 Refresh Field Run and use **Mark service complete** to replay the route update.
