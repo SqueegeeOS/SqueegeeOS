@@ -127,7 +127,7 @@ console.log(
 if (!visitBucketPrivate) failed = true;
 
 if (failed) {
-  console.error("\nSecurity verification failed - apply migrations 038 through 054.");
+  console.error("\nSecurity verification failed - apply migrations 038 through 055.");
   process.exit(1);
 }
 

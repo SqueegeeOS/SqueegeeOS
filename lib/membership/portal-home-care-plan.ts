@@ -387,6 +387,7 @@ async function backfillPortalHomeCarePlan(
       createdBy: "System",
       salesRepId: null,
       salesRepLeadId: null,
+      leadIntakeId: null,
       clientName: context.homeowner_full_name,
       clientAddress: formatPortalPropertyAddress({
         address: context.property_address,

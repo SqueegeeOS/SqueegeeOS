@@ -11,9 +11,16 @@ export const metadata: Metadata = {
 
 export default async function EditPresentationPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ inquirySync?: string | string[] }>;
 }) {
-  const { id } = await params;
-  return <PresentationEditorLoader id={id} />;
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  return (
+    <PresentationEditorLoader
+      id={id}
+      inquirySyncPending={query.inquirySync === "pending"}
+    />
+  );
 }
