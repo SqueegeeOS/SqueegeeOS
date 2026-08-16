@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createPrivilegedServerSupabaseClient } from "@/lib/persistence/supabase/client";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   annualRateToCents,
   membershipStatusToAttributionStatus,
@@ -13,6 +14,7 @@ interface PresentationLineageRow {
   id: string;
   sales_rep_id: string | null;
   sales_rep_lead_id: string | null;
+  lead_intake_id: string | null;
 }
 
 interface MembershipCloseRow {
@@ -110,6 +112,28 @@ function addUtcMonths(value: string, months: number): string {
   ).toISOString();
 }
 
+async function resolveAttributionLeadId(
+  supabase: SupabaseClient,
+  presentation: PresentationLineageRow,
+): Promise<string | null> {
+  if (presentation.sales_rep_lead_id) return presentation.sales_rep_lead_id;
+  if (!presentation.sales_rep_id || !presentation.lead_intake_id) return null;
+
+  const result = await supabase
+    .from("sales_rep_leads")
+    .select("id")
+    .eq("rep_id", presentation.sales_rep_id)
+    .eq("lead_intake_id", presentation.lead_intake_id)
+    .maybeSingle();
+  if (result.error) throw new Error(result.error.message);
+  if (!result.data) {
+    throw new Error(
+      "The signed inquiry no longer resolves to its accountable sales lead.",
+    );
+  }
+  return String(result.data.id);
+}
+
 /**
  * Idempotently credits one membership to the representative whose stable ID
  * was attached to the originating presentation. All money and plan fields are
@@ -125,7 +149,7 @@ export async function recordSignedMembershipAttribution(input: {
   const [presentationResult, membershipResult] = await Promise.all([
     supabase
       .from("presentations")
-      .select("id, sales_rep_id, sales_rep_lead_id")
+      .select("id, sales_rep_id, sales_rep_lead_id, lead_intake_id")
       .eq("id", input.presentationId)
       .maybeSingle(),
     supabase
@@ -180,6 +204,10 @@ export async function recordSignedMembershipAttribution(input: {
   if (!repData) throw new Error("Presentation salesperson no longer exists.");
 
   const rep = repData as RepPlanRow;
+  const attributionLeadId = await resolveAttributionLeadId(
+    supabase,
+    presentation,
+  );
   const { data: agreementData, error: agreementError } = await supabase
     .from("signed_agreements")
     .select("id, membership_id, presentation_id, status, signed_at")
@@ -214,7 +242,7 @@ export async function recordSignedMembershipAttribution(input: {
     .from("sales_rep_attributions")
     .insert({
       rep_id: rep.id,
-      lead_id: presentation.sales_rep_lead_id,
+      lead_id: attributionLeadId,
       membership_id: membership.id,
       presentation_id: presentation.id,
       signed_agreement_id: agreementId,
@@ -260,7 +288,7 @@ export async function recordSignedMembershipAttribution(input: {
     attribution.signed_agreement_id !== agreementId ||
     Number(attribution.attributed_arr_cents) !== attributedArrCents ||
     attribution.compensation_plan_snapshot !== rep.compensation_plan ||
-    attribution.lead_id !== presentation.sales_rep_lead_id ||
+    attribution.lead_id !== attributionLeadId ||
     new Date(attribution.attributed_at).getTime() !==
       new Date(attributedAt).getTime() ||
     !["agreement_signature", "legacy_backfill"].includes(
@@ -272,7 +300,7 @@ export async function recordSignedMembershipAttribution(input: {
     );
   }
 
-  if (presentation.sales_rep_lead_id) {
+  if (attributionLeadId) {
     const leadUpdate = await supabase
       .from("sales_rep_leads")
       .update({
@@ -280,7 +308,7 @@ export async function recordSignedMembershipAttribution(input: {
         converted_membership_id: membership.id,
         next_follow_up_at: null,
       })
-      .eq("id", presentation.sales_rep_lead_id)
+      .eq("id", attributionLeadId)
       .eq("rep_id", rep.id);
     if (leadUpdate.error) {
       console.error(

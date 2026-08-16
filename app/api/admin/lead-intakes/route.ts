@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { listLeadIntakes } from "@/lib/acquisition/leads/repository";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import {
+  loadActiveLeadAssignmentReps,
+  loadLeadIntakeSalesAssignments,
+} from "@/lib/sales/lead-intake-assignment-server";
 
 export async function GET(request: Request) {
   const authHeaders = request.headers;
@@ -10,6 +14,10 @@ export async function GET(request: Request) {
 
   try {
     const leads = await listLeadIntakes();
+    const [assignments, salesReps] = await Promise.all([
+      loadLeadIntakeSalesAssignments(leads.map((lead) => lead.id)),
+      loadActiveLeadAssignmentReps(),
+    ]);
     const newLeads = leads.filter((lead) => lead.status === "new");
     const newCount = newLeads.length;
     const latestNewSubmittedAt =
@@ -20,7 +28,13 @@ export async function GET(request: Request) {
             newLeads[0].submittedAt,
           )
         : null;
-    return NextResponse.json({ leads, newCount, latestNewSubmittedAt });
+    return NextResponse.json({
+      leads,
+      assignments,
+      salesReps,
+      newCount,
+      latestNewSubmittedAt,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load lead intakes";

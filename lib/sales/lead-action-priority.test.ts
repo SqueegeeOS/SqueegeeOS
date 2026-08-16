@@ -8,11 +8,13 @@ import {
 
 const BASE_LEAD: SalesRepLead = {
   id: "lead-base",
+  leadIntakeId: null,
   fullName: "Homeowner",
   propertyAddress: "100 Main Street",
   phone: null,
   email: null,
   status: "follow_up",
+  source: "door_to_door",
   estimatedArrCents: 120_000,
   nextFollowUpAt: null,
   notes: "",

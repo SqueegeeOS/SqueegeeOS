@@ -326,11 +326,13 @@ function lead(overrides: Partial<LeadIntakeRecord> = {}): LeadIntakeRecord {
 function davidLead(overrides: Partial<SalesRepLead> = {}): SalesRepLead {
   return {
     id: "david-lead-1",
+    leadIntakeId: null,
     fullName: "Jeff Mason",
     propertyAddress: "100 Main Street",
     phone: null,
     email: null,
     status: "follow_up",
+    source: "door_to_door",
     estimatedArrCents: 120_000,
     nextFollowUpAt: "2026-08-13T17:00:00.000Z",
     notes: "",

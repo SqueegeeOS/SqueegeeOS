@@ -29,11 +29,13 @@ const REPS: OwnerSalesRepSource[] = [
 
 const BASE_LEAD: SalesRepLead = {
   id: "lead-base",
+  leadIntakeId: null,
   fullName: "Homeowner",
   propertyAddress: "100 Main Street",
   phone: null,
   email: null,
   status: "follow_up",
+  source: "door_to_door",
   estimatedArrCents: 120_000,
   nextFollowUpAt: null,
   notes: "",
@@ -139,6 +141,7 @@ describe("owner sales pipeline", () => {
         id: "presentation-draft",
         salesRepId: REPS[1].id,
         salesRepLeadId: lead.lead.id,
+        leadIntakeId: null,
         status: "draft",
         updatedAt: "2026-08-16T18:00:00.000Z",
       },
@@ -146,6 +149,7 @@ describe("owner sales pipeline", () => {
         id: "presentation-signed",
         salesRepId: REPS[1].id,
         salesRepLeadId: lead.lead.id,
+        leadIntakeId: null,
         status: "signed",
         updatedAt: "2026-08-15T18:00:00.000Z",
       },
@@ -153,6 +157,7 @@ describe("owner sales pipeline", () => {
         id: "wrong-rep",
         salesRepId: REPS[0].id,
         salesRepLeadId: lead.lead.id,
+        leadIntakeId: null,
         status: "signed",
         updatedAt: "2026-08-17T18:00:00.000Z",
       },
@@ -174,6 +179,36 @@ describe("owner sales pipeline", () => {
       presentationHref: "/presentations/presentation-signed/present",
     });
     expect(snapshot.summary.presentationNeedsAttentionCount).toBe(1);
+  });
+
+  it("links an intake-originated presentation back to its operational rep lead", () => {
+    const lead = source(REPS[1], {
+      id: "lead-request",
+      leadIntakeId: "intake-request",
+      source: "request_form",
+    });
+    const snapshot = buildOwnerSalesPipelineSnapshot({
+      reps: REPS,
+      leads: [lead],
+      presentations: [
+        {
+          id: "presentation-request",
+          salesRepId: REPS[1].id,
+          salesRepLeadId: null,
+          leadIntakeId: "intake-request",
+          status: "draft",
+          updatedAt: "2026-08-16T18:00:00.000Z",
+        },
+      ],
+      handoffs: [],
+      reference,
+    });
+
+    expect(snapshot.leads[0]).toMatchObject({
+      presentationState: "linked",
+      presentationId: "presentation-request",
+      presentationHref: "/presentations/presentation-request/edit",
+    });
   });
 
   it("keeps agreement-backed closes in one owner queue until production is ready", () => {

@@ -36,6 +36,7 @@ interface PresentationRow {
   id: string;
   sales_rep_id: string | null;
   sales_rep_lead_id: string | null;
+  lead_intake_id: string | null;
   status: "draft" | "presented" | "signed";
   updated_at: string;
 }
@@ -121,55 +122,67 @@ function chunks<T>(values: T[], size: number): T[][] {
   return result;
 }
 
-async function loadPresentationsForLeadIds(
-  leadIds: string[],
+async function loadPresentationsForLeads(
+  leads: OwnerSalesLeadSource[],
 ): Promise<OwnerSalesPresentationSource[]> {
-  if (leadIds.length === 0) return [];
+  if (leads.length === 0) return [];
   const supabase = createPrivilegedServerSupabaseClient();
   const rows: PresentationRow[] = [];
+  const leadIds = leads.map((source) => source.lead.id);
+  const leadIntakeIds = leads.flatMap((source) =>
+    source.lead.leadIntakeId ? [source.lead.leadIntakeId] : [],
+  );
 
-  for (const leadIdChunk of chunks(leadIds, PRESENTATION_LEAD_CHUNK_SIZE)) {
-    let offset = 0;
-    while (true) {
-      const result = await supabase
-        .from("presentations")
-        .select(
-          "id, sales_rep_id, sales_rep_lead_id, status, updated_at",
-          { count: "exact" },
-        )
-        .in("sales_rep_lead_id", leadIdChunk)
-        .order("updated_at", { ascending: false })
-        .order("id", { ascending: true })
-        .range(offset, offset + PRESENTATION_PAGE_SIZE - 1);
+  const loadChunk = async (
+    column: "sales_rep_lead_id" | "lead_intake_id",
+    ids: string[],
+  ) => {
+    for (const idChunk of chunks([...new Set(ids)], PRESENTATION_LEAD_CHUNK_SIZE)) {
+      let offset = 0;
+      while (true) {
+        const result = await supabase
+          .from("presentations")
+          .select(
+            "id, sales_rep_id, sales_rep_lead_id, lead_intake_id, status, updated_at",
+            { count: "exact" },
+          )
+          .in(column, idChunk)
+          .order("updated_at", { ascending: false })
+          .order("id", { ascending: true })
+          .range(offset, offset + PRESENTATION_PAGE_SIZE - 1);
 
-      if (result.error) {
-        throw new SalesWorkspaceUnavailableError(
-          "HomeAtlas could not verify presentation lineage for the sales pipeline.",
-        );
-      }
-      if (result.count === null) {
-        throw new SalesWorkspaceUnavailableError(
-          "HomeAtlas could not prove that sales presentation lineage was complete.",
-        );
-      }
+        if (result.error) {
+          throw new SalesWorkspaceUnavailableError(
+            "HomeAtlas could not verify presentation lineage for the sales pipeline.",
+          );
+        }
+        if (result.count === null) {
+          throw new SalesWorkspaceUnavailableError(
+            "HomeAtlas could not prove that sales presentation lineage was complete.",
+          );
+        }
 
-      const page = (result.data ?? []) as PresentationRow[];
-      rows.push(...page);
-      offset += page.length;
-      if (offset >= result.count) break;
-      if (page.length === 0) {
-        throw new SalesWorkspaceUnavailableError(
-          "HomeAtlas could not finish loading sales presentation lineage.",
-        );
+        const page = (result.data ?? []) as PresentationRow[];
+        rows.push(...page);
+        offset += page.length;
+        if (offset >= result.count) break;
+        if (page.length === 0) {
+          throw new SalesWorkspaceUnavailableError(
+            "HomeAtlas could not finish loading sales presentation lineage.",
+          );
+        }
       }
     }
-  }
+  };
+  await loadChunk("sales_rep_lead_id", leadIds);
+  await loadChunk("lead_intake_id", leadIntakeIds);
 
-  return rows.map(
+  return [...new Map(rows.map((row) => [row.id, row])).values()].map(
     (row): OwnerSalesPresentationSource => ({
       id: row.id,
       salesRepId: row.sales_rep_id,
       salesRepLeadId: row.sales_rep_lead_id,
+      leadIntakeId: row.lead_intake_id,
       status: row.status,
       updatedAt: row.updated_at,
     }),
@@ -218,9 +231,7 @@ export async function loadOwnerSalesPipeline(
       lead,
     })),
   );
-  const presentations = await loadPresentationsForLeadIds(
-    leads.map((source) => source.lead.id),
-  );
+  const presentations = await loadPresentationsForLeads(leads);
 
   return buildOwnerSalesPipelineSnapshot({
     reps,

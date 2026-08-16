@@ -13,6 +13,12 @@ const createRoute = read("../../app/api/presentations/route.ts");
 const patchRoute = read("../../app/api/presentations/[id]/route.ts");
 const inboxClient = read("../acquisition/leads/inbox-client.ts");
 const customerWorkspace = read("../hq/customer-workspace/load-workspace.ts");
+const assignmentRoute = read(
+  "../../app/api/admin/lead-intakes/[id]/assignment/route.ts",
+);
+const assignmentMigration = read(
+  "../persistence/supabase/migrations/077_lead_intake_sales_assignment.sql",
+);
 
 describe("lead intake presentation lineage contract", () => {
   it("enforces one private presentation for each customer inquiry", () => {
@@ -68,5 +74,18 @@ describe("lead intake presentation lineage contract", () => {
     expect(customerWorkspace).toContain(
       "presentHref: `/presentations/${linkedPresentation.id}/present`",
     );
+  });
+
+  it("requires accountable request ownership without contacting the customer", () => {
+    expect(createRoute).toContain("loadLeadIntakeSalesAssignment");
+    expect(createRoute).toContain(
+      "Assign an owner and future next action before scheduling.",
+    );
+    expect(createRoute).toContain("salesRepLeadId: leadIntake ? null");
+    expect(assignmentRoute).toContain("validateLeadIntakeAssignment");
+    expect(assignmentRoute).not.toContain("sendCommunication");
+    expect(assignmentRoute).not.toContain("createCheckoutSession");
+    expect(assignmentRoute).not.toContain("stripe");
+    expect(assignmentMigration).toContain("sales_rep_leads_lead_intake_uidx");
   });
 });
