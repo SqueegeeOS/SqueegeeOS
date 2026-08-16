@@ -21,6 +21,7 @@ import {
   normalizeToSqueegeeKingTier,
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
+import { routeInboundLeadToConfiguredOwner } from "@/lib/sales/inbound-lead-routing-server";
 
 function isServiceOption(value: string): value is (typeof serviceOptions)[number] {
   return (serviceOptions as readonly string[]).includes(value);
@@ -137,10 +138,14 @@ export async function POST(request: Request) {
 
     // The request is already durably saved. Provider outages must never turn a
     // successful intake into a 500 that encourages duplicate submissions.
-    const [automationAttempt, notifyAttempt] = await Promise.allSettled([
-      runLeadAcknowledgementAutomation(record),
-      sendLeadNotificationEmail(record),
-    ]);
+    const [routingAttempt, automationAttempt, notifyAttempt] =
+      await Promise.allSettled([
+        storage === "supabase"
+          ? routeInboundLeadToConfiguredOwner({ leadIntakeId: record.id })
+          : Promise.resolve({ status: "not_configured" as const }),
+        runLeadAcknowledgementAutomation(record),
+        sendLeadNotificationEmail(record),
+      ]);
     const emailResult =
       automationAttempt.status === "fulfilled"
         ? {
@@ -160,6 +165,12 @@ export async function POST(request: Request) {
       notifyAttempt.status === "fulfilled"
         ? notifyAttempt.value
         : { sent: false, reason: "Email provider unavailable" };
+
+    if (routingAttempt.status === "rejected") {
+      console.warn("[leads] automatic owner routing incomplete", {
+        leadId: record.id,
+      });
+    }
 
     if (!emailResult.sent || !notifyResult.sent) {
       console.warn("[leads] post-save communication incomplete", {

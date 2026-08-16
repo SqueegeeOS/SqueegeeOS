@@ -9,6 +9,7 @@ import { sendTwilioSms } from "@/lib/communications/providers/twilio-sms";
 import { ensureLeadConversation } from "@/lib/communications/repository";
 import { getCommunicationsConfiguration } from "@/lib/communications/service";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
+import { routeInboundLeadToConfiguredOwner } from "@/lib/sales/inbound-lead-routing-server";
 import {
   metaLeadToIntakeInput,
   type MetaLeadDetails,
@@ -99,6 +100,13 @@ export async function ingestMetaLead(input: {
   if (!leadInput) throw new Error("meta_lead_missing_required_contact_fields");
   const created = await createLeadIntake(leadInput);
   if (created.storage !== "supabase") throw new Error("meta_lead_cloud_storage_required");
+  await routeInboundLeadToConfiguredOwner({
+    leadIntakeId: created.record.id,
+  }).catch(() => {
+    console.warn("[meta-leads] automatic owner routing incomplete", {
+      leadId: created.record.id,
+    });
+  });
   await ensureLeadConversation({
     leadIntakeId: created.record.id,
     subject: `Facebook lead · ${created.record.name}`,
