@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { LeadAssignmentControl } from "@/components/admin/lead-assignment-control";
 import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
 import { SalesPhoneAccessPanel } from "@/components/admin/sales-phone-access-panel";
 import { AmbientStage } from "@/components/craft/ambient-stage";
@@ -16,6 +17,7 @@ import {
 } from "@/components/sales/service-interest-control";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
+import { formatLeadSubmittedRelative } from "@/lib/acquisition/leads/inbox";
 import { paymentHandoffSendLabel } from "@/lib/membership/payment-handoff-progress";
 import { usePaymentHandoffRefresh } from "@/lib/membership/use-payment-handoff-refresh";
 import type {
@@ -24,6 +26,7 @@ import type {
   OwnerSalesPipelineSnapshot,
 } from "@/lib/sales/owner-pipeline";
 import type { SalesLeadActionMoment } from "@/lib/sales/lead-action-priority";
+import { salesLeadSourceLabel } from "@/lib/sales/lead-intake-assignment";
 import type { SalesProductionHandoffStage } from "@/lib/sales/production-handoff";
 import type { EnrollmentPacketProgressTone } from "@/lib/enrollment/packet-progress";
 import type {
@@ -729,6 +732,143 @@ function SignedHandoffDesk({
   );
 }
 
+function InboundTriage({
+  snapshot,
+  loading,
+  onAssigned,
+}: {
+  snapshot: OwnerSalesPipelineSnapshot | null;
+  loading: boolean;
+  onAssigned: (message: string) => Promise<void>;
+}) {
+  const inbound = snapshot?.inbound;
+  const salesReps = (snapshot?.reps ?? []).map((rep) => ({
+    id: rep.id,
+    slug: rep.slug,
+    displayName: rep.displayName,
+    roleTitle: rep.roleTitle,
+    workspacePath: rep.workspacePath,
+  }));
+
+  return (
+    <section
+      id="inbound-triage"
+      className="mt-8 overflow-hidden rounded-[1.75rem] border border-sky-300/15 bg-[radial-gradient(circle_at_8%_0%,rgba(125,211,252,0.09),transparent_35%),rgba(8,12,11,0.82)] p-5 shadow-[0_24px_70px_rgba(0,0,0,0.24)] sm:p-7"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-sky-200/65">
+            Hot inbound triage
+          </p>
+          <h2 className="mt-2 font-serif text-3xl font-light text-[#f5f2eb]">
+            Inbound needs an owner
+          </h2>
+          <p className="mt-2 max-w-2xl text-xs leading-5 text-white/42">
+            Website and Facebook requests stay visible here until a person owns the
+            next move. Assigning does not contact the customer.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="rounded-full border border-sky-200/20 bg-sky-200/[0.07] px-3 py-1.5 text-xs font-semibold tabular-nums text-sky-100">
+            {loading
+              ? "Checking…"
+              : inbound?.status === "available"
+                ? `${inbound.count ?? 0} unassigned`
+                : "Status unavailable"}
+          </span>
+          <Link
+            href="/hq/requests"
+            className="text-xs text-sky-100 underline decoration-sky-200/30 underline-offset-4"
+          >
+            Open Requests
+          </Link>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="mt-6 rounded-2xl border border-white/[0.06] bg-black/20 px-5 py-7 text-sm text-white/40">
+          Checking every active request for an accountable owner…
+        </div>
+      ) : !inbound || inbound.status === "unavailable" ? (
+        <div className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-300/[0.06] px-5 py-5 text-sm leading-6 text-amber-100">
+          HomeAtlas could not prove request ownership, so this section is refusing
+          to display a false zero. Use Requests until the connection recovers.
+        </div>
+      ) : inbound && inbound.records.length > 0 ? (
+        <div className="mt-6 space-y-3">
+          {inbound.records.map((lead) => {
+            const services = lead.servicesInterested.join(", ");
+            return (
+              <article
+                key={lead.id}
+                className="rounded-2xl border border-white/[0.07] bg-black/20 p-4 sm:p-5"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/hq/requests/${encodeURIComponent(lead.id)}`}
+                        className="font-medium text-[#f5f2eb] underline-offset-4 hover:text-sky-100 hover:underline"
+                      >
+                        {lead.name}
+                      </Link>
+                      <span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-white/46">
+                        {salesLeadSourceLabel(lead.source)}
+                      </span>
+                    </div>
+                    <p className="mt-1 truncate text-sm text-white/48">
+                      {lead.serviceAddress || "Address not provided"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-white/34">
+                      {services || "Service details not selected"}
+                      {lead.preferredStartWindow
+                        ? ` · ${lead.preferredStartWindow}`
+                        : ""}
+                    </p>
+                  </div>
+                  <time
+                    dateTime={lead.submittedAt}
+                    className="shrink-0 text-xs tabular-nums text-sky-100/65"
+                  >
+                    {formatLeadSubmittedRelative(lead.submittedAt)}
+                  </time>
+                </div>
+                <div className="mt-4">
+                  <LeadAssignmentControl
+                    leadIntakeId={lead.id}
+                    initialSalesReps={salesReps}
+                    compact
+                    onChanged={(assignment) => {
+                      void onAssigned(
+                        `${lead.name} is now owned by ${assignment.repDisplayName}.`,
+                      );
+                    }}
+                  />
+                </div>
+              </article>
+            );
+          })}
+          {inbound.count !== null && inbound.count > inbound.records.length ? (
+            <p className="px-1 text-xs text-white/38">
+              Showing the newest {inbound.records.length}. Open Requests to review
+              all {inbound.count} unassigned records.
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="mt-6 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.045] px-5 py-7 text-center">
+          <p className="font-serif text-2xl font-light text-[#f5f2eb]">
+            Every active request has an owner.
+          </p>
+          <p className="mt-2 text-xs leading-5 text-white/40">
+            New website and Facebook leads will appear here until assigned.
+          </p>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function OwnerSalesInboxContent() {
   const [snapshot, setSnapshot] = useState<OwnerSalesPipelineSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -880,9 +1020,26 @@ function OwnerSalesInboxContent() {
           </div>
         ) : null}
 
+        <InboundTriage
+          snapshot={snapshot}
+          loading={loading}
+          onAssigned={handleSaved}
+        />
+
         <SalesPhoneAccessPanel />
 
-        <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-5">
+        <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-6">
+          <Stat
+            label="Unassigned inbound"
+            value={
+              loading
+                ? "…"
+                : snapshot?.inbound.status === "available"
+                  ? String(snapshot.inbound.count ?? 0)
+                  : "—"
+            }
+            hint="Needs an owner + next move"
+          />
           <Stat
             label="Active reps"
             value={loading ? "…" : String(snapshot?.summary.activeRepCount ?? 0)}
@@ -998,11 +1155,12 @@ function OwnerSalesInboxContent() {
           ) : snapshot?.summary.openLeadCount === 0 ? (
             <GlassCard tone="subtle" className="mt-5 px-6 py-14 text-center">
               <p className="font-serif text-3xl font-light text-[#f5f2eb]">
-                The field queue is waiting for its first real homeowner.
+                The owned field queue is clear.
               </p>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-white/42">
-                Activate the rep&apos;s phone above, then the first saved homeowner will
-                appear here with ownership, consent, potential ARR, and a next action.
+                Assign any inbound requests above, or activate a rep&apos;s phone. The
+                next owned homeowner will appear here with consent, potential ARR,
+                and a scheduled next action.
               </p>
               <a
                 href="#sales-phone-access"

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
 import type { SalesRepLead } from "./workspace-types";
 import {
   buildOwnerSalesPipelineSnapshot,
@@ -47,6 +48,42 @@ const BASE_LEAD: SalesRepLead = {
   createdAt: "2026-08-15T16:00:00.000Z",
   updatedAt: "2026-08-15T16:00:00.000Z",
 };
+
+function inbound(
+  id: string,
+  submittedAt: string,
+  overrides: Partial<LeadIntakeRecord> = {},
+): LeadIntakeRecord {
+  return {
+    id,
+    name: `Inbound ${id}`,
+    phone: "5305550100",
+    email: `${id}@example.com`,
+    serviceAddress: "200 Oak Street",
+    servicesInterested: ["Window Cleaning"],
+    preferredContactMethod: "Phone",
+    smsConsentStatus: "unknown",
+    smsConsentRecordedAt: null,
+    notes: "",
+    membershipTier: null,
+    squareFootage: null,
+    estimatedVisitPrice: null,
+    preferredStartWindow: null,
+    status: "new",
+    submittedAt,
+    source: "request_form",
+    externalLeadId: null,
+    sourcePageId: null,
+    sourceFormId: null,
+    sourceCampaignId: null,
+    sourceCampaignName: null,
+    sourceAdsetId: null,
+    sourceAdsetName: null,
+    sourceAdId: null,
+    sourceAdName: null,
+    ...overrides,
+  };
+}
 
 function source(
   rep: OwnerSalesRepSource,
@@ -117,6 +154,7 @@ describe("owner sales pipeline", () => {
         source(REPS[1], { id: "lead-unscheduled" }),
       ],
       presentations: [],
+      unassignedInbound: [],
       handoffs: [],
       reference,
     });
@@ -177,6 +215,7 @@ describe("owner sales pipeline", () => {
       reps: REPS,
       leads: [lead],
       presentations,
+      unassignedInbound: [],
       handoffs: [],
       reference,
     });
@@ -210,6 +249,7 @@ describe("owner sales pipeline", () => {
           updatedAt: "2026-08-16T18:00:00.000Z",
         },
       ],
+      unassignedInbound: [],
       handoffs: [],
       reference,
     });
@@ -226,6 +266,7 @@ describe("owner sales pipeline", () => {
       reps: REPS,
       leads: [],
       presentations: [],
+      unassignedInbound: [],
       handoffs: [
         handoffSource(REPS[0], {
           attributionId: "attribution-ready",
@@ -278,6 +319,7 @@ describe("owner sales pipeline", () => {
       reps: REPS,
       leads: [],
       presentations: [],
+      unassignedInbound: [],
       handoffs: [
         handoffSource(REPS[1], {
           stage: "payment_pending",
@@ -309,6 +351,7 @@ describe("owner sales pipeline", () => {
       reps: REPS,
       leads: [],
       presentations: [],
+      unassignedInbound: [],
       handoffs: null,
       reference,
     });
@@ -323,6 +366,50 @@ describe("owner sales pipeline", () => {
         waitingCount: null,
         scheduleUnknownCount: null,
       },
+    });
+  });
+
+  it("surfaces the newest unassigned inbound requests without truncating the count", () => {
+    const unassignedInbound = Array.from({ length: 10 }, (_, index) =>
+      inbound(
+        `request-${index}`,
+        new Date(reference.getTime() - index * 60_000).toISOString(),
+        index === 0 ? { source: "facebook_lead_ad" } : {},
+      ),
+    );
+    const snapshot = buildOwnerSalesPipelineSnapshot({
+      reps: REPS,
+      leads: [],
+      presentations: [],
+      unassignedInbound: [...unassignedInbound].reverse(),
+      handoffs: [],
+      reference,
+    });
+
+    expect(snapshot.inbound).toMatchObject({
+      status: "available",
+      count: 10,
+    });
+    expect(snapshot.inbound.records).toHaveLength(8);
+    expect(snapshot.inbound.records.map((lead) => lead.id)).toEqual(
+      unassignedInbound.slice(0, 8).map((lead) => lead.id),
+    );
+  });
+
+  it("marks inbound ownership truth unavailable instead of showing a false zero", () => {
+    const snapshot = buildOwnerSalesPipelineSnapshot({
+      reps: REPS,
+      leads: [],
+      presentations: [],
+      unassignedInbound: null,
+      handoffs: [],
+      reference,
+    });
+
+    expect(snapshot.inbound).toEqual({
+      status: "unavailable",
+      count: null,
+      records: [],
     });
   });
 });

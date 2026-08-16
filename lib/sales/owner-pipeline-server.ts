@@ -1,5 +1,7 @@
 import "server-only";
 
+import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
+import { listLeadIntakes } from "@/lib/acquisition/leads/repository";
 import {
   createPrivilegedServerSupabaseClient,
   isServiceRoleConfigured,
@@ -18,6 +20,7 @@ import {
   type OwnerSalesPresentationSource,
   type OwnerSalesRepSource,
 } from "./owner-pipeline";
+import { loadLeadIntakeSalesAssignments } from "./lead-intake-assignment-server";
 import {
   loadSalesLeadAttentionSnapshot,
   loadSalesProductionHandoffAttentionForRoster,
@@ -189,12 +192,25 @@ async function loadPresentationsForLeads(
   );
 }
 
+async function loadUnassignedInboundRequests(): Promise<LeadIntakeRecord[]> {
+  const activeIntakes = (await listLeadIntakes()).filter(
+    (lead) => lead.status !== "archived",
+  );
+  const assignments = await loadLeadIntakeSalesAssignments(
+    activeIntakes.map((lead) => lead.id),
+  );
+  const assignedIds = new Set(
+    assignments.map((assignment) => assignment.leadIntakeId),
+  );
+  return activeIntakes.filter((lead) => !assignedIds.has(lead.id));
+}
+
 export async function loadOwnerSalesPipeline(
   reference = new Date(),
 ): Promise<OwnerSalesPipelineSnapshot> {
   ensureOwnerSalesStorage();
   const reps = await loadAllActiveSalesReps();
-  const [snapshots, handoffs] = await Promise.all([
+  const [snapshots, handoffs, unassignedInbound] = await Promise.all([
     Promise.all(
       reps.map((rep) => loadSalesLeadAttentionSnapshot(rep.slug, reference)),
     ),
@@ -223,6 +239,13 @@ export async function loadOwnerSalesPipeline(
         );
         return null;
       }),
+    loadUnassignedInboundRequests().catch((error: unknown) => {
+      console.error(
+        "[owner-sales-pipeline] nonfatal unassigned inbound load failed",
+        error,
+      );
+      return null;
+    }),
   ]);
   const leads: OwnerSalesLeadSource[] = snapshots.flatMap((snapshot, index) =>
     snapshot.leads.map((lead) => ({
@@ -237,6 +260,7 @@ export async function loadOwnerSalesPipeline(
     reps,
     leads,
     presentations,
+    unassignedInbound,
     handoffs,
     reference,
   });

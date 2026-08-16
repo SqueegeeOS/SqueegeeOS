@@ -9,6 +9,9 @@ function read(relativePath: string): string {
 }
 
 const server = read("./owner-pipeline-server.ts");
+const assignmentControl = read(
+  "../../components/admin/lead-assignment-control.tsx",
+);
 const route = read("../../app/api/admin/sales/pipeline/route.ts");
 const page = read("../../components/admin/owner-sales-inbox-page.tsx");
 const attention = read("../admin/owner-attention.ts");
@@ -21,6 +24,10 @@ describe("owner sales inbox release contract", () => {
     expect(server).toContain(".range(offset, offset + REP_PAGE_SIZE - 1)");
     expect(server).toContain("PRESENTATION_LEAD_CHUNK_SIZE");
     expect(server).toContain("loadSalesLeadAttentionSnapshot");
+    expect(server).toContain("loadUnassignedInboundRequests");
+    expect(server).toContain("listLeadIntakes");
+    expect(server).toContain("loadLeadIntakeSalesAssignments");
+    expect(server).toContain("nonfatal unassigned inbound load failed");
     expect(server).toContain("loadSalesProductionHandoffAttentionForRoster");
     expect(server).toContain("nonfatal signed handoff load failed");
     expect(server).toContain("HomeAtlas could not prove");
@@ -47,6 +54,11 @@ describe("owner sales inbox release contract", () => {
     );
     expect(page).toContain('fetch("/api/admin/sales/pipeline"');
     expect(page).toContain("SalesPhoneAccessPanel");
+    expect(page).toContain("Inbound needs an owner");
+    expect(page).toContain("LeadAssignmentControl");
+    expect(page).toContain("snapshot.inbound");
+    expect(page).toContain("Assigning does not contact the customer");
+    expect(page).toContain("refusing\n          to display a false zero");
     expect(page).toContain('href="#sales-phone-access"');
     expect(page).toContain("lead.presentationHref");
     expect(page).toContain("Build presentation");
@@ -69,5 +81,17 @@ describe("owner sales inbox release contract", () => {
     );
     expect(page).not.toContain('href={`sms:');
     expect(page).not.toContain('href={`mailto:');
+  });
+
+  it("makes hot-lead assignment fast without turning it into messaging", () => {
+    expect(assignmentControl).toContain("futureLocalDateTimeValue");
+    expect(assignmentControl).toContain('label: "15 min"');
+    expect(assignmentControl).toContain('label: "1 hour"');
+    expect(assignmentControl).toContain('label: "Tomorrow 9"');
+    expect(assignmentControl).toContain(
+      "Assignment only. No email or text is sent.",
+    );
+    expect(assignmentControl.toLowerCase()).not.toContain("twilio");
+    expect(assignmentControl.toLowerCase()).not.toContain("resend");
   });
 });
