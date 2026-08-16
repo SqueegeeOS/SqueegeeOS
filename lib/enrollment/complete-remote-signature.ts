@@ -30,6 +30,7 @@ import {
 import { getPresentation } from "@/lib/presentations/repository";
 import { normalizeNorthAmericanPhone } from "@/lib/sales/workspace-validation";
 import { preserveSalesLeadSmsHandoff } from "@/lib/sales/lead-contact-handoff";
+import { recordSignedMembershipAttribution } from "@/lib/sales/signed-attribution-server";
 import { planNameForAgreement } from "@/lib/membership/tier-config";
 import {
   DEFAULT_CARE_PLAN_SERVICE_PRICES,
@@ -46,6 +47,10 @@ export interface RemoteSignatureCompletion {
   propertyId: string;
   portalUrl: string;
   alreadyCompleted: boolean;
+  salesAttribution:
+    | "recorded"
+    | "not_rep_attributed"
+    | "repair_required";
 }
 
 interface AgreementVersionRow {
@@ -53,6 +58,36 @@ interface AgreementVersionRow {
   document_kind: "master_service_agreement" | "service_quote_agreement";
   version: string;
   status: string;
+}
+
+async function recordRemoteSalesAttribution(input: {
+  packetId: string;
+  presentationId: string;
+  membershipId: string;
+  agreementId: string;
+  signedAt: string;
+}): Promise<RemoteSignatureCompletion["salesAttribution"]> {
+  try {
+    const result = await recordSignedMembershipAttribution({
+      presentationId: input.presentationId,
+      membershipId: input.membershipId,
+      agreementId: input.agreementId,
+      signedAt: input.signedAt,
+    });
+    return result.status === "not_rep_attributed"
+      ? "not_rep_attributed"
+      : "recorded";
+  } catch (error) {
+    // Attribution is operational reporting, not permission to withhold a
+    // customer's completed agreement. Stripe activation and the rep workspace
+    // both retry this idempotent write, while this result remains in the packet
+    // event ledger for an owner-visible repair trail.
+    console.error("[remote-enrollment] sales attribution repair required", {
+      packetId: input.packetId,
+      reason: error instanceof Error ? error.message : "unknown",
+    });
+    return "repair_required";
+  }
 }
 
 function planId(): MembershipPlanId {
@@ -127,6 +162,13 @@ export async function completeRemoteEnrollmentSignature(input: {
     if (!membershipResult.data?.portal_access_token) {
       throw new Error("The completed membership is missing its portal access token.");
     }
+    const salesAttribution = await recordRemoteSalesAttribution({
+      packetId: packet.id,
+      presentationId: packet.presentation_id,
+      membershipId: existingAgreement.data.membership_id as string,
+      agreementId: existingAgreement.data.id as string,
+      signedAt: input.signedAt,
+    });
     return {
       packetId: packet.id,
       agreementId: existingAgreement.data.id as string,
@@ -137,6 +179,7 @@ export async function completeRemoteEnrollmentSignature(input: {
         membershipResult.data.portal_access_token as string,
       ),
       alreadyCompleted: true,
+      salesAttribution,
     };
   }
 
@@ -475,6 +518,14 @@ export async function completeRemoteEnrollmentSignature(input: {
     .eq("id", presentation.id);
   if (presentationUpdate.error) throw new Error(presentationUpdate.error.message);
 
+  const salesAttribution = await recordRemoteSalesAttribution({
+    packetId: packet.id,
+    presentationId: presentation.id,
+    membershipId,
+    agreementId,
+    signedAt: input.signedAt,
+  });
+
   if (presentation.clientEmail) {
     import("@/lib/referrals/repository")
       .then(({ markReferralConverted }) =>
@@ -494,5 +545,6 @@ export async function completeRemoteEnrollmentSignature(input: {
     propertyId,
     portalUrl: buildPortalAccessUrl(portalAccessToken),
     alreadyCompleted: false,
+    salesAttribution,
   };
 }

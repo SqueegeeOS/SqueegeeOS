@@ -148,6 +148,7 @@ export async function processDocuSignEnrollmentConnect(input: {
           agreementId: completed.agreementId,
           membershipId: completed.membershipId,
           signedAt: safeCompletedAt(input.event.generatedAt),
+          salesAttribution: completed.salesAttribution,
         },
       });
     }
