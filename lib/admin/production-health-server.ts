@@ -7,6 +7,7 @@ import type {
   ProductionHealthStatus,
 } from "@/lib/admin/production-health-types";
 import {
+  formatSignedAgreementStorageRef,
   isSignedAgreementStorageRef,
   probeSignedAgreementsBucketPublic,
   resolveAgreementPdfAccessUrl,
@@ -71,6 +72,87 @@ function check(
   detail?: string,
 ): ProductionHealthCheck {
   return { id, label, status, message, detail };
+}
+
+export interface SignedAgreementStorageObject {
+  id?: string | null;
+  name: string;
+}
+
+export type SignedPdfProbeState =
+  | "not_checked"
+  | "failed"
+  | "empty"
+  | "found";
+
+export function selectSignedAgreementProbeFile(
+  objects: SignedAgreementStorageObject[],
+): SignedAgreementStorageObject | null {
+  return (
+    objects.find(
+      (object) =>
+        Boolean(object.id) && object.name.toLowerCase().endsWith(".pdf"),
+    ) ?? null
+  );
+}
+
+export function resolveSignedPdfAccessCheck(input: {
+  bucketExists: boolean;
+  serviceRole: boolean;
+  probeState: SignedPdfProbeState;
+  signedUrlWorks: boolean;
+  detail?: string;
+}): ProductionHealthCheck {
+  if (!input.bucketExists) {
+    return check(
+      "storage-signed-url",
+      "Signed PDF access",
+      "red",
+      `${SIGNED_AGREEMENT_BUCKET} bucket is unavailable`,
+      input.detail,
+    );
+  }
+  if (!input.serviceRole) {
+    return check(
+      "storage-signed-url",
+      "Signed PDF access",
+      "red",
+      "Service role required for private PDF access",
+      input.detail,
+    );
+  }
+  if (input.probeState === "failed") {
+    return check(
+      "storage-signed-url",
+      "Signed PDF access",
+      "red",
+      "Stored agreement PDFs could not be inspected",
+      input.detail,
+    );
+  }
+  if (input.probeState === "empty") {
+    return check(
+      "storage-signed-url",
+      "Signed PDF access",
+      "yellow",
+      "No stored agreement PDF is available to test yet",
+    );
+  }
+  if (input.probeState === "found" && input.signedUrlWorks) {
+    return check(
+      "storage-signed-url",
+      "Signed PDF access",
+      "green",
+      "An existing private agreement PDF produced a short-lived signed URL",
+    );
+  }
+  return check(
+    "storage-signed-url",
+    "Signed PDF access",
+    "red",
+    "An existing agreement PDF could not produce a signed URL",
+    input.detail,
+  );
 }
 
 async function probeTableColumn(
@@ -208,8 +290,9 @@ async function runSchemaChecks(
     },
     {
       id: "provider-verification-schema",
-      label: "customer_communication_provider_verifications",
+      label: "customer_communication_provider_verifications.provider",
       table: "customer_communication_provider_verifications",
+      column: "provider",
     },
     {
       id: "field-record-media-schema",
@@ -446,6 +529,8 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
   let bucketExists = false;
   let bucketPrivate = false;
   let signedUrlWorks = false;
+  let signedPdfProbeState: SignedPdfProbeState = "not_checked";
+  let signedPdfProbeMessage: string | undefined;
   let visitMediaBucketExists = false;
   let visitMediaBucketPrivate = false;
   let storageMessage: string | undefined;
@@ -463,6 +548,36 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
         if (!bucketError && bucket) {
           bucketExists = true;
           bucketPrivate = !bucket.public;
+
+          const { data: agreementObjects, error: agreementObjectsError } =
+            await supabase.storage.from(SIGNED_AGREEMENT_BUCKET).list("", {
+              limit: 100,
+              offset: 0,
+              sortBy: { column: "created_at", order: "desc" },
+              search: ".pdf",
+            });
+
+          if (agreementObjectsError) {
+            signedPdfProbeState = "failed";
+            signedPdfProbeMessage = agreementObjectsError.message;
+          } else {
+            const probeFile = selectSignedAgreementProbeFile(
+              agreementObjects ?? [],
+            );
+            signedPdfProbeState = probeFile ? "found" : "empty";
+
+            if (probeFile) {
+              const signed = await resolveAgreementPdfAccessUrl(
+                formatSignedAgreementStorageRef(probeFile.name),
+              );
+              signedUrlWorks = Boolean(signed);
+
+              if (!signedUrlWorks) {
+                signedPdfProbeMessage =
+                  "The newest stored agreement PDF could not be signed.";
+              }
+            }
+          }
         } else if (bucketError) {
           storageMessage = bucketError.message;
         }
@@ -476,13 +591,13 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
           storageMessage = visitBucketError.message;
         }
 
-        const signed = await resolveAgreementPdfAccessUrl(
-          `storage:${SIGNED_AGREEMENT_BUCKET}/.production-health-probe.pdf`,
-        );
-        signedUrlWorks = Boolean(signed);
       } catch (error) {
         storageMessage =
           error instanceof Error ? error.message : "Storage check failed";
+        if (bucketExists && signedPdfProbeState === "not_checked") {
+          signedPdfProbeState = "failed";
+          signedPdfProbeMessage = storageMessage;
+        }
       }
     }
   }
@@ -512,16 +627,13 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
         ? "SUPABASE_SERVICE_ROLE_KEY present server-side"
         : "Service role key missing — signed URLs will fail",
     ),
-    check(
-      "storage-signed-url",
-      "Signed PDF access",
-      signedUrlWorks ? "green" : serviceRole ? "yellow" : "red",
-      signedUrlWorks
-        ? "Signed URL generation works"
-        : serviceRole
-          ? "Signed URL generation unavailable"
-          : "Requires service role",
-    ),
+    resolveSignedPdfAccessCheck({
+      bucketExists,
+      serviceRole,
+      probeState: signedPdfProbeState,
+      signedUrlWorks,
+      detail: signedPdfProbeMessage,
+    }),
     check(
       "storage-visit-media",
       "Private visit-photo storage",
