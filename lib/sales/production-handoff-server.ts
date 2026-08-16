@@ -10,6 +10,7 @@ import {
 } from "@/lib/care-operations/jobber-portal-appointments";
 import { isJobberTodayDataStale } from "@/lib/care-operations/jobber-today-types";
 import { chunkItems } from "@/lib/care-operations/jobber-sync-utils";
+import { resolvePaymentHandoffProgress } from "@/lib/membership/payment-handoff-progress";
 import { createPrivilegedServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
   resolveSalesPaymentSetupEmailState,
@@ -63,6 +64,16 @@ interface JobLinkRow {
   property_id: string;
   external_job_id: string;
   external_property_id: string;
+}
+
+interface PaymentHandoffRow {
+  membership_id: string;
+  status: string;
+  email_sent_at: string | null;
+  stripe_payment_url_expires_at: string | null;
+  completed_at: string | null;
+  last_error_code: string | null;
+  updated_at: string | null;
 }
 
 interface PageResult<T> {
@@ -140,6 +151,33 @@ async function loadHomeowners(
             .in("id", ids)
             .order("id", { ascending: true })
             .range(from, to) as unknown as PromiseLike<PageResult<HomeownerRow>>,
+      })),
+    );
+  }
+  return rows;
+}
+
+async function loadPaymentHandoffs(
+  supabase: SupabaseClient,
+  membershipIds: string[],
+): Promise<PaymentHandoffRow[]> {
+  const rows: PaymentHandoffRow[] = [];
+  for (const ids of chunkItems(membershipIds, HANDOFF_QUERY_CHUNK_SIZE)) {
+    rows.push(
+      ...(await loadCompletePages<PaymentHandoffRow>({
+        label: "hosted payment handoff progress",
+        page: (from, to) =>
+          supabase
+            .from("membership_payment_handoffs")
+            .select(
+              "membership_id, status, email_sent_at, stripe_payment_url_expires_at, completed_at, last_error_code, updated_at",
+              { count: "exact" },
+            )
+            .in("membership_id", ids)
+            .order("membership_id", { ascending: true })
+            .range(from, to) as unknown as PromiseLike<
+            PageResult<PaymentHandoffRow>
+          >,
       })),
     );
   }
@@ -383,6 +421,10 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
           attributedAt: attribution.attributedAt,
           membership: null,
           paymentSetupEmailState: "not_available",
+          paymentHandoffProgress: resolvePaymentHandoffProgress(
+            null,
+            referenceDate,
+          ),
           propertyLinked: false,
           recurringJobCount: 0,
           scheduleSourceState: "unavailable",
@@ -416,6 +458,7 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
     properties,
     presentations,
     agreements,
+    paymentHandoffs,
     propertyLinks,
     jobLinks,
     scheduleSource,
@@ -425,6 +468,7 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
       loadProperties(supabase, propertyIds),
       loadPresentations(supabase, presentationIds),
       loadSignedAgreements(supabase, signedAgreementIds),
+      loadPaymentHandoffs(supabase, membershipIds),
       loadPropertyLinks(supabase, membershipIds),
       loadJobLinks(supabase, membershipIds),
       readScheduleSourceState(supabase, referenceDate),
@@ -447,6 +491,22 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
   );
   const agreementById = new Map(
     agreements.map((agreement) => [agreement.id, agreement]),
+  );
+  const paymentHandoffProgressByMembershipId = new Map(
+    paymentHandoffs.map((handoff) => [
+      handoff.membership_id,
+      resolvePaymentHandoffProgress(
+        {
+          status: handoff.status,
+          emailSentAt: handoff.email_sent_at,
+          expiresAt: handoff.stripe_payment_url_expires_at,
+          completedAt: handoff.completed_at,
+          lastErrorCode: handoff.last_error_code,
+          updatedAt: handoff.updated_at,
+        },
+        referenceDate,
+      ),
+    ]),
   );
   const propertyLinkByMembership = new Map<string, PropertyLinkRow>();
   for (const link of propertyLinks) {
@@ -522,6 +582,10 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
         presentation,
         agreement,
       }),
+      paymentHandoffProgress: membership
+        ? paymentHandoffProgressByMembershipId.get(membership.id) ??
+          resolvePaymentHandoffProgress(null, referenceDate)
+        : resolvePaymentHandoffProgress(null, referenceDate),
       propertyLinked: membership
         ? propertyLinkByMembership.has(membership.id)
         : false,

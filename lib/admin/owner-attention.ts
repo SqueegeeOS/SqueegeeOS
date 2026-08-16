@@ -499,7 +499,9 @@ function addSalesProductionHandoffItems(
 
   const actionable = snapshot.records.filter(
     (record) =>
-      record.stage !== "ready" && record.stage !== "source_unavailable",
+      record.stage !== "ready" &&
+      record.stage !== "payment_pending" &&
+      record.stage !== "source_unavailable",
   );
   const visible = actionable.slice(0, 5);
   for (const record of visible) {

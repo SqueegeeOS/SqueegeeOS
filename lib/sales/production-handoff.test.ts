@@ -30,6 +30,12 @@ function source(
       visits_per_year: 4,
     },
     paymentSetupEmailState: "card_on_file",
+    paymentHandoffProgress: {
+      state: "completed",
+      canSend: false,
+      emailSentAt: "2026-08-14T17:00:00.000Z",
+      expiresAt: "2026-08-15T17:00:00.000Z",
+    },
     propertyLinked: true,
     recurringJobCount: 1,
     scheduleSourceState: "fresh",
@@ -61,6 +67,12 @@ describe("sales-to-production handoff", () => {
           stripe_payment_method_id: null,
         },
         paymentSetupEmailState: "ready",
+        paymentHandoffProgress: {
+          state: "not_started",
+          canSend: true,
+          emailSentAt: null,
+          expiresAt: null,
+        },
         propertyLinked: false,
       }),
     );
@@ -89,6 +101,12 @@ describe("sales-to-production handoff", () => {
           stripe_payment_method_id: null,
         },
         paymentSetupEmailState: "needs_email",
+        paymentHandoffProgress: {
+          state: "not_started",
+          canSend: true,
+          emailSentAt: null,
+          expiresAt: null,
+        },
       }),
     );
 
@@ -99,6 +117,50 @@ describe("sales-to-production handoff", () => {
       actionLabel: "Add customer email",
     });
     expect(needsEmail.detail).toContain("valid customer email");
+  });
+
+  it("separates an active delivered link from owner work and restores action after expiry", () => {
+    const membership = {
+      ...source().membership!,
+      status: "pending_payment",
+      payment_setup_completed_at: null,
+      stripe_payment_method_id: null,
+    };
+    const waiting = deriveSalesProductionHandoff(
+      source({
+        membership,
+        paymentSetupEmailState: "ready",
+        paymentHandoffProgress: {
+          state: "email_sent",
+          canSend: false,
+          emailSentAt: "2026-08-16T19:30:00.000Z",
+          expiresAt: "2026-08-17T19:30:00.000Z",
+        },
+      }),
+    );
+    const expired = deriveSalesProductionHandoff(
+      source({
+        membership,
+        paymentSetupEmailState: "ready",
+        paymentHandoffProgress: {
+          state: "expired",
+          canSend: true,
+          emailSentAt: "2026-08-15T19:30:00.000Z",
+          expiresAt: "2026-08-16T19:30:00.000Z",
+        },
+      }),
+    );
+
+    expect(waiting).toMatchObject({
+      stage: "payment_pending",
+      presentationId: "presentation-1",
+      label: "Waiting on customer card setup",
+    });
+    expect(expired).toMatchObject({
+      stage: "payment_needed",
+      label: "Secure card link expired",
+      actionLabel: "Recover payment handoff",
+    });
   });
 
   it("walks an active member through property, job, and schedule proof", () => {
@@ -139,17 +201,36 @@ describe("sales-to-production handoff", () => {
         scheduleSourceState: "unavailable",
       }),
     );
+    const waiting = deriveSalesProductionHandoff(
+      source({
+        attributionId: "attribution-3",
+        membership: {
+          ...source().membership!,
+          status: "pending_payment",
+          payment_setup_completed_at: null,
+          stripe_payment_method_id: null,
+        },
+        paymentSetupEmailState: "ready",
+        paymentHandoffProgress: {
+          state: "email_sent",
+          canSend: false,
+          emailSentAt: "2026-08-16T17:30:00.000Z",
+          expiresAt: "2026-08-17T17:30:00.000Z",
+        },
+      }),
+    );
     const snapshot = buildSalesProductionHandoffSnapshot({
       generatedAt: "2026-08-14T18:00:00.000Z",
-      records: [ready, unknown],
+      records: [ready, unknown, waiting],
     });
 
     expect(snapshot.summary).toEqual({
-      signedCount: 2,
+      signedCount: 3,
       readyCount: 1,
       actionCount: 1,
+      waitingCount: 1,
       scheduleUnknownCount: 1,
     });
-    expect(snapshot.records).toHaveLength(2);
+    expect(snapshot.records).toHaveLength(3);
   });
 });

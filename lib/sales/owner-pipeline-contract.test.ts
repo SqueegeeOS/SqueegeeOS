@@ -61,7 +61,9 @@ describe("owner sales inbox release contract", () => {
     expect(page).toContain("no charge occurs");
     expect(page).toMatch(/explicit\s+customer SMS consent/);
     expect(page).toContain("refusing to display a false zero");
-    expect(page).toContain("Its labeled email control sends only");
+    expect(page).toMatch(/Its labeled email\s+control sends only/);
+    expect(page).toContain("handoffs?.summary.waitingCount");
+    expect(attention).toContain('record.stage !== "payment_pending"');
     expect(page).toContain(
       "Saving does not text, email, enroll, or charge this customer.",
     );

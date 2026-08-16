@@ -157,6 +157,7 @@ function healthySalesHandoffs(): SalesProductionHandoffSnapshot {
       signedCount: 0,
       readyCount: 0,
       actionCount: 0,
+      waitingCount: 0,
       scheduleUnknownCount: 0,
     },
   };
@@ -861,6 +862,12 @@ describe("owner attention queue", () => {
         visits_per_year: 4,
       },
       paymentSetupEmailState: "ready",
+      paymentHandoffProgress: {
+        state: "not_started",
+        canSend: true,
+        emailSentAt: null,
+        expiresAt: null,
+      },
       propertyLinked: false,
       recurringJobCount: 0,
       scheduleSourceState: "unavailable",
@@ -888,6 +895,7 @@ describe("owner attention queue", () => {
             signedCount: 2,
             readyCount: 0,
             actionCount: 2,
+            waitingCount: 0,
             scheduleUnknownCount: 1,
           },
         }),
@@ -901,7 +909,7 @@ describe("owner attention queue", () => {
     ).toMatchObject({
       priority: "critical",
       domain: "billing",
-      href: "/hq/customers/membership/membership-payment",
+      href: "/presentations/presentation-1/present",
     });
     const unknownItem = response.items.find(
       (item) => item.id === "sales-handoff:schedule-source",
@@ -912,6 +920,65 @@ describe("owner attention queue", () => {
       href: "/hq/jobber",
     });
     expect(unknownItem?.detail).toContain("not calling them unscheduled");
+  });
+
+  it("does not turn an active customer card link into duplicate owner work", () => {
+    const waiting = deriveSalesProductionHandoff({
+      attributionId: "attribution-waiting",
+      membershipId: "membership-waiting",
+      homeownerName: "Joani Cole",
+      propertyAddress: "90 Oak Way",
+      attributedArrCents: 90_000,
+      attributedAt: "2026-08-16T17:00:00.000Z",
+      membership: {
+        id: "membership-waiting",
+        homeowner_id: "homeowner-waiting",
+        property_id: "property-waiting",
+        status: "pending_payment",
+        payment_setup_completed_at: null,
+        stripe_payment_method_id: null,
+        stripe_customer_id: "customer-waiting",
+        agreement_id: "agreement-waiting",
+        presentation_id: "presentation-waiting",
+        sales_tier: "biannual",
+        visit_price: 250,
+        visits_per_year: 2,
+      },
+      paymentSetupEmailState: "ready",
+      paymentHandoffProgress: {
+        state: "email_sent",
+        canSend: false,
+        emailSentAt: "2026-08-16T17:05:00.000Z",
+        expiresAt: "2026-08-17T17:05:00.000Z",
+      },
+      propertyLinked: false,
+      recurringJobCount: 0,
+      scheduleSourceState: "unavailable",
+      scheduleObservedAt: null,
+      nextScheduledAt: null,
+    });
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        salesHandoffs: ready({
+          generatedAt: NOW.toISOString(),
+          records: [waiting],
+          summary: {
+            signedCount: 1,
+            readyCount: 0,
+            actionCount: 0,
+            waitingCount: 1,
+            scheduleUnknownCount: 0,
+          },
+        }),
+      }),
+    );
+
+    expect(waiting.stage).toBe("payment_pending");
+    expect(
+      response.items.some(
+        (item) => item.id === "sales-handoff:attribution-waiting",
+      ),
+    ).toBe(false);
   });
 
   it("surfaces verified review moments and overdue annual care check-ins", () => {

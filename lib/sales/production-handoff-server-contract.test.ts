@@ -11,17 +11,23 @@ describe("sales production handoff loader contract", () => {
     expect(source).toContain('.from("memberships")');
     expect(source).toContain('.from("presentations")');
     expect(source).toContain('.from("signed_agreements")');
+    expect(source).toContain('.from("membership_payment_handoffs")');
     expect(source).toContain('.from("jobber_property_links")');
     expect(source).toContain('.from("jobber_membership_job_links")');
     expect(source).toContain('.from("jobber_visit_projections")');
     expect(source).toContain("readJobberConnectionStatus");
     expect(source).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
     expect(source).not.toContain("getFreshJobberAccessToken");
+    expect(source).not.toContain('.select("*")');
+    expect(source).not.toContain("stripe_payment_url,");
+    expect(source).not.toContain("last_error_message");
+    expect(source).not.toContain("customer_email");
   });
 
   it("proves the exact signed payment-email lineage before enabling contact", () => {
     expect(source).toContain("resolveSalesPaymentSetupEmailState");
     expect(source).toContain("signedAgreementId: attribution.signedAgreementId");
+    expect(source).toContain("resolvePaymentHandoffProgress");
   });
 
   it("uses exact paginated reads instead of silently trusting a provider row cap", () => {

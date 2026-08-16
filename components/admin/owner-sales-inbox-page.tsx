@@ -16,6 +16,7 @@ import {
 } from "@/components/sales/service-interest-control";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
+import { paymentHandoffSendLabel } from "@/lib/membership/payment-handoff-progress";
 import type {
   OwnerSalesPipelineHandoff,
   OwnerSalesPipelineLead,
@@ -58,6 +59,10 @@ const HANDOFF_STYLE: Record<
   payment_needed: {
     className: "border-red-300/20 bg-red-300/[0.055] text-red-100",
     progressClassName: "bg-red-200",
+  },
+  payment_pending: {
+    className: "border-violet-300/20 bg-violet-300/[0.055] text-violet-100",
+    progressClassName: "bg-violet-200",
   },
   membership_attention: {
     className: "border-amber-300/22 bg-amber-300/[0.06] text-amber-100",
@@ -486,6 +491,7 @@ export function SignedHandoffCard({
   const canEmailPaymentSetup =
     handoff.stage === "payment_needed" &&
     handoff.paymentSetupEmailState === "ready" &&
+    handoff.paymentHandoffProgress.canSend &&
     Boolean(handoff.membershipId);
 
   return (
@@ -529,6 +535,26 @@ export function SignedHandoffCard({
 
       <p className="mt-4 text-sm font-semibold text-current">{handoff.label}</p>
       <p className="mt-1 text-xs leading-5 opacity-72">{handoff.detail}</p>
+      {handoff.paymentHandoffProgress.state === "email_sent" ? (
+        <div className="mt-3 rounded-xl border border-current/15 bg-black/15 px-3 py-2 text-[10px] leading-4 opacity-78">
+          <p className="font-bold uppercase tracking-[0.11em]">
+            Secure email accepted
+          </p>
+          <p className="mt-1">
+            {handoff.paymentHandoffProgress.emailSentAt
+              ? `Sent ${dateTimeLabel(handoff.paymentHandoffProgress.emailSentAt)}. `
+              : ""}
+            {handoff.paymentHandoffProgress.expiresAt
+              ? `Link active until ${dateTimeLabel(handoff.paymentHandoffProgress.expiresAt)}.`
+              : "Waiting for Stripe confirmation."}
+          </p>
+        </div>
+      ) : handoff.paymentHandoffProgress.state === "preparing" ? (
+        <p className="mt-3 rounded-xl border border-current/15 bg-black/15 px-3 py-2 text-[10px] leading-4 opacity-78">
+          Preparation is inside its five-minute safety window. Refresh before
+          retrying so the customer receives one deliberate email.
+        </p>
+      ) : null}
       {handoff.nextScheduledAt && handoff.stage === "ready" ? (
         <p className="mt-3 text-[10px] font-bold uppercase tracking-[0.12em]">
           Next visit · {dateTimeLabel(handoff.nextScheduledAt)}
@@ -540,6 +566,9 @@ export function SignedHandoffCard({
           <PaymentSetupEmailButton
             membershipId={handoff.membershipId}
             canSend
+            idleLabel={paymentHandoffSendLabel(
+              handoff.paymentHandoffProgress.state,
+            )}
             variant="primary"
             onAccepted={onAccepted}
           />
@@ -598,12 +627,12 @@ function SignedHandoffDesk({
             <p className="mt-3 text-sm leading-6 text-white/46">
               Agreement-backed closes move through card setup, membership health,
               Jobber property and recurring-job pairing, then a current scheduled
-              visit. This desk reads proof. Its labeled email control sends only
-              when pressed and never charges; every other action opens the verified
-              next step.
+              visit. This desk reads proof. An accepted active card link moves to
+              Waiting instead of creating duplicate owner work. Its labeled email
+              control sends only when pressed and never charges.
             </p>
           </div>
-          <div className="grid shrink-0 grid-cols-3 gap-2 lg:w-[23rem]">
+          <div className="grid shrink-0 grid-cols-4 gap-2 lg:w-[30rem]">
             <div className="rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
               <p className="font-serif text-2xl tabular-nums text-[#f5f2eb]">
                 {count(handoffs?.summary.signedCount)}
@@ -615,6 +644,12 @@ function SignedHandoffDesk({
                 {count(handoffs?.summary.actionCount)}
               </p>
               <p className="mt-1 text-[8px] uppercase tracking-[0.12em] text-amber-100/45">Needs owner</p>
+            </div>
+            <div className="rounded-2xl border border-violet-300/12 bg-violet-300/[0.035] p-3 text-center">
+              <p className="font-serif text-2xl tabular-nums text-violet-100">
+                {count(handoffs?.summary.waitingCount)}
+              </p>
+              <p className="mt-1 text-[8px] uppercase tracking-[0.12em] text-violet-100/45">Waiting</p>
             </div>
             <div className="rounded-2xl border border-emerald-300/12 bg-emerald-300/[0.035] p-3 text-center">
               <p className="font-serif text-2xl tabular-nums text-emerald-100">
