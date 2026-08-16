@@ -19,6 +19,7 @@ import type {
 } from "@/lib/sales/owner-pipeline";
 import type { SalesLeadActionMoment } from "@/lib/sales/lead-action-priority";
 import type { SalesProductionHandoffStage } from "@/lib/sales/production-handoff";
+import type { EnrollmentPacketProgressTone } from "@/lib/enrollment/packet-progress";
 import type {
   RecordSalesLeadInteractionInput,
   SalesLeadStatus,
@@ -78,6 +79,13 @@ const HANDOFF_STYLE: Record<
     className: "border-emerald-300/22 bg-emerald-300/[0.06] text-emerald-100",
     progressClassName: "bg-emerald-200",
   },
+};
+
+const CLOSE_JOURNEY_STYLE: Record<EnrollmentPacketProgressTone, string> = {
+  neutral: "border-white/10 bg-white/[0.035] text-white/68",
+  accent: "border-accent/25 bg-accent/[0.07] text-accent",
+  warning: "border-amber-300/25 bg-amber-300/[0.07] text-amber-100",
+  success: "border-emerald-300/22 bg-emerald-300/[0.065] text-emerald-100",
 };
 
 type EditableLeadStatus = Extract<
@@ -191,6 +199,15 @@ function LeadActionCard({
   );
   const [notes, setNotes] = useState(lead.notes);
   const action = ACTION_STYLE[lead.actionMoment];
+  const presentationActionLabel =
+    lead.presentationState === "needs_attention"
+      ? "Review presentations"
+      : (lead.closeJourney?.actionLabel ??
+        (lead.presentationState === "none"
+          ? "Build presentation"
+          : lead.presentationStatus === "signed"
+            ? "View signed plan"
+            : "Resume presentation"));
 
   async function save() {
     setSaving(true);
@@ -290,11 +307,7 @@ function LeadActionCard({
             href={lead.presentationHref}
             className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/25 bg-accent px-4 text-xs font-semibold text-background transition hover:brightness-105 active:scale-[0.98]"
           >
-            {lead.presentationState === "none"
-              ? "Build presentation"
-              : lead.presentationStatus === "signed"
-                ? "View signed plan"
-                : "Resume presentation"}
+            {presentationActionLabel}
           </Link>
           <button
             type="button"
@@ -327,6 +340,20 @@ function LeadActionCard({
               : `${lead.presentationStatus} presentation linked`}
         </p>
       </div>
+
+      {lead.closeJourney ? (
+        <div
+          className={`mt-4 rounded-2xl border p-3.5 ${CLOSE_JOURNEY_STYLE[lead.closeJourney.tone]}`}
+          role="status"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] opacity-80">
+            Close journey · {lead.closeJourney.label}
+          </p>
+          <p className="mt-1.5 text-xs leading-relaxed text-white/55">
+            {lead.closeJourney.detail}
+          </p>
+        </div>
+      ) : null}
 
       <LeadInteractionControl lead={lead} onRecord={recordInteraction} />
 

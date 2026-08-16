@@ -311,6 +311,7 @@ export function PresentationViewer({
           onClose={() => setSigning(false)}
           onPresentationChange={onPresentationChange}
           doneLabel={returnTo ? "Return to field desk" : "Done"}
+          returnTo={returnTo}
           onDone={() => {
             setSigning(false);
             router.push(completionPath);

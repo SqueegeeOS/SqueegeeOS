@@ -7,9 +7,11 @@ import {
 } from "@/lib/enrollment/send-packet";
 import type { EnrollmentSalesContext } from "@/lib/enrollment/types";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
+import { loadEnrollmentPacketStatus } from "@/lib/enrollment/packet-status-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+export const dynamic = "force-dynamic";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -34,6 +36,33 @@ function salesContext(value: unknown): EnrollmentSalesContext | null {
     value === "other"
     ? value
     : null;
+}
+
+export async function GET(request: Request) {
+  const presentationId = new URL(request.url).searchParams
+    .get("presentationId")
+    ?.trim();
+  if (
+    !presentationId ||
+    !(await authorizeSalesPresentationRequest(request.headers, presentationId))
+  ) {
+    return unauthorized();
+  }
+
+  try {
+    const packet = await loadEnrollmentPacketStatus(presentationId);
+    return NextResponse.json(
+      { packet },
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } },
+    );
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "The secure handoff status could not be loaded.";
+    console.error("[enrollment-packets] status load failed", { message });
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
 
 export async function POST(request: Request) {

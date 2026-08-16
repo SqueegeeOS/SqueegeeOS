@@ -88,6 +88,7 @@ export function PresentationOnboarding({
   onDone,
   doneLabel = "Done",
   onPresentationChange,
+  returnTo = null,
 }: {
   presentation: PresentationData;
   selectedTier: PresentationTier;
@@ -95,6 +96,7 @@ export function PresentationOnboarding({
   onDone: () => void;
   doneLabel?: string;
   onPresentationChange?: (next: PresentationData) => void;
+  returnTo?: string | null;
 }) {
   const [step, setStep] = useState<OnboardingStep>(() =>
     resolveInitialStep(presentation),
@@ -427,6 +429,7 @@ export function PresentationOnboarding({
                 }
                 recurringVisitPrice={visitPrice}
                 annualizedValue={annualTotal}
+                returnTo={returnTo}
               />
             </div>
 
