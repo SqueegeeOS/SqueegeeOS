@@ -5,7 +5,10 @@ import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { JobberCustomerPairingPanel } from "@/components/admin/jobber-customer-pairing-panel";
 import { JobberVisitWorkspacePanel } from "@/components/admin/jobber-visit-workspace-panel";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
-import type { JobberHandoffFocus } from "@/lib/care-operations/jobber-handoff-navigation";
+import {
+  jobberHandoffResumeHref,
+  type JobberHandoffFocus,
+} from "@/lib/care-operations/jobber-handoff-navigation";
 
 interface JobberConnectionResponse {
   configuration: {
@@ -73,6 +76,7 @@ export function JobberConnectionPanel({
   focus: JobberHandoffFocus | null;
 }) {
   const focusMembershipId = focus?.membershipId ?? null;
+  const focusProjectionId = focus?.projectionId ?? null;
   const [status, setStatus] = useState<JobberConnectionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -124,14 +128,24 @@ export function JobberConnectionPanel({
   }, []);
 
   useEffect(() => {
-    if (!focusMembershipId || !status?.connection?.connected) return;
+    if (
+      (!focusMembershipId && !focusProjectionId) ||
+      !status?.connection?.connected
+    ) {
+      return;
+    }
     const frame = window.requestAnimationFrame(() => {
       document
         .getElementById("jobber-visits")
         ?.scrollIntoView({ block: "start" });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [focusMembershipId, refreshKey, status?.connection?.connected]);
+  }, [
+    focusMembershipId,
+    focusProjectionId,
+    refreshKey,
+    status?.connection?.connected,
+  ]);
 
   const connect = async () => {
     setConnecting(true);
@@ -139,7 +153,13 @@ export function JobberConnectionPanel({
     try {
       const response = await fetch(
         "/api/admin/care-operations/jobber/oauth/start",
-        { method: "POST", headers: getAdminRequestHeaders() },
+        {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+          body: JSON.stringify({
+            returnTo: focus ? jobberHandoffResumeHref(focus) : null,
+          }),
+        },
       );
       const body = (await response.json().catch(() => null)) as
         | { authorizationUrl?: string; error?: string }

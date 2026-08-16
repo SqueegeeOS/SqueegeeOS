@@ -14,7 +14,9 @@ export default async function HqJobberPage({
 }: {
   searchParams: Promise<{
     membership?: string | string[];
+    projection?: string | string[];
     step?: string | string[];
+    returnTo?: string | string[];
   }>;
 }) {
   const focus = resolveJobberHandoffFocus(await searchParams);

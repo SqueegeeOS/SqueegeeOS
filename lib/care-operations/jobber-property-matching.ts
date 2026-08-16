@@ -20,6 +20,8 @@ const JOB_LINK_REASON =
   "Headquarters confirmed this recurring Jobber job is the membership service";
 const JOB_REVOKE_REASON =
   "Headquarters revoked the Jobber membership-service classification";
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 type PropertyClassification =
   | "jobber_only"
@@ -416,13 +418,29 @@ export async function loadJobberPropertyMatchingWorkspace(options: {
   page?: number;
   pageSize?: number;
   focusMembershipId?: string | null;
+  focusProjectionId?: string | null;
 } = {}): Promise<JobberPropertyMatchingWorkspace> {
   const supabase = createServiceRoleSupabaseClient();
   const focusMembershipId = options.focusMembershipId?.trim() ?? "";
+  const focusProjectionId = options.focusProjectionId?.trim() ?? "";
+  if (focusMembershipId && focusProjectionId) {
+    throw new SupervisedPropertyMatchError(
+      "Choose either a member handoff or an exact Jobber visit handoff.",
+      400,
+    );
+  }
+  if (focusProjectionId && !UUID_PATTERN.test(focusProjectionId)) {
+    throw new SupervisedPropertyMatchError(
+      "The focused Jobber visit is invalid.",
+      400,
+    );
+  }
   const focusedMember = focusMembershipId
     ? await loadFocusedMemberProperty(focusMembershipId)
     : null;
-  const requestedSearch = options.search?.trim().slice(0, 120) ?? "";
+  const requestedSearch = focusProjectionId
+    ? ""
+    : (options.search?.trim().slice(0, 120) ?? "");
   const exactExternalPropertyId = focusedMember?.externalPropertyId ?? null;
   const exactExternalClientId = exactExternalPropertyId
     ? null
@@ -435,6 +453,7 @@ export async function loadJobberPropertyMatchingWorkspace(options: {
     search: requestedSearch || fallbackSearch,
     page: options.page,
     pageSize: options.pageSize,
+    projectionId: focusProjectionId,
     externalPropertyId: exactExternalPropertyId,
     externalClientId: exactExternalClientId,
   });

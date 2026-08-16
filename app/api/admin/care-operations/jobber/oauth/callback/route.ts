@@ -10,8 +10,13 @@ import { ROUTES } from "@/lib/navigation/config";
 
 export const runtime = "nodejs";
 
-function resultRedirect(request: Request, status: "connected" | "error", reason?: string) {
-  const url = new URL(ROUTES.hqProductionHealth, request.url);
+function resultRedirect(
+  request: Request,
+  status: "connected" | "error",
+  reason?: string,
+  returnTo?: string | null,
+) {
+  const url = new URL(returnTo ?? ROUTES.hqProductionHealth, request.url);
   url.searchParams.set("jobber", status);
   if (reason) url.searchParams.set("reason", reason);
   return NextResponse.redirect(url);
@@ -24,8 +29,8 @@ export async function GET(request: Request) {
   const oauthError = url.searchParams.get("error");
   if (oauthError) return resultRedirect(request, "error", "authorization_denied");
   if (!code || !state) return resultRedirect(request, "error", "missing_code");
-  const codeVerifier = await consumeJobberOAuthState(state);
-  if (!codeVerifier) {
+  const oauthState = await consumeJobberOAuthState(state);
+  if (!oauthState) {
     return resultRedirect(request, "error", "invalid_state");
   }
 
@@ -34,16 +39,21 @@ export async function GET(request: Request) {
     const tokens = await exchangeJobberAuthorizationCode(
       code,
       redirectUri,
-      codeVerifier,
+      oauthState.codeVerifier,
     );
     const account = await fetchJobberAccountIdentity(tokens.accessToken);
     await saveJobberConnection({ account, tokens });
-    return resultRedirect(request, "connected");
+    return resultRedirect(request, "connected", undefined, oauthState.returnTo);
   } catch (error) {
     console.error(
       "[jobber-oauth] callback failed:",
       error instanceof Error ? error.message : "unknown error",
     );
-    return resultRedirect(request, "error", "connection_failed");
+    return resultRedirect(
+      request,
+      "error",
+      "connection_failed",
+      oauthState.returnTo,
+    );
   }
 }

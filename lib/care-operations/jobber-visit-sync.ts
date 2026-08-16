@@ -322,10 +322,12 @@ export async function listJobberVisits(options: {
   search?: string;
   page?: number;
   pageSize?: number;
+  projectionId?: string | null;
   externalPropertyId?: string | null;
   externalClientId?: string | null;
 } = {}): Promise<JobberVisitList> {
   const search = options.search?.trim().slice(0, 120) ?? "";
+  const projectionId = options.projectionId?.trim() ?? "";
   const externalPropertyId =
     options.externalPropertyId?.trim().slice(0, 200) ?? "";
   const externalClientId = options.externalClientId?.trim().slice(0, 200) ?? "";
@@ -339,7 +341,9 @@ export async function listJobberVisits(options: {
     .select(PROJECTION_PREVIEW_SELECT, { count: "exact" })
     .eq("connection_id", JOBBER_CONNECTION_ID);
 
-  if (externalPropertyId) {
+  if (projectionId) {
+    query = query.eq("id", projectionId);
+  } else if (externalPropertyId) {
     query = query.eq("external_property_id", externalPropertyId);
   } else if (externalClientId) {
     query = query.eq("external_client_id", externalClientId);
