@@ -41,7 +41,7 @@ describe("sales workspace validation", () => {
     const result = validateCreateSalesLead({
       clientEventId: "00000000-0000-4000-8000-000000000101",
       fullName: "  Jordan Homeowner  ",
-      propertyAddress: "  123 Atlas Way  ",
+      propertyAddress: "  123   Atlas Way  ",
       phone: "702-555-1212",
       email: "JORDAN@EXAMPLE.COM",
       estimatedArrDollars: 1800,

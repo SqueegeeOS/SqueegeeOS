@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { FieldPropertyAddressInput } from "@/components/address/field-property-address-input";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import {
@@ -2891,14 +2892,18 @@ export function SalesRepWorkspace({
                   </div>
                   <div>
                     <label htmlFor="sales-lead-address" className={craftLabel}>Property address</label>
-                    <input
+                    <FieldPropertyAddressInput
                       id="sales-lead-address"
                       required
-                      autoComplete="street-address"
                       value={leadForm.propertyAddress}
-                      onChange={(event) => setLeadForm((current) => ({ ...current, propertyAddress: event.target.value }))}
+                      onChange={(propertyAddress) =>
+                        setLeadForm((current) => ({
+                          ...current,
+                          propertyAddress,
+                        }))
+                      }
                       className={craftInput}
-                      placeholder="Street, city"
+                      placeholder="Start with the house number"
                     />
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { FieldPropertyAddressInput } from "@/components/address/field-property-address-input";
 import { GlassCard } from "@/components/craft/glass-card";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
@@ -172,13 +173,12 @@ export function DoorMemorySheet({
             <label htmlFor="door-memory-address" className={craftLabel}>
               Property address
             </label>
-            <input
+            <FieldPropertyAddressInput
               id="door-memory-address"
               autoFocus
-              autoComplete="street-address"
               value={draft.propertyAddress}
-              onChange={(event) =>
-                onChange({ ...draft, propertyAddress: event.target.value })
+              onChange={(propertyAddress) =>
+                onChange({ ...draft, propertyAddress })
               }
               className={craftInput}
               placeholder="House number and street"
