@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { SalesRepLead } from "./workspace-types";
 import {
   buildOwnerSalesPipelineSnapshot,
+  type OwnerSalesHandoffSource,
   type OwnerSalesLeadSource,
   type OwnerSalesPresentationSource,
   type OwnerSalesRepSource,
@@ -53,6 +54,36 @@ function source(
   };
 }
 
+function handoffSource(
+  rep: OwnerSalesRepSource,
+  overrides: Partial<OwnerSalesHandoffSource["handoff"]> = {},
+): OwnerSalesHandoffSource {
+  return {
+    repId: rep.id,
+    repSlug: rep.slug,
+    repDisplayName: rep.displayName,
+    repWorkspacePath: rep.workspacePath,
+    handoff: {
+      attributionId: "attribution-base",
+      membershipId: "membership-base",
+      homeownerName: "Mandi Rivera",
+      propertyAddress: "88 Oak Way",
+      attributedArrCents: 120_000,
+      attributedAt: "2026-08-16T17:00:00.000Z",
+      stage: "ready",
+      label: "Production ready",
+      detail: "All five proofs are verified.",
+      completedSteps: 5,
+      totalSteps: 5,
+      actionLabel: "Open member record",
+      actionHref: "/hq/customers/membership/membership-base",
+      nextScheduledAt: "2026-09-01T16:00:00.000Z",
+      scheduleObservedAt: "2026-08-16T16:00:00.000Z",
+      ...overrides,
+    },
+  };
+}
+
 describe("owner sales pipeline", () => {
   const reference = new Date("2026-08-16T18:00:00.000Z");
 
@@ -73,6 +104,7 @@ describe("owner sales pipeline", () => {
         source(REPS[1], { id: "lead-unscheduled" }),
       ],
       presentations: [],
+      handoffs: [],
       reference,
     });
 
@@ -129,6 +161,7 @@ describe("owner sales pipeline", () => {
       reps: REPS,
       leads: [lead],
       presentations,
+      handoffs: [],
       reference,
     });
 
@@ -140,5 +173,70 @@ describe("owner sales pipeline", () => {
       presentationHref: "/presentations/presentation-signed/present",
     });
     expect(snapshot.summary.presentationNeedsAttentionCount).toBe(1);
+  });
+
+  it("keeps agreement-backed closes in one owner queue until production is ready", () => {
+    const snapshot = buildOwnerSalesPipelineSnapshot({
+      reps: REPS,
+      leads: [],
+      presentations: [],
+      handoffs: [
+        handoffSource(REPS[0], {
+          attributionId: "attribution-ready",
+        }),
+        handoffSource(REPS[1], {
+          attributionId: "attribution-payment",
+          membershipId: "membership-payment",
+          homeownerName: "Joani Cole",
+          stage: "payment_needed",
+          label: "Payment setup needed",
+          detail: "The signed customer still needs a card on file.",
+          completedSteps: 1,
+          actionLabel: "Finish payment setup",
+          actionHref: "/hq/customers/membership/membership-payment",
+          nextScheduledAt: null,
+        }),
+      ],
+      reference,
+    });
+
+    expect(snapshot.handoffs.status).toBe("available");
+    expect(snapshot.handoffs.summary).toEqual({
+      signedCount: 2,
+      readyCount: 1,
+      actionCount: 1,
+      scheduleUnknownCount: 0,
+    });
+    expect(snapshot.handoffs.records.map((handoff) => handoff.attributionId)).toEqual([
+      "attribution-payment",
+      "attribution-ready",
+    ]);
+    expect(snapshot.handoffs.records[0]).toMatchObject({
+      repSlug: "david",
+      repWorkspacePath: "/david",
+      homeownerName: "Joani Cole",
+      completedSteps: 1,
+    });
+  });
+
+  it("marks signed handoff truth unavailable instead of reporting a false zero", () => {
+    const snapshot = buildOwnerSalesPipelineSnapshot({
+      reps: REPS,
+      leads: [],
+      presentations: [],
+      handoffs: null,
+      reference,
+    });
+
+    expect(snapshot.handoffs).toMatchObject({
+      status: "unavailable",
+      records: [],
+      summary: {
+        signedCount: null,
+        readyCount: null,
+        actionCount: null,
+        scheduleUnknownCount: null,
+      },
+    });
   });
 });

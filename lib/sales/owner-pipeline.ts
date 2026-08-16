@@ -5,6 +5,10 @@ import {
   type SalesLeadActionCounts,
   type SalesLeadActionMoment,
 } from "./lead-action-priority";
+import type {
+  SalesProductionHandoffRecord,
+  SalesProductionHandoffStage,
+} from "./production-handoff";
 import type { SalesRepPlan } from "./rep-config";
 import type { SalesRepLead } from "./workspace-types";
 
@@ -56,6 +60,34 @@ export interface OwnerSalesRepSummary extends OwnerSalesRepSource {
   unscheduledCount: number;
 }
 
+export interface OwnerSalesHandoffSource {
+  repId: string;
+  repSlug: string;
+  repDisplayName: string;
+  repWorkspacePath: string;
+  handoff: SalesProductionHandoffRecord;
+}
+
+export interface OwnerSalesPipelineHandoff
+  extends SalesProductionHandoffRecord {
+  repId: string;
+  repSlug: string;
+  repDisplayName: string;
+  repWorkspacePath: string;
+}
+
+export interface OwnerSalesHandoffQueue {
+  status: "available" | "unavailable";
+  generatedAt: string;
+  summary: {
+    signedCount: number | null;
+    readyCount: number | null;
+    actionCount: number | null;
+    scheduleUnknownCount: number | null;
+  };
+  records: OwnerSalesPipelineHandoff[];
+}
+
 export interface OwnerSalesPipelineSnapshot {
   generatedAt: string;
   summary: {
@@ -69,6 +101,7 @@ export interface OwnerSalesPipelineSnapshot {
   };
   reps: OwnerSalesRepSummary[];
   leads: OwnerSalesPipelineLead[];
+  handoffs: OwnerSalesHandoffQueue;
 }
 
 const PRESENTATION_STATUS_PRIORITY: Record<
@@ -78,6 +111,16 @@ const PRESENTATION_STATUS_PRIORITY: Record<
   signed: 0,
   presented: 1,
   draft: 2,
+};
+
+const HANDOFF_STAGE_PRIORITY: Record<SalesProductionHandoffStage, number> = {
+  payment_needed: 0,
+  membership_attention: 1,
+  property_pairing_needed: 2,
+  job_pairing_needed: 3,
+  source_unavailable: 4,
+  schedule_needed: 5,
+  ready: 6,
 };
 
 function presentationTimestamp(value: string): number {
@@ -109,6 +152,7 @@ export function buildOwnerSalesPipelineSnapshot(input: {
   reps: OwnerSalesRepSource[];
   leads: OwnerSalesLeadSource[];
   presentations: OwnerSalesPresentationSource[];
+  handoffs: OwnerSalesHandoffSource[] | null;
   reference?: Date;
 }): OwnerSalesPipelineSnapshot {
   const reference = input.reference ?? new Date();
@@ -191,6 +235,33 @@ export function buildOwnerSalesPipelineSnapshot(input: {
       }
       return left.displayName.localeCompare(right.displayName);
     });
+  const handoffRecords = (input.handoffs ?? [])
+    .map(
+      (source): OwnerSalesPipelineHandoff => ({
+        ...source.handoff,
+        repId: source.repId,
+        repSlug: source.repSlug,
+        repDisplayName: source.repDisplayName,
+        repWorkspacePath: source.repWorkspacePath,
+      }),
+    )
+    .sort((left, right) => {
+      const stageDifference =
+        HANDOFF_STAGE_PRIORITY[left.stage] -
+        HANDOFF_STAGE_PRIORITY[right.stage];
+      if (stageDifference !== 0) return stageDifference;
+      const timeDifference =
+        presentationTimestamp(right.attributedAt) -
+        presentationTimestamp(left.attributedAt);
+      return timeDifference || left.attributionId.localeCompare(right.attributionId);
+    });
+  const handoffsAvailable = input.handoffs !== null;
+  const readyCount = handoffRecords.filter(
+    (handoff) => handoff.stage === "ready",
+  ).length;
+  const scheduleUnknownCount = handoffRecords.filter(
+    (handoff) => handoff.stage === "source_unavailable",
+  ).length;
 
   return {
     generatedAt: reference.toISOString(),
@@ -210,5 +281,20 @@ export function buildOwnerSalesPipelineSnapshot(input: {
     },
     reps,
     leads,
+    handoffs: {
+      status: handoffsAvailable ? "available" : "unavailable",
+      generatedAt: reference.toISOString(),
+      summary: {
+        signedCount: handoffsAvailable ? handoffRecords.length : null,
+        readyCount: handoffsAvailable ? readyCount : null,
+        actionCount: handoffsAvailable
+          ? handoffRecords.length - readyCount
+          : null,
+        scheduleUnknownCount: handoffsAvailable
+          ? scheduleUnknownCount
+          : null,
+      },
+      records: handoffRecords,
+    },
   };
 }

@@ -43,7 +43,10 @@ import {
   loadSalesProductionHandoffSnapshotForAttributions,
   type SalesProductionHandoffAttributionSource,
 } from "./production-handoff-server";
-import type { SalesProductionHandoffSnapshot } from "./production-handoff";
+import type {
+  SalesProductionHandoffRecord,
+  SalesProductionHandoffSnapshot,
+} from "./production-handoff";
 import {
   salesRepLaunchCountsEvidenceFromRow,
   type SalesRepLaunchEvidenceRow,
@@ -734,6 +737,45 @@ export async function loadSalesProductionHandoffAttentionSnapshot(
     ),
     referenceDate,
   );
+}
+
+export async function loadSalesProductionHandoffAttentionForRoster(
+  reps: Array<{ id: string }>,
+  referenceDate = new Date(),
+): Promise<Array<{ repId: string; handoff: SalesProductionHandoffRecord }>> {
+  const attributionRowsByRep = await Promise.all(
+    reps.map(async (rep) => ({
+      repId: rep.id,
+      rows: await loadAllSalesRepAttributionRows(rep.id),
+    })),
+  );
+  const repIdByAttributionId = new Map<string, string>();
+  const sources = attributionRowsByRep.flatMap(({ repId, rows }) =>
+    rows.map((attribution): SalesProductionHandoffAttributionSource => {
+      repIdByAttributionId.set(attribution.id, repId);
+      return {
+        id: attribution.id,
+        membershipId: attribution.membership_id,
+        qualificationStatus: attribution.qualification_status,
+        attributedArrCents: Number(attribution.attributed_arr_cents) || 0,
+        attributedAt: attribution.attributed_at,
+      };
+    }),
+  );
+  const snapshot = await loadSalesProductionHandoffSnapshotForAttributions(
+    sources,
+    referenceDate,
+  );
+
+  return snapshot.records.map((handoff) => {
+    const repId = repIdByAttributionId.get(handoff.attributionId);
+    if (!repId) {
+      throw new SalesWorkspaceUnavailableError(
+        "HomeAtlas could not prove the owner of a signed handoff.",
+      );
+    }
+    return { repId, handoff };
+  });
 }
 
 /**
