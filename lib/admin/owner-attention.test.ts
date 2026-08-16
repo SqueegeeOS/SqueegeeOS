@@ -333,6 +333,7 @@ function davidLead(overrides: Partial<SalesRepLead> = {}): SalesRepLead {
     email: null,
     status: "follow_up",
     source: "door_to_door",
+    serviceInterests: ["exterior_windows"],
     estimatedArrCents: 120_000,
     nextFollowUpAt: "2026-08-13T17:00:00.000Z",
     notes: "",

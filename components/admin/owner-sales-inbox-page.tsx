@@ -10,6 +10,10 @@ import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { LeadInteractionControl } from "@/components/sales/lead-interaction-control";
+import {
+  ServiceInterestChips,
+  ServiceInterestPicker,
+} from "@/components/sales/service-interest-control";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import type {
@@ -194,6 +198,9 @@ function LeadActionCard({
   const [estimatedArrDollars, setEstimatedArrDollars] = useState(
     String(lead.estimatedArrCents / 100),
   );
+  const [serviceInterests, setServiceInterests] = useState(
+    lead.serviceInterests,
+  );
   const [nextFollowUpAt, setNextFollowUpAt] = useState(
     localDateTimeInput(lead.nextFollowUpAt),
   );
@@ -222,6 +229,7 @@ function LeadActionCard({
             leadId: lead.id,
             status,
             estimatedArrDollars: Number(estimatedArrDollars),
+            serviceInterests,
             nextFollowUpAt: nextFollowUpAt
               ? new Date(nextFollowUpAt).toISOString()
               : null,
@@ -295,6 +303,10 @@ function LeadActionCard({
             {lead.fullName}
           </h2>
           <p className="mt-1 text-sm text-white/48">{lead.propertyAddress}</p>
+          <ServiceInterestChips
+            interests={lead.serviceInterests}
+            className="mt-3"
+          />
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-white/42">
             <span>{money(lead.estimatedArrCents)} potential ARR</span>
             <span>{dateTimeLabel(lead.nextFollowUpAt)}</span>
@@ -418,6 +430,13 @@ function LeadActionCard({
               />
             </label>
           </div>
+
+          <ServiceInterestPicker
+            idPrefix={`owner-lead-services-${lead.id}`}
+            value={serviceInterests}
+            className="mt-4"
+            onChange={setServiceInterests}
+          />
           <label className="mt-4 block">
             <span className="text-[10px] uppercase tracking-[0.16em] text-white/44">
               Latest context {status === "lost" ? "· reason required" : ""}

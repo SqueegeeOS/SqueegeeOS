@@ -63,6 +63,10 @@ import {
 } from "./lead-capture-idempotency";
 import { loadSalesLeadCloseJourneys } from "./lead-close-journey-server";
 import type { SalesLeadCloseJourney } from "./lead-close-journey";
+import {
+  normalizeSalesServiceInterests,
+  type SalesServiceInterest,
+} from "./service-interests";
 
 interface SalesRepRow {
   id: string;
@@ -86,6 +90,7 @@ export interface PresentationSalesLeadPrefill {
   propertyAddress: string;
   phone: string | null;
   email: string | null;
+  serviceInterests: SalesServiceInterest[];
 }
 
 interface SalesLeadRow {
@@ -100,6 +105,7 @@ interface SalesLeadRow {
   email_normalized: string | null;
   status: SalesLeadStatus;
   source: SalesLeadSource;
+  service_interests: string[] | null;
   estimated_arr_cents: number;
   next_follow_up_at: string | null;
   notes: string | null;
@@ -169,7 +175,7 @@ interface SalesAttributionRow {
 }
 
 const SALES_LEAD_SELECT =
-  "id, client_event_id, capture_fingerprint, door_memory_client_event_id, lead_intake_id, full_name, property_address, phone_normalized, email_normalized, status, source, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at";
+  "id, client_event_id, capture_fingerprint, door_memory_client_event_id, lead_intake_id, full_name, property_address, phone_normalized, email_normalized, status, source, service_interests, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at";
 const OPEN_SALES_LEAD_STATUSES: SalesLeadStatus[] = [
   "new",
   "follow_up",
@@ -260,6 +266,7 @@ function leadFromRow(
     email: row.email_normalized,
     status: row.status,
     source: row.source,
+    serviceInterests: normalizeSalesServiceInterests(row.service_interests),
     estimatedArrCents: Number(row.estimated_arr_cents) || 0,
     nextFollowUpAt: row.next_follow_up_at,
     notes: row.notes ?? "",
@@ -671,7 +678,7 @@ export async function resolvePresentationSalesLineage(
     const supabase = createPrivilegedServerSupabaseClient();
     const { data, error } = await supabase
       .from("sales_rep_leads")
-      .select("id, lead_intake_id, full_name, property_address, phone_normalized, email_normalized")
+      .select("id, lead_intake_id, full_name, property_address, phone_normalized, email_normalized, service_interests")
       .eq("id", leadId)
       .eq("rep_id", rep.id)
       .maybeSingle();
@@ -695,6 +702,9 @@ export async function resolvePresentationSalesLineage(
         typeof data.email_normalized === "string"
           ? data.email_normalized
           : null,
+      serviceInterests: normalizeSalesServiceInterests(
+        data.service_interests,
+      ),
     };
   }
 
@@ -1068,6 +1078,9 @@ export async function createSalesLead(
       property_address: input.propertyAddress,
       phone_normalized: input.phone,
       email_normalized: input.email,
+      service_interests: normalizeSalesServiceInterests(
+        input.serviceInterests,
+      ),
       status: input.nextFollowUpAt ? "follow_up" : "new",
       estimated_arr_cents: Math.round(input.estimatedArrDollars * 100),
       next_follow_up_at: input.nextFollowUpAt,
@@ -1123,6 +1136,7 @@ export async function updateSalesLead(
       "new" | "follow_up" | "presentation" | "considering" | "lost"
     >;
     estimatedArrDollars: number;
+    serviceInterests: SalesServiceInterest[] | null;
     nextFollowUpAt: string | null;
     notes: string;
   },
@@ -1153,14 +1167,21 @@ export async function updateSalesLead(
     );
   }
 
+  const leadPatch: Record<string, unknown> = {
+    status: input.status,
+    estimated_arr_cents: Math.round(input.estimatedArrDollars * 100),
+    next_follow_up_at: input.nextFollowUpAt,
+    notes: input.notes || null,
+  };
+  if (input.serviceInterests) {
+    leadPatch.service_interests = normalizeSalesServiceInterests(
+      input.serviceInterests,
+    );
+  }
+
   const { data, error } = await supabase
     .from("sales_rep_leads")
-    .update({
-      status: input.status,
-      estimated_arr_cents: Math.round(input.estimatedArrDollars * 100),
-      next_follow_up_at: input.nextFollowUpAt,
-      notes: input.notes || null,
-    })
+    .update(leadPatch)
     .eq("id", input.leadId)
     .eq("rep_id", rep.id)
     .eq("updated_at", String(existing.data.updated_at))

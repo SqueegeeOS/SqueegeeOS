@@ -36,6 +36,7 @@ const BASE_LEAD: SalesRepLead = {
   email: null,
   status: "follow_up",
   source: "door_to_door",
+  serviceInterests: ["exterior_windows"],
   estimatedArrCents: 120_000,
   nextFollowUpAt: null,
   notes: "",
