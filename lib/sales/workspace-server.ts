@@ -128,6 +128,7 @@ interface SalesAttributionRow {
   lead_id: string | null;
   presentation_id: string | null;
   membership_id: string | null;
+  signed_agreement_id: string | null;
   qualification_status: "pending" | "active" | "qualified" | "cancelled";
   attributed_arr_cents: number;
   attributed_at: string;
@@ -143,7 +144,7 @@ const OPEN_SALES_LEAD_STATUSES: SalesLeadStatus[] = [
 ];
 const SALES_LEAD_PAGE_SIZE = 500;
 const SALES_ATTRIBUTION_SELECT =
-  "id, lead_id, presentation_id, membership_id, qualification_status, attributed_arr_cents, attributed_at";
+  "id, lead_id, presentation_id, membership_id, signed_agreement_id, qualification_status, attributed_arr_cents, attributed_at";
 const SALES_ATTRIBUTION_PAGE_SIZE = 500;
 const RECENT_DOOR_MEMORY_LIMIT = 20;
 const SALES_DOOR_MEMORY_SELECT =
@@ -406,17 +407,31 @@ async function loadRecentSalesRepWins(
   let productionHandoffStatus: SalesWorkspacePayload["productionHandoffStatus"] =
     "complete";
   try {
+    const signedAgreementByAttribution = new Map(
+      attributions.map((attribution) => [
+        attribution.id,
+        attribution.signed_agreement_id,
+      ]),
+    );
     productionHandoffs = (
       await loadSalesProductionHandoffSnapshotForAttributions(
-        recentSources.map(
-          (attribution): SalesProductionHandoffAttributionSource => ({
-            id: attribution.id,
-            membershipId: attribution.membershipId,
-            qualificationStatus: attribution.status,
-            attributedArrCents: attribution.attributedArrCents,
-            attributedAt: attribution.attributedAt,
-          }),
-        ),
+        recentSources.flatMap((attribution) => {
+          const signedAgreementId = signedAgreementByAttribution.get(
+            attribution.id,
+          );
+          return signedAgreementId
+            ? [
+                {
+                  id: attribution.id,
+                  membershipId: attribution.membershipId,
+                  signedAgreementId,
+                  qualificationStatus: attribution.status,
+                  attributedArrCents: attribution.attributedArrCents,
+                  attributedAt: attribution.attributedAt,
+                } satisfies SalesProductionHandoffAttributionSource,
+              ]
+            : [];
+        }),
         referenceDate,
       )
     ).records;
@@ -651,7 +666,10 @@ export async function loadSalesWorkspace(
       launchEvidenceResult.error,
     );
   }
-  const closedAttributions = attributions.filter(
+  const signatureBackedAttributions = attributions.filter(
+    (attribution) => Boolean(attribution.signed_agreement_id),
+  );
+  const closedAttributions = signatureBackedAttributions.filter(
     (attribution) => attribution.qualification_status !== "cancelled",
   );
   const attributionsToday = closedAttributions.filter((attribution) => {
@@ -665,7 +683,7 @@ export async function loadSalesWorkspace(
   try {
     const recentWinResult = await loadRecentSalesRepWins(
       rep.id,
-      attributions,
+      signatureBackedAttributions,
       referenceDate,
     );
     recentWins = recentWinResult.wins;
@@ -700,7 +718,7 @@ export async function loadSalesWorkspace(
         (total, lead) => total + lead.estimatedArrCents,
         0,
       ),
-      qualifiedRetainedMembers: attributions.filter(
+      qualifiedRetainedMembers: closedAttributions.filter(
         (attribution) => attribution.qualification_status === "qualified",
       ).length,
     },
@@ -726,14 +744,19 @@ export async function loadSalesProductionHandoffAttentionSnapshot(
   const rep = await loadRepRow(slug);
   const attributions = await loadAllSalesRepAttributionRows(rep.id);
   return loadSalesProductionHandoffSnapshotForAttributions(
-    attributions.map(
-      (attribution): SalesProductionHandoffAttributionSource => ({
-        id: attribution.id,
-        membershipId: attribution.membership_id,
-        qualificationStatus: attribution.qualification_status,
-        attributedArrCents: Number(attribution.attributed_arr_cents) || 0,
-        attributedAt: attribution.attributed_at,
-      }),
+    attributions.flatMap((attribution) =>
+      attribution.signed_agreement_id
+        ? [
+            {
+              id: attribution.id,
+              membershipId: attribution.membership_id,
+              signedAgreementId: attribution.signed_agreement_id,
+              qualificationStatus: attribution.qualification_status,
+              attributedArrCents: Number(attribution.attributed_arr_cents) || 0,
+              attributedAt: attribution.attributed_at,
+            } satisfies SalesProductionHandoffAttributionSource,
+          ]
+        : [],
     ),
     referenceDate,
   );
@@ -751,15 +774,19 @@ export async function loadSalesProductionHandoffAttentionForRoster(
   );
   const repIdByAttributionId = new Map<string, string>();
   const sources = attributionRowsByRep.flatMap(({ repId, rows }) =>
-    rows.map((attribution): SalesProductionHandoffAttributionSource => {
+    rows.flatMap((attribution): SalesProductionHandoffAttributionSource[] => {
+      if (!attribution.signed_agreement_id) return [];
       repIdByAttributionId.set(attribution.id, repId);
-      return {
-        id: attribution.id,
-        membershipId: attribution.membership_id,
-        qualificationStatus: attribution.qualification_status,
-        attributedArrCents: Number(attribution.attributed_arr_cents) || 0,
-        attributedAt: attribution.attributed_at,
-      };
+      return [
+        {
+          id: attribution.id,
+          membershipId: attribution.membership_id,
+          signedAgreementId: attribution.signed_agreement_id,
+          qualificationStatus: attribution.qualification_status,
+          attributedArrCents: Number(attribution.attributed_arr_cents) || 0,
+          attributedAt: attribution.attributed_at,
+        },
+      ];
     }),
   );
   const snapshot = await loadSalesProductionHandoffSnapshotForAttributions(

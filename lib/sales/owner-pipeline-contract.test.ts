@@ -52,8 +52,13 @@ describe("owner sales inbox release contract", () => {
     expect(page).toContain("Every close stays owned until the first visit is real.");
     expect(page).toContain("handoff.actionHref");
     expect(page).toContain("handoff.repWorkspacePath");
+    expect(page).toContain("PaymentSetupEmailButton");
+    expect(page).toContain('handoff.paymentSetupEmailState === "ready"');
+    expect(page).toContain("Sends only when pressed");
+    expect(page).toContain("no charge occurs");
+    expect(page).toMatch(/explicit\s+customer SMS consent/);
     expect(page).toContain("refusing to display a false zero");
-    expect(page).toContain("This desk reads proof; it does not send, charge, or schedule.");
+    expect(page).toContain("Its labeled email control sends only");
     expect(page).toContain(
       "Saving does not text, email, enroll, or charge this customer.",
     );
