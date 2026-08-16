@@ -3,6 +3,7 @@ import {
   isMembershipActive,
   type HqMembershipStatusInput,
 } from "@/lib/membership/membership-status";
+import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
 import { ROUTES } from "@/lib/navigation/config";
 
 export const SALES_PRODUCTION_HANDOFF_STAGES = [
@@ -25,6 +26,7 @@ export interface SalesProductionHandoffMembership
   id: string;
   homeowner_id: string;
   property_id: string;
+  presentation_id: string | null;
 }
 
 export interface SalesProductionHandoffInput {
@@ -35,6 +37,7 @@ export interface SalesProductionHandoffInput {
   attributedArrCents: number;
   attributedAt: string;
   membership: SalesProductionHandoffMembership | null;
+  paymentSetupEmailState: PaymentSetupEmailState;
   propertyLinked: boolean;
   recurringJobCount: number;
   scheduleSourceState: SalesProductionScheduleSourceState;
@@ -49,6 +52,7 @@ export interface SalesProductionHandoffRecord {
   propertyAddress: string;
   attributedArrCents: number;
   attributedAt: string;
+  paymentSetupEmailState: PaymentSetupEmailState;
   stage: SalesProductionHandoffStage;
   label: string;
   detail: string;
@@ -101,10 +105,53 @@ function common(
         : 0,
     ),
     attributedAt: input.attributedAt,
+    paymentSetupEmailState: input.paymentSetupEmailState,
     totalSteps: 5,
     nextScheduledAt: input.nextScheduledAt,
     scheduleObservedAt: input.scheduleObservedAt,
   };
+}
+
+function paymentSetupAttention(
+  state: Exclude<PaymentSetupEmailState, "ready">,
+): { label: string; detail: string; actionLabel: string } {
+  switch (state) {
+    case "card_on_file":
+      return {
+        label: "Payment evidence review",
+        detail:
+          "Payment-email proof says a card exists, but the membership record does not confirm it. HomeAtlas will not send another setup email until HQ resolves the mismatch.",
+        actionLabel: "Review payment evidence",
+      };
+    case "needs_email":
+      return {
+        label: "Customer email needed",
+        detail:
+          "The agreement is signed, but HomeAtlas needs a valid customer email before it can send the secure Stripe setup link.",
+        actionLabel: "Add customer email",
+      };
+    case "needs_agreement":
+      return {
+        label: "Signed agreement review",
+        detail:
+          "The close does not currently resolve to the completed presentation and agreement required for hosted card setup.",
+        actionLabel: "Review signed agreement",
+      };
+    case "needs_authorization_review":
+      return {
+        label: "Billing authorization review",
+        detail:
+          "Standing billing authorization or signed-record lineage could not be proven, so HomeAtlas will not offer a payment email yet.",
+        actionLabel: "Review authorization",
+      };
+    case "not_available":
+      return {
+        label: "Payment handoff review",
+        detail:
+          "This membership is not in a safe enrollment state for a hosted Stripe setup email.",
+        actionLabel: "Review member record",
+      };
+  }
 }
 
 export function deriveSalesProductionHandoff(
@@ -127,14 +174,26 @@ export function deriveSalesProductionHandoff(
   }
 
   if (!hasPaymentMethodOnFile(membership)) {
+    if (input.paymentSetupEmailState !== "ready") {
+      const attention = paymentSetupAttention(input.paymentSetupEmailState);
+      return {
+        ...base,
+        stage: "membership_attention",
+        label: attention.label,
+        detail: attention.detail,
+        completedSteps: 1,
+        actionLabel: attention.actionLabel,
+        actionHref: memberHref(membership.id),
+      };
+    }
     return {
       ...base,
       stage: "payment_needed",
       label: "Payment setup needed",
       detail:
-        "The agreement is signed, but payment setup is not complete enough to activate production.",
+        "The signed agreement, customer email, and standing authorization are verified. Email the Stripe-hosted card setup link; this step does not charge the customer.",
       completedSteps: 1,
-      actionLabel: "Finish payment setup",
+      actionLabel: "Open member record",
       actionHref: memberHref(membership.id),
     };
   }

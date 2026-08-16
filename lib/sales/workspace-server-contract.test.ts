@@ -85,6 +85,12 @@ describe("sales workspace active-queue loading contract", () => {
   });
 
   it("derives the visible close ledger only from signature-backed attribution rows", () => {
+    expect(server).toContain("signed_agreement_id");
+    expect(server).toContain("signatureBackedAttributions");
+    expect(server).toContain("Boolean(attribution.signed_agreement_id)");
+    expect(server).toContain("closedAttributions = signatureBackedAttributions.filter");
+    expect(server).toContain("loadRecentSalesRepWins(\n      rep.id,\n      signatureBackedAttributions");
+    expect(server).toContain("if (!attribution.signed_agreement_id) return []");
     expect(server).toContain("selectRecentSalesRepWinSources");
     expect(server).toContain("loadRecentSalesRepWins(");
     expect(server).toContain('.eq("rep_id", repId)');

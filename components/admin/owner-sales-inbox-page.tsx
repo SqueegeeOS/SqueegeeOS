@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
 import { SalesPhoneAccessPanel } from "@/components/admin/sales-phone-access-panel";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
@@ -400,13 +401,19 @@ function LeadActionCard({
   );
 }
 
-function SignedHandoffCard({
+export function SignedHandoffCard({
   handoff,
+  onAccepted,
 }: {
   handoff: OwnerSalesPipelineHandoff;
+  onAccepted: (message: string) => void;
 }) {
   const style = HANDOFF_STYLE[handoff.stage];
   const progress = (handoff.completedSteps / handoff.totalSteps) * 100;
+  const canEmailPaymentSetup =
+    handoff.stage === "payment_needed" &&
+    handoff.paymentSetupEmailState === "ready" &&
+    Boolean(handoff.membershipId);
 
   return (
     <article
@@ -455,6 +462,22 @@ function SignedHandoffCard({
         </p>
       ) : null}
 
+      {canEmailPaymentSetup ? (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-black/20 p-3.5">
+          <PaymentSetupEmailButton
+            membershipId={handoff.membershipId}
+            canSend
+            variant="primary"
+            onAccepted={onAccepted}
+          />
+          <p className="mt-2 text-[10px] leading-4 text-white/48">
+            Sends only when pressed. Stripe saves the card; no charge occurs in
+            this setup step. Text remains locked until Twilio approval and explicit
+            customer SMS consent are both verified.
+          </p>
+        </div>
+      ) : null}
+
       <div className="mt-4 flex flex-wrap gap-2">
         <Link
           href={handoff.actionHref}
@@ -477,10 +500,12 @@ function SignedHandoffDesk({
   snapshot,
   loading,
   onRefresh,
+  onAccepted,
 }: {
   snapshot: OwnerSalesPipelineSnapshot | null;
   loading: boolean;
   onRefresh: () => void;
+  onAccepted: (message: string) => void;
 }) {
   const handoffs = snapshot?.handoffs ?? null;
   const count = (value: number | null | undefined) =>
@@ -500,7 +525,9 @@ function SignedHandoffDesk({
             <p className="mt-3 text-sm leading-6 text-white/46">
               Agreement-backed closes move through card setup, membership health,
               Jobber property and recurring-job pairing, then a current scheduled
-              visit. This desk reads proof; it does not send, charge, or schedule.
+              visit. This desk reads proof. Its labeled email control sends only
+              when pressed and never charges; every other action opens the verified
+              next step.
             </p>
           </div>
           <div className="grid shrink-0 grid-cols-3 gap-2 lg:w-[23rem]">
@@ -547,7 +574,11 @@ function SignedHandoffDesk({
         ) : handoffs && handoffs.records.length > 0 ? (
           <div className="mt-6 grid gap-3 lg:grid-cols-2">
             {handoffs.records.map((handoff) => (
-              <SignedHandoffCard key={handoff.attributionId} handoff={handoff} />
+              <SignedHandoffCard
+                key={handoff.attributionId}
+                handoff={handoff}
+                onAccepted={onAccepted}
+              />
             ))}
           </div>
         ) : (
@@ -673,7 +704,9 @@ function OwnerSalesInboxContent() {
                 Safe operating boundary
               </p>
               <p className="mt-2 text-sm leading-relaxed text-white/48">
-                Editing this queue never sends a customer message or takes a payment.
+                Editing a lead or opening a handoff never contacts a customer. Only
+                a clearly labeled email button sends, and Stripe card setup never
+                takes a payment.
               </p>
             </div>
           </div>
@@ -763,6 +796,7 @@ function OwnerSalesInboxContent() {
           snapshot={snapshot}
           loading={loading}
           onRefresh={() => void load()}
+          onAccepted={handleSaved}
         />
 
         <section className="mt-10">

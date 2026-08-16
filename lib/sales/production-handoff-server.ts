@@ -12,6 +12,13 @@ import { isJobberTodayDataStale } from "@/lib/care-operations/jobber-today-types
 import { chunkItems } from "@/lib/care-operations/jobber-sync-utils";
 import { createPrivilegedServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
+  resolveSalesPaymentSetupEmailState,
+  type SalesHandoffAgreementEvidence,
+  type SalesHandoffHomeownerEvidence,
+  type SalesHandoffPresentationEvidence,
+  type SalesHandoffPropertyEvidence,
+} from "./payment-handoff-readiness";
+import {
   buildSalesProductionHandoffSnapshot,
   deriveSalesProductionHandoff,
   type SalesProductionHandoffMembership,
@@ -24,6 +31,7 @@ const HANDOFF_PAGE_SIZE = 500;
 export interface SalesProductionHandoffAttributionSource {
   id: string;
   membershipId: string | null;
+  signedAgreementId: string;
   qualificationStatus: "pending" | "active" | "qualified" | "cancelled";
   attributedArrCents: number;
   attributedAt: string;
@@ -31,12 +39,11 @@ export interface SalesProductionHandoffAttributionSource {
 
 type MembershipRow = SalesProductionHandoffMembership;
 
-interface HomeownerRow {
-  id: string;
-  full_name: string;
-}
+type HomeownerRow = SalesHandoffHomeownerEvidence;
+type PresentationRow = SalesHandoffPresentationEvidence;
+type AgreementRow = SalesHandoffAgreementEvidence;
 
-interface PropertyRow {
+interface PropertyRow extends SalesHandoffPropertyEvidence {
   id: string;
   name: string | null;
   address: string;
@@ -103,7 +110,7 @@ async function loadMemberships(
           supabase
             .from("memberships")
             .select(
-              "id, homeowner_id, property_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, agreement_id, sales_tier, visit_price, visits_per_year",
+              "id, homeowner_id, property_id, presentation_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, agreement_id, sales_tier, visit_price, visits_per_year",
               { count: "exact" },
             )
             .in("id", ids)
@@ -129,10 +136,62 @@ async function loadHomeowners(
         page: (from, to) =>
           supabase
             .from("homeowners")
-            .select("id, full_name", { count: "exact" })
+            .select("id, full_name, email", { count: "exact" })
             .in("id", ids)
             .order("id", { ascending: true })
             .range(from, to) as unknown as PromiseLike<PageResult<HomeownerRow>>,
+      })),
+    );
+  }
+  return rows;
+}
+
+async function loadPresentations(
+  supabase: SupabaseClient,
+  presentationIds: string[],
+): Promise<PresentationRow[]> {
+  const rows: PresentationRow[] = [];
+  for (const ids of chunkItems(presentationIds, HANDOFF_QUERY_CHUNK_SIZE)) {
+    rows.push(
+      ...(await loadCompletePages<PresentationRow>({
+        label: "sales handoff presentations",
+        page: (from, to) =>
+          supabase
+            .from("presentations")
+            .select(
+              "id, homeowner_id, property_id, membership_id, client_email, status",
+              { count: "exact" },
+            )
+            .in("id", ids)
+            .order("id", { ascending: true })
+            .range(from, to) as unknown as PromiseLike<
+            PageResult<PresentationRow>
+          >,
+      })),
+    );
+  }
+  return rows;
+}
+
+async function loadSignedAgreements(
+  supabase: SupabaseClient,
+  agreementIds: string[],
+): Promise<AgreementRow[]> {
+  const rows: AgreementRow[] = [];
+  for (const ids of chunkItems(agreementIds, HANDOFF_QUERY_CHUNK_SIZE)) {
+    rows.push(
+      ...(await loadCompletePages<AgreementRow>({
+        label: "sales handoff signed agreements",
+        page: (from, to) =>
+          supabase
+            .from("signed_agreements")
+            .select(
+              "id, membership_id, homeowner_id, property_id, status, billing_authorization_version, billing_authorized_at, billing_terms_hash",
+              { count: "exact" },
+            )
+            .in("id", ids)
+            .order("id", { ascending: true })
+            .range(from, to) as unknown as PromiseLike<PageResult<AgreementRow>>,
       })),
     );
   }
@@ -323,6 +382,7 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
           attributedArrCents: attribution.attributedArrCents,
           attributedAt: attribution.attributedAt,
           membership: null,
+          paymentSetupEmailState: "not_available",
           propertyLinked: false,
           recurringJobCount: 0,
           scheduleSourceState: "unavailable",
@@ -340,11 +400,31 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
   const propertyIds = [
     ...new Set(memberships.map((membership) => membership.property_id)),
   ];
+  const presentationIds = [
+    ...new Set(
+      memberships
+        .map((membership) => membership.presentation_id)
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ];
+  const signedAgreementIds = [
+    ...new Set(activeAttributions.map((attribution) => attribution.signedAgreementId)),
+  ];
 
-  const [homeowners, properties, propertyLinks, jobLinks, scheduleSource] =
+  const [
+    homeowners,
+    properties,
+    presentations,
+    agreements,
+    propertyLinks,
+    jobLinks,
+    scheduleSource,
+  ] =
     await Promise.all([
       loadHomeowners(supabase, homeownerIds),
       loadProperties(supabase, propertyIds),
+      loadPresentations(supabase, presentationIds),
+      loadSignedAgreements(supabase, signedAgreementIds),
       loadPropertyLinks(supabase, membershipIds),
       loadJobLinks(supabase, membershipIds),
       readScheduleSourceState(supabase, referenceDate),
@@ -361,6 +441,12 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
   );
   const propertyById = new Map(
     properties.map((property) => [property.id, property]),
+  );
+  const presentationById = new Map(
+    presentations.map((presentation) => [presentation.id, presentation]),
+  );
+  const agreementById = new Map(
+    agreements.map((agreement) => [agreement.id, agreement]),
   );
   const propertyLinkByMembership = new Map<string, PropertyLinkRow>();
   for (const link of propertyLinks) {
@@ -391,6 +477,16 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
     const membershipJobLinks = membership
       ? jobLinksByMembership.get(membership.id) ?? []
       : [];
+    const homeowner = membership
+      ? homeownerById.get(membership.homeowner_id)
+      : undefined;
+    const property = membership
+      ? propertyById.get(membership.property_id)
+      : undefined;
+    const presentation = membership?.presentation_id
+      ? presentationById.get(membership.presentation_id)
+      : undefined;
+    const agreement = agreementById.get(attribution.signedAgreementId);
     const linkedJobKeys = new Set(
       membershipJobLinks.map(
         (link) => `${link.external_job_id}\u0000${link.external_property_id}`,
@@ -418,6 +514,14 @@ export async function loadSalesProductionHandoffSnapshotForAttributions(
       attributedArrCents: attribution.attributedArrCents,
       attributedAt: attribution.attributedAt,
       membership,
+      paymentSetupEmailState: resolveSalesPaymentSetupEmailState({
+        signedAgreementId: attribution.signedAgreementId,
+        membership,
+        homeowner,
+        property,
+        presentation,
+        agreement,
+      }),
       propertyLinked: membership
         ? propertyLinkByMembership.has(membership.id)
         : false,

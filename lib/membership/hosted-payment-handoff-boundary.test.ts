@@ -50,4 +50,13 @@ describe("hosted payment handoff boundaries", () => {
     expect(page).toContain('variant="primary"');
     expect(page).toContain("does not charge it during setup");
   });
+
+  it("offers the same verified action directly in the owner signed-close desk", () => {
+    const page = projectFile("components/admin/owner-sales-inbox-page.tsx");
+    expect(page).toContain("PaymentSetupEmailButton");
+    expect(page).toContain('handoff.stage === "payment_needed"');
+    expect(page).toContain('handoff.paymentSetupEmailState === "ready"');
+    expect(page).toContain("membershipId={handoff.membershipId}");
+    expect(page).toContain("Stripe saves the card; no charge occurs");
+  });
 });

@@ -24,10 +24,12 @@ function source(
       stripe_payment_method_id: "payment-method-present",
       stripe_customer_id: "customer-present",
       agreement_id: "agreement-1",
+      presentation_id: "presentation-1",
       sales_tier: "quarterly",
       visit_price: 300,
       visits_per_year: 4,
     },
+    paymentSetupEmailState: "card_on_file",
     propertyLinked: true,
     recurringJobCount: 1,
     scheduleSourceState: "fresh",
@@ -58,6 +60,7 @@ describe("sales-to-production handoff", () => {
           payment_setup_completed_at: null,
           stripe_payment_method_id: null,
         },
+        paymentSetupEmailState: "ready",
         propertyLinked: false,
       }),
     );
@@ -74,6 +77,28 @@ describe("sales-to-production handoff", () => {
     expect(paymentNeeded.completedSteps).toBe(1);
     expect(activationReview.stage).toBe("membership_attention");
     expect(activationReview.completedSteps).toBe(2);
+  });
+
+  it("withholds the direct payment email until its exact prerequisites are proven", () => {
+    const needsEmail = deriveSalesProductionHandoff(
+      source({
+        membership: {
+          ...source().membership!,
+          status: "pending_payment",
+          payment_setup_completed_at: null,
+          stripe_payment_method_id: null,
+        },
+        paymentSetupEmailState: "needs_email",
+      }),
+    );
+
+    expect(needsEmail).toMatchObject({
+      stage: "membership_attention",
+      paymentSetupEmailState: "needs_email",
+      label: "Customer email needed",
+      actionLabel: "Add customer email",
+    });
+    expect(needsEmail.detail).toContain("valid customer email");
   });
 
   it("walks an active member through property, job, and schedule proof", () => {
