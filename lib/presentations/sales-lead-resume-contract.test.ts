@@ -14,6 +14,9 @@ const workspace = read(
   "../../components/sales/sales-rep-workspace.tsx",
 );
 const navigation = read("./navigation.ts");
+const uniquenessMigration = read(
+  "../persistence/supabase/migrations/072_one_sales_lead_one_presentation.sql",
+).replace(/\s+/g, " ");
 
 describe("sales lead presentation resume contract", () => {
   it("looks up exact server-owned rep and lead lineage before creating", () => {
@@ -30,6 +33,25 @@ describe("sales lead presentation resume contract", () => {
     );
     expect(route).toContain("let presentation = existingPresentation");
     expect(route).toContain("if (!presentation)");
+  });
+
+  it("makes one presentation per field lead a database invariant and recovers the winning tab", () => {
+    expect(uniquenessMigration).toContain(
+      "create unique index if not exists presentations_sales_rep_lead_uidx on public.presentations(sales_rep_lead_id) where sales_rep_lead_id is not null",
+    );
+    expect(uniquenessMigration).toContain(
+      "Duplicate sales lead presentations must be resolved before migration 072.",
+    );
+    const raceRecovery = route.slice(
+      route.indexOf("} catch (creationError)"),
+      route.indexOf("if (lineage?.leadId", route.indexOf("} catch (creationError)")),
+    );
+    expect(raceRecovery).toContain(
+      "await findAuthoritativePresentationForSalesLead",
+    );
+    expect(raceRecovery).toContain("salesRepId: lineage.id");
+    expect(raceRecovery).toContain("salesRepLeadId: lineage.leadId");
+    expect(raceRecovery).toContain("resumed = true");
   });
 
   it("prefers a signed outcome and never overwrites a resumed quote", () => {

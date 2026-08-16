@@ -173,7 +173,12 @@ export async function POST(req: NextRequest) {
           ? await findAuthoritativePresentationForLeadIntake({
               leadIntakeId: leadIntake.id,
             })
-          : null;
+          : lineage?.leadId
+            ? await findAuthoritativePresentationForSalesLead({
+                salesRepId: lineage.id,
+                salesRepLeadId: lineage.leadId,
+              })
+            : null;
         if (!racedPresentation) throw creationError;
         presentation = racedPresentation;
         resumed = true;
