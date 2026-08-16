@@ -20,6 +20,7 @@ const BASE_LEAD: SalesRepLead = {
   notes: "",
   smsConsentStatus: "unknown",
   emailConsentStatus: "unknown",
+  recentInteractions: [],
   createdAt: "2026-08-14T16:00:00.000Z",
   updatedAt: "2026-08-14T16:00:00.000Z",
 };

@@ -6,6 +6,7 @@ import {
   createSalesLead,
   loadSalesDoorAddressHistory,
   loadSalesWorkspace,
+  recordSalesLeadInteraction,
   reverseSalesActivity,
   SalesWorkspaceActionError,
   SalesWorkspaceUnavailableError,
@@ -16,6 +17,7 @@ import {
   validateCreateSalesActivity,
   validateCreateSalesDoorMemory,
   validateCreateSalesLead,
+  validateRecordSalesLeadInteraction,
   validateUpdateSalesLead,
   validateUndoSalesActivity,
 } from "@/lib/sales/workspace-validation";
@@ -148,6 +150,22 @@ export async function POST(
           lead.status === "lost"
             ? "Lead closed with the reason preserved."
             : "Next move saved to the private action queue.",
+      });
+    }
+
+    if (command?.kind === "lead_interaction") {
+      const validation = validateRecordSalesLeadInteraction(command.interaction);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      const receipt = await recordSalesLeadInteraction(
+        repSlug,
+        "sales_rep",
+        validation.value,
+      );
+      return NextResponse.json({
+        ...receipt,
+        message: "Outcome recorded. No message, appointment, or charge was sent.",
       });
     }
 

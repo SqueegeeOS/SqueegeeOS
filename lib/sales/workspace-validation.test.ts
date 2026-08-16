@@ -4,6 +4,7 @@ import {
   validateCreateSalesActivity,
   validateCreateSalesDoorMemory,
   validateCreateSalesLead,
+  validateRecordSalesLeadInteraction,
   validateUpdateSalesLead,
   validateUndoSalesActivity,
 } from "./workspace-validation";
@@ -179,6 +180,76 @@ describe("sales workspace validation", () => {
     ).toEqual({
       ok: false,
       error: "Add a short reason before closing this lead.",
+    });
+  });
+
+  it("normalizes an idempotent follow-up outcome with a future next action", () => {
+    const nextFollowUpAt = new Date(
+      Date.now() + 3 * 24 * 60 * 60 * 1000,
+    ).toISOString();
+    const result = validateRecordSalesLeadInteraction({
+      leadId: "00000000-0000-4000-8000-000000000001",
+      clientEventId: "00000000-0000-4000-8000-000000000099",
+      channel: "call",
+      outcome: "spoke_follow_up",
+      note: "  Wants to compare quarterly and biannual care.  ",
+      nextFollowUpAt,
+      expectedLeadUpdatedAt: "2026-08-16T17:00:00.000Z",
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toEqual({
+        leadId: "00000000-0000-4000-8000-000000000001",
+        clientEventId: "00000000-0000-4000-8000-000000000099",
+        channel: "call",
+        outcome: "spoke_follow_up",
+        note: "Wants to compare quarterly and biannual care.",
+        nextFollowUpAt,
+        expectedLeadUpdatedAt: "2026-08-16T17:00:00.000Z",
+      });
+    }
+  });
+
+  it("requires durable context when a follow-up closes a lead", () => {
+    const base = {
+      leadId: "00000000-0000-4000-8000-000000000001",
+      clientEventId: "00000000-0000-4000-8000-000000000099",
+      channel: "in_person",
+      outcome: "not_interested",
+      expectedLeadUpdatedAt: "2026-08-16T17:00:00.000Z",
+    };
+    expect(validateRecordSalesLeadInteraction(base)).toEqual({
+      ok: false,
+      error: "Add a short reason before closing this lead.",
+    });
+    expect(
+      validateRecordSalesLeadInteraction({
+        ...base,
+        note: "Moving out of the service area.",
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        outcome: "not_interested",
+        nextFollowUpAt: null,
+      },
+    });
+  });
+
+  it("rejects stale or unbounded follow-up actions", () => {
+    expect(
+      validateRecordSalesLeadInteraction({
+        leadId: "00000000-0000-4000-8000-000000000001",
+        clientEventId: "00000000-0000-4000-8000-000000000099",
+        channel: "sms",
+        outcome: "no_answer",
+        nextFollowUpAt: new Date(Date.now() - 60_000).toISOString(),
+        expectedLeadUpdatedAt: "2026-08-16T17:00:00.000Z",
+      }),
+    ).toEqual({
+      ok: false,
+      error: "Choose a future next action within one year.",
     });
   });
 

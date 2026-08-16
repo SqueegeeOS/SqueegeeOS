@@ -13,6 +13,13 @@ const firstMission = readFileSync(
   new URL("../../components/sales/first-field-mission.tsx", import.meta.url),
   "utf8",
 );
+const leadInteractionControl = readFileSync(
+  new URL(
+    "../../components/sales/lead-interaction-control.tsx",
+    import.meta.url,
+  ),
+  "utf8",
+);
 
 describe("sales representative workspace activity safety", () => {
   it("never exposes a manual signed-membership counter", () => {
@@ -153,6 +160,21 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain("Customer considering");
     expect(workspace).toContain("Latest context");
     expect(workspace).toContain('leadActionDraft.status === "follow_up"');
+  });
+
+  it("records durable outcomes without pretending to send communication", () => {
+    expect(workspace).toContain('kind: "lead_interaction"');
+    expect(workspace).toContain("LeadInteractionControl");
+    expect(leadInteractionControl).toContain("Record outcome");
+    expect(leadInteractionControl).toContain("No answer");
+    expect(leadInteractionControl).toContain("Presentation set");
+    expect(leadInteractionControl).toContain("Show history");
+    expect(leadInteractionControl).toContain(
+      "Recording below never sends, schedules, enrolls, invoices, or charges.",
+    );
+    expect(leadInteractionControl.toLowerCase()).not.toContain("twilio");
+    expect(leadInteractionControl.toLowerCase()).not.toContain("resend");
+    expect(leadInteractionControl.toLowerCase()).not.toContain("stripe");
   });
 
   it("keeps the loaded open queue discoverable and visibly prioritized", () => {

@@ -338,6 +338,7 @@ function davidLead(overrides: Partial<SalesRepLead> = {}): SalesRepLead {
     notes: "",
     smsConsentStatus: "unknown",
     emailConsentStatus: "unknown",
+    recentInteractions: [],
     createdAt: "2026-08-12T17:00:00.000Z",
     updatedAt: "2026-08-13T17:00:00.000Z",
     ...overrides,
