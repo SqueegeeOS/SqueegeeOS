@@ -130,13 +130,14 @@ const checks = [
   ["068", "hosted membership payment handoff", (s) => hasTable(s, "membership_payment_handoffs") && hasTable(s, "membership_payment_handoff_events") && hasColumns(s, "membership_payment_handoffs", "membership_id", "presentation_id", "agreement_id", "billing_terms_hash", "stripe_checkout_session_id", "stripe_setup_intent_id", "email_provider_message_id") && ["membership_payment_handoffs_session_uidx", "membership_payment_handoffs_setup_intent_uidx", "membership_payment_handoff_events_provider_uidx"].every((index) => s.indexes.has(index)) && ["membership_payment_handoffs", "membership_payment_handoff_events"].every((table) => s.rlsTables.has(table)) && constraintIncludes(s, "membership_communications", "payment_setup_email") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["072", "one field lead, one presentation", (s) => s.indexes.has("presentations_sales_rep_lead_uidx") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["073", "private internal database functions", (s) => s.publicSecurityDefinerBrowserExecutables === 0 && s.appFunctionDefaultBrowserExecGrants === 0 && s.jobberLeaseServiceExecute],
+  ["074", "private pg_trgm extension schema", (s) => s.pgTrgmSchema === "extensions" && ["jobber_visit_projections_search_idx", "jobber_client_projections_search_idx"].every((index) => s.indexes.has(index))],
 ];
 
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, fieldPolicies, fieldPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable, publicDefinerExecutables, functionDefaultPrivileges, jobberLeasePrivileges] = await Promise.all([
+  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, fieldPolicies, fieldPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable, publicDefinerExecutables, functionDefaultPrivileges, jobberLeasePrivileges, pgTrgmExtension] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name, is_nullable from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -157,6 +158,7 @@ try {
     client.query("select count(*)::int as count from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prosecdef and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))"),
     client.query("select count(*)::int as count from pg_default_acl d join pg_namespace n on n.oid = d.defaclnamespace cross join lateral aclexplode(d.defaclacl) acl left join pg_roles grantee on grantee.oid = acl.grantee where d.defaclobjtype = 'f' and n.nspname = 'public' and pg_get_userbyid(d.defaclrole) = 'postgres' and acl.privilege_type = 'EXECUTE' and (acl.grantee = 0 or grantee.rolname in ('anon', 'authenticated'))"),
     client.query("select coalesce(has_function_privilege('service_role', to_regprocedure('public.acquire_jobber_refresh_lease(uuid,integer)'), 'execute'), false) as allowed"),
+    client.query("select n.nspname as schema_name from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pg_trgm' limit 1"),
   ]);
 
   let agreementBucket = null;
@@ -192,6 +194,7 @@ try {
     publicSecurityDefinerBrowserExecutables: publicDefinerExecutables.rows[0]?.count ?? -1,
     appFunctionDefaultBrowserExecGrants: functionDefaultPrivileges.rows[0]?.count ?? -1,
     jobberLeaseServiceExecute: jobberLeasePrivileges.rows[0]?.allowed === true,
+    pgTrgmSchema: pgTrgmExtension.rows[0]?.schema_name ?? null,
     agreementBucket,
     visitMediaBucket,
   };
