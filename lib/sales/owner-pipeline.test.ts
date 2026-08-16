@@ -382,6 +382,12 @@ describe("owner sales pipeline", () => {
       leads: [],
       presentations: [],
       unassignedInbound: [...unassignedInbound].reverse(),
+      inboundRouting: {
+        status: "active",
+        ownerSlug: "noah",
+        ownerDisplayName: "Noah",
+        followUpMinutes: 15,
+      },
       handoffs: [],
       reference,
     });
@@ -389,6 +395,12 @@ describe("owner sales pipeline", () => {
     expect(snapshot.inbound).toMatchObject({
       status: "available",
       count: 10,
+      routing: {
+        status: "active",
+        ownerSlug: "noah",
+        ownerDisplayName: "Noah",
+        followUpMinutes: 15,
+      },
     });
     expect(snapshot.inbound.records).toHaveLength(8);
     expect(snapshot.inbound.records.map((lead) => lead.id)).toEqual(
@@ -410,6 +422,12 @@ describe("owner sales pipeline", () => {
       status: "unavailable",
       count: null,
       records: [],
+      routing: {
+        status: "not_configured",
+        ownerSlug: null,
+        ownerDisplayName: null,
+        followUpMinutes: 15,
+      },
     });
   });
 });

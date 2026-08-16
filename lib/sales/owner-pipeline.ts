@@ -10,6 +10,7 @@ import type {
   SalesProductionHandoffRecord,
   SalesProductionHandoffStage,
 } from "./production-handoff";
+import type { InboundLeadRoutingSnapshot } from "./inbound-lead-routing";
 import type { SalesRepPlan } from "./rep-config";
 import type { SalesRepLead } from "./workspace-types";
 
@@ -95,6 +96,7 @@ export interface OwnerSalesInboundQueue {
   status: "available" | "unavailable";
   count: number | null;
   records: LeadIntakeRecord[];
+  routing: InboundLeadRoutingSnapshot;
 }
 
 export interface OwnerSalesPipelineSnapshot {
@@ -164,6 +166,7 @@ export function buildOwnerSalesPipelineSnapshot(input: {
   leads: OwnerSalesLeadSource[];
   presentations: OwnerSalesPresentationSource[];
   unassignedInbound: LeadIntakeRecord[] | null;
+  inboundRouting?: InboundLeadRoutingSnapshot;
   handoffs: OwnerSalesHandoffSource[] | null;
   reference?: Date;
 }): OwnerSalesPipelineSnapshot {
@@ -328,6 +331,12 @@ export function buildOwnerSalesPipelineSnapshot(input: {
       status: inboundAvailable ? "available" : "unavailable",
       count: inboundAvailable ? input.unassignedInbound?.length ?? 0 : null,
       records: inboundRecords,
+      routing: input.inboundRouting ?? {
+        status: "not_configured",
+        ownerSlug: null,
+        ownerDisplayName: null,
+        followUpMinutes: 15,
+      },
     },
     handoffs: {
       status: handoffsAvailable ? "available" : "unavailable",

@@ -767,9 +767,15 @@ function InboundTriage({
   }));
   const [routingRepSlug, setRoutingRepSlug] = useState("");
   const [slotVersion, setSlotVersion] = useState(0);
+  const automaticOwnerSlug =
+    inbound?.routing.status === "active" ? inbound.routing.ownerSlug : null;
+  const fallbackRepSlug =
+    salesReps.find((rep) => rep.slug === automaticOwnerSlug)?.slug ??
+    salesReps[0]?.slug ??
+    "";
   const selectedRepSlug = salesReps.some((rep) => rep.slug === routingRepSlug)
     ? routingRepSlug
-    : (salesReps[0]?.slug ?? "");
+    : fallbackRepSlug;
   const selectedRep =
     salesReps.find((rep) => rep.slug === selectedRepSlug) ?? null;
 
@@ -807,6 +813,29 @@ function InboundTriage({
           </Link>
         </div>
       </div>
+
+      {!loading && inbound?.routing.status === "active" ? (
+        <div className="mt-5 rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.045] px-4 py-3 text-xs leading-5 text-emerald-50/75">
+          Future website and Facebook leads route to{" "}
+          <span className="font-semibold text-emerald-50">
+            {inbound.routing.ownerDisplayName}
+          </span>{" "}
+          with a {inbound.routing.followUpMinutes}-minute next move. Existing
+          requests remain here until you assign each one. Routing never emails or
+          texts the customer.
+        </div>
+      ) : !loading && inbound?.routing.status === "owner_unavailable" ? (
+        <div className="mt-5 rounded-2xl border border-amber-300/20 bg-amber-300/[0.055] px-4 py-3 text-xs leading-5 text-amber-50/80">
+          Automatic ownership is paused because the configured owner is not in the
+          active sales roster. Requests stay visible here and no customer is
+          contacted.
+        </div>
+      ) : !loading && inbound?.routing.status === "not_configured" ? (
+        <div className="mt-5 rounded-2xl border border-white/[0.07] bg-black/20 px-4 py-3 text-xs leading-5 text-white/42">
+          Automatic future ownership is off. Every new request will remain here
+          until an owner and next move are assigned.
+        </div>
+      ) : null}
 
       {loading ? (
         <div className="mt-6 rounded-2xl border border-white/[0.06] bg-black/20 px-5 py-7 text-sm text-white/40">
@@ -939,7 +968,9 @@ function InboundTriage({
             Every active request has an owner.
           </p>
           <p className="mt-2 text-xs leading-5 text-white/40">
-            New website and Facebook leads will appear here until assigned.
+            {inbound.routing.status === "active"
+              ? `Future website and Facebook leads will route to ${inbound.routing.ownerDisplayName} automatically.`
+              : "New website and Facebook leads will appear here until assigned."}
           </p>
         </div>
       )}

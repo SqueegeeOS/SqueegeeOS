@@ -13,6 +13,10 @@ import {
   type SalesRepPlan,
 } from "./rep-config";
 import {
+  INBOUND_LEAD_OWNER_ENV,
+  resolveInboundLeadRouting,
+} from "./inbound-lead-routing";
+import {
   buildOwnerSalesPipelineSnapshot,
   type OwnerSalesHandoffSource,
   type OwnerSalesLeadSource,
@@ -261,6 +265,10 @@ export async function loadOwnerSalesPipeline(
     leads,
     presentations,
     unassignedInbound,
+    inboundRouting: resolveInboundLeadRouting(
+      reps,
+      process.env[INBOUND_LEAD_OWNER_ENV],
+    ),
     handoffs,
     reference,
   });
