@@ -86,12 +86,14 @@ export function PresentationOnboarding({
   selectedTier,
   onClose,
   onDone,
+  doneLabel = "Done",
   onPresentationChange,
 }: {
   presentation: PresentationData;
   selectedTier: PresentationTier;
   onClose: () => void;
   onDone: () => void;
+  doneLabel?: string;
   onPresentationChange?: (next: PresentationData) => void;
 }) {
   const [step, setStep] = useState<OnboardingStep>(() =>
@@ -547,7 +549,7 @@ export function PresentationOnboarding({
                 portalUrl ? "mt-4" : "mt-8"
               }`}
             >
-              Done
+              {doneLabel}
             </button>
           </div>
         ) : null}

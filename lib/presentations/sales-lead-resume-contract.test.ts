@@ -57,7 +57,8 @@ describe("sales lead presentation resume contract", () => {
     expect(workspace).toContain(
       "body: JSON.stringify({ repSlug: profile.slug, salesRepLeadId: leadId })",
     );
-    expect(workspace).toContain("presentationWorkspacePath(body.presentation)");
+    expect(workspace).toContain("presentationWorkspacePath(body.presentation, {");
+    expect(workspace).toContain("returnTo: profile.workspacePath");
     expect(workspace).toContain('data-intent="build-plan"');
     expect(workspace).toContain("Save & build plan");
     expect(workspace).toContain("Build their plan");

@@ -51,6 +51,7 @@ interface BeforeInstallPromptEvent extends Event {
 interface SalesRepWorkspaceProps {
   repSlug: string;
   sessionKind: "admin" | "sales_rep";
+  closedPresentationId?: string | null;
 }
 
 interface ActivityMutationResponse {
@@ -381,6 +382,7 @@ async function fetchSalesWorkspace(repSlug: string): Promise<SalesWorkspacePaylo
 export function SalesRepWorkspace({
   repSlug,
   sessionKind,
+  closedPresentationId = null,
 }: SalesRepWorkspaceProps) {
   const router = useRouter();
   const [workspace, setWorkspace] = useState<SalesWorkspacePayload | null>(null);
@@ -951,7 +953,11 @@ export function SalesRepWorkspace({
       }
 
       navigator.vibrate?.(18);
-      router.push(presentationWorkspacePath(body.presentation));
+      router.push(
+        presentationWorkspacePath(body.presentation, {
+          returnTo: profile.workspacePath,
+        }),
+      );
       return true;
     } catch (presentationError) {
       if (options.homeownerJustSaved) {
@@ -1093,6 +1099,11 @@ export function SalesRepWorkspace({
     workspace?.productionHandoffStatus ?? "complete";
   const closeLedgerStatus = workspace?.closeLedgerStatus ?? "complete";
   const workspaceGeneratedAt = workspace?.generatedAt ?? null;
+  const returnedClose = closedPresentationId
+    ? recentWins.find(
+        (win) => win.presentationId === closedPresentationId,
+      ) ?? null
+    : null;
   const leadActionQueue = useMemo(
     () =>
       buildSalesLeadActionQueue(
@@ -2071,6 +2082,56 @@ export function SalesRepWorkspace({
                   : "Sync review"}
               </span>
             </div>
+
+            {closedPresentationId ? (
+              loading ? (
+                <div
+                  className="mt-5 rounded-2xl border border-accent/25 bg-accent/[0.07] px-4 py-4 text-sm leading-6 text-foreground"
+                  role="status"
+                >
+                  Verifying the completed field close against the signed membership
+                  ledger…
+                </div>
+              ) : returnedClose ? (
+                <div
+                  className="mt-5 rounded-2xl border border-emerald-300/40 bg-emerald-300/[0.11] px-4 py-4 text-emerald-50 shadow-[0_18px_60px_rgba(52,211,153,0.08)]"
+                  role="status"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-emerald-200">
+                        Closed loop complete
+                      </p>
+                      <p className="mt-2 font-serif text-xl">
+                        {returnedClose.fullName} is a verified signed membership.
+                      </p>
+                      <p className="mt-2 text-xs leading-5 text-emerald-100/80">
+                        The open lead left {profile.displayName}&apos;s queue
+                        automatically. Card setup, Jobber pairing, and first-visit
+                        readiness remain visible in the production handoff below.
+                      </p>
+                    </div>
+                    <div className="shrink-0 rounded-xl border border-emerald-100/20 bg-black/15 px-4 py-3 sm:text-right">
+                      <p className="font-serif text-2xl tabular-nums">
+                        {moneyFromCents(returnedClose.attributedArrCents)}
+                      </p>
+                      <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-emerald-200">
+                        verified ARR
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  className="mt-5 rounded-2xl border border-amber-300/35 bg-amber-300/[0.08] px-4 py-4 text-sm leading-6 text-amber-50"
+                  role="alert"
+                >
+                  HomeAtlas cannot verify this returned presentation as a signed
+                  close yet, so no success credit is being shown. Refresh this desk
+                  before relying on the close total.
+                </div>
+              )
+            ) : null}
 
             {closeLedgerStatus === "needs_attention" ? (
               <div className="mt-5 rounded-2xl border border-amber-300/30 bg-amber-300/[0.07] px-4 py-4 text-sm leading-6 text-amber-50" role="alert">

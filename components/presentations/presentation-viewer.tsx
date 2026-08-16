@@ -12,6 +12,10 @@ import {
 } from "@/lib/presentations/onboarding-session";
 import { getPresentationSlides, type PresentationData } from "@/lib/presentations/types";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import {
+  presentationCompletionPath,
+  presentationEditorPath,
+} from "@/lib/presentations/navigation";
 
 const easeEngineeredTuple = [...easeEngineered] as [number, number, number, number];
 
@@ -67,9 +71,11 @@ function Chevron({ direction }: { direction: "left" | "right" }) {
 
 export function PresentationViewer({
   presentation,
+  returnTo = null,
   onPresentationChange,
 }: {
   presentation: PresentationData;
+  returnTo?: string | null;
   onPresentationChange?: (next: PresentationData) => void;
 }) {
   const router = useRouter();
@@ -90,6 +96,11 @@ export function PresentationViewer({
   const slides = getPresentationSlides(presentation);
   const totalSlides = slides.length;
   const currentSlide = slides[currentIndex] ?? slides[0];
+  const editorPath = presentationEditorPath(presentation.id, { returnTo });
+  const completionPath = presentationCompletionPath(
+    presentation.id,
+    returnTo,
+  );
 
   useEffect(() => {
     if (recoveryChecked.current) return;
@@ -163,12 +174,12 @@ export function PresentationViewer({
       }
       if (e.key === "ArrowLeft") prev();
       if (e.key === "Escape") {
-        router.push(`/presentations/${presentation.id}/edit`);
+        router.push(editorPath);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [next, prev, presentation.id, router, signing]);
+  }, [editorPath, next, prev, router, signing]);
 
   useEffect(() => {
     if (currentIndex > 0 && presentation.status === "draft") {
@@ -299,9 +310,10 @@ export function PresentationViewer({
           selectedTier={signingTier}
           onClose={() => setSigning(false)}
           onPresentationChange={onPresentationChange}
+          doneLabel={returnTo ? "Return to field desk" : "Done"}
           onDone={() => {
             setSigning(false);
-            router.push(`/presentations/${presentation.id}/edit`);
+            router.push(completionPath);
           }}
         />
       ) : null}

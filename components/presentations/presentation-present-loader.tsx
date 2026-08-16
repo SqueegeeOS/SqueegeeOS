@@ -7,13 +7,16 @@ import type { PresentationData } from "@/lib/presentations/types";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { presentationEditorPath } from "@/lib/presentations/navigation";
 import { PresentationViewer } from "./presentation-viewer";
 
 export function PresentationPresentLoader({
   id,
+  returnTo = null,
   preauthorized = false,
 }: {
   id: string;
+  returnTo?: string | null;
   preauthorized?: boolean;
 }) {
   const [unlocked, setUnlocked] = useState(preauthorized);
@@ -106,7 +109,7 @@ export function PresentationPresentLoader({
           {error ?? "Presentation not found."}
         </p>
         <Link
-          href={`/presentations/${id}/edit`}
+          href={presentationEditorPath(id, { returnTo })}
           className="rounded-lg border border-white/20 px-5 py-2.5 text-sm text-white/80 transition hover:border-white/40"
         >
           Back to editor
@@ -118,6 +121,7 @@ export function PresentationPresentLoader({
   return (
     <PresentationViewer
       presentation={presentation}
+      returnTo={returnTo}
       onPresentationChange={handlePresentationChange}
     />
   );
