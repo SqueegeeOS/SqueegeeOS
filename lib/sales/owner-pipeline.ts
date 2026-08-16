@@ -1,3 +1,4 @@
+import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
 import { presentationWorkspacePath } from "@/lib/presentations/navigation";
 import {
   buildSalesLeadActionQueue,
@@ -90,6 +91,12 @@ export interface OwnerSalesHandoffQueue {
   records: OwnerSalesPipelineHandoff[];
 }
 
+export interface OwnerSalesInboundQueue {
+  status: "available" | "unavailable";
+  count: number | null;
+  records: LeadIntakeRecord[];
+}
+
 export interface OwnerSalesPipelineSnapshot {
   generatedAt: string;
   summary: {
@@ -103,6 +110,7 @@ export interface OwnerSalesPipelineSnapshot {
   };
   reps: OwnerSalesRepSummary[];
   leads: OwnerSalesPipelineLead[];
+  inbound: OwnerSalesInboundQueue;
   handoffs: OwnerSalesHandoffQueue;
 }
 
@@ -155,6 +163,7 @@ export function buildOwnerSalesPipelineSnapshot(input: {
   reps: OwnerSalesRepSource[];
   leads: OwnerSalesLeadSource[];
   presentations: OwnerSalesPresentationSource[];
+  unassignedInbound: LeadIntakeRecord[] | null;
   handoffs: OwnerSalesHandoffSource[] | null;
   reference?: Date;
 }): OwnerSalesPipelineSnapshot {
@@ -278,6 +287,15 @@ export function buildOwnerSalesPipelineSnapshot(input: {
       return timeDifference || left.attributionId.localeCompare(right.attributionId);
     });
   const handoffsAvailable = input.handoffs !== null;
+  const inboundAvailable = input.unassignedInbound !== null;
+  const inboundRecords = [...(input.unassignedInbound ?? [])]
+    .sort((left, right) => {
+      const timeDifference =
+        presentationTimestamp(right.submittedAt) -
+        presentationTimestamp(left.submittedAt);
+      return timeDifference || left.id.localeCompare(right.id);
+    })
+    .slice(0, 8);
   const readyCount = handoffRecords.filter(
     (handoff) => handoff.stage === "ready",
   ).length;
@@ -306,6 +324,11 @@ export function buildOwnerSalesPipelineSnapshot(input: {
     },
     reps,
     leads,
+    inbound: {
+      status: inboundAvailable ? "available" : "unavailable",
+      count: inboundAvailable ? input.unassignedInbound?.length ?? 0 : null,
+      records: inboundRecords,
+    },
     handoffs: {
       status: handoffsAvailable ? "available" : "unavailable",
       generatedAt: reference.toISOString(),

@@ -7,14 +7,10 @@ import type {
   LeadIntakeSalesAssignment,
   LeadIntakeSalesRepOption,
 } from "@/lib/sales/lead-intake-assignment";
-
-function nextBusinessActionValue(reference = new Date()): string {
-  const value = new Date(reference);
-  value.setDate(value.getDate() + 1);
-  value.setHours(9, 0, 0, 0);
-  const offsetMs = value.getTimezoneOffset() * 60_000;
-  return new Date(value.getTime() - offsetMs).toISOString().slice(0, 16);
-}
+import {
+  futureLocalDateTimeValue,
+  tomorrowMorningLocalDateTimeValue,
+} from "@/lib/sales/lead-assignment-time";
 
 function localInputValue(value: string): string {
   const parsed = new Date(value);
@@ -35,6 +31,21 @@ function nextActionLabel(value: string): string {
         minute: "2-digit",
       }).format(parsed);
 }
+
+const QUICK_NEXT_ACTIONS = [
+  {
+    label: "15 min",
+    value: () => futureLocalDateTimeValue(new Date(), 15),
+  },
+  {
+    label: "1 hour",
+    value: () => futureLocalDateTimeValue(new Date(), 60),
+  },
+  {
+    label: "Tomorrow 9",
+    value: () => tomorrowMorningLocalDateTimeValue(new Date()),
+  },
+] as const;
 
 export function LeadAssignmentControl({
   leadIntakeId,
@@ -62,7 +73,7 @@ export function LeadAssignmentControl({
   const [nextFollowUpAt, setNextFollowUpAt] = useState(() =>
     initialAssignment
       ? localInputValue(initialAssignment.nextFollowUpAt)
-      : nextBusinessActionValue(new Date(referenceTime)),
+      : futureLocalDateTimeValue(new Date(referenceTime)),
   );
   const [busy, setBusy] = useState(loadOnMount);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +238,22 @@ export function LeadAssignmentControl({
         >
           {busy ? "Saving…" : assignment ? "Update" : "Assign"}
         </button>
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="mr-1 text-[10px] uppercase tracking-[0.14em] text-muted">
+          Quick next move
+        </span>
+        {QUICK_NEXT_ACTIONS.map((option) => (
+          <button
+            type="button"
+            key={option.label}
+            disabled={busy}
+            onClick={() => setNextFollowUpAt(option.value())}
+            className="rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1 text-[10px] text-muted transition hover:border-accent/25 hover:text-foreground disabled:opacity-40"
+          >
+            {option.label}
+          </button>
+        ))}
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-muted">
         Assignment only. No email or text is sent.
