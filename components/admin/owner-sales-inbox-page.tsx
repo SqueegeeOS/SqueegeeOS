@@ -27,6 +27,10 @@ import type {
 } from "@/lib/sales/owner-pipeline";
 import type { SalesLeadActionMoment } from "@/lib/sales/lead-action-priority";
 import {
+  INBOUND_TRIAGE_SLOT_MINUTES,
+  inboundTriageMinutesAhead,
+} from "@/lib/sales/lead-assignment-time";
+import {
   salesLeadSourceLabel,
   salesRepLeadWorkspaceHref,
   type LeadIntakeSalesAssignment,
@@ -761,6 +765,13 @@ function InboundTriage({
     roleTitle: rep.roleTitle,
     workspacePath: rep.workspacePath,
   }));
+  const [routingRepSlug, setRoutingRepSlug] = useState("");
+  const [slotVersion, setSlotVersion] = useState(0);
+  const selectedRepSlug = salesReps.some((rep) => rep.slug === routingRepSlug)
+    ? routingRepSlug
+    : (salesReps[0]?.slug ?? "");
+  const selectedRep =
+    salesReps.find((rep) => rep.slug === selectedRepSlug) ?? null;
 
   return (
     <section
@@ -808,7 +819,58 @@ function InboundTriage({
         </div>
       ) : inbound && inbound.records.length > 0 ? (
         <div className="mt-6 space-y-3">
-          {inbound.records.map((lead) => {
+          <div className="rounded-2xl border border-sky-200/15 bg-sky-200/[0.045] p-4 sm:p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-100/70">
+                  Route the visible queue
+                </p>
+                <p className="mt-2 max-w-2xl text-xs leading-5 text-white/46">
+                  Choose the owner once. HomeAtlas preloads the newest requests
+                  into {INBOUND_TRIAGE_SLOT_MINUTES}-minute follow-up slots, but
+                  every assignment still requires its own deliberate tap.
+                </p>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                <label className="min-w-52">
+                  <span className="block text-[10px] uppercase tracking-[0.15em] text-white/42">
+                    Suggested owner
+                  </span>
+                  <select
+                    value={selectedRep?.slug ?? ""}
+                    disabled={salesReps.length === 0}
+                    onChange={(event) => {
+                      setRoutingRepSlug(event.target.value);
+                      setSlotVersion((current) => current + 1);
+                    }}
+                    className="mt-1.5 min-h-11 w-full rounded-xl border border-white/[0.09] bg-[#102019] px-3 text-xs text-foreground outline-none focus:border-sky-200/40 disabled:opacity-50"
+                  >
+                    {salesReps.length === 0 ? (
+                      <option value="">No active reps</option>
+                    ) : null}
+                    {salesReps.map((rep) => (
+                      <option key={rep.id} value={rep.slug}>
+                        {rep.displayName}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setSlotVersion((current) => current + 1)}
+                  className="min-h-11 rounded-xl border border-sky-200/20 bg-sky-200/[0.06] px-4 text-[10px] font-semibold uppercase tracking-[0.14em] text-sky-100 transition hover:bg-sky-200/[0.1]"
+                >
+                  Refresh times
+                </button>
+              </div>
+            </div>
+            <p className="mt-3 text-[11px] leading-5 text-white/38">
+              Work newest first. After each assignment, HomeAtlas refreshes the
+              queue and brings the next unowned request into view. No customer is
+              contacted here.
+            </p>
+          </div>
+          {inbound.records.map((lead, index) => {
             const services = lead.servicesInterested.join(", ");
             return (
               <article
@@ -847,8 +909,14 @@ function InboundTriage({
                 </div>
                 <div className="mt-4">
                   <LeadAssignmentControl
+                    key={`${lead.id}:${selectedRep?.slug ?? "none"}:${slotVersion}`}
                     leadIntakeId={lead.id}
                     initialSalesReps={salesReps}
+                    initialRepSlug={selectedRep?.slug}
+                    initialMinutesAhead={inboundTriageMinutesAhead(index)}
+                    assignLabel={
+                      selectedRep ? `Assign to ${selectedRep.displayName}` : "Assign"
+                    }
                     compact
                     onChanged={(assignment) => {
                       void onAssigned(lead.name, assignment);

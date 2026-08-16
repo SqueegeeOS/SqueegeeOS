@@ -92,6 +92,13 @@ describe("owner sales inbox release contract", () => {
       "Assignment only. No email or text is sent.",
     );
     expect(assignmentControl).toContain("salesRepLeadWorkspaceHref");
+    expect(assignmentControl).toContain("initialRepSlug");
+    expect(assignmentControl).toContain("initialMinutesAhead");
+    expect(assignmentControl).toContain("assignLabel");
+    expect(page).toContain("Route the visible queue");
+    expect(page).toContain("inboundTriageMinutesAhead(index)");
+    expect(page).toContain("every assignment still requires its own deliberate tap");
+    expect(page).toContain("No customer is\n              contacted here.");
     expect(page).toContain("The exact record is ready—no customer was contacted.");
     expect(page).toContain("Open owner record");
     expect(page).toContain("salesRepLeadWorkspaceHref");
