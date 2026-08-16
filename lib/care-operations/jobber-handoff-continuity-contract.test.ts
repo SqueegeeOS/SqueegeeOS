@@ -30,10 +30,16 @@ describe("signed member to Jobber continuity", () => {
   it("propagates the focused membership through every read-after-write", () => {
     expect(panel).toContain('params.set("membershipId", focusMembershipId)');
     expect(panel).toContain("focusMembershipId,");
+    expect(panel).toContain('params.set("projectionId", focusProjectionId)');
+    expect(panel).toContain("focusProjectionId,");
     expect(route).toContain(
       'focusMembershipId: url.searchParams.get("membershipId")',
     );
+    expect(route).toContain(
+      'focusProjectionId: url.searchParams.get("projectionId")',
+    );
     expect(route).toContain("focusMembershipId: body.focusMembershipId");
+    expect(route).toContain("focusProjectionId: body.focusProjectionId");
   });
 
   it("narrows the candidate list to the exact active membership", () => {
@@ -54,6 +60,7 @@ describe("signed member to Jobber continuity", () => {
     expect(service).toContain("externalPropertyId: exactExternalPropertyId");
     expect(service).toContain("externalClientId: exactExternalClientId");
     expect(service).toContain("focusedMember?.candidate.homeownerName");
+    expect(service).toContain("projectionId: focusProjectionId");
   });
 
   it("retains supervised confirmation and never writes on navigation", () => {

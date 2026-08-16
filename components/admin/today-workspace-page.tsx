@@ -31,6 +31,7 @@ import {
   jobberTodayVisitAnchorId,
   visitFieldFollowUpAnchorId,
 } from "@/lib/care-operations/jobber-today-links";
+import { jobberTodayPairingHref } from "@/lib/care-operations/jobber-handoff-navigation";
 
 const VisitFieldCapture = dynamic(
   () =>
@@ -624,10 +625,10 @@ function JobberVisitCard({
                 Pair this Jobber property to a HomeAtlas member before adding portal photos.
               </p>
               <Link
-                href="/hq/jobber"
-                className="shrink-0 text-xs text-accent underline underline-offset-4"
+                href={jobberTodayPairingHref(visit.projectionId)}
+                className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-accent/35 bg-accent/10 px-4 text-xs font-medium text-accent transition hover:bg-accent/15"
               >
-                Pair property
+                Pair this exact stop
               </Link>
             </div>
           )}

@@ -26,6 +26,7 @@ function listOptions(url: URL) {
     page: Number.parseInt(url.searchParams.get("page") ?? "1", 10),
     pageSize: Number.parseInt(url.searchParams.get("pageSize") ?? "25", 10),
     focusMembershipId: url.searchParams.get("membershipId"),
+    focusProjectionId: url.searchParams.get("projectionId"),
   };
 }
 
@@ -61,6 +62,7 @@ export async function POST(request: Request) {
     expectedLinkUpdatedAt?: string | null;
     expectedJobLinkUpdatedAt?: string | null;
     focusMembershipId?: string | null;
+    focusProjectionId?: string | null;
     search?: string;
     page?: number;
   };
@@ -91,6 +93,7 @@ export async function POST(request: Request) {
           search: body.search,
           page: body.page,
           focusMembershipId: body.focusMembershipId,
+          focusProjectionId: body.focusProjectionId,
         }),
       });
     }
@@ -112,6 +115,7 @@ export async function POST(request: Request) {
           search: body.search,
           page: body.page,
           focusMembershipId: body.focusMembershipId,
+          focusProjectionId: body.focusProjectionId,
         }),
       });
     }
@@ -135,6 +139,7 @@ export async function POST(request: Request) {
           search: body.search,
           page: body.page,
           focusMembershipId: body.focusMembershipId,
+          focusProjectionId: body.focusProjectionId,
         }),
       });
     }
@@ -156,6 +161,7 @@ export async function POST(request: Request) {
           search: body.search,
           page: body.page,
           focusMembershipId: body.focusMembershipId,
+          focusProjectionId: body.focusProjectionId,
         }),
       });
     }

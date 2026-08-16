@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import type { JobberHandoffFocus } from "@/lib/care-operations/jobber-handoff-navigation";
+import { jobberVisitWorkspaceAnchorId } from "@/lib/care-operations/jobber-today-links";
 
 interface ActiveMemberPropertyCandidate {
   membershipId: string;
@@ -83,6 +84,7 @@ async function requestMatchingWorkspace(
   search: string,
   page: number,
   focusMembershipId: string | null,
+  focusProjectionId: string | null,
 ): Promise<MatchingWorkspace> {
   const params = new URLSearchParams({
     search,
@@ -90,6 +92,7 @@ async function requestMatchingWorkspace(
     pageSize: "25",
   });
   if (focusMembershipId) params.set("membershipId", focusMembershipId);
+  if (focusProjectionId) params.set("projectionId", focusProjectionId);
   const response = await fetch(
     `/api/admin/care-operations/jobber/property-links?${params.toString()}`,
     { headers: getAdminRequestHeaders(), cache: "no-store" },
@@ -120,6 +123,8 @@ export function JobberVisitWorkspacePanel({
   focus: JobberHandoffFocus | null;
 }) {
   const focusMembershipId = focus?.membershipId ?? null;
+  const focusProjectionId = focus?.projectionId ?? null;
+  const focusReturnTo = focus?.returnTo ?? null;
   const [workspace, setWorkspace] = useState<MatchingWorkspace | null>(null);
   const [query, setQuery] = useState("");
   const [selectedMemberships, setSelectedMemberships] = useState<
@@ -144,7 +149,12 @@ export function JobberVisitWorkspacePanel({
     setNotice(null);
     try {
       setWorkspace(
-        await requestMatchingWorkspace(search, page, focusMembershipId),
+        await requestMatchingWorkspace(
+          search,
+          page,
+          focusMembershipId,
+          focusProjectionId,
+        ),
       );
     } catch (loadError) {
       setError(
@@ -155,11 +165,11 @@ export function JobberVisitWorkspacePanel({
     } finally {
       setLoading(false);
     }
-  }, [focusMembershipId]);
+  }, [focusMembershipId, focusProjectionId]);
 
   useEffect(() => {
     let cancelled = false;
-    requestMatchingWorkspace("", 1, focusMembershipId)
+    requestMatchingWorkspace("", 1, focusMembershipId, focusProjectionId)
       .then((result) => {
         if (!cancelled) {
           setWorkspace(result);
@@ -181,7 +191,7 @@ export function JobberVisitWorkspacePanel({
     return () => {
       cancelled = true;
     };
-  }, [focusMembershipId]);
+  }, [focusMembershipId, focusProjectionId]);
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -207,6 +217,30 @@ export function JobberVisitWorkspacePanel({
           visit.billingEligible,
       ),
   );
+  const focusedVisit = focusProjectionId
+    ? (workspace?.visits.find(
+        (visit) => visit.projectionId === focusProjectionId,
+      ) ?? null)
+    : null;
+  const focusedVisitPropertyReady = Boolean(
+    focusedVisit?.propertyLink?.linkState === "active" &&
+      focusedVisit.propertyLink.membershipActive,
+  );
+  const focusedVisitJobReady = Boolean(
+    focusedVisit?.membershipJobLink?.linkState === "active" &&
+      focusedVisit.billingEligible,
+  );
+  const focusedVisitReadyForScroll = Boolean(focusedVisit);
+
+  useEffect(() => {
+    if (!focusProjectionId || !focusedVisitReadyForScroll) return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById(jobberVisitWorkspaceAnchorId(focusProjectionId))
+        ?.scrollIntoView({ block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusProjectionId, focusedVisitReadyForScroll]);
 
   const writePropertyLink = async (
     visit: VisitPreview,
@@ -244,6 +278,7 @@ export function JobberVisitWorkspacePanel({
                 : undefined,
             expectedLinkUpdatedAt: visit.propertyLink?.updatedAt ?? null,
             focusMembershipId,
+            focusProjectionId,
             search: workspace?.search ?? "",
             page: workspace?.page ?? 1,
           }),
@@ -317,6 +352,7 @@ export function JobberVisitWorkspacePanel({
             expectedJobLinkUpdatedAt:
               visit.membershipJobLink?.updatedAt ?? null,
             focusMembershipId,
+            focusProjectionId,
             search: workspace?.search ?? "",
             page: workspace?.page ?? 1,
           }),
@@ -359,16 +395,58 @@ export function JobberVisitWorkspacePanel({
           Complete visit browser
         </p>
         <h3 className="mt-2 font-serif text-xl font-light text-foreground">
-          Search every synchronized Jobber visit
+          {focusProjectionId
+            ? "Finish the exact stop from Today"
+            : "Search every synchronized Jobber visit"}
         </h3>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted">
-          Browse the full read-only visit projection by customer, job number,
-          title, or status. Property linking remains a separate supervised
-          classification and never makes a visit billable by itself.
+          {focusProjectionId
+            ? "HomeAtlas carried this Jobber visit forward without guessing. Confirm the physical property, then separately verify the recurring membership job before returning to Today."
+            : "Browse the full read-only visit projection by customer, job number, title, or status. Property linking remains a separate supervised classification and never makes a visit billable by itself."}
         </p>
       </div>
 
-      {workspace?.focusedMemberProperty ? (
+      {focusProjectionId ? (
+        <div className="mt-5 rounded-2xl border border-accent/30 bg-gradient-to-br from-accent/[0.11] via-accent/[0.05] to-background/40 p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">
+                {focusedVisitJobReady
+                  ? "Ready · return to Today"
+                  : focusedVisitPropertyReady
+                    ? "Property paired · verify recurring job"
+                    : "Today stop · supervised pairing"}
+              </p>
+              <p className="mt-2 font-serif text-xl text-foreground">
+                {focusedVisit
+                  ? `${focusedVisit.clientName}${focusedVisit.jobNumber ? ` · Job #${focusedVisit.jobNumber}` : ""}`
+                  : loading
+                    ? "Loading the exact Jobber stop…"
+                    : "This stop is not in the current Jobber sync"}
+              </p>
+              <p className="mt-2 max-w-2xl text-xs leading-5 text-muted">
+                {focusedVisitJobReady
+                  ? "The member property and recurring job are verified. Return to the same Today card to continue the field record."
+                  : "No match is created by opening this page. Review the Jobber property, choose the correct active HomeAtlas member, and confirm each gate yourself."}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={focusReturnTo ?? "/hq/today"}
+                className="inline-flex min-h-10 items-center rounded-full border border-accent/40 bg-accent/10 px-4 text-[10px] font-bold uppercase tracking-[0.12em] text-accent transition hover:bg-accent/15"
+              >
+                Return to Today
+              </Link>
+              <Link
+                href="/hq/jobber#jobber-visits"
+                className="inline-flex min-h-10 items-center rounded-full border border-border px-4 text-[10px] font-bold uppercase tracking-[0.12em] text-muted transition hover:text-foreground"
+              >
+                Open full workspace
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : workspace?.focusedMemberProperty ? (
         <div className="mt-5 rounded-2xl border border-accent/25 bg-accent/[0.07] p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -406,30 +484,32 @@ export function JobberVisitWorkspacePanel({
         </div>
       ) : null}
 
-      <form
-        onSubmit={submitSearch}
-        className="mt-5 flex flex-col gap-2 sm:flex-row"
-        role="search"
-      >
-        <label className="sr-only" htmlFor="jobber-visit-search">
-          Search Jobber visits
-        </label>
-        <input
-          id="jobber-visit-search"
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Search customer, job number, title, or status"
-          className="min-h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm text-foreground outline-none placeholder:text-muted/70 focus:border-accent/50"
-        />
-        <button
-          type="submit"
-          disabled={loading}
-          className="min-h-11 rounded-full border border-accent/40 bg-accent/10 px-5 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-50"
+      {!focusProjectionId ? (
+        <form
+          onSubmit={submitSearch}
+          className="mt-5 flex flex-col gap-2 sm:flex-row"
+          role="search"
         >
-          Search visits
-        </button>
-      </form>
+          <label className="sr-only" htmlFor="jobber-visit-search">
+            Search Jobber visits
+          </label>
+          <input
+            id="jobber-visit-search"
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search customer, job number, title, or status"
+            className="min-h-11 flex-1 rounded-xl border border-border bg-background px-4 text-sm text-foreground outline-none placeholder:text-muted/70 focus:border-accent/50"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="min-h-11 rounded-full border border-accent/40 bg-accent/10 px-5 text-sm text-accent transition hover:bg-accent/15 disabled:opacity-50"
+          >
+            Search visits
+          </button>
+        </form>
+      ) : null}
 
       {workspace ? (
         <p className="mt-3 text-xs text-muted" aria-live="polite">
@@ -471,7 +551,12 @@ export function JobberVisitWorkspacePanel({
             return (
               <article
                 key={visit.projectionId}
-                className="rounded-2xl border border-border/70 bg-foreground/[0.025] p-4"
+                id={jobberVisitWorkspaceAnchorId(visit.projectionId)}
+                className={`scroll-mt-28 rounded-2xl border p-4 transition target:ring-2 target:ring-accent/60 ${
+                  focusProjectionId === visit.projectionId
+                    ? "border-accent/35 bg-accent/[0.07] shadow-[0_18px_55px_rgba(0,0,0,0.22)]"
+                    : "border-border/70 bg-foreground/[0.025]"
+                }`}
               >
                 <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
                   <div className="min-w-0">

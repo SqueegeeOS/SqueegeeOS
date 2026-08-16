@@ -6,6 +6,7 @@ export const JOBBER_TOKEN_URL = "https://api.getjobber.com/api/oauth/token";
 export const JOBBER_GRAPHQL_URL = "https://api.getjobber.com/api/graphql";
 export const JOBBER_OAUTH_STATE_COOKIE = "homeatlas_jobber_oauth_state";
 export const JOBBER_OAUTH_VERIFIER_COOKIE = "homeatlas_jobber_oauth_verifier";
+export const JOBBER_OAUTH_RETURN_COOKIE = "homeatlas_jobber_oauth_return";
 export const JOBBER_CONNECTION_ID = "squeegeeking";
 export const DEFAULT_JOBBER_GRAPHQL_VERSION = "2025-04-16";
 

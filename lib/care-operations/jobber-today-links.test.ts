@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   jobberTodayVisitAnchorId,
+  jobberVisitWorkspaceAnchorId,
   technicianFieldPassAnchorId,
   visitFieldFollowUpAnchorId,
 } from "./jobber-today-links";
@@ -9,6 +10,9 @@ describe("Jobber Today links", () => {
   it("creates matching, URL-safe visit and Field Pass anchors", () => {
     expect(jobberTodayVisitAnchorId("visit:123/abc")).toBe(
       "visit-visit-123-abc",
+    );
+    expect(jobberVisitWorkspaceAnchorId("visit:123/abc")).toBe(
+      "jobber-visit-visit-123-abc",
     );
     expect(technicianFieldPassAnchorId("user:alex/1")).toBe(
       "field-pass-user-alex-1",

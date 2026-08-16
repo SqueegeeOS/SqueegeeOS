@@ -26,9 +26,14 @@ export async function POST(request: Request) {
   }
 
   try {
+    const body = (await request.json().catch(() => null)) as {
+      returnTo?: unknown;
+    } | null;
+    const returnTo =
+      typeof body?.returnTo === "string" ? body.returnTo : null;
     const state = createJobberOAuthState();
     const { codeVerifier, codeChallenge } = createJobberPkce();
-    await writeJobberOAuthState(state, codeVerifier);
+    await writeJobberOAuthState(state, codeVerifier, returnTo);
     const redirectUri = resolveJobberOAuthRedirectUri(request);
     return NextResponse.json({
       authorizationUrl: buildJobberAuthorizationUrl({
