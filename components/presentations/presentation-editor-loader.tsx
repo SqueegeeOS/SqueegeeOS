@@ -14,10 +14,12 @@ import { PresentationEditor } from "./presentation-editor";
 export function PresentationEditorLoader({
   id,
   inquirySyncPending = false,
+  returnTo = null,
   preauthorized = false,
 }: {
   id: string;
   inquirySyncPending?: boolean;
+  returnTo?: string | null;
   preauthorized?: boolean;
 }) {
   const [unlocked, setUnlocked] = useState(preauthorized);
@@ -91,10 +93,10 @@ export function PresentationEditorLoader({
       <div className="flex min-h-screen flex-col items-center justify-center gap-5 bg-[#0a0a0a] px-6 text-center text-white">
         <p className="text-sm text-white/60">{error ?? "Presentation not found"}</p>
         <Link
-          href="/presentations"
+          href={returnTo ?? "/presentations"}
           className="rounded-full border border-white/20 px-5 py-2.5 text-sm text-white/80"
         >
-          Back to clients
+          {returnTo ? "Back to field desk" : "Back to clients"}
         </Link>
       </div>
     );
@@ -105,6 +107,7 @@ export function PresentationEditorLoader({
       presentation={presentation}
       recoveredDraft={recoveredDraft}
       inquirySyncPending={inquirySyncPending}
+      returnTo={returnTo}
     />
   );
 }

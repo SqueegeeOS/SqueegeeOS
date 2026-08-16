@@ -56,6 +56,7 @@ export interface SalesWorkspaceMetrics {
 
 export interface SalesRepRecentWin {
   id: string;
+  presentationId: string | null;
   fullName: string;
   propertyAddress: string;
   attributedArrCents: number;

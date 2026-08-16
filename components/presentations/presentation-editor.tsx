@@ -43,15 +43,18 @@ import {
   resizeCarePlan,
   summarizeCarePlan,
 } from "@/lib/presentations/care-plan";
+import { presentationPresentPath } from "@/lib/presentations/navigation";
 
 export function PresentationEditor({
   presentation: initial,
   recoveredDraft = false,
   inquirySyncPending = false,
+  returnTo = null,
 }: {
   presentation: PresentationData;
   recoveredDraft?: boolean;
   inquirySyncPending?: boolean;
+  returnTo?: string | null;
 }) {
   const router = useRouter();
   const [data, setData] = useState(initial);
@@ -295,7 +298,9 @@ export function PresentationEditor({
       cachePresentation(dataRef.current);
       const saved = await save();
       if (!saved) return;
-      router.push(`/presentations/${dataRef.current.id}/present`);
+      router.push(
+        presentationPresentPath(dataRef.current.id, { returnTo }),
+      );
     } finally {
       setPresenting(false);
     }
@@ -315,7 +320,7 @@ export function PresentationEditor({
     <div className="min-h-screen bg-[#0a0a0a] pb-36 text-white">
       <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
         <Link
-          href="/presentations"
+          href={returnTo ?? "/presentations"}
           onClick={(event) => {
             if (
               isDirty &&
@@ -328,7 +333,7 @@ export function PresentationEditor({
           }}
           className="mb-6 inline-flex items-center gap-1 text-[10px] uppercase tracking-widest text-[#444] transition-colors hover:text-[#888]"
         >
-          ← Presentations
+          ← {returnTo ? "Field desk" : "Presentations"}
         </Link>
 
         <header className="mb-8">

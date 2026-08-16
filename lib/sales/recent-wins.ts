@@ -77,6 +77,7 @@ export function buildSalesRepRecentWins(input: {
 
     return {
       id: attribution.id,
+      presentationId: attribution.presentationId,
       fullName,
       propertyAddress,
       attributedArrCents: Math.max(

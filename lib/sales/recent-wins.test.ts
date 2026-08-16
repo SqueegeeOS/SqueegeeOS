@@ -82,16 +82,19 @@ describe("signature-backed recent sales wins", () => {
 
     expect(wins).toEqual([
       expect.objectContaining({
+        presentationId: "presentation-lead",
         fullName: "Mandi Rivera",
         propertyAddress: "88 Oak Way",
         status: "pending",
       }),
       expect.objectContaining({
+        presentationId: "presentation-presentation",
         fullName: "Jeff Mason",
         propertyAddress: "1420 Davis Avenue",
         status: "pending",
       }),
       expect.objectContaining({
+        presentationId: null,
         fullName: "Signed homeowner",
         propertyAddress: "Service property on file",
         attributedArrCents: 0,
