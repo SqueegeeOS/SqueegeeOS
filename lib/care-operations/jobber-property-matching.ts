@@ -122,6 +122,7 @@ export interface JobberPropertyMatchingWorkspace {
   automaticMatching: false;
   obligationMatching: false;
   billingEnabled: false;
+  focusedMemberProperty: ActiveMemberPropertyCandidate | null;
   candidateLimitReached: boolean;
   activeMemberProperties: ActiveMemberPropertyCandidate[];
   visits: SupervisedJobberVisitPreview[];
@@ -270,6 +271,68 @@ async function loadStrictMemberProperty(
   return { membership, property };
 }
 
+async function loadFocusedMemberProperty(
+  membershipId: string,
+): Promise<{
+  membership: MembershipRow;
+  property: PropertyRow;
+  candidate: ActiveMemberPropertyCandidate;
+  externalPropertyId: string | null;
+  externalClientId: string | null;
+}> {
+  const { membership, property } = await loadStrictMemberProperty(membershipId);
+  const supabase = createServiceRoleSupabaseClient();
+  const [homeownerResult, propertyLinkResult, customerLinkResult] =
+    await Promise.all([
+      supabase
+        .from("homeowners")
+        .select("id, full_name")
+        .eq("id", membership.homeowner_id)
+        .maybeSingle(),
+      supabase
+        .from("jobber_property_links")
+        .select("external_property_id")
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .eq("membership_id", membership.id)
+        .eq("property_id", property.id)
+        .eq("link_state", "active")
+        .maybeSingle(),
+      supabase
+        .from("jobber_customer_links")
+        .select("external_client_id")
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .eq("homeowner_id", membership.homeowner_id)
+        .eq("link_state", "active")
+        .maybeSingle(),
+    ]);
+  if (homeownerResult.error) throw homeownerResult.error;
+  if (propertyLinkResult.error) throw propertyLinkResult.error;
+  if (customerLinkResult.error) throw customerLinkResult.error;
+  if (!homeownerResult.data) {
+    throw new SupervisedPropertyMatchError(
+      "The membership homeowner could not be found.",
+      409,
+    );
+  }
+  const homeowner = homeownerResult.data as HomeownerRow;
+  return {
+    membership,
+    property,
+    candidate: {
+      membershipId: membership.id,
+      propertyId: property.id,
+      homeownerName: homeowner.full_name,
+      propertyLabel: formatPropertyLabel(property),
+    },
+    externalPropertyId:
+      (propertyLinkResult.data?.external_property_id as string | undefined) ??
+      null,
+    externalClientId:
+      (customerLinkResult.data?.external_client_id as string | undefined) ??
+      null,
+  };
+}
+
 async function revokeMembershipJobsForProperty(input: {
   connectionId: string;
   externalPropertyId: string;
@@ -352,51 +415,78 @@ export async function loadJobberPropertyMatchingWorkspace(options: {
   search?: string;
   page?: number;
   pageSize?: number;
+  focusMembershipId?: string | null;
 } = {}): Promise<JobberPropertyMatchingWorkspace> {
   const supabase = createServiceRoleSupabaseClient();
-  const visitList = await listJobberVisits(options);
+  const focusMembershipId = options.focusMembershipId?.trim() ?? "";
+  const focusedMember = focusMembershipId
+    ? await loadFocusedMemberProperty(focusMembershipId)
+    : null;
+  const requestedSearch = options.search?.trim().slice(0, 120) ?? "";
+  const exactExternalPropertyId = focusedMember?.externalPropertyId ?? null;
+  const exactExternalClientId = exactExternalPropertyId
+    ? null
+    : (focusedMember?.externalClientId ?? null);
+  const fallbackSearch =
+    exactExternalPropertyId || exactExternalClientId
+      ? ""
+      : (focusedMember?.candidate.homeownerName ?? "");
+  const visitList = await listJobberVisits({
+    search: requestedSearch || fallbackSearch,
+    page: options.page,
+    pageSize: options.pageSize,
+    externalPropertyId: exactExternalPropertyId,
+    externalClientId: exactExternalClientId,
+  });
   const visits = visitList.visits;
   const externalPropertyIds = [
     ...new Set(visits.map((visit) => visit.externalPropertyId)),
   ];
-
-  const linksResult = externalPropertyIds.length
-    ? await supabase
+  const externalJobIds = [...new Set(visits.map((visit) => visit.externalJobId))];
+  const linksPromise = externalPropertyIds.length
+    ? supabase
         .from("jobber_property_links")
         .select(
           "id, external_property_id, property_id, membership_id, link_state, updated_at",
         )
         .eq("connection_id", JOBBER_CONNECTION_ID)
         .in("external_property_id", externalPropertyIds)
-    : { data: [], error: null };
-  if (linksResult.error) throw linksResult.error;
-  const links = (linksResult.data ?? []) as LinkRow[];
-  const externalJobIds = [...new Set(visits.map((visit) => visit.externalJobId))];
-  const jobLinksResult = externalJobIds.length
-    ? await supabase
+    : Promise.resolve({ data: [], error: null });
+  const jobLinksPromise = externalJobIds.length
+    ? supabase
         .from("jobber_membership_job_links")
         .select(
           "id, connection_id, external_job_id, external_property_id, membership_id, property_id, link_state, updated_at",
         )
         .eq("connection_id", JOBBER_CONNECTION_ID)
         .in("external_job_id", externalJobIds)
-    : { data: [], error: null };
+    : Promise.resolve({ data: [], error: null });
+  const activeMembershipPromise = focusedMember
+    ? { data: [focusedMember.membership], error: null }
+    : supabase
+        .from("memberships")
+        .select(
+          "id, homeowner_id, property_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, agreement_id, sales_tier, visit_price",
+        )
+        .eq("status", "active")
+        .order("created_at", { ascending: true })
+        .limit(MAX_ACTIVE_MEMBER_CANDIDATES + 1);
+  const [linksResult, jobLinksResult, activeMembershipResult] =
+    await Promise.all([
+      linksPromise,
+      jobLinksPromise,
+      activeMembershipPromise,
+    ]);
+  if (linksResult.error) throw linksResult.error;
   if (jobLinksResult.error) throw jobLinksResult.error;
-  const jobLinks = (jobLinksResult.data ?? []) as JobLinkRow[];
-
-  const activeMembershipResult = await supabase
-    .from("memberships")
-    .select(
-      "id, homeowner_id, property_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, agreement_id, sales_tier, visit_price",
-    )
-    .eq("status", "active")
-    .order("created_at", { ascending: true })
-    .limit(MAX_ACTIVE_MEMBER_CANDIDATES + 1);
   if (activeMembershipResult.error) throw activeMembershipResult.error;
+  const links = (linksResult.data ?? []) as LinkRow[];
+  const jobLinks = (jobLinksResult.data ?? []) as JobLinkRow[];
   const activeMembershipRows = (activeMembershipResult.data ??
     []) as MembershipRow[];
-  const candidateLimitReached =
-    activeMembershipRows.length > MAX_ACTIVE_MEMBER_CANDIDATES;
+  const candidateLimitReached = focusedMember
+    ? false
+    : activeMembershipRows.length > MAX_ACTIVE_MEMBER_CANDIDATES;
   const boundedActiveMemberships = activeMembershipRows.slice(
     0,
     MAX_ACTIVE_MEMBER_CANDIDATES,
@@ -481,6 +571,7 @@ export async function loadJobberPropertyMatchingWorkspace(options: {
     automaticMatching: false,
     obligationMatching: false,
     billingEnabled: false,
+    focusedMemberProperty: focusedMember?.candidate ?? null,
     candidateLimitReached,
     activeMemberProperties,
     total: visitList.total,

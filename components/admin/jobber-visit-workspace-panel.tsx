@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import type { JobberHandoffFocus } from "@/lib/care-operations/jobber-handoff-navigation";
 
 interface ActiveMemberPropertyCandidate {
   membershipId: string;
@@ -60,6 +62,7 @@ interface MatchingWorkspace {
   automaticMatching: false;
   obligationMatching: false;
   billingEnabled: false;
+  focusedMemberProperty: ActiveMemberPropertyCandidate | null;
   candidateLimitReached: boolean;
   activeMemberProperties: ActiveMemberPropertyCandidate[];
   visits: VisitPreview[];
@@ -79,12 +82,14 @@ interface MatchResponse {
 async function requestMatchingWorkspace(
   search: string,
   page: number,
+  focusMembershipId: string | null,
 ): Promise<MatchingWorkspace> {
   const params = new URLSearchParams({
     search,
     page: String(page),
     pageSize: "25",
   });
+  if (focusMembershipId) params.set("membershipId", focusMembershipId);
   const response = await fetch(
     `/api/admin/care-operations/jobber/property-links?${params.toString()}`,
     { headers: getAdminRequestHeaders(), cache: "no-store" },
@@ -109,7 +114,12 @@ function formatVisitTime(value: string | null): string {
   });
 }
 
-export function JobberVisitWorkspacePanel() {
+export function JobberVisitWorkspacePanel({
+  focus,
+}: {
+  focus: JobberHandoffFocus | null;
+}) {
+  const focusMembershipId = focus?.membershipId ?? null;
   const [workspace, setWorkspace] = useState<MatchingWorkspace | null>(null);
   const [query, setQuery] = useState("");
   const [selectedMemberships, setSelectedMemberships] = useState<
@@ -133,7 +143,9 @@ export function JobberVisitWorkspacePanel() {
     setError(null);
     setNotice(null);
     try {
-      setWorkspace(await requestMatchingWorkspace(search, page));
+      setWorkspace(
+        await requestMatchingWorkspace(search, page, focusMembershipId),
+      );
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -143,13 +155,16 @@ export function JobberVisitWorkspacePanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [focusMembershipId]);
 
   useEffect(() => {
     let cancelled = false;
-    requestMatchingWorkspace("", 1)
+    requestMatchingWorkspace("", 1, focusMembershipId)
       .then((result) => {
-        if (!cancelled) setWorkspace(result);
+        if (!cancelled) {
+          setWorkspace(result);
+          setQuery(result.search);
+        }
       })
       .catch((loadError: unknown) => {
         if (!cancelled) {
@@ -166,7 +181,7 @@ export function JobberVisitWorkspacePanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [focusMembershipId]);
 
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -174,11 +189,32 @@ export function JobberVisitWorkspacePanel() {
     void load(nextQuery, 1);
   };
 
+  const focusedPropertyReady = Boolean(
+    focusMembershipId &&
+      workspace?.visits.some(
+        (visit) =>
+          visit.propertyLink?.membershipId === focusMembershipId &&
+          visit.propertyLink.linkState === "active" &&
+          visit.propertyLink.membershipActive,
+      ),
+  );
+  const focusedJobReady = Boolean(
+    focusMembershipId &&
+      workspace?.visits.some(
+        (visit) =>
+          visit.membershipJobLink?.membershipId === focusMembershipId &&
+          visit.membershipJobLink.linkState === "active" &&
+          visit.billingEligible,
+      ),
+  );
+
   const writePropertyLink = async (
     visit: VisitPreview,
     action: "link" | "revoke",
   ) => {
-    const membershipId = selectedMemberships[visit.projectionId];
+    const membershipId =
+      selectedMemberships[visit.projectionId] ??
+      workspace?.focusedMemberProperty?.membershipId;
     if (action === "link" && !membershipId) return;
     if (
       action === "revoke" &&
@@ -207,6 +243,7 @@ export function JobberVisitWorkspacePanel() {
                 ? confirmedProperties[visit.projectionId] === true
                 : undefined,
             expectedLinkUpdatedAt: visit.propertyLink?.updatedAt ?? null,
+            focusMembershipId,
             search: workspace?.search ?? "",
             page: workspace?.page ?? 1,
           }),
@@ -279,6 +316,7 @@ export function JobberVisitWorkspacePanel() {
                 : undefined,
             expectedJobLinkUpdatedAt:
               visit.membershipJobLink?.updatedAt ?? null,
+            focusMembershipId,
             search: workspace?.search ?? "",
             page: workspace?.page ?? 1,
           }),
@@ -312,7 +350,10 @@ export function JobberVisitWorkspacePanel() {
   };
 
   return (
-    <div className="mt-8 border-t border-border/70 pt-7">
+    <div
+      id="jobber-visits"
+      className="mt-8 scroll-mt-28 border-t border-border/70 pt-7"
+    >
       <div>
         <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
           Complete visit browser
@@ -326,6 +367,44 @@ export function JobberVisitWorkspacePanel() {
           classification and never makes a visit billable by itself.
         </p>
       </div>
+
+      {workspace?.focusedMemberProperty ? (
+        <div className="mt-5 rounded-2xl border border-accent/25 bg-accent/[0.07] p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-accent">
+                {focusedJobReady
+                  ? "Jobber identity verified · confirm schedule"
+                  : focusedPropertyReady || focus?.step === "job"
+                    ? "Step 4 of 5 · verify recurring job"
+                    : "Step 3 of 5 · pair service property"}
+              </p>
+              <p className="mt-2 font-serif text-xl text-foreground">
+                Finish {workspace.focusedMemberProperty.homeownerName}&apos;s
+                Jobber handoff
+              </p>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                {workspace.focusedMemberProperty.propertyLabel}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                {focusedJobReady
+                  ? "The property and recurring membership job are verified. HomeAtlas refreshed eligible portal visits; return to the signed handoff to confirm that the next appointment is scheduled."
+                  : "HomeAtlas narrowed the visit search and locked the dropdown to this exact active membership. You still verify the physical property and recurring job before anything can reach the portal or billing gates."}
+              </p>
+            </div>
+            <Link
+              href={
+                focusedJobReady
+                  ? "/hq/sales#signed-to-scheduled"
+                  : "/hq/jobber#jobber-visits"
+              }
+              className="inline-flex min-h-10 shrink-0 items-center rounded-full border border-border px-4 text-[10px] font-bold uppercase tracking-[0.12em] text-muted transition hover:text-foreground"
+            >
+              {focusedJobReady ? "Return to handoff" : "Open full workspace"}
+            </Link>
+          </div>
+        </div>
+      ) : null}
 
       <form
         onSubmit={submitSearch}
@@ -380,7 +459,9 @@ export function JobberVisitWorkspacePanel() {
               visit.propertyClassification === "homeatlas_member_property";
             const attention = visit.propertyClassification === "link_attention";
             const selectedMembership =
-              selectedMemberships[visit.projectionId] ?? "";
+              selectedMemberships[visit.projectionId] ??
+              workspace.focusedMemberProperty?.membershipId ??
+              "";
             const confirmed =
               confirmedProperties[visit.projectionId] === true;
             const membershipJobConfirmed =
@@ -612,7 +693,9 @@ export function JobberVisitWorkspacePanel() {
         <p className="mt-5 text-xs text-muted">Loading Jobber visits...</p>
       ) : (
         <p className="mt-5 text-xs text-muted">
-          {workspace?.search
+          {workspace?.focusedMemberProperty
+            ? `No synchronized Jobber visits match ${workspace.focusedMemberProperty.homeownerName}. Create or schedule the recurring job in Jobber, run Sync all Jobber data, then return to this handoff.`
+            : workspace?.search
             ? "No synchronized visits match this search."
             : "No visits have been synchronized yet."}
         </p>

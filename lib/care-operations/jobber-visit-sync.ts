@@ -322,8 +322,13 @@ export async function listJobberVisits(options: {
   search?: string;
   page?: number;
   pageSize?: number;
+  externalPropertyId?: string | null;
+  externalClientId?: string | null;
 } = {}): Promise<JobberVisitList> {
   const search = options.search?.trim().slice(0, 120) ?? "";
+  const externalPropertyId =
+    options.externalPropertyId?.trim().slice(0, 200) ?? "";
+  const externalClientId = options.externalClientId?.trim().slice(0, 200) ?? "";
   const page = toBoundedInteger(options.page, 1, 1, 100_000);
   const pageSize = toBoundedInteger(options.pageSize, 25, 1, 100);
   const from = (page - 1) * pageSize;
@@ -333,6 +338,12 @@ export async function listJobberVisits(options: {
     .from("jobber_visit_projections")
     .select(PROJECTION_PREVIEW_SELECT, { count: "exact" })
     .eq("connection_id", JOBBER_CONNECTION_ID);
+
+  if (externalPropertyId) {
+    query = query.eq("external_property_id", externalPropertyId);
+  } else if (externalClientId) {
+    query = query.eq("external_client_id", externalClientId);
+  }
 
   if (search) {
     query = query.ilike("search_text", `%${escapeLikePattern(search)}%`);

@@ -10,9 +10,14 @@ import {
 } from "@/lib/care-operations/jobber-property-matching";
 
 export const runtime = "nodejs";
+const PRIVATE_HEADERS = { "Cache-Control": "private, no-store" };
+
+function json(body: unknown, status = 200) {
+  return NextResponse.json(body, { status, headers: PRIVATE_HEADERS });
+}
 
 function unauthorized() {
-  return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return json({ error: "Unauthorized" }, 401);
 }
 
 function listOptions(url: URL) {
@@ -20,6 +25,7 @@ function listOptions(url: URL) {
     search: url.searchParams.get("search") ?? "",
     page: Number.parseInt(url.searchParams.get("page") ?? "1", 10),
     pageSize: Number.parseInt(url.searchParams.get("pageSize") ?? "25", 10),
+    focusMembershipId: url.searchParams.get("membershipId"),
   };
 }
 
@@ -28,17 +34,17 @@ export async function GET(request: Request) {
     return unauthorized();
   }
   try {
-    return NextResponse.json(
+    return json(
       await loadJobberPropertyMatchingWorkspace(listOptions(new URL(request.url))),
     );
   } catch (error) {
+    if (error instanceof SupervisedPropertyMatchError) {
+      return json({ error: error.message }, error.status);
+    }
     const message =
       error instanceof Error ? error.message : "Property workspace failed";
     console.error("[jobber-property-links] load failed:", message);
-    return NextResponse.json(
-      { error: "Could not load supervised property matching." },
-      { status: 503 },
-    );
+    return json({ error: "Could not load supervised property matching." }, 503);
   }
 }
 
@@ -54,13 +60,14 @@ export async function POST(request: Request) {
     membershipServiceConfirmed?: boolean;
     expectedLinkUpdatedAt?: string | null;
     expectedJobLinkUpdatedAt?: string | null;
+    focusMembershipId?: string | null;
     search?: string;
     page?: number;
   };
   try {
     body = (await request.json()) as typeof body;
   } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+    return json({ error: "Invalid JSON body" }, 400);
   }
 
   try {
@@ -78,11 +85,12 @@ export async function POST(request: Request) {
           body.samePhysicalPropertyConfirmed === true,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
       });
-      return NextResponse.json({
+      return json({
         outcome,
         workspace: await loadJobberPropertyMatchingWorkspace({
           search: body.search,
           page: body.page,
+          focusMembershipId: body.focusMembershipId,
         }),
       });
     }
@@ -98,11 +106,12 @@ export async function POST(request: Request) {
         projectionId: body.projectionId,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
       });
-      return NextResponse.json({
+      return json({
         outcome,
         workspace: await loadJobberPropertyMatchingWorkspace({
           search: body.search,
           page: body.page,
+          focusMembershipId: body.focusMembershipId,
         }),
       });
     }
@@ -120,11 +129,12 @@ export async function POST(request: Request) {
           body.membershipServiceConfirmed === true,
         expectedJobLinkUpdatedAt: body.expectedJobLinkUpdatedAt,
       });
-      return NextResponse.json({
+      return json({
         outcome,
         workspace: await loadJobberPropertyMatchingWorkspace({
           search: body.search,
           page: body.page,
+          focusMembershipId: body.focusMembershipId,
         }),
       });
     }
@@ -140,37 +150,32 @@ export async function POST(request: Request) {
         projectionId: body.projectionId,
         expectedJobLinkUpdatedAt: body.expectedJobLinkUpdatedAt,
       });
-      return NextResponse.json({
+      return json({
         outcome,
         workspace: await loadJobberPropertyMatchingWorkspace({
           search: body.search,
           page: body.page,
+          focusMembershipId: body.focusMembershipId,
         }),
       });
     }
 
-    return NextResponse.json(
-      { error: "Choose a property or membership-job action." },
-      { status: 400 },
-    );
+    return json({ error: "Choose a property or membership-job action." }, 400);
   } catch (error) {
     if (error instanceof SupervisedPropertyMatchError) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: error.status },
-      );
+      return json({ error: error.message }, error.status);
     }
     const message = error instanceof Error ? error.message : "Write failed";
     console.error("[jobber-property-links] supervised write failed:", message);
     const membershipJobAction =
       body.action === "link_job" || body.action === "revoke_job";
-    return NextResponse.json(
+    return json(
       {
         error: membershipJobAction
           ? "The membership-job classification was not changed. Refresh and verify the exact recurring Jobber job before trying again."
           : "The property link was not changed. Refresh and verify both properties before trying again.",
       },
-      { status: 503 },
+      503,
     );
   }
 }

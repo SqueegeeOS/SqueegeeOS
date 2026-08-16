@@ -6,9 +6,14 @@ import { JobberConnectionPanel } from "@/components/admin/jobber-connection-pane
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
+import type { JobberHandoffFocus } from "@/lib/care-operations/jobber-handoff-navigation";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 
-function JobberHeadquartersContent() {
+function JobberHeadquartersContent({
+  focus,
+}: {
+  focus: JobberHandoffFocus | null;
+}) {
   return (
     <AmbientStage className="px-4 py-10 text-foreground sm:px-6 sm:py-12">
       <div className="relative mx-auto max-w-5xl">
@@ -23,16 +28,20 @@ function JobberHeadquartersContent() {
             and supervise the links that connect Jobber records to HomeAtlas.
           </p>
         </MotionReveal>
-        <JobberConnectionPanel />
+        <JobberConnectionPanel focus={focus} />
       </div>
     </AmbientStage>
   );
 }
 
-export function JobberHeadquartersPage() {
+export function JobberHeadquartersPage({
+  focus,
+}: {
+  focus: JobberHandoffFocus | null;
+}) {
   const [unlocked, setUnlocked] = useAdminUnlockedState();
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
   }
-  return <JobberHeadquartersContent />;
+  return <JobberHeadquartersContent focus={focus} />;
 }

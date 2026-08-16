@@ -5,6 +5,7 @@ import {
 } from "@/lib/membership/membership-status";
 import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
 import type { PaymentHandoffProgress } from "@/lib/membership/payment-handoff-progress";
+import { jobberHandoffHref } from "@/lib/care-operations/jobber-handoff-navigation";
 import { ROUTES } from "@/lib/navigation/config";
 import { presentationPresentPath } from "@/lib/presentations/navigation";
 
@@ -323,7 +324,7 @@ export function deriveSalesProductionHandoff(
         "The membership is active. HQ still needs to pair its service property to the correct Jobber property.",
       completedSteps: 2,
       actionLabel: "Open Jobber pairing",
-      actionHref: ROUTES.hqJobber,
+      actionHref: jobberHandoffHref(membership.id, "property"),
     };
   }
 
@@ -336,7 +337,7 @@ export function deriveSalesProductionHandoff(
         "The property is paired. HQ still needs to classify at least one recurring Jobber job for this membership.",
       completedSteps: 3,
       actionLabel: "Link recurring job",
-      actionHref: ROUTES.hqJobber,
+      actionHref: jobberHandoffHref(membership.id, "job"),
     };
   }
 
