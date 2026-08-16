@@ -52,6 +52,7 @@ export function MemberServiceHelp({
   const [details, setDetails] = useState("");
   const [feedback, setFeedback] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [cancellationOpen, setCancellationOpen] = useState(false);
   const pendingRequestId = useRef<string | null>(null);
   const requestRef = useRef<AbortController | null>(null);
 
@@ -156,6 +157,49 @@ export function MemberServiceHelp({
     }
   }, [appointmentId, category, details, portalToken]);
 
+  const submitCancellation = useCallback(async () => {
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      const headers = getMembershipActionHeaders(portalToken);
+      headers.set("Content-Type", "application/json");
+      const response = await fetch("/api/portal/service-cases", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          clientRequestId: crypto.randomUUID(),
+          category: "membership_cancellation",
+          appointmentId: null,
+          details:
+            "Customer submitted a written membership cancellation request through their private HomeAtlas portal.",
+        }),
+      });
+      const result = (await response.json()) as {
+        serviceCase?: CustomerServiceCasePortalView;
+        error?: string;
+      };
+      if (!response.ok || !result.serviceCase) {
+        throw new Error(result.error ?? "Your cancellation request could not be saved.");
+      }
+      setServiceCases((current) => [
+        result.serviceCase!,
+        ...current.filter((item) => item.id !== result.serviceCase!.id),
+      ]);
+      setCancellationOpen(false);
+      setFeedback(
+        "Your written cancellation request is timestamped and on file. The SqueegeeKing team will confirm the effective date and final account details.",
+      );
+    } catch (error) {
+      setFeedback(
+        error instanceof Error
+          ? error.message
+          : "Your cancellation request could not be saved.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }, [portalToken]);
+
   return (
     <PortalSection
       id="care-help"
@@ -229,7 +273,9 @@ export function MemberServiceHelp({
               }
               className="mt-2 w-full rounded-xl border border-border/70 bg-background/70 px-3.5 py-3 text-sm font-normal normal-case tracking-normal text-foreground outline-none focus:border-accent/45"
             >
-              {CUSTOMER_SERVICE_CASE_CATEGORIES.map((value) => (
+              {CUSTOMER_SERVICE_CASE_CATEGORIES.filter(
+                (value) => value !== "membership_cancellation",
+              ).map((value) => (
                 <option key={value} value={value}>
                   {CUSTOMER_SERVICE_CASE_CATEGORY_LABELS[value]}
                 </option>
@@ -298,6 +344,53 @@ export function MemberServiceHelp({
           </p>
         </PortalCard>
       )}
+
+      <div className="mt-6 border-t border-border/70 pt-5">
+        {!cancellationOpen ? (
+          <button
+            type="button"
+            onClick={() => {
+              setCancellationOpen(true);
+              setFeedback(null);
+            }}
+            className="text-xs text-muted underline decoration-border underline-offset-4 transition hover:text-foreground"
+          >
+            Request membership cancellation
+          </button>
+        ) : (
+          <PortalCard className="space-y-4 border-amber-300/15">
+            <div>
+              <p className="font-serif text-lg text-foreground">
+                Send a written cancellation request?
+              </p>
+              <p className="mt-2 text-xs leading-5 text-muted">
+                This records your request immediately. Our team will confirm the
+                effective date, any services already scheduled, and any terms in
+                your signed Service &amp; Quote Agreement. You do not need to give
+                a reason.
+              </p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => void submitCancellation()}
+                className={`flex-1 ${craftPrimaryButton} disabled:cursor-wait disabled:opacity-45`}
+              >
+                {submitting ? "Recording…" : "Send cancellation request"}
+              </button>
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => setCancellationOpen(false)}
+                className={`flex-1 ${craftSecondaryButton}`}
+              >
+                Keep my plan
+              </button>
+            </div>
+          </PortalCard>
+        )}
+      </div>
     </PortalSection>
   );
 }

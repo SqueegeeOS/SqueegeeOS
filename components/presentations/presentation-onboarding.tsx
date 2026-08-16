@@ -13,7 +13,6 @@ import {
 import {
   markMemberWelcomePending,
 } from "@/lib/membership/unlock-sequence";
-import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import { portalWelcomePathFromUrl } from "@/lib/pwa/install-welcome";
 import { cachePresentation } from "@/lib/presentations/client-cache";
 import {
@@ -43,6 +42,7 @@ import {
 } from "@/lib/membership/tier-config";
 import type { MembershipPlanId } from "@/lib/membership/types";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { RemoteEnrollmentHandoff } from "@/components/enrollment/remote-enrollment-handoff";
 
 type OnboardingStep = PersistedOnboardingStep;
 
@@ -60,12 +60,12 @@ function tierToPlanId(): MembershipPlanId {
 function resolveInitialStep(presentation: PresentationData): OnboardingStep {
   if (presentation.onboardingStatus === "complete") return "complete";
   const saved = readOnboardingStep(presentation.id);
-  if (saved) return saved;
+  if (saved) return saved === "welcome" ? "payment" : saved;
   if (
     presentation.onboardingStatus === "pending_payment" &&
     presentation.membershipId
   ) {
-    return "welcome";
+    return "payment";
   }
   return "sign";
 }
@@ -114,8 +114,6 @@ export function PresentationOnboarding({
   const [membershipId, setMembershipId] = useState<string | null>(
     presentation.membershipId,
   );
-  const [onboardingStatus, setOnboardingStatus] =
-    useState<PresentationOnboardingStatus | null>(presentation.onboardingStatus);
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
 
   const refreshPortalUrl = async () => {
@@ -166,7 +164,7 @@ export function PresentationOnboarding({
   }, [presentation.id, step]);
 
   useEffect(() => {
-    if (step === "welcome" || step === "complete") {
+    if (step === "complete") {
       void refreshPortalUrl();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -187,9 +185,8 @@ export function PresentationOnboarding({
         presentation.membershipId
       ) {
         setMembershipId(presentation.membershipId);
-        setOnboardingStatus("pending_payment");
-        if (STEP_ORDER[stepRef.current] < STEP_ORDER.welcome) {
-          goToStep("welcome");
+        if (STEP_ORDER[stepRef.current] < STEP_ORDER.payment) {
+          goToStep("payment");
         }
         return;
       }
@@ -220,16 +217,14 @@ export function PresentationOnboarding({
         if (data.onboardingStatus === "complete") {
           goToStep("complete");
           setPaymentSaved(true);
-          setOnboardingStatus("complete");
           if (data.membershipId) setMembershipId(data.membershipId);
           return;
         }
 
         if (data.onboardingIncomplete && data.membershipId) {
           setMembershipId(data.membershipId);
-          setOnboardingStatus("pending_payment");
-          if (STEP_ORDER[stepRef.current] < STEP_ORDER.welcome) {
-            goToStep("welcome");
+          if (STEP_ORDER[stepRef.current] < STEP_ORDER.payment) {
+            goToStep("payment");
           }
         }
       } catch {
@@ -321,8 +316,7 @@ export function PresentationOnboarding({
       if (signBody.portalUrl) {
         setPortalUrl(signBody.portalUrl);
       }
-      setOnboardingStatus(signBody.onboardingStatus ?? "pending_payment");
-      goToStep("welcome");
+      goToStep("payment");
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Something went wrong. Please try again.",
@@ -341,7 +335,6 @@ export function PresentationOnboarding({
     };
     syncPresentation(completedPresentation);
     setPaymentSaved(true);
-    setOnboardingStatus("complete");
     markMemberWelcomePending();
     goToStep("complete");
   };
@@ -422,7 +415,28 @@ export function PresentationOnboarding({
               </>
             )}
 
-            <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left">
+            <div className="mt-6">
+              <RemoteEnrollmentHandoff
+                key={tier}
+                presentation={presentation}
+                tier={tier}
+                firstVisitPrice={
+                  rates.carePlanPricing?.visits[0]?.total ?? visitPrice
+                }
+                recurringVisitPrice={visitPrice}
+                annualizedValue={annualTotal}
+              />
+            </div>
+
+            <div className="my-6 flex items-center gap-3" aria-hidden>
+              <span className="h-px flex-1 bg-white/10" />
+              <span className="text-[9px] uppercase tracking-[0.16em] text-white/28">
+                or sign together here
+              </span>
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
+
+            <div className="rounded-lg border border-white/10 bg-white/[0.03] p-4 text-left">
               <p className="font-serif text-sm italic leading-relaxed text-accent/80">
                 {MEMBERSHIP_BILLING_PHILOSOPHY}
               </p>
@@ -470,40 +484,6 @@ export function PresentationOnboarding({
           </div>
         ) : null}
 
-        {step === "welcome" ? (
-          <div className="rounded-lg border border-white/10 bg-[#0d0d0d] p-8 text-center sm:p-10">
-            <div className="mx-auto mb-6 h-px w-12 bg-accent/30" aria-hidden />
-            <h2 className="font-serif text-3xl font-light text-[#f5f2eb] sm:text-4xl">
-              Agreement signed.
-            </h2>
-            <p className="mt-3 text-base text-accent/90">
-              Welcome to {PLATFORM_BRAND.name} — one more step to activate your
-              membership.
-            </p>
-
-            <ul className="mt-8 space-y-3 text-left">
-              <ChecklistItem>Your membership agreement is on file.</ChecklistItem>
-              <ChecklistItem>
-                Membership status:{" "}
-                {onboardingStatus === "pending_payment"
-                  ? "pending payment setup"
-                  : "processing"}
-              </ChecklistItem>
-              <ChecklistItem>
-                Add a card on file to activate billing and scheduling.
-              </ChecklistItem>
-            </ul>
-
-            <button
-              type="button"
-              onClick={() => goToStep("payment")}
-              className="mt-8 w-full rounded-lg bg-gradient-to-br from-accent to-[#e8d5a3] py-4 text-sm font-bold text-[#060606]"
-            >
-              Continue to payment method
-            </button>
-          </div>
-        ) : null}
-
         {step === "payment" ? (
           <div className="rounded-lg border border-white/10 bg-[#0d0d0d] p-8 sm:p-10">
             <p className="text-[10px] uppercase tracking-[0.18em] text-accent/60">
@@ -526,7 +506,7 @@ export function PresentationOnboarding({
                 presentationId={presentation.id}
                 membershipId={membershipId ?? undefined}
                 theme="presentation"
-                onBack={() => goToStep("welcome")}
+                onBack={onClose}
                 onSuccess={handlePaymentSuccess}
               />
             </div>

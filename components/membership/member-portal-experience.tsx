@@ -175,11 +175,42 @@ export function MemberPortalExperience({
           <PortalPropertySwitcher household={portalHousehold} />
         ) : null}
 
-        {isCustomerPortal && portalData?.liveService ? (
-          <LiveCareStatus status={portalData.liveService} />
-        ) : (view.membershipActive || view.pendingPayment) && (
-          <NextCareVisitHero visit={view.nextCareVisit} />
-        )}
+        {isCustomerPortal ? (
+          <nav
+            aria-label="HomeAtlas quick actions"
+            className="craft-glass-subtle mt-8 overflow-x-auto rounded-2xl border border-accent/10 p-2 shadow-[var(--shadow-ambient)]"
+          >
+            <div className="grid min-w-[520px] grid-cols-4 gap-1">
+              {[
+                ["#next-visit", "Next visit", "01"],
+                ["#membership", "My plan", "02"],
+                ["#care-record", "Care record", "03"],
+                ["#service-help", "Get help", "04"],
+              ].map(([href, label, index]) => (
+                <a
+                  key={href}
+                  href={href}
+                  className="group rounded-xl px-3 py-3 text-left transition hover:bg-accent/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                >
+                  <span className="block text-[9px] tracking-[0.18em] text-accent/55">
+                    {index}
+                  </span>
+                  <span className="mt-1 block text-xs font-medium text-foreground/75 group-hover:text-foreground">
+                    {label}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </nav>
+        ) : null}
+
+        <div id="next-visit" className="scroll-mt-8">
+          {isCustomerPortal && portalData?.liveService ? (
+            <LiveCareStatus status={portalData.liveService} />
+          ) : (view.membershipActive || view.pendingPayment) ? (
+            <NextCareVisitHero visit={view.nextCareVisit} />
+          ) : null}
+        </div>
 
         <div className="mt-16 space-y-20 sm:mt-20 sm:space-y-24">
           {/* §2 — Membership */}
@@ -440,10 +471,12 @@ export function MemberPortalExperience({
           </PortalSection>
 
           {isCustomerPortal && resolvedPortalToken && portalData ? (
-            <MemberServiceHelp
-              portalToken={resolvedPortalToken}
-              appointments={portalData.appointments}
-            />
+            <div id="service-help" className="scroll-mt-8">
+              <MemberServiceHelp
+                portalToken={resolvedPortalToken}
+                appointments={portalData.appointments}
+              />
+            </div>
           ) : null}
 
           {/* §6 — Care Record */}

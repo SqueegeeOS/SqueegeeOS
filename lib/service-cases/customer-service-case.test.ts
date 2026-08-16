@@ -9,6 +9,7 @@ import {
 describe("customer service case contracts", () => {
   it("accepts only supported categories and operator actions", () => {
     expect(isCustomerServiceCaseCategory("service_quality")).toBe(true);
+    expect(isCustomerServiceCaseCategory("membership_cancellation")).toBe(true);
     expect(isCustomerServiceCaseCategory("refund_everything")).toBe(false);
     expect(isCustomerServiceCaseAction("acknowledge")).toBe(true);
     expect(isCustomerServiceCaseAction("send_text")).toBe(false);

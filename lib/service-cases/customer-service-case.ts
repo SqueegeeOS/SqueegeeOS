@@ -8,6 +8,7 @@ export const CUSTOMER_SERVICE_CASE_CATEGORIES = [
   "access_issue",
   "billing_question",
   "scheduling_question",
+  "membership_cancellation",
   "other",
 ] as const;
 
@@ -40,6 +41,7 @@ export const CUSTOMER_SERVICE_CASE_CATEGORY_LABELS: Record<
   access_issue: "Access or entry",
   billing_question: "Billing question",
   scheduling_question: "Scheduling question",
+  membership_cancellation: "Membership cancellation",
   other: "Something else",
 };
 

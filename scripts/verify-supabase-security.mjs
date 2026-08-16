@@ -65,6 +65,9 @@ const sensitiveTables = [
   "property_assessments",
   "property_visit_health_checks",
   "member_addon_transactions",
+  "agreement_document_versions",
+  "enrollment_packets",
+  "enrollment_packet_events",
 ];
 
 let failed = false;
@@ -128,7 +131,7 @@ console.log(
 if (!visitBucketPrivate) failed = true;
 
 if (failed) {
-  console.error("\nSecurity verification failed - apply all required migrations through 064.");
+  console.error("\nSecurity verification failed - apply all required migrations through 066.");
   process.exit(1);
 }
 

@@ -138,21 +138,51 @@ export async function createPortalServiceCase(input: {
     };
   }
 
-  const capacity = await supabase
-    .from("customer_service_cases")
-    .select("id")
-    .eq("membership_id", input.access.membershipId)
-    .in("status", ["open", "acknowledged"])
-    .limit(MAX_OPEN_PORTAL_CASES);
-  if (capacity.error) throw new Error(capacity.error.message);
-  if ((capacity.data ?? []).length >= MAX_OPEN_PORTAL_CASES) {
-    throw new CustomerServiceCaseActionError(
-      "You already have several open care requests. Our team needs to finish those before another is added.",
-      429,
-      "open_case_limit",
-    );
+  if (input.category === "membership_cancellation") {
+    const existingCancellation = await supabase
+      .from("customer_service_cases")
+      .select(PORTAL_SELECT)
+      .eq("membership_id", input.access.membershipId)
+      .eq("category", "membership_cancellation")
+      .in("status", ["open", "acknowledged"])
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingCancellation.error) {
+      throw new Error(existingCancellation.error.message);
+    }
+    if (existingCancellation.data) {
+      return {
+        serviceCase: toPortalView(
+          existingCancellation.data as PortalServiceCaseRow,
+        ),
+        duplicate: true,
+      };
+    }
+  } else {
+    const capacity = await supabase
+      .from("customer_service_cases")
+      .select("id")
+      .eq("membership_id", input.access.membershipId)
+      .in("status", ["open", "acknowledged"])
+      .limit(MAX_OPEN_PORTAL_CASES);
+    if (capacity.error) throw new Error(capacity.error.message);
+    if ((capacity.data ?? []).length >= MAX_OPEN_PORTAL_CASES) {
+      throw new CustomerServiceCaseActionError(
+        "You already have several open care requests. Our team needs to finish those before another is added.",
+        429,
+        "open_case_limit",
+      );
+    }
   }
 
+  if (appointmentId && input.category === "membership_cancellation") {
+    throw new CustomerServiceCaseActionError(
+      "Membership cancellation applies to the plan rather than one visit.",
+      400,
+      "cancellation_appointment_not_allowed",
+    );
+  }
   if (appointmentId) {
     const appointment = await supabase
       .from("member_appointments")
