@@ -195,6 +195,38 @@ describe("customer service case writes", () => {
     expect(upsertSpy).not.toHaveBeenCalled();
   });
 
+  it("never blocks a written cancellation request behind the open-case cap", async () => {
+    capacityResult = {
+      data: Array.from({ length: 5 }, (_, index) => ({ id: `case-${index}` })),
+      error: null,
+    };
+    upsertResult = {
+      data: {
+        ...row(),
+        category: "membership_cancellation",
+        details:
+          "Customer submitted a written membership cancellation request through their private HomeAtlas portal.",
+      },
+      error: null,
+    };
+    const { createPortalServiceCase } = await import(
+      "./customer-service-case-actions-server"
+    );
+    const result = await createPortalServiceCase({
+      access,
+      clientRequestId: IDS.request,
+      category: "membership_cancellation",
+      details:
+        "Customer submitted a written membership cancellation request through their private HomeAtlas portal.",
+    });
+
+    expect(result.duplicate).toBe(false);
+    expect(upsertSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ category: "membership_cancellation" }),
+      expect.any(Object),
+    );
+  });
+
   it("requires a private reason before dismissing a customer concern", async () => {
     const { recordCustomerServiceCaseAction } = await import(
       "./customer-service-case-actions-server"

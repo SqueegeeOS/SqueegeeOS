@@ -20,6 +20,7 @@ const FOUNDER_NAV_ITEMS = [
   { label: "Today", href: ROUTES.hqToday },
   { label: "Pulse", href: ROUTES.hqActivation, accent: true },
   { label: "Requests", href: ROUTES.hqPendingRequests, requests: true },
+  { label: "Enroll", href: ROUTES.hqEnrollment },
   { label: "Inbox", href: ROUTES.hqCommunications },
   { label: "Members", href: ROUTES.hqMembership },
   { label: "Jobber", href: ROUTES.hqJobber },

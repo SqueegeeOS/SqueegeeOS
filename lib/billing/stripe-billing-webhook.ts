@@ -11,6 +11,7 @@ import {
   stripePaymentIntentReference,
 } from "./stripe-payment-intent-binding";
 import { reconcileMemberAddonPaymentIntent } from "./member-addon-checkout";
+import { reconcileEnrollmentSetupIntent } from "@/lib/enrollment/reconcile-stripe-setup";
 
 export type StripeBillingWebhookResult =
   | { status: "processed"; billingOrderId: string | null }
@@ -339,6 +340,19 @@ export async function processStripeBillingWebhook(input: {
   const billingOrderId =
     intent?.metadata.homeatlas_billing_order_id?.trim() || null;
   try {
+    if (
+      input.event.type === "setup_intent.succeeded" &&
+      input.event.data.object.object === "setup_intent"
+    ) {
+      const outcome = await reconcileEnrollmentSetupIntent(
+        input.event.data.object as Stripe.SetupIntent,
+      );
+      await markWebhookProcessed(input.event);
+      return {
+        status: outcome === "ignored" ? "ignored" : "processed",
+        billingOrderId: null,
+      };
+    }
     if (
       intent &&
       !billingOrderId &&
