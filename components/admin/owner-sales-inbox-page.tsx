@@ -17,6 +17,7 @@ import {
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { paymentHandoffSendLabel } from "@/lib/membership/payment-handoff-progress";
+import { usePaymentHandoffRefresh } from "@/lib/membership/use-payment-handoff-refresh";
 import type {
   OwnerSalesPipelineHandoff,
   OwnerSalesPipelineLead,
@@ -549,6 +550,13 @@ export function SignedHandoffCard({
               : "Waiting for Stripe confirmation."}
           </p>
         </div>
+      ) : handoff.paymentHandoffProgress.state === "completed" ? (
+        <p
+          className="mt-3 rounded-xl border border-emerald-200/20 bg-emerald-200/[0.07] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.11em] text-emerald-100"
+          role="status"
+        >
+          Stripe confirmed · card on file
+        </p>
       ) : handoff.paymentHandoffProgress.state === "preparing" ? (
         <p className="mt-3 rounded-xl border border-current/15 bg-black/15 px-3 py-2 text-[10px] leading-4 opacity-78">
           Preparation is inside its five-minute safety window. Refresh before
@@ -660,6 +668,22 @@ function SignedHandoffDesk({
           </div>
         </div>
 
+        {handoffs?.summary.waitingCount ? (
+          <div className="mt-5 flex flex-col gap-3 rounded-2xl border border-violet-300/15 bg-violet-300/[0.04] px-4 py-3 text-violet-50 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs leading-5 text-violet-100/65">
+              Stripe status refreshes while this screen is open and whenever you
+              return to it. Completion never triggers a charge.
+            </p>
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="min-h-10 shrink-0 rounded-full border border-violet-100/25 bg-black/15 px-4 text-[9px] font-bold uppercase tracking-[0.12em]"
+            >
+              Check Stripe now
+            </button>
+          </div>
+        ) : null}
+
         {loading ? (
           <p className="py-12 text-center text-sm text-white/38">
             Verifying every agreement-backed close…
@@ -714,8 +738,13 @@ function OwnerSalesInboxContent() {
   const [repSlug, setRepSlug] = useState("all");
   const [moment, setMoment] = useState<"all" | SalesLeadActionMoment>("all");
 
-  const load = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
+  const load = useCallback(async (options?: {
+    signal?: AbortSignal;
+    silent?: boolean;
+  }) => {
+    const signal = options?.signal;
+    const silent = options?.silent ?? false;
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const response = await fetch("/api/admin/sales/pipeline", {
@@ -745,20 +774,34 @@ function OwnerSalesInboxContent() {
           : "The private sales pipeline could not load.",
       );
     } finally {
-      if (!signal?.aborted) setLoading(false);
+      if (!signal?.aborted && !silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
-      void load(controller.signal);
+      void load({ signal: controller.signal });
     }, 0);
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
     };
   }, [load]);
+
+  const refreshPendingPayments = useCallback(
+    () => load({ silent: true }),
+    [load],
+  );
+  const hasPendingPaymentHandoff = Boolean(
+    snapshot?.handoffs?.records.some(
+      (handoff) => handoff.stage === "payment_pending",
+    ),
+  );
+  usePaymentHandoffRefresh({
+    enabled: hasPendingPaymentHandoff,
+    refresh: refreshPendingPayments,
+  });
 
   useEffect(() => {
     if (!snapshot || !window.location.hash) return;
