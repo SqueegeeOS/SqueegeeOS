@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { createHash } from "node:crypto";
 import {
   buildSalesLeadCaptureFingerprint,
   salesLeadCaptureFingerprintMatches,
@@ -11,6 +12,7 @@ const capture: CanonicalSalesLeadCapture = {
   propertyAddress: "123 Atlas Way",
   phone: "+15305550101",
   email: "jordan@example.com",
+  serviceInterests: ["exterior_windows", "screens"],
   estimatedArrDollars: 1800,
   nextFollowUpAt: "2026-08-20T17:00:00.000Z",
   notes: "Interested in quarterly care.",
@@ -39,5 +41,43 @@ describe("sales lead capture idempotency", () => {
       }),
     ).toBe(false);
     expect(salesLeadCaptureFingerprintMatches(null, capture)).toBe(false);
+  });
+
+  it("distinguishes service context and accepts a migration-first exterior retry", () => {
+    const fingerprint = buildSalesLeadCaptureFingerprint(capture);
+    expect(
+      salesLeadCaptureFingerprintMatches(fingerprint, {
+        ...capture,
+        serviceInterests: ["exterior_windows"],
+      }),
+    ).toBe(false);
+
+    const exteriorCapture = {
+      ...capture,
+      serviceInterests: [
+        "exterior_windows",
+      ] as CanonicalSalesLeadCapture["serviceInterests"],
+    };
+    const legacyCanonical = JSON.stringify({
+      version: 1,
+      clientEventId: exteriorCapture.clientEventId,
+      fullName: exteriorCapture.fullName,
+      propertyAddress: exteriorCapture.propertyAddress,
+      phone: exteriorCapture.phone,
+      email: exteriorCapture.email,
+      estimatedArrCents: Math.round(exteriorCapture.estimatedArrDollars * 100),
+      nextFollowUpAt: exteriorCapture.nextFollowUpAt,
+      notes: exteriorCapture.notes,
+      smsConsentAttested: exteriorCapture.smsConsentAttested,
+      emailConsentAttested: exteriorCapture.emailConsentAttested,
+      doorMemoryClientEventId: exteriorCapture.doorMemoryClientEventId,
+    });
+    const legacyFingerprint = createHash("sha256")
+      .update(legacyCanonical)
+      .digest("hex");
+
+    expect(
+      salesLeadCaptureFingerprintMatches(legacyFingerprint, exteriorCapture),
+    ).toBe(true);
   });
 });

@@ -213,6 +213,9 @@ export async function POST(req: NextRequest) {
             leadIntake?.squareFootage ??
             (typeof body.homeSqft === "number" ? body.homeSqft : undefined),
           quoteSnapshot: leadIntake ? null : (body.quoteSnapshot ?? null),
+          serviceInterests: leadIntake
+            ? undefined
+            : lineage?.lead?.serviceInterests,
         });
       } catch (creationError) {
         // A second tab can win the unique-index race after our initial lookup.

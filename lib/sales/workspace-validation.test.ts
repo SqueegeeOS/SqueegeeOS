@@ -44,6 +44,7 @@ describe("sales workspace validation", () => {
       propertyAddress: "  123   Atlas Way  ",
       phone: "702-555-1212",
       email: "JORDAN@EXAMPLE.COM",
+      serviceInterests: ["screens", "interior_windows", "screens"],
       estimatedArrDollars: 1800,
       smsConsentAttested: true,
     });
@@ -56,10 +57,38 @@ describe("sales workspace validation", () => {
         propertyAddress: "123 Atlas Way",
         phone: "+17025551212",
         email: "jordan@example.com",
+        serviceInterests: [
+          "exterior_windows",
+          "interior_windows",
+          "screens",
+        ],
         estimatedArrDollars: 1800,
         smsConsentAttested: true,
       });
     }
+  });
+
+  it("rejects fabricated service identifiers and safely defaults to exterior", () => {
+    const base = {
+      clientEventId: "00000000-0000-4000-8000-000000000101",
+      fullName: "Jordan Homeowner",
+      propertyAddress: "123 Atlas Way",
+      phone: "530-555-0101",
+    };
+    const defaulted = validateCreateSalesLead(base);
+    expect(defaulted.ok).toBe(true);
+    if (defaulted.ok) {
+      expect(defaulted.value.serviceInterests).toEqual(["exterior_windows"]);
+    }
+    expect(
+      validateCreateSalesLead({
+        ...base,
+        serviceInterests: ["exterior_windows", "pressure_washing"],
+      }),
+    ).toEqual({
+      ok: false,
+      error: "Choose valid services for this homeowner.",
+    });
   });
 
   it("requires one device save identity separate from Door Memory", () => {

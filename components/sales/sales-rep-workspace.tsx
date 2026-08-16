@@ -13,6 +13,10 @@ import {
 } from "@/components/sales/door-memory";
 import { FirstFieldMission } from "@/components/sales/first-field-mission";
 import { LeadInteractionControl } from "@/components/sales/lead-interaction-control";
+import {
+  ServiceInterestChips,
+  ServiceInterestPicker,
+} from "@/components/sales/service-interest-control";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
@@ -139,6 +143,7 @@ interface FixedDoorFeedback {
 interface LeadActionDraft {
   status: UpdateSalesLeadInput["status"];
   estimatedArrDollars: number;
+  serviceInterests: NonNullable<UpdateSalesLeadInput["serviceInterests"]>;
   nextFollowUpAt: string;
   notes: string;
 }
@@ -166,6 +171,7 @@ function emptyLeadForm(clientEventId = ""): CreateSalesLeadInput {
     propertyAddress: "",
     phone: "",
     email: "",
+    serviceInterests: ["exterior_windows"],
     estimatedArrDollars: 1200,
     nextFollowUpAt: "",
     notes: "",
@@ -1423,6 +1429,7 @@ export function SalesRepWorkspace({
     setLeadActionDraft({
       status,
       estimatedArrDollars: lead.estimatedArrCents / 100,
+      serviceInterests: lead.serviceInterests,
       nextFollowUpAt: localDateTimeInputValue(lead.nextFollowUpAt),
       notes: lead.notes,
     });
@@ -2170,6 +2177,10 @@ export function SalesRepWorkspace({
                       <div className="min-w-0">
                         <h3 className="truncate font-serif text-xl text-foreground">{lead.fullName}</h3>
                         <p className="mt-1 truncate text-xs text-muted">{lead.propertyAddress}</p>
+                        <ServiceInterestChips
+                          interests={lead.serviceInterests}
+                          className="mt-3"
+                        />
                         <p className="mt-1 text-[9px] uppercase tracking-[0.16em] text-accent/80">
                           {salesLeadSourceLabel(lead.source)}
                         </p>
@@ -2341,6 +2352,19 @@ export function SalesRepWorkspace({
                             className={craftInput}
                           />
                         </div>
+
+                        <ServiceInterestPicker
+                          idPrefix={`lead-services-${lead.id}`}
+                          value={leadActionDraft.serviceInterests}
+                          className="mt-1"
+                          onChange={(serviceInterests) =>
+                            setLeadActionDraft((current) =>
+                              current
+                                ? { ...current, serviceInterests }
+                                : current,
+                            )
+                          }
+                        />
 
                         {leadActionDraft.status !== "lost" ? (
                           <div>
@@ -2936,6 +2960,17 @@ export function SalesRepWorkspace({
                     />
                   </div>
                 </div>
+
+                <ServiceInterestPicker
+                  idPrefix="sales-lead-services"
+                  value={leadForm.serviceInterests ?? ["exterior_windows"]}
+                  onChange={(serviceInterests) =>
+                    setLeadForm((current) => ({
+                      ...current,
+                      serviceInterests,
+                    }))
+                  }
+                />
 
                 <div className="grid gap-5 sm:grid-cols-2">
                   <div>

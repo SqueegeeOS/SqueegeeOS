@@ -30,6 +30,8 @@ import {
   resizeCarePlan,
 } from "./care-plan";
 import { selectAuthoritativeSalesLeadPresentation } from "./sales-lead-presentation";
+import { createSalesServiceInterestPresentationSeed } from "./sales-service-interest-seed";
+import type { SalesServiceInterest } from "@/lib/sales/service-interests";
 
 interface PresentationRow {
   id: string;
@@ -384,11 +386,23 @@ export function createDefaultPresentation(input?: {
   tier?: PresentationTier;
   homeSqft?: number;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
+  serviceInterests?: SalesServiceInterest[];
 }): PresentationData {
   const tier = normalizePresentationTier(input?.tier ?? "quarterly");
   const homeSqft = input?.homeSqft ?? input?.quoteSnapshot?.sqft ?? 2500;
   const rates = withComputedRates({ tier, homeSqft });
   const now = new Date().toISOString();
+  const serviceInterestSeed = createSalesServiceInterestPresentationSeed({
+    tier,
+    serviceInterests: input?.serviceInterests,
+  });
+  const quoteCarePlan = input?.quoteSnapshot
+    ? createDefaultCarePlan({
+        tier,
+        includeInterior: input.quoteSnapshot.includeInterior ?? false,
+        includeScreens: input.quoteSnapshot.includeScreens ?? false,
+      })
+    : null;
 
   return {
     id: newPresentationId(),
@@ -404,13 +418,9 @@ export function createDefaultPresentation(input?: {
     twoStory: input?.quoteSnapshot?.twoStory ?? false,
     includeScreens: input?.quoteSnapshot?.includeScreens ?? false,
     includeInterior: input?.quoteSnapshot?.includeInterior ?? false,
-    planMode: "simple",
+    planMode: quoteCarePlan ? "simple" : serviceInterestSeed.planMode,
     presentationLayout: "signature",
-    carePlan: createDefaultCarePlan({
-      tier,
-      includeInterior: input?.quoteSnapshot?.includeInterior ?? false,
-      includeScreens: input?.quoteSnapshot?.includeScreens ?? false,
-    }),
+    carePlan: quoteCarePlan ?? serviceInterestSeed.carePlan,
     tier,
     ...rates,
     visitRateOverrides: {},
@@ -539,6 +549,7 @@ export async function createPresentation(input?: {
   tier?: PresentationTier;
   homeSqft?: number;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
+  serviceInterests?: SalesServiceInterest[];
 }): Promise<PresentationData> {
   const record = createDefaultPresentation(input);
   return savePresentation(record);

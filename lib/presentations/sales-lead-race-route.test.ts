@@ -91,6 +91,7 @@ describe("field lead presentation two-tab race", () => {
         propertyAddress: "100 Safe Test Way",
         phone: null,
         email: null,
+        serviceInterests: ["exterior_windows", "screens"],
       },
     });
     mocks.findAuthoritativePresentationForSalesLead
@@ -129,6 +130,11 @@ describe("field lead presentation two-tab race", () => {
       2,
     );
     expect(mocks.createPresentation).toHaveBeenCalledTimes(1);
+    expect(mocks.createPresentation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        serviceInterests: ["exterior_windows", "screens"],
+      }),
+    );
     expect(mocks.markSalesLeadPresentationCreated).toHaveBeenCalledWith({
       repId: REP_ID,
       leadId: LEAD_ID,

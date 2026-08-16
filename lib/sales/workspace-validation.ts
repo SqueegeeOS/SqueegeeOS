@@ -13,6 +13,11 @@ import {
   normalizeSalesDoorAddressKey,
   type SalesDoorDisposition,
 } from "./door-memory";
+import {
+  isSalesServiceInterest,
+  normalizeSalesServiceInterests,
+  type SalesServiceInterest,
+} from "./service-interests";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
@@ -27,6 +32,25 @@ const EDITABLE_LEAD_STATUSES = new Set<UpdateSalesLeadInput["status"]>([
 
 function cleanText(value: unknown, maxLength: number): string {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function validateServiceInterests(
+  value: unknown,
+  allowMissing: boolean,
+):
+  | { ok: true; value: SalesServiceInterest[] | null }
+  | { ok: false; error: string } {
+  if (typeof value === "undefined" && allowMissing) {
+    return { ok: true, value: null };
+  }
+  if (typeof value !== "undefined" && !Array.isArray(value)) {
+    return { ok: false, error: "Choose valid services for this homeowner." };
+  }
+  const raw = Array.isArray(value) ? value : [];
+  if (raw.length > 5 || raw.some((interest) => !isSalesServiceInterest(interest))) {
+    return { ok: false, error: "Choose valid services for this homeowner." };
+  }
+  return { ok: true, value: normalizeSalesServiceInterests(raw) };
 }
 
 export function normalizeNorthAmericanPhone(value: unknown): string | null {
@@ -62,6 +86,10 @@ export function validateCreateSalesLead(input: unknown):
   const rawPhone = cleanText(raw.phone, 40);
   const phone = normalizeNorthAmericanPhone(rawPhone);
   const email = cleanText(raw.email, 320).toLowerCase() || null;
+  const serviceInterests = validateServiceInterests(
+    raw.serviceInterests,
+    false,
+  );
   const notes = cleanText(raw.notes, 2000);
   const smsConsentAttested = raw.smsConsentAttested === true;
   const emailConsentAttested = raw.emailConsentAttested === true;
@@ -83,6 +111,7 @@ export function validateCreateSalesLead(input: unknown):
   if (!phone && !email) {
     return { ok: false, error: "Add a phone number or email address." };
   }
+  if (!serviceInterests.ok) return serviceInterests;
   if (smsConsentAttested && !phone) {
     return { ok: false, error: "A phone number is required for text permission." };
   }
@@ -130,6 +159,7 @@ export function validateCreateSalesLead(input: unknown):
       propertyAddress,
       phone,
       email,
+      serviceInterests: serviceInterests.value ?? ["exterior_windows"],
       estimatedArrDollars: Math.round(estimatedArrDollars * 100) / 100,
       nextFollowUpAt,
       notes,
@@ -285,6 +315,7 @@ export function validateUpdateSalesLead(input: unknown):
         leadId: string;
         status: UpdateSalesLeadInput["status"];
         estimatedArrDollars: number;
+        serviceInterests: SalesServiceInterest[] | null;
         nextFollowUpAt: string | null;
         notes: string;
       };
@@ -309,6 +340,11 @@ export function validateUpdateSalesLead(input: unknown):
   }
 
   const notes = cleanText(raw.notes, 2000);
+  const serviceInterests = validateServiceInterests(
+    raw.serviceInterests,
+    true,
+  );
+  if (!serviceInterests.ok) return serviceInterests;
   if (status === "lost" && notes.length < 3) {
     return { ok: false, error: "Add a short reason before closing this lead." };
   }
@@ -344,6 +380,7 @@ export function validateUpdateSalesLead(input: unknown):
       leadId,
       status,
       estimatedArrDollars: Math.round(estimatedArrDollars * 100) / 100,
+      serviceInterests: serviceInterests.value,
       nextFollowUpAt,
       notes,
     },

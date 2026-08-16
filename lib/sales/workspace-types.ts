@@ -3,6 +3,7 @@ import type { SalesRepLaunchCountsEvidence } from "./rep-launch-readiness";
 import type { SalesProductionHandoffRecord } from "./production-handoff";
 import type { SalesDoorDisposition } from "./door-memory";
 import type { SalesLeadCloseJourney } from "./lead-close-journey";
+import type { SalesServiceInterest } from "./service-interests";
 
 export const SALES_ACTIVITY_TYPES = [
   "door_knock",
@@ -84,6 +85,8 @@ export interface SalesRepLead {
   email: string | null;
   status: SalesLeadStatus;
   source: SalesLeadSource;
+  /** Services discussed, not quoted or contractually included. */
+  serviceInterests: SalesServiceInterest[];
   estimatedArrCents: number;
   nextFollowUpAt: string | null;
   notes: string;
@@ -155,6 +158,7 @@ export interface CreateSalesLeadInput {
   propertyAddress: string;
   phone?: string | null;
   email?: string | null;
+  serviceInterests?: SalesServiceInterest[];
   estimatedArrDollars?: number;
   nextFollowUpAt?: string | null;
   notes?: string | null;
@@ -176,6 +180,7 @@ export interface UpdateSalesLeadInput {
     "new" | "follow_up" | "presentation" | "considering" | "lost"
   >;
   estimatedArrDollars: number;
+  serviceInterests?: SalesServiceInterest[];
   nextFollowUpAt?: string | null;
   notes?: string | null;
 }

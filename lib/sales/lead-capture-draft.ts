@@ -1,4 +1,5 @@
 import type { CreateSalesLeadInput } from "./workspace-types";
+import { normalizeSalesServiceInterests } from "./service-interests";
 
 export const SALES_LEAD_CAPTURE_DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
 const DRAFT_VERSION = 1;
@@ -37,6 +38,7 @@ export function hasMeaningfulSalesLeadCaptureDraft(
       form.email?.trim() ||
       form.nextFollowUpAt ||
       form.notes?.trim() ||
+      normalizeSalesServiceInterests(form.serviceInterests).length > 1 ||
       form.doorMemoryClientEventId,
   );
 }
@@ -58,6 +60,7 @@ export function serializeSalesLeadCaptureDraft(
       propertyAddress: form.propertyAddress,
       phone: form.phone ?? null,
       email: form.email ?? null,
+      serviceInterests: normalizeSalesServiceInterests(form.serviceInterests),
       estimatedArrDollars: form.estimatedArrDollars ?? 0,
       nextFollowUpAt: form.nextFollowUpAt ?? null,
       notes: form.notes ?? null,
@@ -131,6 +134,7 @@ export function parseSalesLeadCaptureDraft(
       propertyAddress: boundedString(form.propertyAddress, 260),
       phone: nullableString(form.phone, 40),
       email: nullableString(form.email, 320),
+      serviceInterests: normalizeSalesServiceInterests(form.serviceInterests),
       estimatedArrDollars: Math.round(estimatedArrDollars * 100) / 100,
       nextFollowUpAt,
       notes: nullableString(form.notes, 2000),
