@@ -56,7 +56,9 @@ export function validateCreateSalesLead(input: unknown):
   const raw = input as Record<string, unknown>;
   const clientEventId = cleanText(raw.clientEventId, 80);
   const fullName = cleanText(raw.fullName, 140);
-  const propertyAddress = cleanText(raw.propertyAddress, 260);
+  const propertyAddress = normalizeSalesDoorAddress(
+    cleanText(raw.propertyAddress, 260),
+  );
   const rawPhone = cleanText(raw.phone, 40);
   const phone = normalizeNorthAmericanPhone(rawPhone);
   const email = cleanText(raw.email, 320).toLowerCase() || null;

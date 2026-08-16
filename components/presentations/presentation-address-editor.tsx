@@ -6,6 +6,7 @@ import {
   isValidUsPostalCode,
   normalizeUsPostalCodeInput,
 } from "@/lib/address/postal-code";
+import { formatUsPropertyAddress } from "@/lib/address/us-property-address";
 import { parseClientAddress } from "@/lib/presentations/parse-client-address";
 import { EditorTextInput } from "./presentation-editor-kit";
 
@@ -44,15 +45,6 @@ function initialAddressParts(value: string): AddressParts {
     : { street: value.trim(), city: "", state: "", zip: "" };
 }
 
-function formatAddress(parts: AddressParts): string {
-  const stateZip = [parts.state.trim().toUpperCase(), parts.zip.trim()]
-    .filter(Boolean)
-    .join(" ");
-  return [parts.street.trim(), parts.city.trim(), stateZip]
-    .filter(Boolean)
-    .join(", ");
-}
-
 export function PresentationAddressEditor({
   value,
   onChange,
@@ -71,7 +63,7 @@ export function PresentationAddressEditor({
   const update = (patch: Partial<AddressParts>) => {
     const next = { ...parts, ...patch };
     setParts(next);
-    onChange(formatAddress(next));
+    onChange(formatUsPropertyAddress(next));
   };
 
   const zipInvalid = parts.zip.length > 0 && !isValidUsPostalCode(parts.zip);
@@ -141,7 +133,7 @@ export function PresentationAddressEditor({
       const payload = (await response.json()) as { address: AddressParts };
       const next = payload.address;
       setParts(next);
-      onChange(formatAddress(next));
+      onChange(formatUsPropertyAddress(next));
       setLookupStatus("Address filled. You can edit any field.");
       sessionToken.current = createSessionToken();
     } catch {
