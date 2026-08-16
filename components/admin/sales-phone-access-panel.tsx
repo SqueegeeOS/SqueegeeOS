@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { SalesPhoneInstallHandoff } from "@/components/admin/sales-phone-install-handoff";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
   deriveSalesRepLaunchReadiness,
@@ -82,7 +83,6 @@ export function SalesPhoneAccessPanel() {
   const [error, setError] = useState<string | null>(null);
   const [workingRep, setWorkingRep] = useState<string | null>(null);
   const [issuedPass, setIssuedPass] = useState<IssuedPass | null>(null);
-  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,7 +118,6 @@ export function SalesPhoneAccessPanel() {
   async function issue(rep: RosterMember) {
     setWorkingRep(rep.repSlug);
     setIssuedPass(null);
-    setCopied(false);
     setError(null);
     try {
       const response = await fetch("/api/admin/sales/access-grants", {
@@ -188,16 +187,6 @@ export function SalesPhoneAccessPanel() {
     }
   }
 
-  async function copyInstallLink() {
-    if (!issuedPass) return;
-    try {
-      await navigator.clipboard.writeText(issuedPass.installUrl);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-    }
-  }
-
   return (
     <section
       id="sales-phone-access"
@@ -234,31 +223,12 @@ export function SalesPhoneAccessPanel() {
       ) : null}
 
       {issuedPass ? (
-        <div className="mt-6 rounded-2xl border border-emerald-300/25 bg-emerald-300/[0.06] p-4 sm:p-5">
-          <p className="text-[10px] uppercase tracking-[0.17em] text-emerald-200/75">
-            {issuedPass.displayName}&apos;s one-time install link
-          </p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input
-              readOnly
-              value={issuedPass.installUrl}
-              aria-label="One-time sales phone install link"
-              className="min-h-12 min-w-0 flex-1 rounded-xl border border-white/10 bg-black/25 px-3 text-xs text-white/72 outline-none"
-              onFocus={(event) => event.currentTarget.select()}
-            />
-            <button
-              type="button"
-              onClick={() => void copyInstallLink()}
-              className="min-h-12 rounded-xl bg-emerald-200 px-5 text-xs font-semibold text-[#07110c]"
-            >
-              {copied ? "Copied" : "Copy link"}
-            </button>
-          </div>
-          <p className="mt-2 text-xs text-white/38">
-            Open it on that phone before {formatDateTime(issuedPass.inviteExpiresAt)}.
-            The link disappears after installation.
-          </p>
-        </div>
+        <SalesPhoneInstallHandoff
+          key={issuedPass.installUrl}
+          displayName={issuedPass.displayName}
+          installUrl={issuedPass.installUrl}
+          inviteExpiresAt={issuedPass.inviteExpiresAt}
+        />
       ) : null}
 
       <div className="mt-6 grid gap-3 lg:grid-cols-2">

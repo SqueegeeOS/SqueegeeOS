@@ -37,6 +37,16 @@ describe("sales workspace active-queue loading contract", () => {
     expect(server).toContain("recentDoorMemories: doorMemoryResult.memories");
   });
 
+  it("loads first-loop proof without making the field desk depend on reporting", () => {
+    expect(server).toContain(
+      'supabase.rpc("homeatlas_sales_rep_launch_evidence")',
+    );
+    expect(server).toContain("if (!launchEvidenceResult.error)");
+    expect(server).toContain("salesRepLaunchCountsEvidenceFromRow");
+    expect(server).toContain("unavailableSalesRepLaunchCountsEvidence");
+    expect(server).toContain("launchEvidence,");
+  });
+
   it("proves door ownership and retry identity before accepting an outcome", () => {
     expect(server).toContain(
       '.eq("client_event_id", input.doorActivityClientEventId)',

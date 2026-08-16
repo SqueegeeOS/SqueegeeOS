@@ -31,6 +31,10 @@ const newPresentation = read(
   "../../components/presentations/new-presentation-page.tsx",
 );
 const accessPanel = read("../../components/admin/sales-phone-access-panel.tsx");
+const installHandoff = read(
+  "../../components/admin/sales-phone-install-handoff.tsx",
+);
+const installQr = read("./phone-install-qr.ts");
 const salesInbox = read("../../components/admin/owner-sales-inbox-page.tsx");
 
 describe("sales phone-pass least-privilege contract", () => {
@@ -112,5 +116,19 @@ describe("sales phone-pass least-privilege contract", () => {
     expect(accessPanel).not.toContain("twilio");
     expect(accessPanel).not.toContain("resend");
     expect(accessPanel).not.toContain("stripe");
+  });
+
+  it("moves the one-time credential onto the phone without leaking it to a QR service", () => {
+    expect(accessPanel).toContain("SalesPhoneInstallHandoff");
+    expect(installHandoff).toContain("buildSalesPhoneInstallQrDataUrl");
+    expect(installQr).toContain('import("qrcode")');
+    expect(installQr).toContain("isSalesPhoneInstallUrl");
+    expect(installHandoff).toContain("navigator.clipboard.writeText");
+    expect(installHandoff).toContain("navigator.share");
+    expect(installHandoff).toContain("Install this phone pass");
+    expect(installHandoff).toMatch(/made\s+locally inside HQ/);
+    expect(installHandoff).not.toContain("api.qrserver");
+    expect(installHandoff).not.toContain("chart.googleapis");
+    expect(installHandoff).not.toContain("fetch(");
   });
 });
