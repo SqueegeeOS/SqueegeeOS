@@ -14,11 +14,13 @@ import { PresentationEditor } from "./presentation-editor";
 export function PresentationEditorLoader({
   id,
   inquirySyncPending = false,
+  preauthorized = false,
 }: {
   id: string;
   inquirySyncPending?: boolean;
+  preauthorized?: boolean;
 }) {
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(preauthorized);
   const [presentation, setPresentation] = useState<PresentationData | null>(null);
   const [recoveredDraft, setRecoveredDraft] = useState(false);
   const [loading, setLoading] = useState(true);

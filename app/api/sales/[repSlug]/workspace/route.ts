@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import { authorizeSalesRepRequest } from "@/lib/sales/sales-access";
 import {
   createSalesActivity,
   createSalesLead,
@@ -40,8 +40,10 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ repSlug: string }> },
 ) {
-  if (!authorizeAdminRequest(request.headers)) return unauthorized();
   const { repSlug } = await params;
+  if (!(await authorizeSalesRepRequest(request.headers, repSlug))) {
+    return unauthorized();
+  }
 
   try {
     const workspace = await loadSalesWorkspace(repSlug);
@@ -57,8 +59,10 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ repSlug: string }> },
 ) {
-  if (!authorizeAdminRequest(request.headers)) return unauthorized();
   const { repSlug } = await params;
+  if (!(await authorizeSalesRepRequest(request.headers, repSlug))) {
+    return unauthorized();
+  }
 
   let command: SalesWorkspaceCommand;
   try {

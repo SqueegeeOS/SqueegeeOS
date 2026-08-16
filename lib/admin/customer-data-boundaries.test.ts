@@ -7,17 +7,17 @@ function readProjectFile(path: string): string {
 
 describe("customer data route boundaries", () => {
   it("protects presentation reads and writes at the route handler", () => {
-    for (const route of [
-      "app/api/presentations/route.ts",
-      "app/api/presentations/[id]/route.ts",
+    const collection = readProjectFile("app/api/presentations/route.ts");
+    const item = readProjectFile("app/api/presentations/[id]/route.ts");
+    const assistant = readProjectFile(
       "app/api/presentations/plan-assistant/route.ts",
-    ]) {
-      const source = readProjectFile(route);
-      expect(source).toContain("authorizeAdminRequest");
-      expect(source).toMatch(
-        /authorizeAdminRequest\((?:req|request)\.headers\)/,
-      );
-    }
+    );
+
+    expect(collection).toContain("authorizeAdminRequest(req.headers)");
+    expect(collection).toContain("authorizeSalesRequest(req.headers)");
+    expect(item).toContain("authorizeSalesPresentationRequest(req.headers, id)");
+    expect(assistant).toContain("authorizeSalesPresentationRequest(");
+    expect(assistant).toContain("input.presentationId");
   });
 
   it("does not query presentation records in anonymous server pages", () => {
@@ -167,6 +167,7 @@ describe("customer data route boundaries", () => {
       "/hq/:path+",
       "/david/:path*",
       "/sales/:path*",
+      "/presentations/:path*",
       "/employee/:path*",
       "/tech/:path*",
       "/properties/:path*",
@@ -188,7 +189,9 @@ describe("customer data route boundaries", () => {
       "lib/persistence/supabase/migrations/048_sales_rep_workspace.sql",
     );
 
-    expect(route).toContain("authorizeAdminRequest(request.headers)");
+    expect(route).toContain(
+      "authorizeSalesRepRequest(request.headers, repSlug)",
+    );
     for (const table of [
       "sales_reps",
       "sales_rep_leads",

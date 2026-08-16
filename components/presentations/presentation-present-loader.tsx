@@ -11,10 +11,12 @@ import { PresentationViewer } from "./presentation-viewer";
 
 export function PresentationPresentLoader({
   id,
+  preauthorized = false,
 }: {
   id: string;
+  preauthorized?: boolean;
 }) {
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(preauthorized);
   const [presentation, setPresentation] = useState<PresentationData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

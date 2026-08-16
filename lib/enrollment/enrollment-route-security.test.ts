@@ -12,8 +12,10 @@ const stripeHandoff = read("./stripe-handoff.ts");
 const docusignProcessor = read("./process-docusign-connect.ts");
 
 describe("enrollment route security contract", () => {
-  it("keeps packet creation and operational readiness behind HQ auth", () => {
-    expect(sendRoute).toContain("authorizeAdminRequest(request.headers)");
+  it("keeps packet creation behind presentation ownership and readiness behind HQ auth", () => {
+    expect(sendRoute).toContain(
+      "authorizeSalesPresentationRequest(request.headers, presentationId)",
+    );
     expect(readinessRoute).toContain("authorizeAdminRequest(request.headers)");
   });
 

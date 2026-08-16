@@ -11,14 +11,16 @@ export function NewPresentationPage({
   backHref = "/presentations",
   repSlug = null,
   salesRepLeadId = null,
+  preauthorized = false,
 }: {
   createdBy?: string;
   backHref?: string;
   repSlug?: string | null;
   salesRepLeadId?: string | null;
+  preauthorized?: boolean;
 }) {
   const router = useRouter();
-  const [unlocked, setUnlocked] = useState(false);
+  const [unlocked, setUnlocked] = useState(preauthorized);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isLeadPitch = Boolean(repSlug && salesRepLeadId);

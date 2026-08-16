@@ -57,6 +57,11 @@ const sensitiveTables = [
   "customer_conversations",
   "customer_messages",
   "customer_communication_webhook_events",
+  "sales_reps",
+  "sales_rep_leads",
+  "sales_rep_activity_events",
+  "sales_rep_attributions",
+  "sales_rep_access_grants",
   "google_business_connections",
   "member_profiles",
   "member_savings_transactions",
@@ -131,7 +136,7 @@ console.log(
 if (!visitBucketPrivate) failed = true;
 
 if (failed) {
-  console.error("\nSecurity verification failed - apply all required migrations through 066.");
+  console.error("\nSecurity verification failed - apply all required migrations through 067.");
   process.exit(1);
 }
 

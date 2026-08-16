@@ -235,6 +235,11 @@ async function runSchemaChecks(
       table: "technician_access_grants",
     },
     {
+      id: "sales-rep-phone-access-schema",
+      label: "sales_rep_access_grants",
+      table: "sales_rep_access_grants",
+    },
+    {
       id: "technician-visit-automation-schema",
       label: "technician_visit_events",
       table: "technician_visit_events",

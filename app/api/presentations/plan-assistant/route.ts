@@ -4,7 +4,7 @@ import { generateText, Output } from "ai";
 import { openai } from "@ai-sdk/openai";
 import { z } from "zod";
 import { NextRequest, NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import { authorizeSalesPresentationRequest } from "@/lib/sales/sales-access";
 import {
   createDefaultCarePlan,
   normalizeCarePlan,
@@ -12,6 +12,7 @@ import {
 } from "@/lib/presentations/care-plan";
 
 const requestSchema = z.object({
+  presentationId: z.string().uuid(),
   brief: z.string().trim().min(8).max(2_000),
   currentTier: z.enum(["biannual", "triannual", "quarterly"]),
   customerName: z.string().trim().max(120).optional(),
@@ -47,15 +48,6 @@ function unauthorized() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!authorizeAdminRequest(request.headers)) return unauthorized();
-
-  if (!process.env.OPENAI_API_KEY?.trim()) {
-    return NextResponse.json(
-      { error: "Atlas Assistant is not configured yet." },
-      { status: 503 },
-    );
-  }
-
   const parsed = requestSchema.safeParse(await request.json().catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
@@ -65,6 +57,20 @@ export async function POST(request: NextRequest) {
   }
 
   const input = parsed.data;
+  if (
+    !(await authorizeSalesPresentationRequest(
+      request.headers,
+      input.presentationId,
+    ))
+  ) {
+    return unauthorized();
+  }
+  if (!process.env.OPENAI_API_KEY?.trim()) {
+    return NextResponse.json(
+      { error: "Atlas Assistant is not configured yet." },
+      { status: 503 },
+    );
+  }
   try {
     const result = await generateText({
       model: openai(process.env.OPENAI_PRESENTATION_MODEL ?? "gpt-5.4-mini"),

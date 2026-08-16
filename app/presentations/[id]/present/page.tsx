@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { PresentationPresentLoader } from "@/components/presentations/presentation-present-loader";
 import { platformPageTitle } from "@/lib/brand/platform";
+import { requireSalesPresentationPageActor } from "@/lib/sales/sales-access-dal";
 
 export const dynamic = "force-dynamic";
 
@@ -15,5 +16,6 @@ export default async function PresentPresentationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return <PresentationPresentLoader id={id} />;
+  await requireSalesPresentationPageActor(id, `/presentations/${id}/present`);
+  return <PresentationPresentLoader id={id} preauthorized />;
 }
