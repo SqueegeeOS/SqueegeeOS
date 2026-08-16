@@ -32,6 +32,7 @@ import {
   visitFieldFollowUpAnchorId,
 } from "@/lib/care-operations/jobber-today-links";
 import { jobberTodayPairingHref } from "@/lib/care-operations/jobber-handoff-navigation";
+import { billingTodayReviewHref } from "@/lib/admin/billing-workspace-links";
 
 const VisitFieldCapture = dynamic(
   () =>
@@ -453,6 +454,19 @@ function JobberVisitCard({
             {formatTimeRange(visit, timezone)} Pacific
           </p>
           <div className="flex flex-wrap gap-2">
+            {visit.homeAtlasMembershipId && appointmentId ? (
+              <Link
+                href={billingTodayReviewHref({
+                  membershipId: visit.homeAtlasMembershipId,
+                  appointmentId,
+                  projectionId: visit.projectionId,
+                })}
+                className="inline-flex min-h-10 items-center justify-center rounded-full border border-accent/40 bg-accent/10 px-4 text-xs font-medium text-accent transition hover:bg-accent/15"
+                title="Opens this exact appointment in Billing. No email or charge happens from this link."
+              >
+                Review payment readiness
+              </Link>
+            ) : null}
             {visit.homeAtlasPortalPath ? (
               <Link
                 href={visit.homeAtlasPortalPath}

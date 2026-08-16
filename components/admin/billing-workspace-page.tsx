@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { BillingOverview } from "@/components/admin/billing-overview";
@@ -14,7 +15,17 @@ import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
-import type { BillingWorkspaceData } from "@/lib/admin/billing-workspace-types";
+import {
+  BILLING_PAYMENT_REVIEW_ANCHOR,
+  billingMembershipAnchorId,
+  type BillingWorkspaceFocus,
+} from "@/lib/admin/billing-workspace-links";
+import { formatBillingStatusLabel } from "@/lib/admin/billing-charge-dates";
+import { formatCurrency } from "@/lib/admin/sales-calculations";
+import type {
+  BillingRegisterRow,
+  BillingWorkspaceData,
+} from "@/lib/admin/billing-workspace-types";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
 
@@ -40,7 +51,126 @@ function BillingLoadingShell() {
   );
 }
 
-function BillingWorkspaceContent() {
+function paymentSetupSummary(row: BillingRegisterRow): string {
+  switch (row.paymentSetupEmailState) {
+    case "card_on_file":
+      return row.cardOnFileLabel ?? "Stripe confirms a saved card.";
+    case "ready":
+      return `No card is saved. The secure Stripe email is ready${row.paymentSetupEmailRecipient ? ` for ${row.paymentSetupEmailRecipient}` : ""}.`;
+    case "needs_email":
+      return "No card is saved. Add a valid customer email before sending the secure Stripe link.";
+    case "needs_agreement":
+      return "No card is saved. The service agreement must be signed before the Stripe link unlocks.";
+    case "needs_authorization_review":
+      return "No card is saved. Review the signed billing authorization before sending the Stripe link.";
+    default:
+      return "No verified card-on-file action is currently available for this membership.";
+  }
+}
+
+function BillingPaymentReview({
+  focus,
+  row,
+}: {
+  focus: BillingWorkspaceFocus;
+  row: BillingRegisterRow | null;
+}) {
+  const exactAppointment = row?.nextAppointmentId === focus.appointmentId;
+  const amount = row?.jobberScheduledAmount ?? row?.visitPrice ?? null;
+
+  return (
+    <section
+      id={BILLING_PAYMENT_REVIEW_ANCHOR}
+      className="scroll-mt-24"
+    >
+      <GlassCard
+        tone="default"
+        padding="lg"
+        motion="rise"
+        rim
+        className="border border-accent/30 bg-accent/[0.055]"
+      >
+        <p className={craftEyebrow}>Exact Today handoff</p>
+        <div className="mt-3 flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
+          <div>
+            <h2 className="font-serif text-2xl font-light text-foreground sm:text-3xl">
+              {row ? `Payment review · ${row.homeownerName}` : "Payment review unavailable"}
+            </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
+              {row
+                ? exactAppointment
+                  ? "This is the same verified HomeAtlas appointment you opened from Today. Review its card, signed authority, Jobber amount, and billing state below."
+                  : "HomeAtlas found the membership, but Billing’s next verified Jobber appointment is not the Today appointment you opened. Refresh Jobber before relying on this record."
+                : "This membership is not in the active Billing register. Return to Today and verify the member, agreement, and Jobber pairing before taking payment action."}
+            </p>
+            <p className="mt-2 text-xs leading-relaxed text-emerald-200/80">
+              Opening this review never sends an email and never charges a card.
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Link
+              href={focus.returnTo}
+              className="inline-flex min-h-10 items-center rounded-full border border-border px-4 text-xs text-muted transition hover:border-foreground/30 hover:text-foreground"
+            >
+              Return to Today
+            </Link>
+            {row ? (
+              <a
+                href={`#${billingMembershipAnchorId(row.membershipId)}`}
+                className="inline-flex min-h-10 items-center rounded-full border border-accent/35 bg-accent/10 px-4 text-xs text-accent transition hover:bg-accent/15"
+              >
+                Open exact billing row
+              </a>
+            ) : null}
+          </div>
+        </div>
+
+        {row ? (
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border border-border/60 bg-background/45 p-4">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+                Visit identity
+              </p>
+              <p className={`mt-2 text-sm ${exactAppointment ? "text-emerald-200" : "text-amber-200"}`}>
+                {exactAppointment ? "Exact appointment matched" : "Appointment mismatch"}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/45 p-4">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+                Card readiness
+              </p>
+              <p className="mt-2 text-sm text-foreground">
+                {paymentSetupSummary(row)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/45 p-4">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+                Verified amount
+              </p>
+              <p className="mt-2 text-sm text-foreground">
+                {amount == null ? "Awaiting priced Jobber visit" : formatCurrency(amount)}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/60 bg-background/45 p-4">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+                Billing state
+              </p>
+              <p className="mt-2 text-sm text-foreground">
+                {formatBillingStatusLabel(row.billingStatus)}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </GlassCard>
+    </section>
+  );
+}
+
+function BillingWorkspaceContent({
+  focus,
+}: {
+  focus: BillingWorkspaceFocus | null;
+}) {
   const [data, setData] = useState<BillingWorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -141,6 +271,16 @@ function BillingWorkspaceContent() {
           <p className="text-sm text-red-400">{error}</p>
         ) : data ? (
           <div className="space-y-8">
+            {focus ? (
+              <BillingPaymentReview
+                focus={focus}
+                row={
+                  data.rows.find(
+                    (row) => row.membershipId === focus.membershipId,
+                  ) ?? null
+                }
+              />
+            ) : null}
             <BillingOverview overview={data.overview} />
 
             {automation ? (
@@ -195,6 +335,7 @@ function BillingWorkspaceContent() {
                 rows={data.rows}
                 stripeDashboardLive={data.stripeDashboardLive}
                 onRecorded={() => void loadWorkspace(false)}
+                focusedMembershipId={focus?.membershipId ?? null}
               />
             </GlassCard>
           </div>
@@ -204,12 +345,16 @@ function BillingWorkspaceContent() {
   );
 }
 
-export function BillingWorkspacePage() {
+export function BillingWorkspacePage({
+  focus = null,
+}: {
+  focus?: BillingWorkspaceFocus | null;
+}) {
   const [unlocked, setUnlocked] = useAdminUnlockedState();
 
   if (!unlocked) {
     return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
   }
 
-  return <BillingWorkspaceContent />;
+  return <BillingWorkspaceContent focus={focus} />;
 }
