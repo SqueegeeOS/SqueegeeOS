@@ -198,6 +198,10 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain("Show all ${leadActionQueue.length} open people");
     expect(workspace).toContain("[content-visibility:auto]");
     expect(workspace).toContain("setActionClock(Date.now())");
+    expect(workspace).toContain("salesRepLeadIdFromHash");
+    expect(workspace).toContain("salesRepLeadAnchorId(lead.id)");
+    expect(workspace).toContain("target.scrollIntoView");
+    expect(workspace).toContain("linkedLeadAction");
   });
 
   it("shows signed-to-scheduled handoff proof without exposing payment identifiers", () => {

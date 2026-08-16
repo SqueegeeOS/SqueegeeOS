@@ -28,6 +28,30 @@ export interface AssignLeadIntakeInput {
 }
 
 const REP_SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SALES_REP_LEAD_ANCHOR_PREFIX = "sales-lead-";
+
+export function salesRepLeadAnchorId(salesRepLeadId: string): string {
+  return `${SALES_REP_LEAD_ANCHOR_PREFIX}${salesRepLeadId}`;
+}
+
+export function salesRepLeadWorkspaceHref(
+  workspacePath: string,
+  salesRepLeadId: string,
+): string {
+  return `${workspacePath}#${salesRepLeadAnchorId(salesRepLeadId)}`;
+}
+
+export function salesRepLeadIdFromHash(hash: string): string | null {
+  const value = hash.startsWith("#") ? hash.slice(1) : hash;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+  if (!decoded.startsWith(SALES_REP_LEAD_ANCHOR_PREFIX)) return null;
+  return decoded.slice(SALES_REP_LEAD_ANCHOR_PREFIX.length).trim() || null;
+}
 
 export function validateLeadIntakeAssignment(
   input: unknown,

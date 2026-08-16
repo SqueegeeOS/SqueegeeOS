@@ -68,7 +68,11 @@ import {
   presentationWorkspacePath,
 } from "@/lib/presentations/navigation";
 import { deriveSalesRepLaunchReadiness } from "@/lib/sales/rep-launch-readiness";
-import { salesLeadSourceLabel } from "@/lib/sales/lead-intake-assignment";
+import {
+  salesLeadSourceLabel,
+  salesRepLeadAnchorId,
+  salesRepLeadIdFromHash,
+} from "@/lib/sales/lead-intake-assignment";
 import {
   hasMeaningfulSalesLeadCaptureDraft,
   parseSalesLeadCaptureDraft,
@@ -530,6 +534,7 @@ export function SalesRepWorkspace({
   const [leadQueueFilter, setLeadQueueFilter] =
     useState<SalesLeadQueueFilter>("all");
   const [leadSearchQuery, setLeadSearchQuery] = useState("");
+  const [leadLocationHash, setLeadLocationHash] = useState("");
   const [actionClock, setActionClock] = useState(0);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [installHelp, setInstallHelp] = useState<string | null>(null);
@@ -540,6 +545,7 @@ export function SalesRepWorkspace({
   const [isOnline, setIsOnline] = useState(true);
   const offlineSyncingRef = useRef(false);
   const offlineQueueRef = useRef<OfflinePulseEntry[]>([]);
+  const revealedLeadAnchorRef = useRef<string | null>(null);
   const [fixedDoorFeedback, setFixedDoorFeedback] =
     useState<FixedDoorFeedback | null>(null);
   const [doorMemoryDraft, setDoorMemoryDraft] =
@@ -655,6 +661,13 @@ export function SalesRepWorkspace({
       cancelled = true;
     };
   }, [repSlug]);
+
+  useEffect(() => {
+    const updateLeadLocationHash = () => setLeadLocationHash(window.location.hash);
+    updateLeadLocationHash();
+    window.addEventListener("hashchange", updateLeadLocationHash);
+    return () => window.removeEventListener("hashchange", updateLeadLocationHash);
+  }, []);
 
   useEffect(() => {
     const nav = navigator as Navigator & { standalone?: boolean };
@@ -1581,10 +1594,41 @@ export function SalesRepWorkspace({
   );
   const leadQueueIsNarrowed =
     leadQueueFilter !== "all" || leadSearchQuery.trim().length > 0;
-  const visibleLeadActionQueue =
+  const linkedSalesRepLeadId = salesRepLeadIdFromHash(leadLocationHash);
+  const linkedLeadAction = linkedSalesRepLeadId
+    ? leadActionQueue.find(({ lead }) => lead.id === linkedSalesRepLeadId) ?? null
+    : null;
+  const ordinarilyVisibleLeadActionQueue =
     showAllLeads || leadQueueIsNarrowed
       ? filteredLeadActionQueue
       : filteredLeadActionQueue.slice(0, 8);
+  const visibleLeadActionQueue =
+    linkedLeadAction &&
+    !ordinarilyVisibleLeadActionQueue.some(
+      ({ lead }) => lead.id === linkedLeadAction.lead.id,
+    )
+      ? [linkedLeadAction, ...ordinarilyVisibleLeadActionQueue]
+      : ordinarilyVisibleLeadActionQueue;
+
+  useEffect(() => {
+    if (!linkedSalesRepLeadId) return;
+    if (!workspaceLeads.some((lead) => lead.id === linkedSalesRepLeadId)) return;
+
+    const anchorId = salesRepLeadAnchorId(linkedSalesRepLeadId);
+    if (revealedLeadAnchorRef.current === anchorId) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(anchorId);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.focus({ preventScroll: true });
+      revealedLeadAnchorRef.current = anchorId;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    linkedSalesRepLeadId,
+    workspaceLeads,
+  ]);
   const leadQueueFilters: Array<{
     filter: SalesLeadQueueFilter;
     label: string;
@@ -2195,8 +2239,10 @@ export function SalesRepWorkspace({
 
                   return (
                     <article
-                    key={lead.id}
-                    className="rounded-2xl border border-white/[0.07] bg-black/10 p-4 [contain-intrinsic-size:0_420px] [content-visibility:auto] sm:p-5"
+                      key={lead.id}
+                      id={salesRepLeadAnchorId(lead.id)}
+                      tabIndex={-1}
+                      className="scroll-mt-24 rounded-2xl border border-white/[0.07] bg-black/10 p-4 [contain-intrinsic-size:0_420px] [content-visibility:auto] target:border-accent/45 target:bg-accent/[0.055] target:ring-2 target:ring-accent/20 focus:outline-none sm:p-5"
                     >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">

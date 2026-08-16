@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   salesLeadSourceLabel,
+  salesRepLeadAnchorId,
+  salesRepLeadIdFromHash,
+  salesRepLeadWorkspaceHref,
   validateLeadIntakeAssignment,
 } from "./lead-intake-assignment";
 
@@ -32,5 +35,15 @@ describe("lead intake sales assignment", () => {
     expect(salesLeadSourceLabel("request_form")).toBe("Website request");
     expect(salesLeadSourceLabel("facebook_lead_ad")).toBe("Facebook lead");
     expect(salesLeadSourceLabel("door_to_door")).toBe("Door-to-door");
+  });
+
+  it("keeps an assigned request linked to its exact field record", () => {
+    expect(salesRepLeadAnchorId("lead-123")).toBe("sales-lead-lead-123");
+    expect(salesRepLeadWorkspaceHref("/david", "lead-123")).toBe(
+      "/david#sales-lead-lead-123",
+    );
+    expect(salesRepLeadIdFromHash("#sales-lead-lead-123")).toBe("lead-123");
+    expect(salesRepLeadIdFromHash("#follow-ups")).toBeNull();
+    expect(salesRepLeadIdFromHash("#sales-lead-%E0%A4%A")).toBeNull();
   });
 });

@@ -91,6 +91,10 @@ describe("owner sales inbox release contract", () => {
     expect(assignmentControl).toContain(
       "Assignment only. No email or text is sent.",
     );
+    expect(assignmentControl).toContain("salesRepLeadWorkspaceHref");
+    expect(page).toContain("The exact record is ready—no customer was contacted.");
+    expect(page).toContain("Open owner record");
+    expect(page).toContain("salesRepLeadWorkspaceHref");
     expect(assignmentControl.toLowerCase()).not.toContain("twilio");
     expect(assignmentControl.toLowerCase()).not.toContain("resend");
   });
