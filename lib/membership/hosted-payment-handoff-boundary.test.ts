@@ -33,4 +33,12 @@ describe("hosted payment handoff boundaries", () => {
     expect(webhook).toContain("reconcileHostedMembershipSetupIntent");
     expect(webhook).toContain('setupIntent.metadata?.homeatlas_operation === "membership_hosted_setup"');
   });
+
+  it("surfaces the email action in the live HQ member cards", () => {
+    const page = projectFile("components/admin/hq-memberships-page.tsx");
+    expect(page).toContain("PaymentSetupEmailButton");
+    expect(page).toContain("!row.cardOnFile");
+    expect(page).toContain("membershipId={row.id}");
+    expect(page).toContain("canSend={Boolean(row.agreementId)}");
+  });
 });

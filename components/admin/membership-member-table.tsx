@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
 import { MembershipHealthBadgeList } from "@/components/admin/membership-health-badge";
+import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
 import type { MembershipMemberRow } from "@/lib/admin/membership-command-center-types";
 import { formatCurrency } from "@/lib/admin/sales-calculations";
 import type { StripePaymentStatus } from "@/lib/admin/billing-workspace-types";
@@ -99,12 +100,7 @@ function RowAction({
 function MemberRowActions({ row }: { row: MembershipMemberRow }) {
   const [copied, setCopied] = useState(false);
   const [resendingWelcome, setResendingWelcome] = useState(false);
-  const [sendingPaymentLink, setSendingPaymentLink] = useState(false);
   const [welcomeNotice, setWelcomeNotice] = useState<{
-    tone: "success" | "error";
-    message: string;
-  } | null>(null);
-  const [paymentNotice, setPaymentNotice] = useState<{
     tone: "success" | "error";
     message: string;
   } | null>(null);
@@ -169,43 +165,6 @@ function MemberRowActions({ row }: { row: MembershipMemberRow }) {
     }
   };
 
-  const sendSecurePaymentLink = async () => {
-    if (!row.membershipId || sendingPaymentLink) return;
-    setSendingPaymentLink(true);
-    setPaymentNotice(null);
-
-    try {
-      const response = await fetch(
-        `/api/admin/memberships/${encodeURIComponent(row.membershipId)}/send-payment-link`,
-        {
-          method: "POST",
-          headers: getAdminRequestHeaders(),
-        },
-      );
-      const body = (await response.json().catch(() => null)) as {
-        error?: string;
-        message?: string;
-      } | null;
-      if (!response.ok) {
-        throw new Error(body?.error ?? "Secure Stripe email could not be sent.");
-      }
-      setPaymentNotice({
-        tone: "success",
-        message: body?.message ?? "Secure Stripe email accepted for delivery.",
-      });
-    } catch (error) {
-      setPaymentNotice({
-        tone: "error",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Secure Stripe email could not be sent.",
-      });
-    } finally {
-      setSendingPaymentLink(false);
-    }
-  };
-
   return (
     <div>
       <div className="flex flex-wrap gap-2">
@@ -239,13 +198,11 @@ function MemberRowActions({ row }: { row: MembershipMemberRow }) {
           onClick={() => void copyPortalLink()}
           disabled={!row.portalUrl}
         />
-        <RowAction
-          label={sendingPaymentLink ? "Sending Stripe link…" : "Email Stripe setup"}
-          onClick={() => void sendSecurePaymentLink()}
-          disabled={
-            row.pendingReason !== "signed_missing_card" ||
-            !row.membershipId ||
-            sendingPaymentLink
+        <PaymentSetupEmailButton
+          membershipId={row.membershipId}
+          canSend={row.pendingReason === "signed_missing_card"}
+          onAccepted={(message) =>
+            setWelcomeNotice({ tone: "success", message })
           }
         />
         <RowAction
@@ -262,16 +219,6 @@ function MemberRowActions({ row }: { row: MembershipMemberRow }) {
           aria-live="polite"
         >
           {welcomeNotice.message}
-        </p>
-      ) : null}
-      {paymentNotice ? (
-        <p
-          className={`mt-2 max-w-xs text-xs ${
-            paymentNotice.tone === "success" ? "text-emerald-300" : "text-red-300"
-          }`}
-          aria-live="polite"
-        >
-          {paymentNotice.message}
         </p>
       ) : null}
     </div>
