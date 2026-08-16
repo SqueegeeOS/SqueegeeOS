@@ -6,6 +6,7 @@ import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { AddMemberAddonButton } from "@/components/admin/add-member-addon-modal";
 import { ArchiveMembershipButton } from "@/components/admin/archive-membership-modal";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
 import { ScheduleMembershipButton } from "@/components/admin/schedule-membership-modal";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
@@ -235,6 +236,16 @@ function HqMembershipsContent() {
                     ) : (
                       <span className="text-xs text-muted/60">Agreement: unknown</span>
                     )}
+                    {!row.cardOnFile ? (
+                      <PaymentSetupEmailButton
+                        membershipId={row.id}
+                        canSend={Boolean(row.agreementId)}
+                        onAccepted={(message) => {
+                          setNotice(message);
+                          void loadMemberships();
+                        }}
+                      />
+                    ) : null}
                     <AddMemberAddonButton
                       row={row}
                       onRecorded={(message) => {
