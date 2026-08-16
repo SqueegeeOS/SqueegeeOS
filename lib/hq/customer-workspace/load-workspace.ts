@@ -3,10 +3,12 @@ import { getLeadIntakeById } from "@/lib/acquisition/leads/repository";
 import { listClosedJobsFromSupabase } from "@/lib/admin/closed-jobs-server";
 import type { ClosedJob } from "@/lib/admin/closed-jobs-types";
 import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
+import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import {
   isMembershipPendingEnrollment,
   resolveMembershipLifecycle,
 } from "@/lib/membership/membership-status";
+import { resolvePaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
 import { resolvePortalPaymentState } from "@/lib/membership/portal-payment-state";
 import { resolvePortalPaymentMethodLabel } from "@/lib/membership/resolve-portal-payment-method";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
@@ -201,7 +203,7 @@ async function loadPropertyWorkspace(
         .maybeSingle(),
       supabase
         .from("presentations")
-        .select("id, status, onboarding_status, tier")
+        .select("id, status, onboarding_status, tier, client_email")
         .eq("property_id", propertyId)
         .order("updated_at", { ascending: false })
         .limit(1)
@@ -218,6 +220,7 @@ async function loadPropertyWorkspace(
         status: loaded.status,
         onboarding_status: loaded.onboardingStatus,
         tier: loaded.tier,
+        client_email: loaded.clientEmail,
       };
     }
   }
@@ -225,7 +228,9 @@ async function loadPropertyWorkspace(
   const { data: agreement } = membership?.agreement_id
     ? await supabase
         .from("signed_agreements")
-        .select("id, plan_name, signed_at, agreement_pdf_url")
+        .select(
+          "id, plan_name, signed_at, agreement_pdf_url, status, billing_authorization_version, billing_authorized_at, billing_terms_hash",
+        )
         .eq("id", membership.agreement_id)
         .maybeSingle()
     : { data: null };
@@ -290,6 +295,32 @@ async function loadPropertyWorkspace(
           (membership.payment_setup_completed_at as string | null) ?? null,
         paymentMethodLabel,
         hasMembership: true,
+      })
+    : null;
+
+  const paymentSetupEmailRecipient = membership
+    ? resolveMemberEmail(
+        (presentation?.client_email as string | null) ?? null,
+        homeowner.email,
+      )
+    : null;
+
+  const paymentSetupEmailState = membership
+    ? resolvePaymentSetupEmailState({
+        membershipStatus: membership.status as string,
+        paymentSetupCompletedAt:
+          (membership.payment_setup_completed_at as string | null) ?? null,
+        stripePaymentMethodId:
+          (membership.stripe_payment_method_id as string | null) ?? null,
+        customerEmail: paymentSetupEmailRecipient,
+        presentationStatus: (presentation?.status as string | null) ?? null,
+        agreementStatus: (agreement?.status as string | null) ?? null,
+        billingAuthorizationVersion:
+          (agreement?.billing_authorization_version as string | null) ?? null,
+        billingAuthorizedAt:
+          (agreement?.billing_authorized_at as string | null) ?? null,
+        billingTermsHash:
+          (agreement?.billing_terms_hash as string | null) ?? null,
       })
     : null;
 
@@ -488,6 +519,8 @@ async function loadPropertyWorkspace(
           visitsPerYear: (membership.visits_per_year as number | null) ?? null,
           paymentSetupCompletedAt:
             (membership.payment_setup_completed_at as string | null) ?? null,
+          paymentSetupEmailState: paymentSetupEmailState!,
+          paymentSetupEmailRecipient,
           startedAt: (membership.started_at as string | null) ?? null,
           foundingMember: Boolean(membership.founding_member),
         }

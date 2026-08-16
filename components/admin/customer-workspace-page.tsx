@@ -5,18 +5,104 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/craft/glass-card";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
   schedulePresentationFromLead,
   updateLeadIntakeStatusClient,
 } from "@/lib/acquisition/leads/inbox-client";
 import { formatLeadIntakeStatus } from "@/lib/acquisition/leads/inbox";
-import { craftEyebrow, craftEyebrowAccent, craftFieldLabel, craftInput, craftTextarea } from "@/lib/craft/tokens";
-import type { CustomerWorkspace, CustomerWorkspaceRefType } from "@/lib/hq/customer-workspace/types";
+import {
+  craftEyebrow,
+  craftEyebrowAccent,
+  craftFieldLabel,
+  craftInput,
+  craftTextarea,
+} from "@/lib/craft/tokens";
+import type {
+  CustomerWorkspace,
+  CustomerWorkspaceRefType,
+} from "@/lib/hq/customer-workspace/types";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { ROUTES } from "@/lib/navigation/config";
-import { formatTierPrice, normalizeToSqueegeeKingTier, squeegeeKingTierLabel } from "@/lib/membership/tier-config";
+import {
+  formatTierPrice,
+  normalizeToSqueegeeKingTier,
+  squeegeeKingTierLabel,
+} from "@/lib/membership/tier-config";
 import { normalizeUsPostalCodeInput } from "@/lib/address/postal-code";
+import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
+
+function paymentSetupGuidance(
+  state: PaymentSetupEmailState,
+  email: string | null,
+): { title: string; detail: string } {
+  switch (state) {
+    case "ready":
+      return {
+        title: "Card needed · ready to send",
+        detail: `Email ${email ?? "the customer"} a Stripe-hosted setup page. Stripe saves the card securely and does not charge it during setup.`,
+      };
+    case "needs_email":
+      return {
+        title: "Card needed · email required",
+        detail: "Add a valid customer email above and save the record before sending the secure Stripe link.",
+      };
+    case "needs_agreement":
+      return {
+        title: "Card needed · agreement first",
+        detail: "Complete the customer’s service agreement and standing billing authorization. The email action unlocks immediately after signing.",
+      };
+    case "needs_authorization_review":
+      return {
+        title: "Card needed · authorization review",
+        detail: "The signed record is missing verified billing authorization data. Review the agreement before asking the customer for a card.",
+      };
+    default:
+      return {
+        title: "Card not available",
+        detail: "This membership is not currently in a safe enrollment state for a payment setup email.",
+      };
+  }
+}
+
+function PaymentSetupHandoffCard({
+  membership,
+  email,
+  onAccepted,
+}: {
+  membership: NonNullable<CustomerWorkspace["membership"]>;
+  email: string | null;
+  onAccepted: (message: string) => void;
+}) {
+  if (membership.paymentSetupEmailState === "card_on_file") return null;
+  const guidance = paymentSetupGuidance(
+    membership.paymentSetupEmailState,
+    email,
+  );
+
+  return (
+    <div className="rounded-2xl border border-accent/25 bg-accent/[0.07] p-4">
+      <p className="font-medium text-foreground">{guidance.title}</p>
+      <p className="mt-1.5 text-sm leading-relaxed text-muted">
+        {guidance.detail}
+      </p>
+      <div className="mt-4">
+        <PaymentSetupEmailButton
+          key={membership.id}
+          membershipId={membership.id}
+          canSend={membership.paymentSetupEmailState === "ready"}
+          variant="primary"
+          onAccepted={onAccepted}
+        />
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-muted/75">
+        Email works now. Text can join this same handoff after the Twilio sender
+        is approved and connected.
+      </p>
+    </div>
+  );
+}
 
 function Section({
   title,
@@ -78,6 +164,7 @@ export function CustomerWorkspacePage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     name: "",
     email: "",
@@ -93,6 +180,7 @@ export function CustomerWorkspacePage({
   const loadWorkspace = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setPaymentNotice(null);
     try {
       const response = await fetch(
         `/api/admin/customer-workspace/${type}/${id}`,
@@ -241,6 +329,14 @@ export function CustomerWorkspacePage({
             </header>
 
             {error ? <p className="mb-4 text-sm text-red-500">{error}</p> : null}
+            {paymentNotice ? (
+              <p
+                className="mb-4 rounded-2xl border border-emerald-300/25 bg-emerald-300/10 px-4 py-3 text-sm text-emerald-200"
+                aria-live="polite"
+              >
+                {paymentNotice}
+              </p>
+            ) : null}
 
             <div className="mb-10 flex flex-wrap gap-2.5">
               {workspace.actions.map((action) => (
@@ -489,6 +585,11 @@ export function CustomerWorkspacePage({
                     {workspace.paymentDetail ? (
                       <p className="text-muted">{workspace.paymentDetail}</p>
                     ) : null}
+                    <PaymentSetupHandoffCard
+                      membership={workspace.membership}
+                      email={workspace.membership.paymentSetupEmailRecipient}
+                      onAccepted={setPaymentNotice}
+                    />
                   </>
                 ) : workspace.lead ? (
                   <>

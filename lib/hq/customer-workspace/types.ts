@@ -1,5 +1,6 @@
 import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
 import type { ClosedJob } from "@/lib/admin/closed-jobs-types";
+import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
 
 export type CustomerWorkspaceRefType =
   | "lead"
@@ -52,6 +53,8 @@ export interface CustomerWorkspaceMembership {
   visitPrice: number | null;
   visitsPerYear: number | null;
   paymentSetupCompletedAt: string | null;
+  paymentSetupEmailState: PaymentSetupEmailState;
+  paymentSetupEmailRecipient: string | null;
   startedAt: string | null;
   foundingMember: boolean;
 }
