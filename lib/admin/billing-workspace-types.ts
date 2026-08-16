@@ -1,3 +1,5 @@
+import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
+
 export type BillingStatus =
   | "ready_to_charge"
   | "charged"
@@ -43,6 +45,8 @@ export interface BillingRegisterRow {
   nextAppointmentId: string | null;
   nextAppointmentDate: string | null;
   stripePaymentStatus: StripePaymentStatus;
+  paymentSetupEmailState: PaymentSetupEmailState;
+  paymentSetupEmailRecipient: string | null;
   cardOnFileLabel: string | null;
   stripeCustomerId: string | null;
   nextChargeDate: string | null;

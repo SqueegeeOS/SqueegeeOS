@@ -1,4 +1,5 @@
 import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
+import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
 import {
   deriveBillingStatus,
   resolveLastChargeDate,
@@ -18,6 +19,7 @@ import {
   isMembershipActive,
   resolveStripePaymentStatus,
 } from "@/lib/membership/membership-status";
+import { resolvePaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
 import {
   normalizeToSqueegeeKingTier,
   squeegeeKingTierLabel,
@@ -44,6 +46,7 @@ interface MembershipBillingRow {
   id: string;
   homeowner_id: string;
   property_id: string;
+  presentation_id: string | null;
   status: string;
   sales_tier: string | null;
   visit_price: number | null;
@@ -60,6 +63,13 @@ interface MembershipBillingRow {
 interface HomeownerBillingRow {
   id: string;
   full_name: string;
+  email: string | null;
+}
+
+interface PresentationBillingRow {
+  id: string;
+  status: string;
+  client_email: string | null;
 }
 
 interface PropertyBillingRow {
@@ -209,7 +219,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   const { data: memberships, error: membershipError } = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, status, sales_tier, visit_price, membership_enrollment_savings, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id, automatic_billing_enabled",
+      "id, homeowner_id, property_id, presentation_id, status, sales_tier, visit_price, membership_enrollment_savings, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id, automatic_billing_enabled",
     )
     .in("status", ["active", "pending_payment", "paused"])
     .order("started_at", { ascending: true });
@@ -238,6 +248,13 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
         .filter((id): id is string => Boolean(id)),
     ),
   ];
+  const presentationIds = [
+    ...new Set(
+      membershipRows
+        .map((row) => row.presentation_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
 
   const [
     homeownersRes,
@@ -248,10 +265,11 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     appointmentsRes,
     billingOrdersRes,
     propertyLinksRes,
+    presentationsRes,
   ] = await Promise.all([
     supabase
       .from("homeowners")
-      .select("id, full_name")
+      .select("id, full_name, email")
       .in("id", homeownerIds),
     supabase
       .from("properties")
@@ -301,6 +319,12 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       .in("membership_id", membershipIds)
       .eq("connection_id", JOBBER_CONNECTION_ID)
       .eq("link_state", "active"),
+    presentationIds.length > 0
+      ? supabase
+          .from("presentations")
+          .select("id, status, client_email")
+          .in("id", presentationIds)
+      : Promise.resolve({ data: [], error: null }),
   ]);
 
   if (homeownersRes.error) throw new Error(homeownersRes.error.message);
@@ -315,6 +339,7 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
   if (billingOrdersRes.error) throw new Error(billingOrdersRes.error.message);
   if (propertyLinksRes.error) throw new Error(propertyLinksRes.error.message);
+  if (presentationsRes.error) throw new Error(presentationsRes.error.message);
 
   const appointmentRows = (appointmentsRes.data ?? []) as AppointmentBillingRow[];
   const appointmentExternalIds = [
@@ -361,6 +386,12 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   }
   const agreementById = new Map(
     ((agreementsRes.data ?? []) as AgreementBillingRow[]).map((row) => [
+      row.id,
+      row,
+    ]),
+  );
+  const presentationById = new Map(
+    ((presentationsRes.data ?? []) as PresentationBillingRow[]).map((row) => [
       row.id,
       row,
     ]),
@@ -536,6 +567,25 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     const agreement = membership.agreement_id
       ? agreementById.get(membership.agreement_id)
       : null;
+    const presentation = membership.presentation_id
+      ? presentationById.get(membership.presentation_id)
+      : null;
+    const paymentSetupEmailRecipient = resolveMemberEmail(
+      presentation?.client_email,
+      homeowner.email,
+    );
+    const paymentSetupEmailState = resolvePaymentSetupEmailState({
+      membershipStatus: membership.status,
+      paymentSetupCompletedAt: membership.payment_setup_completed_at,
+      stripePaymentMethodId: membership.stripe_payment_method_id,
+      customerEmail: paymentSetupEmailRecipient,
+      presentationStatus: presentation?.status,
+      agreementStatus: agreement?.status,
+      billingAuthorizationVersion:
+        agreement?.billing_authorization_version,
+      billingAuthorizedAt: agreement?.billing_authorized_at,
+      billingTermsHash: agreement?.billing_terms_hash,
+    });
     const agreementPdfUrl = agreement?.agreement_pdf_url
       ? await resolveAgreementPdfAccessUrl(agreement.agreement_pdf_url)
       : null;
@@ -584,6 +634,8 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       nextAppointmentDate:
         nextAppointment?.scheduled_at ?? null,
       stripePaymentStatus: resolveStripePaymentStatus(membership),
+      paymentSetupEmailState,
+      paymentSetupEmailRecipient,
       cardOnFileLabel,
       stripeCustomerId: membership.stripe_customer_id,
       nextChargeDate,

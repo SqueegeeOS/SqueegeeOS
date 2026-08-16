@@ -420,6 +420,8 @@ function billingRow(overrides: Partial<BillingRegisterRow> = {}): BillingRegiste
     nextAppointmentId: "appointment-1",
     nextAppointmentDate: "2026-08-20T16:00:00.000Z",
     stripePaymentStatus: "card_on_file",
+    paymentSetupEmailState: "card_on_file",
+    paymentSetupEmailRecipient: "mandi@example.com",
     cardOnFileLabel: "Visa •••• 0406",
     stripeCustomerId: "cus_example",
     nextChargeDate: "2026-08-20",

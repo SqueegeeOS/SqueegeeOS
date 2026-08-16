@@ -72,4 +72,31 @@ describe("HQ automatic-billing UI safety contract", () => {
     expect(table).toContain("Customer approval required");
     expect(table).toContain("Atlas will not retry it");
   });
+
+  it("offers the hosted Stripe email only when the exact enrollment checks pass", () => {
+    const table = read("../../components/admin/billing-register-table.tsx");
+    const server = read("./billing-workspace-server.ts");
+
+    expect(table).toContain("PaymentSetupEmailButton");
+    expect(table).toContain('row.paymentSetupEmailState === "ready"');
+    expect(table).toContain("Email secure Stripe link");
+    expect(server).toContain("resolvePaymentSetupEmailState");
+    expect(server).toContain("resolveMemberEmail");
+  });
+
+  it("keeps the exact Today handoff review-only and fails closed on visit mismatch", () => {
+    const today = read("../../components/admin/today-workspace-page.tsx");
+    const page = read("../../components/admin/billing-workspace-page.tsx");
+    const table = read("../../components/admin/billing-register-table.tsx");
+
+    expect(today).toContain("billingTodayReviewHref");
+    expect(today).toContain("Review payment readiness");
+    expect(page).toContain(
+      "row?.nextAppointmentId === focus.appointmentId",
+    );
+    expect(page).toContain(
+      "Opening this review never sends an email and never charges a card.",
+    );
+    expect(table).not.toContain("CompleteChargeVisitModal");
+  });
 });

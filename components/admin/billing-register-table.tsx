@@ -10,6 +10,7 @@ import type {
   StripePaymentStatus,
 } from "@/lib/admin/billing-workspace-types";
 import { CustomerWorkspaceLink } from "@/components/admin/customer-workspace-link";
+import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
 import { craftEyebrow, craftTableHead } from "@/lib/craft/tokens";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
@@ -75,6 +76,21 @@ function customerBankApprovalRequired(row: BillingRegisterRow): boolean {
     message.includes("requires_action") ||
     message.includes("authentication required")
   );
+}
+
+function paymentSetupEmailActionLabel(row: BillingRegisterRow): string {
+  switch (row.paymentSetupEmailState) {
+    case "ready":
+      return "Email secure Stripe link";
+    case "needs_email":
+      return "Add customer email first";
+    case "needs_agreement":
+      return "Sign agreement first";
+    case "needs_authorization_review":
+      return "Review billing terms first";
+    default:
+      return "Card link unavailable";
+  }
 }
 
 function RowAction({
@@ -367,6 +383,18 @@ function BillingRegisterRowActions({
       {bankApprovalRequired ? (
         <RowAction label="Customer approval required" disabled />
       ) : null}
+      {row.paymentSetupEmailState !== "card_on_file" ? (
+        <PaymentSetupEmailButton
+          membershipId={row.membershipId}
+          canSend={row.paymentSetupEmailState === "ready"}
+          idleLabel={paymentSetupEmailActionLabel(row)}
+          onAccepted={(message) => {
+            setNotice(message);
+            setNoticeIsError(false);
+            onUpdated();
+          }}
+        />
+      ) : null}
       {notice ? (
         <span
           className={`self-center text-[11px] ${noticeIsError ? "text-red-300" : "text-muted"}`}
@@ -383,10 +411,12 @@ export function BillingRegisterTable({
   rows,
   stripeDashboardLive,
   onRecorded,
+  focusedMembershipId = null,
 }: {
   rows: BillingRegisterRow[];
   stripeDashboardLive: boolean;
   onRecorded: () => void;
+  focusedMembershipId?: string | null;
 }) {
   if (rows.length === 0) {
     return (
@@ -424,7 +454,14 @@ export function BillingRegisterTable({
               <tr
                 key={row.membershipId}
                 id={billingMembershipAnchorId(row.membershipId)}
-                className="scroll-mt-24 border-b border-border/40 align-top target:bg-accent/[0.06] target:outline target:outline-1 target:outline-accent/40"
+                aria-current={
+                  row.membershipId === focusedMembershipId ? "true" : undefined
+                }
+                className={`scroll-mt-24 border-b border-border/40 align-top target:bg-accent/[0.06] target:outline target:outline-1 target:outline-accent/40 ${
+                  row.membershipId === focusedMembershipId
+                    ? "bg-accent/[0.06] outline outline-1 outline-accent/40"
+                    : ""
+                }`}
               >
                 <td className="py-4 pr-4">
                   <CustomerWorkspaceLink type="property" id={row.propertyId}>
