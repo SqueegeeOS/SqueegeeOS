@@ -73,6 +73,8 @@ const sensitiveTables = [
   "agreement_document_versions",
   "enrollment_packets",
   "enrollment_packet_events",
+  "membership_payment_handoffs",
+  "membership_payment_handoff_events",
 ];
 
 let failed = false;
