@@ -164,12 +164,21 @@ describe("sales-to-production handoff", () => {
   });
 
   it("walks an active member through property, job, and schedule proof", () => {
-    expect(
-      deriveSalesProductionHandoff(source({ propertyLinked: false })).stage,
-    ).toBe("property_pairing_needed");
-    expect(
-      deriveSalesProductionHandoff(source({ recurringJobCount: 0 })).stage,
-    ).toBe("job_pairing_needed");
+    const property = deriveSalesProductionHandoff(
+      source({ propertyLinked: false }),
+    );
+    const job = deriveSalesProductionHandoff(
+      source({ recurringJobCount: 0 }),
+    );
+    expect(property).toMatchObject({
+      stage: "property_pairing_needed",
+      actionHref:
+        "/hq/jobber?membership=membership-1&step=property#jobber-visits",
+    });
+    expect(job).toMatchObject({
+      stage: "job_pairing_needed",
+      actionHref: "/hq/jobber?membership=membership-1&step=job#jobber-visits",
+    });
     expect(
       deriveSalesProductionHandoff(
         source({ scheduleSourceState: "unavailable" }),

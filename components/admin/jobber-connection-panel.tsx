@@ -5,6 +5,7 @@ import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { JobberCustomerPairingPanel } from "@/components/admin/jobber-customer-pairing-panel";
 import { JobberVisitWorkspacePanel } from "@/components/admin/jobber-visit-workspace-panel";
 import { craftEyebrow, craftPrimaryButton } from "@/lib/craft/tokens";
+import type { JobberHandoffFocus } from "@/lib/care-operations/jobber-handoff-navigation";
 
 interface JobberConnectionResponse {
   configuration: {
@@ -66,7 +67,12 @@ function ConfigurationItem({ label, ready }: { label: string; ready: boolean }) 
   );
 }
 
-export function JobberConnectionPanel() {
+export function JobberConnectionPanel({
+  focus,
+}: {
+  focus: JobberHandoffFocus | null;
+}) {
+  const focusMembershipId = focus?.membershipId ?? null;
   const [status, setStatus] = useState<JobberConnectionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState(false);
@@ -116,6 +122,16 @@ export function JobberConnectionPanel() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!focusMembershipId || !status?.connection?.connected) return;
+    const frame = window.requestAnimationFrame(() => {
+      document
+        .getElementById("jobber-visits")
+        ?.scrollIntoView({ block: "start" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusMembershipId, refreshKey, status?.connection?.connected]);
 
   const connect = async () => {
     setConnecting(true);
@@ -327,7 +343,10 @@ export function JobberConnectionPanel() {
       {status?.connection?.connected ? (
         <>
           <JobberCustomerPairingPanel key={`customers-${refreshKey}`} />
-          <JobberVisitWorkspacePanel key={`visits-${refreshKey}`} />
+          <JobberVisitWorkspacePanel
+            key={`visits-${refreshKey}`}
+            focus={focus}
+          />
         </>
       ) : null}
     </section>
