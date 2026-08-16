@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { authorizeSalesRepRequest } from "@/lib/sales/sales-access";
 import {
   createSalesActivity,
+  createSalesDoorMemory,
   createSalesLead,
+  loadSalesDoorAddressHistory,
   loadSalesWorkspace,
   reverseSalesActivity,
   SalesWorkspaceActionError,
@@ -12,10 +14,15 @@ import {
 import type { SalesWorkspaceCommand } from "@/lib/sales/workspace-types";
 import {
   validateCreateSalesActivity,
+  validateCreateSalesDoorMemory,
   validateCreateSalesLead,
   validateUpdateSalesLead,
   validateUndoSalesActivity,
 } from "@/lib/sales/workspace-validation";
+import {
+  normalizeSalesDoorAddress,
+  normalizeSalesDoorAddressKey,
+} from "@/lib/sales/door-memory";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -46,6 +53,24 @@ export async function GET(
   }
 
   try {
+    const requestedAddress = new URL(request.url).searchParams.get("address");
+    if (requestedAddress !== null) {
+      const propertyAddress = normalizeSalesDoorAddress(
+        requestedAddress.slice(0, 260),
+      );
+      const addressKey = normalizeSalesDoorAddressKey(propertyAddress);
+      if (propertyAddress.length < 5 || addressKey.length < 3) {
+        return NextResponse.json(
+          { error: "Enter enough of the property address to check its history." },
+          { status: 400 },
+        );
+      }
+      const history = await loadSalesDoorAddressHistory(repSlug, addressKey);
+      return NextResponse.json(
+        { history },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
     const workspace = await loadSalesWorkspace(repSlug);
     return NextResponse.json(workspace, {
       headers: { "Cache-Control": "private, no-store" },
@@ -92,6 +117,21 @@ export async function POST(
       const activity = await createSalesActivity(repSlug, validation.value);
       return NextResponse.json(
         { activity, message: "Field activity recorded." },
+        { status: 201 },
+      );
+    }
+
+    if (command?.kind === "door_memory") {
+      const validation = validateCreateSalesDoorMemory(command.memory);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      const memory = await createSalesDoorMemory(repSlug, validation.value);
+      return NextResponse.json(
+        {
+          memory,
+          message: "This address and doorstep outcome are saved to HomeAtlas.",
+        },
         { status: 201 },
       );
     }

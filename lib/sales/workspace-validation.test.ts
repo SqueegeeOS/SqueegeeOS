@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   normalizeNorthAmericanPhone,
   validateCreateSalesActivity,
+  validateCreateSalesDoorMemory,
   validateCreateSalesLead,
   validateUpdateSalesLead,
   validateUndoSalesActivity,
@@ -83,6 +84,49 @@ describe("sales workspace validation", () => {
       ok: false,
       error: "Signed memberships are recorded automatically from the agreement.",
     });
+  });
+
+  it("accepts bounded, idempotent address-level door outcomes", () => {
+    const result = validateCreateSalesDoorMemory({
+      doorActivityClientEventId: "00000000-0000-4000-8000-000000000042",
+      clientEventId: "00000000-0000-4000-8000-000000000043",
+      propertyAddress: "  1420   Davis St., Chico CA  ",
+      disposition: "follow_up",
+      notes: "Try again after 5 PM.",
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value).toMatchObject({
+        propertyAddress: "1420 Davis St., Chico CA",
+        addressKey: "1420 davis st chico ca",
+        disposition: "follow_up",
+        notes: "Try again after 5 PM.",
+        leadId: null,
+      });
+    }
+  });
+
+  it("rejects ambiguous or reused door-memory identity", () => {
+    const sharedId = "00000000-0000-4000-8000-000000000042";
+    expect(
+      validateCreateSalesDoorMemory({
+        doorActivityClientEventId: sharedId,
+        clientEventId: sharedId,
+        propertyAddress: "1420 Davis St",
+        disposition: "not_home",
+      }),
+    ).toEqual({
+      ok: false,
+      error: "Door activity and memory require separate retry references.",
+    });
+    expect(
+      validateCreateSalesDoorMemory({
+        doorActivityClientEventId: sharedId,
+        clientEventId: "00000000-0000-4000-8000-000000000043",
+        propertyAddress: "1420 Davis St",
+        disposition: "maybe_later",
+      }),
+    ).toEqual({ ok: false, error: "Choose what happened at this door." });
   });
 
   it("requires an owned next action for open lead updates", () => {

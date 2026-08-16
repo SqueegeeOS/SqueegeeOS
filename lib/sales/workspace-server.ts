@@ -10,12 +10,15 @@ import type {
   SalesActivityReceipt,
   SalesActivityReversalReceipt,
   SalesActivityType,
+  SalesDoorMemory,
+  SalesDoorMemoryReceipt,
   SalesLeadAttentionSnapshot,
   SalesLeadStatus,
   SalesRepLead,
   SalesRepRecentWin,
   SalesWorkspacePayload,
 } from "./workspace-types";
+import type { SalesDoorDisposition } from "./door-memory";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getSalesActivityUndoExpiresAt,
@@ -86,6 +89,18 @@ interface SalesActivityRow {
   quantity: number;
 }
 
+interface SalesDoorMemoryRow {
+  id: string;
+  door_activity_id: string;
+  lead_id: string | null;
+  client_event_id: string;
+  property_address: string;
+  address_key: string;
+  disposition: SalesDoorDisposition;
+  notes: string | null;
+  occurred_at: string;
+}
+
 interface CreatedSalesActivityRow {
   id: string;
   event_type: SalesActivityType;
@@ -122,6 +137,9 @@ const SALES_LEAD_PAGE_SIZE = 500;
 const SALES_ATTRIBUTION_SELECT =
   "id, lead_id, presentation_id, membership_id, qualification_status, attributed_arr_cents, attributed_at";
 const SALES_ATTRIBUTION_PAGE_SIZE = 500;
+const RECENT_DOOR_MEMORY_LIMIT = 20;
+const SALES_DOOR_MEMORY_SELECT =
+  "id, door_activity_id, lead_id, client_event_id, property_address, address_key, disposition, notes, occurred_at";
 
 export class SalesWorkspaceUnavailableError extends Error {
   constructor(message: string) {
@@ -152,6 +170,7 @@ function readableStorageError(message: string): string {
   if (
     message.includes("sales_reps") ||
     message.includes("sales_rep_leads") ||
+    message.includes("sales_rep_door_visits") ||
     message.includes("sales_rep_attributions") ||
     message.includes("reversed_at") ||
     message.includes("client_event_id") ||
@@ -194,6 +213,67 @@ function leadFromRow(row: SalesLeadRow): SalesRepLead {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function doorMemoryFromRow(row: SalesDoorMemoryRow): SalesDoorMemory {
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    propertyAddress: row.property_address,
+    disposition: row.disposition,
+    notes: row.notes ?? "",
+    occurredAt: row.occurred_at,
+  };
+}
+
+async function loadRecentDoorMemories(repId: string): Promise<{
+  memories: SalesDoorMemory[];
+  status: SalesWorkspacePayload["recentDoorMemoriesStatus"];
+}> {
+  const supabase = createPrivilegedServerSupabaseClient();
+  const result = await supabase
+    .from("sales_rep_door_visits")
+    .select(SALES_DOOR_MEMORY_SELECT)
+    .eq("rep_id", repId)
+    .order("occurred_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(RECENT_DOOR_MEMORY_LIMIT);
+
+  if (result.error) {
+    console.error("[sales-workspace] recent door memory load failed", {
+      repId,
+      reason: result.error.message,
+    });
+    return { memories: [], status: "unavailable" };
+  }
+
+  return {
+    memories: ((result.data ?? []) as SalesDoorMemoryRow[]).map(doorMemoryFromRow),
+    status: "complete",
+  };
+}
+
+export async function loadSalesDoorAddressHistory(
+  slug: string,
+  addressKey: string,
+): Promise<SalesDoorMemory[]> {
+  const rep = await loadRepRow(slug);
+  const supabase = createPrivilegedServerSupabaseClient();
+  const result = await supabase
+    .from("sales_rep_door_visits")
+    .select(SALES_DOOR_MEMORY_SELECT)
+    .eq("rep_id", rep.id)
+    .eq("address_key", addressKey)
+    .order("occurred_at", { ascending: false })
+    .order("id", { ascending: true })
+    .limit(10);
+
+  if (result.error) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(result.error.message),
+    );
+  }
+  return ((result.data ?? []) as SalesDoorMemoryRow[]).map(doorMemoryFromRow);
 }
 
 async function loadAllSalesRepAttributionRows(
@@ -500,7 +580,13 @@ export async function loadSalesWorkspace(
     console.error("[sales-workspace] nonfatal attribution reconciliation failure", error);
   }
 
-  const [openLeadRows, leadsTodayResult, activityResult, attributions] =
+  const [
+    openLeadRows,
+    leadsTodayResult,
+    activityResult,
+    attributions,
+    doorMemoryResult,
+  ] =
     await Promise.all([
       loadAllOpenSalesRepLeadRows(rep.id),
       supabase
@@ -517,6 +603,7 @@ export async function loadSalesWorkspace(
         .gte("occurred_at", startUtc.toISOString())
         .lt("occurred_at", endUtc.toISOString()),
       loadAllSalesRepAttributionRows(rep.id),
+      loadRecentDoorMemories(rep.id),
     ]);
 
   const firstError = leadsTodayResult.error ?? activityResult.error;
@@ -591,6 +678,8 @@ export async function loadSalesWorkspace(
       ).length,
     },
     leads,
+    recentDoorMemories: doorMemoryResult.memories,
+    recentDoorMemoriesStatus: doorMemoryResult.status,
     recentWins,
     recentWinsStatus,
     productionHandoffStatus,
@@ -642,11 +731,12 @@ export async function loadSalesLeadAttentionSnapshot(
 
 export async function createSalesLead(
   slug: string,
-  input: Required<Omit<CreateSalesLeadInput, "phone" | "email" | "nextFollowUpAt" | "notes">> & {
+  input: Required<Omit<CreateSalesLeadInput, "phone" | "email" | "nextFollowUpAt" | "notes" | "doorMemoryClientEventId">> & {
     phone: string | null;
     email: string | null;
     nextFollowUpAt: string | null;
     notes: string;
+    doorMemoryClientEventId: string | null;
   },
 ): Promise<SalesRepLead> {
   const rep = await loadRepRow(slug);
@@ -705,6 +795,23 @@ export async function createSalesLead(
 
   if (activityError) {
     console.error("[sales-workspace] lead activity insert failed", activityError.message);
+  }
+
+  if (input.doorMemoryClientEventId) {
+    const { error: doorBindingError } = await supabase
+      .from("sales_rep_door_visits")
+      .update({ lead_id: lead.id })
+      .eq("rep_id", rep.id)
+      .eq("client_event_id", input.doorMemoryClientEventId)
+      .is("lead_id", null);
+    if (doorBindingError) {
+      // The homeowner remains safely captured even if optional field-history
+      // lineage needs repair; never invite a duplicate lead retry.
+      console.error(
+        "[sales-workspace] door memory lead binding failed",
+        doorBindingError.message,
+      );
+    }
   }
 
   return lead;
@@ -914,6 +1021,172 @@ export async function createSalesActivity(
   };
 }
 
+function assertDoorMemoryRetryMatches(
+  row: SalesDoorMemoryRow,
+  expected: {
+    doorActivityId: string;
+    propertyAddress: string;
+    addressKey: string;
+    disposition: SalesDoorDisposition;
+    notes: string;
+    leadId: string | null;
+  },
+) {
+  if (
+    row.door_activity_id !== expected.doorActivityId ||
+    row.property_address !== expected.propertyAddress ||
+    row.address_key !== expected.addressKey ||
+    row.disposition !== expected.disposition ||
+    (row.notes ?? "") !== expected.notes ||
+    row.lead_id !== expected.leadId
+  ) {
+    throw new SalesWorkspaceActionError(
+      "That door retry reference was already used for different details.",
+      409,
+    );
+  }
+}
+
+function doorMemoryReceiptFromRow(row: SalesDoorMemoryRow): SalesDoorMemoryReceipt {
+  return {
+    ...doorMemoryFromRow(row),
+    doorActivityId: row.door_activity_id,
+  };
+}
+
+export async function createSalesDoorMemory(
+  slug: string,
+  input: {
+    doorActivityClientEventId: string;
+    clientEventId: string;
+    propertyAddress: string;
+    addressKey: string;
+    disposition: SalesDoorDisposition;
+    notes: string;
+    leadId: string | null;
+  },
+): Promise<SalesDoorMemoryReceipt> {
+  const rep = await loadRepRow(slug);
+  const supabase = createPrivilegedServerSupabaseClient();
+  const activityResult = await supabase
+    .from("sales_rep_activity_events")
+    .select("id, event_type, occurred_at, reversed_at")
+    .eq("rep_id", rep.id)
+    .eq("client_event_id", input.doorActivityClientEventId)
+    .maybeSingle();
+
+  if (activityResult.error) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(activityResult.error.message),
+    );
+  }
+  if (!activityResult.data) {
+    throw new SalesWorkspaceActionError(
+      "The door knock is still waiting to sync. Retry the saved field queue first.",
+      409,
+    );
+  }
+  if (
+    activityResult.data.event_type !== "door_knock" ||
+    activityResult.data.reversed_at
+  ) {
+    throw new SalesWorkspaceActionError(
+      "Door memory requires an active door-knock entry.",
+      409,
+    );
+  }
+
+  if (input.leadId) {
+    const leadResult = await supabase
+      .from("sales_rep_leads")
+      .select("id")
+      .eq("id", input.leadId)
+      .eq("rep_id", rep.id)
+      .maybeSingle();
+    if (leadResult.error) {
+      throw new SalesWorkspaceUnavailableError(
+        readableStorageError(leadResult.error.message),
+      );
+    }
+    if (!leadResult.data) {
+      throw new SalesWorkspaceActionError(
+        "That homeowner does not belong to this sales workspace.",
+        400,
+      );
+    }
+  }
+
+  const expected = {
+    doorActivityId: String(activityResult.data.id),
+    propertyAddress: input.propertyAddress,
+    addressKey: input.addressKey,
+    disposition: input.disposition,
+    notes: input.notes,
+    leadId: input.leadId,
+  };
+  const priorResult = await supabase
+    .from("sales_rep_door_visits")
+    .select(SALES_DOOR_MEMORY_SELECT)
+    .eq("rep_id", rep.id)
+    .eq("client_event_id", input.clientEventId)
+    .maybeSingle();
+  if (priorResult.error) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(priorResult.error.message),
+    );
+  }
+  if (priorResult.data) {
+    const prior = priorResult.data as SalesDoorMemoryRow;
+    assertDoorMemoryRetryMatches(prior, expected);
+    return doorMemoryReceiptFromRow(prior);
+  }
+
+  const insertResult = await supabase
+    .from("sales_rep_door_visits")
+    .insert({
+      rep_id: rep.id,
+      door_activity_id: expected.doorActivityId,
+      lead_id: input.leadId,
+      client_event_id: input.clientEventId,
+      property_address: input.propertyAddress,
+      address_key: input.addressKey,
+      disposition: input.disposition,
+      notes: input.notes || null,
+      occurred_at: activityResult.data.occurred_at,
+    })
+    .select(SALES_DOOR_MEMORY_SELECT)
+    .single();
+
+  if (!insertResult.error && insertResult.data) {
+    return doorMemoryReceiptFromRow(insertResult.data as SalesDoorMemoryRow);
+  }
+  if (insertResult.error?.code !== "23505") {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(insertResult.error?.message ?? "sales_rep_door_visits"),
+    );
+  }
+
+  // A retried device request may carry a fresh memory UUID after the same door
+  // was already accepted. Resolve the unique door binding and prove its payload
+  // is identical before treating it as success.
+  const doorRetryResult = await supabase
+    .from("sales_rep_door_visits")
+    .select(SALES_DOOR_MEMORY_SELECT)
+    .eq("rep_id", rep.id)
+    .eq("door_activity_id", expected.doorActivityId)
+    .maybeSingle();
+  if (doorRetryResult.error || !doorRetryResult.data) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(
+        doorRetryResult.error?.message ?? "sales_rep_door_visits",
+      ),
+    );
+  }
+  const retried = doorRetryResult.data as SalesDoorMemoryRow;
+  assertDoorMemoryRetryMatches(retried, expected);
+  return doorMemoryReceiptFromRow(retried);
+}
+
 export async function reverseSalesActivity(
   slug: string,
   activityId: string,
@@ -939,6 +1212,25 @@ export async function reverseSalesActivity(
   }
 
   const activity = data as ReversibleSalesActivityRow;
+  if (activity.event_type === "door_knock") {
+    const memoryResult = await supabase
+      .from("sales_rep_door_visits")
+      .select("id")
+      .eq("rep_id", rep.id)
+      .eq("door_activity_id", activity.id)
+      .maybeSingle();
+    if (memoryResult.error) {
+      throw new SalesWorkspaceUnavailableError(
+        readableStorageError(memoryResult.error.message),
+      );
+    }
+    if (memoryResult.data) {
+      throw new SalesWorkspaceActionError(
+        "This door already has saved address memory and cannot be undone.",
+        409,
+      );
+    }
+  }
   if (
     !isSalesActivityUndoAvailable(
       {

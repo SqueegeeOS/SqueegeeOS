@@ -1,5 +1,6 @@
 import type { SalesRepProfile } from "./rep-config";
 import type { SalesProductionHandoffRecord } from "./production-handoff";
+import type { SalesDoorDisposition } from "./door-memory";
 
 export const SALES_ACTIVITY_TYPES = [
   "door_knock",
@@ -65,10 +66,21 @@ export interface SalesRepRecentWin {
   productionHandoff: SalesProductionHandoffRecord | null;
 }
 
+export interface SalesDoorMemory {
+  id: string;
+  leadId: string | null;
+  propertyAddress: string;
+  disposition: SalesDoorDisposition;
+  notes: string;
+  occurredAt: string;
+}
+
 export interface SalesWorkspacePayload {
   profile: SalesRepProfile;
   metrics: SalesWorkspaceMetrics;
   leads: SalesRepLead[];
+  recentDoorMemories: SalesDoorMemory[];
+  recentDoorMemoriesStatus: "complete" | "unavailable";
   recentWins: SalesRepRecentWin[];
   recentWinsStatus: "complete" | "unavailable";
   productionHandoffStatus: "complete" | "unavailable";
@@ -92,6 +104,8 @@ export interface CreateSalesLeadInput {
   notes?: string | null;
   smsConsentAttested?: boolean;
   emailConsentAttested?: boolean;
+  /** Optional saved door-memory UUID carried into the new homeowner record. */
+  doorMemoryClientEventId?: string | null;
 }
 
 export interface UpdateSalesLeadInput {
@@ -115,6 +129,21 @@ export interface CreateSalesActivityInput {
   occurredAt?: string | null;
 }
 
+export interface CreateSalesDoorMemoryInput {
+  /** Client UUID of the door_knock activity this outcome describes. */
+  doorActivityClientEventId: string;
+  /** Separate device UUID used to make this outcome retry idempotent. */
+  clientEventId: string;
+  propertyAddress: string;
+  disposition: SalesDoorDisposition;
+  notes?: string | null;
+  leadId?: string | null;
+}
+
+export interface SalesDoorMemoryReceipt extends SalesDoorMemory {
+  doorActivityId: string;
+}
+
 export interface SalesActivityReceipt {
   id: string;
   activityType: SalesActivityType;
@@ -135,4 +164,5 @@ export type SalesWorkspaceCommand =
   | { kind: "lead"; lead: CreateSalesLeadInput }
   | { kind: "update_lead"; lead: UpdateSalesLeadInput }
   | { kind: "activity"; activity: CreateSalesActivityInput }
+  | { kind: "door_memory"; memory: CreateSalesDoorMemoryInput }
   | { kind: "undo_activity"; activityId: string };

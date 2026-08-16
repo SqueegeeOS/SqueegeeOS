@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
+import {
+  DoorMemorySheet,
+  DoorMemoryTimeline,
+  type DoorMemoryDraft,
+} from "@/components/sales/door-memory";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
@@ -17,12 +22,15 @@ import type {
   CreateSalesLeadInput,
   SalesActivityReceipt,
   SalesActivityType,
+  SalesDoorMemory,
+  SalesDoorMemoryReceipt,
   SalesRepLead,
   SalesRepRecentWin,
   SalesWorkspaceMetrics,
   SalesWorkspacePayload,
   UpdateSalesLeadInput,
 } from "@/lib/sales/workspace-types";
+import type { SalesDoorDisposition } from "@/lib/sales/door-memory";
 import {
   craftEyebrow,
   craftHeading,
@@ -66,17 +74,36 @@ interface LeadMutationResponse {
   message?: string;
 }
 
+interface DoorMemoryMutationResponse {
+  memory?: SalesDoorMemoryReceipt;
+  error?: string;
+  message?: string;
+}
+
 interface PresentationMutationResponse {
   presentation?: { id: string; status?: string | null };
   error?: string;
   resumed?: boolean;
 }
 
-interface OfflinePulseEntry {
+interface OfflinePulseActivityEntry {
+  kind: "activity";
   activityType: ManualPulseActivity;
   clientEventId: string;
   createdAt: string;
 }
+
+interface OfflineDoorMemoryEntry {
+  kind: "door_memory";
+  clientEventId: string;
+  doorActivityClientEventId: string;
+  propertyAddress: string;
+  disposition: SalesDoorDisposition;
+  notes: string;
+  createdAt: string;
+}
+
+type OfflinePulseEntry = OfflinePulseActivityEntry | OfflineDoorMemoryEntry;
 
 interface FixedDoorFeedback {
   mode: "queued" | "synced" | "error";
@@ -106,6 +133,7 @@ const EMPTY_METRICS: SalesWorkspaceMetrics = {
 };
 const EMPTY_LEADS: SalesRepLead[] = [];
 const EMPTY_RECENT_WINS: SalesRepRecentWin[] = [];
+const EMPTY_DOOR_MEMORIES: SalesDoorMemory[] = [];
 
 const EMPTY_LEAD_FORM: CreateSalesLeadInput = {
   fullName: "",
@@ -117,6 +145,7 @@ const EMPTY_LEAD_FORM: CreateSalesLeadInput = {
   notes: "",
   smsConsentAttested: false,
   emailConsentAttested: false,
+  doorMemoryClientEventId: null,
 };
 
 type ManualPulseActivity =
@@ -261,15 +290,48 @@ function readOfflinePulseQueue(repSlug: string) {
     ) as unknown;
     if (!Array.isArray(parsed)) return [];
 
-    return parsed.filter((entry): entry is OfflinePulseEntry => {
-      if (!entry || typeof entry !== "object") return false;
-      const candidate = entry as Partial<OfflinePulseEntry>;
-      return (
+    return parsed.flatMap((entry): OfflinePulseEntry[] => {
+      if (!entry || typeof entry !== "object") return [];
+      const candidate = entry as Record<string, unknown>;
+      if (
+        candidate.kind === "door_memory" &&
+        typeof candidate.clientEventId === "string" &&
+        typeof candidate.doorActivityClientEventId === "string" &&
+        typeof candidate.propertyAddress === "string" &&
+        typeof candidate.disposition === "string" &&
+        [
+          "not_home",
+          "conversation",
+          "follow_up",
+          "interested",
+          "not_interested",
+          "do_not_knock",
+        ].includes(candidate.disposition) &&
+        typeof candidate.notes === "string" &&
+        typeof candidate.createdAt === "string"
+      ) {
+        return [candidate as unknown as OfflineDoorMemoryEntry];
+      }
+
+      // Entries written before Door Memory did not carry a discriminant. Keep
+      // them safe and upgrade their shape the next time the queue is written.
+      if (
+        (candidate.kind === undefined || candidate.kind === "activity") &&
         typeof candidate.clientEventId === "string" &&
         typeof candidate.createdAt === "string" &&
         typeof candidate.activityType === "string" &&
         MANUAL_PULSE_TYPES.has(candidate.activityType as ManualPulseActivity)
-      );
+      ) {
+        return [
+          {
+            kind: "activity",
+            activityType: candidate.activityType as ManualPulseActivity,
+            clientEventId: candidate.clientEventId,
+            createdAt: candidate.createdAt,
+          },
+        ];
+      }
+      return [];
     });
   } catch {
     return [];
@@ -424,6 +486,9 @@ export function SalesRepWorkspace({
   const offlineQueueRef = useRef<OfflinePulseEntry[]>([]);
   const [fixedDoorFeedback, setFixedDoorFeedback] =
     useState<FixedDoorFeedback | null>(null);
+  const [doorMemoryDraft, setDoorMemoryDraft] =
+    useState<DoorMemoryDraft | null>(null);
+  const [doorMemorySaving, setDoorMemorySaving] = useState(false);
 
   const profile = workspace?.profile ?? fallbackProfile(repSlug);
   const metrics = workspace?.metrics ?? EMPTY_METRICS;
@@ -436,6 +501,7 @@ export function SalesRepWorkspace({
     () =>
       offlineQueue.filter((entry) => isPacificToday(entry.createdAt)).reduce(
         (totals, entry) => {
+          if (entry.kind !== "activity") return totals;
           if (entry.activityType === "door_knock") totals.doorsToday += 1;
           if (entry.activityType === "conversation") {
             totals.conversationsToday += 1;
@@ -607,8 +673,17 @@ export function SalesRepWorkspace({
 
   const removeQueuedActivity = useCallback(
     (clientEventId: string) => {
+      const target = offlineQueueRef.current.find(
+        (entry) => entry.clientEventId === clientEventId,
+      );
       const next = offlineQueueRef.current.filter(
-        (entry) => entry.clientEventId !== clientEventId,
+        (entry) =>
+          entry.clientEventId !== clientEventId &&
+          !(
+            target?.kind === "activity" &&
+            entry.kind === "door_memory" &&
+            entry.doorActivityClientEventId === target.clientEventId
+          ),
       );
       if (!commitOfflineQueue(next)) {
         setSyncError(
@@ -668,11 +743,22 @@ export function SalesRepWorkspace({
     source: "pulse" | "fixed-door" = "pulse",
   ) => {
     const clientEventId = crypto.randomUUID();
-    const offlineEntry: OfflinePulseEntry = {
+    const offlineEntry: OfflinePulseActivityEntry = {
+      kind: "activity",
       activityType,
       clientEventId,
       createdAt: new Date().toISOString(),
     };
+
+    if (activityType === "door_knock") {
+      setDoorMemoryDraft({
+        doorActivityClientEventId: clientEventId,
+        clientEventId: crypto.randomUUID(),
+        propertyAddress: "",
+        disposition: null,
+        notes: "",
+      });
+    }
 
     setActivityPending(activityType);
     if (!undoableActivity) setNotice(null);
@@ -749,12 +835,126 @@ export function SalesRepWorkspace({
           ? activityError.message
           : "Could not record activity.";
       setError(message);
+      if (activityType === "door_knock") {
+        setDoorMemoryDraft((current) =>
+          current?.doorActivityClientEventId === clientEventId ? null : current,
+        );
+      }
       if (source === "fixed-door") {
         setFixedDoorFeedback({ mode: "error", message: "Door was not saved." });
       }
     } finally {
       window.clearTimeout(requestTimeout);
       setActivityPending(null);
+    }
+  };
+
+  const openHomeownerFromDoor = (draft: DoorMemoryDraft) => {
+    setLeadForm({
+      ...EMPTY_LEAD_FORM,
+      propertyAddress: draft.propertyAddress,
+      nextFollowUpAt:
+        draft.disposition === "follow_up" ? suggestedFollowUpValue(1) : "",
+      notes: draft.notes,
+      doorMemoryClientEventId: draft.clientEventId,
+    });
+    setLeadFormOpen(true);
+  };
+
+  const saveDoorMemory = async (
+    intent: "move-on" | "add-homeowner",
+  ) => {
+    const draft = doorMemoryDraft;
+    if (!draft?.disposition || doorMemorySaving) return;
+
+    const entry: OfflineDoorMemoryEntry = {
+      kind: "door_memory",
+      clientEventId: draft.clientEventId,
+      doorActivityClientEventId: draft.doorActivityClientEventId,
+      propertyAddress: draft.propertyAddress,
+      disposition: draft.disposition,
+      notes: draft.notes,
+      createdAt: new Date().toISOString(),
+    };
+    const finish = (mode: "queued" | "synced") => {
+      setDoorMemoryDraft(null);
+      setUndoableActivity(null);
+      setFixedDoorFeedback({
+        mode,
+        message:
+          mode === "queued"
+            ? "Door address and outcome are safe on this phone."
+            : "Door address and outcome are saved to HomeAtlas.",
+        clientEventId:
+          mode === "queued" ? draft.doorActivityClientEventId : undefined,
+      });
+      if (intent === "add-homeowner") openHomeownerFromDoor(draft);
+    };
+
+    setDoorMemorySaving(true);
+    setError(null);
+    const activityStillQueued = offlineQueueRef.current.some(
+      (queued) =>
+        queued.kind === "activity" &&
+        queued.clientEventId === draft.doorActivityClientEventId,
+    );
+    if (!navigator.onLine || activityStillQueued) {
+      const queued = enqueueOfflineActivity(entry);
+      if (queued) finish("queued");
+      setDoorMemorySaving(false);
+      return;
+    }
+
+    let responseReceived = false;
+    const requestController = new AbortController();
+    const requestTimeout = window.setTimeout(
+      () => requestController.abort(),
+      4_000,
+    );
+    try {
+      const response = await fetch(
+        `/api/sales/${encodeURIComponent(repSlug)}/workspace`,
+        {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+          signal: requestController.signal,
+          body: JSON.stringify({
+            kind: "door_memory",
+            memory: {
+              doorActivityClientEventId: entry.doorActivityClientEventId,
+              clientEventId: entry.clientEventId,
+              propertyAddress: entry.propertyAddress,
+              disposition: entry.disposition,
+              notes: entry.notes,
+            },
+          }),
+        },
+      );
+      responseReceived = true;
+      const body = (await response.json().catch(() => null)) as
+        | DoorMemoryMutationResponse
+        | null;
+      if (!response.ok || !body?.memory) {
+        throw new Error(body?.error ?? "Could not save this door memory.");
+      }
+      setNotice(body.message ?? "Door address and outcome saved.");
+      finish("synced");
+      navigator.vibrate?.(18);
+      await loadWorkspace();
+    } catch (memoryError) {
+      if (!responseReceived) {
+        const queued = enqueueOfflineActivity(entry);
+        if (queued) finish("queued");
+        return;
+      }
+      setError(
+        memoryError instanceof Error
+          ? memoryError.message
+          : "Could not save this door memory.",
+      );
+    } finally {
+      window.clearTimeout(requestTimeout);
+      setDoorMemorySaving(false);
     }
   };
 
@@ -777,24 +977,39 @@ export function SalesRepWorkspace({
     try {
       while (offlineQueueRef.current.length > 0 && navigator.onLine) {
         const entry = offlineQueueRef.current[0];
+        const command =
+          entry.kind === "activity"
+            ? {
+                kind: "activity" as const,
+                activity: {
+                  activityType: entry.activityType,
+                  quantity: 1,
+                  clientEventId: entry.clientEventId,
+                  occurredAt: entry.createdAt,
+                },
+              }
+            : {
+                kind: "door_memory" as const,
+                memory: {
+                  doorActivityClientEventId:
+                    entry.doorActivityClientEventId,
+                  clientEventId: entry.clientEventId,
+                  propertyAddress: entry.propertyAddress,
+                  disposition: entry.disposition,
+                  notes: entry.notes,
+                },
+              };
         const response = await fetch(
           `/api/sales/${encodeURIComponent(repSlug)}/workspace`,
           {
             method: "POST",
             headers: getAdminRequestHeaders(),
-            body: JSON.stringify({
-              kind: "activity",
-              activity: {
-                activityType: entry.activityType,
-                quantity: 1,
-                clientEventId: entry.clientEventId,
-                occurredAt: entry.createdAt,
-              },
-            }),
+            body: JSON.stringify(command),
           },
         );
         const body = (await response.json().catch(() => null)) as
           | ActivityMutationResponse
+          | DoorMemoryMutationResponse
           | null;
         if (!response.ok) {
           setSyncError(
@@ -813,18 +1028,29 @@ export function SalesRepWorkspace({
           );
           break;
         }
-        const reversibleActivity = body?.activity?.undoExpiresAt
-          ? body.activity
+        const activityBody =
+          entry.kind === "activity"
+            ? (body as ActivityMutationResponse | null)
+            : null;
+        const reversibleActivity = activityBody?.activity?.undoExpiresAt
+          ? activityBody.activity
           : undefined;
         if (reversibleActivity) setUndoableActivity(reversibleActivity);
         setFixedDoorFeedback((current) =>
+          entry.kind === "activity" &&
           current?.clientEventId === entry.clientEventId
             ? {
                 mode: "synced",
                 message: "Saved phone door is now synced to HomeAtlas.",
                 activity: reversibleActivity,
               }
-            : current,
+            : entry.kind === "door_memory" &&
+                current?.clientEventId === entry.doorActivityClientEventId
+              ? {
+                  mode: "synced",
+                  message: "Door address and outcome are now synced.",
+                }
+              : current,
         );
         syncedCount += 1;
       }
@@ -979,6 +1205,21 @@ export function SalesRepWorkspace({
 
   const saveLead = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const doorMemoryStillQueued = Boolean(
+      leadForm.doorMemoryClientEventId &&
+        offlineQueueRef.current.some(
+          (entry) =>
+            entry.kind === "door_memory" &&
+            entry.clientEventId === leadForm.doorMemoryClientEventId,
+        ),
+    );
+    if (doorMemoryStillQueued) {
+      setError(
+        "Sync the saved doorstep entry before creating this homeowner so their history stays linked.",
+      );
+      if (navigator.onLine) void syncOfflineQueue();
+      return;
+    }
     const submitter = (event.nativeEvent as SubmitEvent).submitter as
       | HTMLElement
       | null;
@@ -1093,12 +1334,24 @@ export function SalesRepWorkspace({
   };
 
   const workspaceLeads = workspace?.leads ?? EMPTY_LEADS;
+  const recentDoorMemories =
+    workspace?.recentDoorMemories ?? EMPTY_DOOR_MEMORIES;
+  const recentDoorMemoriesStatus =
+    workspace?.recentDoorMemoriesStatus ?? "complete";
   const recentWins = workspace?.recentWins ?? EMPTY_RECENT_WINS;
   const recentWinsStatus = workspace?.recentWinsStatus ?? "complete";
   const productionHandoffStatus =
     workspace?.productionHandoffStatus ?? "complete";
   const closeLedgerStatus = workspace?.closeLedgerStatus ?? "complete";
   const workspaceGeneratedAt = workspace?.generatedAt ?? null;
+  const leadDoorMemoryPending = Boolean(
+    leadForm.doorMemoryClientEventId &&
+      offlineQueue.some(
+        (entry) =>
+          entry.kind === "door_memory" &&
+          entry.clientEventId === leadForm.doorMemoryClientEventId,
+      ),
+  );
   const returnedClose = closedPresentationId
     ? recentWins.find(
         (win) => win.presentationId === closedPresentationId,
@@ -1507,6 +1760,12 @@ export function SalesRepWorkspace({
             ) : null}
           </div>
         </section>
+
+        <DoorMemoryTimeline
+          memories={recentDoorMemories}
+          status={recentDoorMemoriesStatus}
+          loading={loading}
+        />
 
         <section className="mt-8 grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
           <GlassCard tone="elevated" padding="lg" rim className="relative overflow-hidden">
@@ -2376,6 +2635,19 @@ export function SalesRepWorkspace({
         </div>
       </nav>
 
+      {doorMemoryDraft ? (
+        <DoorMemorySheet
+          repSlug={repSlug}
+          draft={doorMemoryDraft}
+          recentMemories={recentDoorMemories}
+          saving={doorMemorySaving}
+          activityPending={activityPending === "door_knock"}
+          onChange={setDoorMemoryDraft}
+          onCancel={() => setDoorMemoryDraft(null)}
+          onSave={(intent) => void saveDoorMemory(intent)}
+        />
+      ) : null}
+
       {leadFormOpen ? (
         <div className="fixed inset-0 z-[70] overflow-y-auto bg-black/70 px-3 py-4 backdrop-blur-md sm:px-6 sm:py-10">
           <div className="mx-auto max-w-2xl">
@@ -2518,6 +2790,13 @@ export function SalesRepWorkspace({
                   </p>
                 </fieldset>
 
+                {leadDoorMemoryPending ? (
+                  <p className="rounded-2xl border border-amber-300/35 bg-amber-300/[0.08] px-4 py-3 text-sm leading-5 text-amber-50" role="status">
+                    The doorstep entry is safe on this phone. HomeAtlas will enable
+                    homeowner save as soon as it syncs.
+                  </p>
+                ) : null}
+
                 {error ? <p className="text-sm text-red-200" role="alert">{error}</p> : null}
 
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -2527,7 +2806,11 @@ export function SalesRepWorkspace({
                   <button
                     type="submit"
                     data-intent="follow-up"
-                    disabled={leadSaving || presentationOpeningLeadId !== null}
+                    disabled={
+                      leadSaving ||
+                      presentationOpeningLeadId !== null ||
+                      leadDoorMemoryPending
+                    }
                     className={craftSecondaryButton}
                   >
                     {leadSaving && leadSaveIntent === "follow-up"
@@ -2537,7 +2820,11 @@ export function SalesRepWorkspace({
                   <button
                     type="submit"
                     data-intent="build-plan"
-                    disabled={leadSaving || presentationOpeningLeadId !== null}
+                    disabled={
+                      leadSaving ||
+                      presentationOpeningLeadId !== null ||
+                      leadDoorMemoryPending
+                    }
                     className={craftPrimaryButton}
                   >
                     {leadSaving && leadSaveIntent === "build-plan"
