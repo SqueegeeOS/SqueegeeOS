@@ -41,4 +41,13 @@ describe("hosted payment handoff boundaries", () => {
     expect(page).toContain("membershipId={row.id}");
     expect(page).toContain("canSend={Boolean(row.agreementId)}");
   });
+
+  it("surfaces the same verified handoff in the individual customer workspace", () => {
+    const page = projectFile("components/admin/customer-workspace-page.tsx");
+    expect(page).toContain("PaymentSetupEmailButton");
+    expect(page).toContain('paymentSetupEmailState ===');
+    expect(page).toContain('"ready"');
+    expect(page).toContain('variant="primary"');
+    expect(page).toContain("does not charge it during setup");
+  });
 });
