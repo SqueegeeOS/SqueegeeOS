@@ -403,6 +403,7 @@ async function recordEmailDelivery(input: {
   handoff: HostedHandoffRow;
   session: { id: string; expiresAt: string };
   result: ProviderSendResult;
+  actor: "homeatlas_hq" | `sales_rep:${string}`;
 }): Promise<void> {
   const supabase = createServiceRoleSupabaseClient();
   const idempotencyKey = `membership-payment-setup-${input.handoff.id}-${input.session.id}`;
@@ -445,7 +446,7 @@ async function recordEmailDelivery(input: {
   const event = await supabase.from("membership_payment_handoff_events").insert({
     handoff_id: input.handoff.id,
     event_type: input.result.ok ? "payment_setup_email_accepted" : "payment_setup_email_failed",
-    actor: "homeatlas_hq",
+    actor: input.actor,
     provider: "resend",
     provider_event_key: input.result.ok
       ? `payment-setup-email:${input.handoff.id}:${input.session.id}`
@@ -464,6 +465,7 @@ async function recordEmailDelivery(input: {
 export async function sendHostedMembershipPaymentLink(input: {
   membershipId: string;
   requestOrigin?: string | null;
+  actor?: "homeatlas_hq" | `sales_rep:${string}`;
 }): Promise<HostedPaymentHandoffResult> {
   if (!isStripeServerEnabled()) {
     throw new Error("Stripe is not configured for hosted card setup.");
@@ -513,7 +515,13 @@ export async function sendHostedMembershipPaymentLink(input: {
         <p style="font-size:14px;line-height:1.6;color:#587060">Questions? Reply to this email and we will help.</p>
       </div>`,
   });
-  await recordEmailDelivery({ context, handoff, session, result: email });
+  await recordEmailDelivery({
+    context,
+    handoff,
+    session,
+    result: email,
+    actor: input.actor ?? "homeatlas_hq",
+  });
   if (!email.ok) {
     throw new Error("The Stripe link is ready, but the email provider did not accept the message.");
   }

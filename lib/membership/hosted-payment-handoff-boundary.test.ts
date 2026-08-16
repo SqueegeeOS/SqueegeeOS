@@ -59,4 +59,65 @@ describe("hosted payment handoff boundaries", () => {
     expect(page).toContain("membershipId={handoff.membershipId}");
     expect(page).toContain("Stripe saves the card; no charge occurs");
   });
+
+  it("offers the same verified action before leaving the signed presentation", () => {
+    const onboarding = projectFile(
+      "components/presentations/presentation-onboarding.tsx",
+    );
+    const handoff = projectFile(
+      "components/presentations/presentation-payment-email-handoff.tsx",
+    );
+    const paymentStep = onboarding.indexOf('{step === "payment" ? (');
+    const handoffPlacement = onboarding.indexOf(
+      "<PresentationPaymentEmailHandoff",
+    );
+    const completeStep = onboarding.indexOf('{step === "complete" ? (');
+
+    expect(paymentStep).toBeGreaterThan(-1);
+    expect(handoffPlacement).toBeGreaterThan(paymentStep);
+    expect(handoffPlacement).toBeLessThan(completeStep);
+    expect(onboarding).toContain(
+      "membershipId={membershipId ?? presentation.membershipId}",
+    );
+    expect(onboarding).toContain("presentationId={presentation.id}");
+    expect(onboarding).toContain("customerEmail={presentation.clientEmail}");
+    expect(onboarding).toContain("onReturn={handleDone}");
+    expect(handoff).toContain("PaymentSetupEmailButton");
+    expect(handoff).toContain("presentationId={presentationId}");
+    expect(handoff).toContain("canSend={canSend}");
+    expect(handoff).toContain("onAccepted={setAcceptedMessage}");
+    expect(handoff).toContain("Nothing sends until you press");
+    expect(handoff).toContain("No charge occurs here");
+    expect(handoff).not.toContain("fetch(");
+  });
+
+  it("authorizes a field send by presentation ownership and derives membership server-side", () => {
+    const route = projectFile(
+      "app/api/presentations/[id]/send-payment-link/route.ts",
+    );
+    const button = projectFile(
+      "components/admin/payment-setup-email-button.tsx",
+    );
+
+    expect(route).toContain(
+      "actor = await authorizeSalesPresentationRequest(request.headers, id)",
+    );
+    expect(
+      route.indexOf(
+        "actor = await authorizeSalesPresentationRequest(request.headers, id)",
+      ),
+    ).toBeLessThan(
+      route.indexOf("getPresentation(id)"),
+    );
+    expect(route).toContain('presentation.status !== "signed"');
+    expect(route).toContain("membershipId: presentation.membershipId");
+    expect(route).toContain("`sales_rep:${actor.repSlug}`");
+    expect(route).not.toContain("request.json()");
+    expect(button).toContain(
+      "`/api/presentations/${encodeURIComponent(presentationId)}/send-payment-link`",
+    );
+    expect(button).toContain(
+      "`/api/admin/memberships/${encodeURIComponent(membershipId)}/send-payment-link`",
+    );
+  });
 });

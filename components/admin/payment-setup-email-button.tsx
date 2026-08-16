@@ -5,11 +5,13 @@ import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 
 export function PaymentSetupEmailButton({
   membershipId,
+  presentationId = null,
   canSend,
   onAccepted,
   variant = "compact",
 }: {
   membershipId: string | null;
+  presentationId?: string | null;
   canSend: boolean;
   onAccepted?: (message: string) => void;
   variant?: "compact" | "primary";
@@ -23,8 +25,11 @@ export function PaymentSetupEmailButton({
     setError(null);
 
     try {
+      const endpoint = presentationId
+        ? `/api/presentations/${encodeURIComponent(presentationId)}/send-payment-link`
+        : `/api/admin/memberships/${encodeURIComponent(membershipId)}/send-payment-link`;
       const response = await fetch(
-        `/api/admin/memberships/${encodeURIComponent(membershipId)}/send-payment-link`,
+        endpoint,
         {
           method: "POST",
           headers: getAdminRequestHeaders(),

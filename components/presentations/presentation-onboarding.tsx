@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AgreementSignaturePad } from "@/components/agreement/agreement-signature-pad";
 import { CardOnFileSetup } from "@/components/membership/card-on-file-setup";
 import {
@@ -43,6 +43,7 @@ import {
 import type { MembershipPlanId } from "@/lib/membership/types";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { RemoteEnrollmentHandoff } from "@/components/enrollment/remote-enrollment-handoff";
+import { PresentationPaymentEmailHandoff } from "./presentation-payment-email-handoff";
 
 type OnboardingStep = PersistedOnboardingStep;
 
@@ -120,7 +121,7 @@ export function PresentationOnboarding({
   );
   const [portalUrl, setPortalUrl] = useState<string | null>(null);
 
-  const refreshPortalUrl = async () => {
+  const refreshPortalUrl = useCallback(async () => {
     try {
       const res = await fetch(
         `/api/membership/onboarding-status?presentationId=${presentation.id}`,
@@ -132,7 +133,7 @@ export function PresentationOnboarding({
     } catch {
       // Portal link is optional when cloud persistence is unavailable.
     }
-  };
+  }, [presentation.id]);
 
   const goToStep = (next: OnboardingStep) => {
     stepRef.current = next;
@@ -168,11 +169,10 @@ export function PresentationOnboarding({
   }, [presentation.id, step]);
 
   useEffect(() => {
-    if (step === "complete") {
-      void refreshPortalUrl();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step, presentation.id]);
+    if (step !== "complete") return;
+    const timer = window.setTimeout(() => void refreshPortalUrl(), 0);
+    return () => window.clearTimeout(timer);
+  }, [refreshPortalUrl, step]);
 
   useEffect(() => {
     let cancelled = false;
@@ -503,6 +503,24 @@ export function PresentationOnboarding({
             <p className="mt-3 text-sm leading-relaxed text-white/50">
               {MEMBERSHIP_CARD_ON_FILE_WHY}
             </p>
+
+            <div className="mt-6">
+              <PresentationPaymentEmailHandoff
+                membershipId={membershipId ?? presentation.membershipId}
+                presentationId={presentation.id}
+                customerEmail={presentation.clientEmail}
+                returnLabel={doneLabel}
+                onReturn={handleDone}
+              />
+            </div>
+
+            <div className="my-6 flex items-center gap-3" aria-hidden>
+              <span className="h-px flex-1 bg-white/10" />
+              <span className="text-[9px] uppercase tracking-[0.16em] text-white/28">
+                or finish on this device
+              </span>
+              <span className="h-px flex-1 bg-white/10" />
+            </div>
 
             <div className="mt-6">
               <CardOnFileSetup
