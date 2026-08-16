@@ -29,10 +29,12 @@ import {
   referralMemberAnchorId,
   type ReferralAttentionSnapshot,
 } from "@/lib/referrals/attention-types";
-import { buildSalesLeadActionQueue } from "@/lib/sales/lead-action-priority";
+import type {
+  OwnerSalesAttentionSnapshot,
+  OwnerSalesPipelineSnapshot,
+} from "@/lib/sales/owner-pipeline";
 import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
-import type { SalesProductionHandoffSnapshot } from "@/lib/sales/production-handoff";
-import type { SalesLeadAttentionSnapshot } from "@/lib/sales/workspace-types";
+import type { SalesProductionHandoffRecord } from "@/lib/sales/production-handoff";
 import {
   CUSTOMER_SERVICE_CASE_CATEGORY_LABELS,
   customerServiceCaseAnchorId,
@@ -50,9 +52,7 @@ export type OwnerAttentionDomain =
   | "systems";
 export type OwnerAttentionSourceState = "ready" | "degraded";
 export type OwnerAttentionSourceId =
-  | "customer_leads"
-  | "david_pipeline"
-  | "sales_handoffs"
+  | "owner_sales"
   | "sales_retention"
   | "today"
   | "owner_leverage"
@@ -105,9 +105,7 @@ export type OwnerAttentionSourceResult<T> =
 
 export interface OwnerAttentionInput {
   now: Date;
-  customerLeads: OwnerAttentionSourceResult<LeadIntakeRecord[]>;
-  davidPipeline: OwnerAttentionSourceResult<SalesLeadAttentionSnapshot>;
-  salesHandoffs: OwnerAttentionSourceResult<SalesProductionHandoffSnapshot>;
+  ownerSales: OwnerAttentionSourceResult<OwnerSalesAttentionSnapshot>;
   salesRetention: OwnerAttentionSourceResult<SalesRetentionAttentionSnapshot>;
   today: OwnerAttentionSourceResult<JobberTodayData>;
   ownerLeverage: OwnerAttentionSourceResult<OwnerLeverageSnapshot>;
@@ -134,24 +132,10 @@ const SOURCE_DEFINITIONS: Array<{
   priority: OwnerAttentionPriority;
 }> = [
   {
-    id: "customer_leads",
-    label: "Website & Facebook leads",
-    domain: "leads",
-    href: ROUTES.hqPendingRequests,
-    priority: "high",
-  },
-  {
-    id: "david_pipeline",
-    label: "David pipeline",
+    id: "owner_sales",
+    label: "Owner + field sales",
     domain: "sales",
     href: ROUTES.hqSales,
-    priority: "high",
-  },
-  {
-    id: "sales_handoffs",
-    label: "Signed-to-scheduled handoffs",
-    domain: "sales",
-    href: "/david#verified-closes",
     priority: "high",
   },
   {
@@ -342,57 +326,58 @@ function addCustomerLeadItems(
   }
 }
 
-function addDavidPipelineItems(
+function addOwnerSalesPipelineItems(
   items: OwnerAttentionItem[],
-  snapshot: SalesLeadAttentionSnapshot,
+  snapshot: OwnerSalesPipelineSnapshot,
   now: Date,
 ) {
-  const queue = buildSalesLeadActionQueue(snapshot.leads, now).filter(
-    (item) => item.moment !== "upcoming",
+  const queue = snapshot.leads.filter(
+    (lead) => lead.actionMoment !== "upcoming",
   );
   const visible = queue.slice(0, 5);
 
-  for (const item of visible) {
-    const followUpAt = timestamp(item.lead.nextFollowUpAt);
+  for (const lead of visible) {
+    const followUpAt = timestamp(lead.nextFollowUpAt);
     const overdueMs = followUpAt === null ? 0 : now.getTime() - followUpAt;
     const priority: OwnerAttentionPriority =
-      item.moment === "overdue" && overdueMs >= 24 * 60 * 60 * 1_000
+      lead.actionMoment === "overdue" && overdueMs >= 24 * 60 * 60 * 1_000
         ? "critical"
-        : item.moment === "unscheduled"
+        : lead.actionMoment === "unscheduled"
           ? "normal"
           : "high";
     const timing =
-      item.moment === "overdue"
+      lead.actionMoment === "overdue"
         ? `Follow-up overdue by ${formatWaiting(overdueMs)}`
-        : item.moment === "due_today"
+        : lead.actionMoment === "due_today"
           ? "Follow-up is due today"
           : "No next check-in is scheduled";
     items.push({
-      id: `david-lead:${item.lead.id}`,
+      id: `sales-lead:${lead.id}`,
       priority,
       domain: "sales",
-      title: `${snapshot.profile.displayName}: ${item.lead.fullName}`,
-      detail: `${timing} · ${formatArr(item.lead.estimatedArrCents)} potential ARR · ${item.lead.status.replaceAll("_", " ")}.`,
-      href: `${ROUTES.hqSales}#owner-sales-lead-${item.lead.id}`,
+      title: `${lead.repDisplayName}: ${lead.fullName}`,
+      detail: `${timing} · ${formatArr(lead.estimatedArrCents)} potential ARR · ${lead.status.replaceAll("_", " ")}.`,
+      href: `${ROUTES.hqSales}#owner-sales-lead-${lead.id}`,
       actionLabel: "Open pipeline",
-      sourceLabel: `${snapshot.profile.displayName} pipeline`,
+      sourceLabel: `${lead.repDisplayName} pipeline`,
       affectedCount: 1,
-      observedAt: item.lead.updatedAt,
-      dueAt: item.lead.nextFollowUpAt,
+      observedAt: lead.updatedAt,
+      dueAt: lead.nextFollowUpAt,
     });
   }
 
   const overflow = queue.length - visible.length;
   if (overflow > 0) {
     items.push({
-      id: "david-lead:overflow",
+      id: "sales-lead:overflow",
       priority: "normal",
       domain: "sales",
-      title: `${overflow} more ${snapshot.profile.displayName} pipeline ${plural(overflow, "action")}`,
-      detail: "Open the field workspace to schedule or complete the remaining check-ins.",
+      title: `${overflow} more owned pipeline ${plural(overflow, "action")}`,
+      detail:
+        "Open the owner sales desk to schedule or complete the remaining rep check-ins.",
       href: ROUTES.hqSales,
       actionLabel: "Open pipeline",
-      sourceLabel: `${snapshot.profile.displayName} pipeline`,
+      sourceLabel: "Owner + field sales",
       affectedCount: overflow,
       observedAt: snapshot.generatedAt,
       dueAt: null,
@@ -475,7 +460,10 @@ function addSalesRetentionItems(
 
 function addSalesProductionHandoffItems(
   items: OwnerAttentionItem[],
-  snapshot: SalesProductionHandoffSnapshot,
+  snapshot: {
+    generatedAt: string;
+    records: SalesProductionHandoffRecord[];
+  },
 ) {
   const unknown = snapshot.records.filter(
     (record) => record.stage === "source_unavailable",
@@ -538,14 +526,65 @@ function addSalesProductionHandoffItems(
       domain: "sales",
       title: `${overflow} more signed ${plural(overflow, "member")} need production handoff`,
       detail:
-        "Open David’s verified closes and work the remaining payment, pairing, job-link, and scheduling steps.",
-      href: "/david#verified-closes",
-      actionLabel: "Open verified closes",
+        "Open the owner sales desk and work the remaining payment, pairing, job-link, and scheduling steps.",
+      href: `${ROUTES.hqSales}#signed-to-scheduled`,
+      actionLabel: "Open handoff desk",
       sourceLabel: "Signed-to-scheduled handoffs",
       affectedCount: overflow,
       observedAt: snapshot.generatedAt,
       dueAt: null,
     });
+  }
+}
+
+function addOwnerSalesAttentionItems(
+  items: OwnerAttentionItem[],
+  snapshot: OwnerSalesAttentionSnapshot,
+  now: Date,
+) {
+  const pipeline = snapshot.pipeline;
+
+  if (
+    snapshot.unassignedInbound === null ||
+    pipeline.inbound.status === "unavailable"
+  ) {
+    items.push({
+      id: "owner-sales:inbound-unknown",
+      priority: "high",
+      domain: "systems",
+      title: "Unassigned lead ownership cannot be verified",
+      detail:
+        "The owned sales queue is available, but HomeAtlas could not prove which website or Facebook requests still need an owner. Treat this as unknown, not clear.",
+      href: ROUTES.hqSales,
+      actionLabel: "Open sales desk",
+      sourceLabel: "Owner + field sales",
+      affectedCount: 1,
+      observedAt: pipeline.generatedAt,
+      dueAt: null,
+    });
+  } else {
+    addCustomerLeadItems(items, snapshot.unassignedInbound, now);
+  }
+
+  addOwnerSalesPipelineItems(items, pipeline, now);
+
+  if (pipeline.handoffs.status === "unavailable") {
+    items.push({
+      id: "owner-sales:handoffs-unknown",
+      priority: "high",
+      domain: "systems",
+      title: "Signed-to-scheduled handoffs cannot be verified",
+      detail:
+        "HomeAtlas can still show owned lead actions, but it could not prove whether every signed customer reached payment, pairing, and Jobber scheduling.",
+      href: `${ROUTES.hqSales}#signed-to-scheduled`,
+      actionLabel: "Open handoff desk",
+      sourceLabel: "Owner + field sales",
+      affectedCount: 1,
+      observedAt: pipeline.generatedAt,
+      dueAt: null,
+    });
+  } else {
+    addSalesProductionHandoffItems(items, pipeline.handoffs);
   }
 }
 
@@ -1497,12 +1536,8 @@ function sourceResultFor(
   id: OwnerAttentionSourceId,
 ): OwnerAttentionSourceResult<unknown> {
   switch (id) {
-    case "customer_leads":
-      return input.customerLeads;
-    case "david_pipeline":
-      return input.davidPipeline;
-    case "sales_handoffs":
-      return input.salesHandoffs;
+    case "owner_sales":
+      return input.ownerSales;
     case "sales_retention":
       return input.salesRetention;
     case "today":
@@ -1571,14 +1606,8 @@ export function buildOwnerAttentionQueue(
     }
   }
 
-  if (input.customerLeads.state === "ready") {
-    addCustomerLeadItems(items, input.customerLeads.data, input.now);
-  }
-  if (input.davidPipeline.state === "ready") {
-    addDavidPipelineItems(items, input.davidPipeline.data, input.now);
-  }
-  if (input.salesHandoffs.state === "ready") {
-    addSalesProductionHandoffItems(items, input.salesHandoffs.data);
+  if (input.ownerSales.state === "ready") {
+    addOwnerSalesAttentionItems(items, input.ownerSales.data, input.now);
   }
   if (input.salesRetention.state === "ready") {
     addSalesRetentionItems(items, input.salesRetention.data, input.now);

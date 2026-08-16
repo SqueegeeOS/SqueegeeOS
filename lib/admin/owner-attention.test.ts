@@ -21,16 +21,19 @@ import type {
   TechnicianCapacityWeekForecast,
 } from "@/lib/field-operations/technician-capacity";
 import type { ReferralAttentionSnapshot } from "@/lib/referrals/attention-types";
-import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
 import type { SalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle";
 import {
+  buildOwnerSalesPipelineSnapshot,
+  type OwnerSalesAttentionSnapshot,
+  type OwnerSalesHandoffSource,
+  type OwnerSalesLeadSource,
+  type OwnerSalesRepSource,
+} from "@/lib/sales/owner-pipeline";
+import {
   deriveSalesProductionHandoff,
-  type SalesProductionHandoffSnapshot,
+  type SalesProductionHandoffRecord,
 } from "@/lib/sales/production-handoff";
-import type {
-  SalesLeadAttentionSnapshot,
-  SalesRepLead,
-} from "@/lib/sales/workspace-types";
+import type { SalesRepLead } from "@/lib/sales/workspace-types";
 import {
   buildOwnerAttentionQueue,
   type OwnerAttentionInput,
@@ -137,30 +140,75 @@ function healthyProduction(): ProductionHealthReport {
   };
 }
 
-function davidSnapshot(leads: SalesRepLead[] = []): SalesLeadAttentionSnapshot {
+const OWNER_REPS: OwnerSalesRepSource[] = [
+  {
+    id: "rep-david",
+    slug: "david",
+    displayName: "David",
+    roleTitle: "Founding Membership Advisor",
+    plan: "founding_david",
+    workspacePath: "/david",
+  },
+  {
+    id: "rep-noah",
+    slug: "noah",
+    displayName: "Noah Thomas",
+    roleTitle: "Founder & Growth Operator",
+    plan: "standard_commission",
+    workspacePath: "/sales/noah",
+  },
+];
+
+function repSource(slug: "david" | "noah"): OwnerSalesRepSource {
+  return OWNER_REPS.find((rep) => rep.slug === slug)!;
+}
+
+function salesLeadSource(
+  slug: "david" | "noah",
+  lead: SalesRepLead,
+): OwnerSalesLeadSource {
+  const rep = repSource(slug);
+  return { repId: rep.id, repSlug: rep.slug, lead };
+}
+
+function salesHandoffSource(
+  slug: "david" | "noah",
+  handoff: SalesProductionHandoffRecord,
+): OwnerSalesHandoffSource {
+  const rep = repSource(slug);
   return {
-    profile: DAVID_REP_PROFILE,
-    leads,
-    generatedAt: NOW.toISOString(),
+    repId: rep.id,
+    repSlug: rep.slug,
+    repDisplayName: rep.displayName,
+    repWorkspacePath: rep.workspacePath,
+    handoff,
+  };
+}
+
+function ownerSalesSnapshot(
+  input: {
+    unassignedInbound?: LeadIntakeRecord[] | null;
+    leads?: OwnerSalesLeadSource[];
+    handoffs?: OwnerSalesHandoffSource[] | null;
+  } = {},
+): OwnerSalesAttentionSnapshot {
+  const unassignedInbound =
+    input.unassignedInbound === undefined ? [] : input.unassignedInbound;
+  return {
+    pipeline: buildOwnerSalesPipelineSnapshot({
+      reps: OWNER_REPS,
+      leads: input.leads ?? [],
+      presentations: [],
+      unassignedInbound,
+      handoffs: input.handoffs === undefined ? [] : input.handoffs,
+      reference: NOW,
+    }),
+    unassignedInbound,
   };
 }
 
 function healthySalesRetention(): SalesRetentionAttentionSnapshot {
   return { generatedAt: NOW.toISOString(), records: [], truncated: false };
-}
-
-function healthySalesHandoffs(): SalesProductionHandoffSnapshot {
-  return {
-    generatedAt: NOW.toISOString(),
-    records: [],
-    summary: {
-      signedCount: 0,
-      readyCount: 0,
-      actionCount: 0,
-      waitingCount: 0,
-      scheduleUnknownCount: 0,
-    },
-  };
 }
 
 function healthyReferrals(): ReferralAttentionSnapshot {
@@ -275,9 +323,7 @@ function healthyTechnicianCapacity(
 function baseInput(overrides: Partial<OwnerAttentionInput> = {}): OwnerAttentionInput {
   return {
     now: NOW,
-    customerLeads: ready([]),
-    davidPipeline: ready(davidSnapshot()),
-    salesHandoffs: ready(healthySalesHandoffs()),
+    ownerSales: ready(ownerSalesSnapshot()),
     salesRetention: ready(healthySalesRetention()),
     today: ready(healthyToday()),
     ownerLeverage: ready(healthyOwnerLeverage()),
@@ -472,7 +518,9 @@ describe("owner attention queue", () => {
     });
     const response = buildOwnerAttentionQueue(
       baseInput({
-        customerLeads: ready([lead()]),
+        ownerSales: ready(
+          ownerSalesSnapshot({ unassignedInbound: [lead()] }),
+        ),
         today: ready(
           healthyToday({
             connected: false,
@@ -523,7 +571,9 @@ describe("owner attention queue", () => {
   it("links exact operational exceptions to their actionable record", () => {
     const response = buildOwnerAttentionQueue(
       baseInput({
-        customerLeads: ready([lead()]),
+        ownerSales: ready(
+          ownerSalesSnapshot({ unassignedInbound: [lead()] }),
+        ),
         today: ready(
           healthyToday({
             visits: [visit({ isComplete: true, homeAtlasFieldRecordCount: 0 })],
@@ -550,18 +600,87 @@ describe("owner attention queue", () => {
     );
   });
 
-  it("turns David follow-up timing into read-only owner actions", () => {
+  it("turns every rep's follow-up timing into read-only owner actions", () => {
+    const noahLead = davidLead({
+      id: "noah-lead-1",
+      fullName: "Joani Cole",
+      nextFollowUpAt: "2026-08-14T19:00:00.000Z",
+      estimatedArrCents: 90_000,
+    });
     const response = buildOwnerAttentionQueue(
-      baseInput({ davidPipeline: ready(davidSnapshot([davidLead()])) }),
+      baseInput({
+        ownerSales: ready(
+          ownerSalesSnapshot({
+            leads: [
+              salesLeadSource("david", davidLead()),
+              salesLeadSource("noah", noahLead),
+            ],
+          }),
+        ),
+      }),
     );
-    const item = response.items.find((candidate) => candidate.id === "david-lead:david-lead-1");
+    const item = response.items.find(
+      (candidate) => candidate.id === "sales-lead:david-lead-1",
+    );
+    const noahItem = response.items.find(
+      (candidate) => candidate.id === "sales-lead:noah-lead-1",
+    );
 
     expect(item).toMatchObject({
       priority: "critical",
+      title: "David: Jeff Mason",
       href: "/hq/sales#owner-sales-lead-david-lead-1",
       affectedCount: 1,
     });
     expect(item?.detail).toContain("$1,200 potential ARR");
+    expect(noahItem).toMatchObject({
+      priority: "high",
+      title: "Noah Thomas: Joani Cole",
+      sourceLabel: "Noah Thomas pipeline",
+      href: "/hq/sales#owner-sales-lead-noah-lead-1",
+    });
+  });
+
+  it("does not duplicate an assigned intake in the unassigned lead queue", () => {
+    const assignedLead = davidLead({
+      id: "assigned-lead-1",
+      leadIntakeId: "lead-1",
+    });
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        ownerSales: ready(
+          ownerSalesSnapshot({
+            unassignedInbound: [],
+            leads: [salesLeadSource("noah", assignedLead)],
+          }),
+        ),
+      }),
+    );
+
+    expect(
+      response.items.filter((item) => item.id === "sales-lead:assigned-lead-1"),
+    ).toHaveLength(1);
+    expect(response.items.some((item) => item.id === "lead:lead-1")).toBe(false);
+  });
+
+  it("keeps partial owner-sales reads explicit instead of treating them as clear", () => {
+    const response = buildOwnerAttentionQueue(
+      baseInput({
+        ownerSales: ready(
+          ownerSalesSnapshot({
+            unassignedInbound: null,
+            handoffs: null,
+          }),
+        ),
+      }),
+    );
+
+    expect(response.items.map((item) => item.id)).toEqual(
+      expect.arrayContaining([
+        "owner-sales:inbound-unknown",
+        "owner-sales:handoffs-unknown",
+      ]),
+    );
   });
 
   it("surfaces unreviewed field time and stale Growth Sessions", () => {
@@ -890,17 +1009,13 @@ describe("owner attention queue", () => {
     };
     const response = buildOwnerAttentionQueue(
       baseInput({
-        salesHandoffs: ready({
-          generatedAt: NOW.toISOString(),
-          records: [paymentNeeded, scheduleUnknown],
-          summary: {
-            signedCount: 2,
-            readyCount: 0,
-            actionCount: 2,
-            waitingCount: 0,
-            scheduleUnknownCount: 1,
-          },
-        }),
+        ownerSales: ready(
+          ownerSalesSnapshot({
+            handoffs: [paymentNeeded, scheduleUnknown].map((handoff) =>
+              salesHandoffSource("david", handoff),
+            ),
+          }),
+        ),
       }),
     );
 
@@ -961,17 +1076,11 @@ describe("owner attention queue", () => {
     });
     const response = buildOwnerAttentionQueue(
       baseInput({
-        salesHandoffs: ready({
-          generatedAt: NOW.toISOString(),
-          records: [waiting],
-          summary: {
-            signedCount: 1,
-            readyCount: 0,
-            actionCount: 0,
-            waitingCount: 1,
-            scheduleUnknownCount: 0,
-          },
-        }),
+        ownerSales: ready(
+          ownerSalesSnapshot({
+            handoffs: [salesHandoffSource("david", waiting)],
+          }),
+        ),
       }),
     );
 
@@ -1194,7 +1303,11 @@ describe("owner attention queue", () => {
       "utf8",
     );
     expect(ownerServerSource).toContain("loadCustomerAftercareSnapshot");
-    expect(ownerServerSource).toContain(
+    expect(ownerServerSource).toContain("loadOwnerSalesAttentionSnapshot");
+    expect(ownerServerSource).not.toContain("listLeadIntakes");
+    expect(ownerServerSource).not.toContain("DAVID_REP_PROFILE");
+    expect(ownerServerSource).not.toContain("loadSalesLeadAttentionSnapshot(");
+    expect(ownerServerSource).not.toContain(
       "loadSalesProductionHandoffAttentionSnapshot",
     );
     expect(ownerServerSource).not.toContain("customer-aftercare-actions-server");
