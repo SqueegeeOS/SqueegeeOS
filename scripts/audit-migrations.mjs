@@ -129,13 +129,14 @@ const checks = [
   ["067", "sales representative phone access", (s) => hasTable(s, "sales_rep_access_grants") && s.indexes.has("sales_rep_access_grants_current_rep_uidx") && s.rlsTables.has("sales_rep_access_grants") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["068", "hosted membership payment handoff", (s) => hasTable(s, "membership_payment_handoffs") && hasTable(s, "membership_payment_handoff_events") && hasColumns(s, "membership_payment_handoffs", "membership_id", "presentation_id", "agreement_id", "billing_terms_hash", "stripe_checkout_session_id", "stripe_setup_intent_id", "email_provider_message_id") && ["membership_payment_handoffs_session_uidx", "membership_payment_handoffs_setup_intent_uidx", "membership_payment_handoff_events_provider_uidx"].every((index) => s.indexes.has(index)) && ["membership_payment_handoffs", "membership_payment_handoff_events"].every((table) => s.rlsTables.has(table)) && constraintIncludes(s, "membership_communications", "payment_setup_email") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["072", "one field lead, one presentation", (s) => s.indexes.has("presentations_sales_rep_lead_uidx") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
+  ["073", "private internal database functions", (s) => s.publicSecurityDefinerBrowserExecutables === 0 && s.appFunctionDefaultBrowserExecGrants === 0 && s.jobberLeaseServiceExecute],
 ];
 
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, fieldPolicies, fieldPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable] = await Promise.all([
+  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, fieldPolicies, fieldPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable, publicDefinerExecutables, functionDefaultPrivileges, jobberLeasePrivileges] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name, is_nullable from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -153,6 +154,9 @@ try {
     client.query("select coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'set_updated_at' limit 1"),
     client.query("select pg_get_functiondef(p.oid) as definition, coalesce(array_to_string(p.proconfig, ','), '') as config from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'homeatlas_security_posture' and p.pronargs = 0 limit 1"),
     client.query("select to_regclass('storage.buckets') is not null as exists"),
+    client.query("select count(*)::int as count from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prosecdef and (has_function_privilege('anon', p.oid, 'execute') or has_function_privilege('authenticated', p.oid, 'execute'))"),
+    client.query("select count(*)::int as count from pg_default_acl d join pg_namespace n on n.oid = d.defaclnamespace cross join lateral aclexplode(d.defaclacl) acl left join pg_roles grantee on grantee.oid = acl.grantee where d.defaclobjtype = 'f' and n.nspname = 'public' and pg_get_userbyid(d.defaclrole) = 'postgres' and acl.privilege_type = 'EXECUTE' and (acl.grantee = 0 or grantee.rolname in ('anon', 'authenticated'))"),
+    client.query("select coalesce(has_function_privilege('service_role', to_regprocedure('public.acquire_jobber_refresh_lease(uuid,integer)'), 'execute'), false) as allowed"),
   ]);
 
   let agreementBucket = null;
@@ -185,6 +189,9 @@ try {
     googleServicePrivileges: googleServicePrivileges.rows[0]?.count ?? -1,
     googleSecurityPosture: securityPosture.rows.some((row) => String(row.definition).includes("google_business_connections") && String(row.config).includes("search_path=public")),
     secureUpdatedAt: updatedAt.rows.some((row) => String(row.config).includes("search_path=public")),
+    publicSecurityDefinerBrowserExecutables: publicDefinerExecutables.rows[0]?.count ?? -1,
+    appFunctionDefaultBrowserExecGrants: functionDefaultPrivileges.rows[0]?.count ?? -1,
+    jobberLeaseServiceExecute: jobberLeasePrivileges.rows[0]?.allowed === true,
     agreementBucket,
     visitMediaBucket,
   };
