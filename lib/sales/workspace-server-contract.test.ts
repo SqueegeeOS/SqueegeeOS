@@ -84,6 +84,18 @@ describe("sales workspace active-queue loading contract", () => {
     expect(server).toContain("deliberately record-only");
   });
 
+  it("resolves repeated mobile homeowner saves to one exact capture", () => {
+    expect(server).toContain("loadSalesLeadCaptureRetry");
+    expect(server).toContain("assertSalesLeadCaptureRetryMatches");
+    expect(server).toContain("buildSalesLeadCaptureFingerprint");
+    expect(server).toContain('.eq("client_event_id", clientEventId)');
+    expect(server).toContain('error?.code === "23505"');
+    expect(server).toContain('status: "already_saved"');
+    expect(server).not.toContain(
+      'console.error("[sales-workspace] lead activity insert failed"',
+    );
+  });
+
   it("pages the complete signed-close ledger instead of silently stopping at the provider row cap", () => {
     expect(server).toContain("SALES_ATTRIBUTION_PAGE_SIZE");
     expect(server).toContain(

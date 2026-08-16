@@ -104,10 +104,16 @@ export async function POST(
       if (!validation.ok) {
         return NextResponse.json({ error: validation.error }, { status: 400 });
       }
-      const lead = await createSalesLead(repSlug, validation.value);
+      const receipt = await createSalesLead(repSlug, validation.value);
       return NextResponse.json(
-        { lead, message: "Homeowner saved to the private follow-up queue." },
-        { status: 201 },
+        {
+          ...receipt,
+          message:
+            receipt.status === "already_saved"
+              ? "This homeowner was already safe. HomeAtlas reopened the same record."
+              : "Homeowner saved to the private follow-up queue.",
+        },
+        { status: receipt.status === "created" ? 201 : 200 },
       );
     }
 

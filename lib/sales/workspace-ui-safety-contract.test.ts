@@ -87,6 +87,17 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain("Save & build plan");
   });
 
+  it("keeps an interrupted homeowner capture on-device and retry-safe", () => {
+    expect(workspace).toContain("recoverLeadCaptureDraft");
+    expect(workspace).toContain("serializeSalesLeadCaptureDraft");
+    expect(workspace).toContain("window.crypto.randomUUID()");
+    expect(workspace).toContain("Field-safe draft");
+    expect(workspace).toContain("up to 24 hours");
+    expect(workspace).toContain("HomeAtlas will not create a duplicate");
+    expect(workspace).toContain("Keep &amp; close");
+    expect(workspace).toContain("Discard draft");
+  });
+
   it("guides an installed rep through one evidence-backed revenue loop", () => {
     expect(workspace).toContain("deriveSalesRepLaunchReadiness");
     expect(workspace).toContain('phonePass: "installed"');

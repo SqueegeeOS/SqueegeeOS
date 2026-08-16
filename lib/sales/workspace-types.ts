@@ -147,6 +147,8 @@ export interface SalesLeadAttentionSnapshot {
 }
 
 export interface CreateSalesLeadInput {
+  /** Device-generated UUID. Retrying this capture must resolve to one lead. */
+  clientEventId: string;
   fullName: string;
   propertyAddress: string;
   phone?: string | null;
@@ -158,6 +160,11 @@ export interface CreateSalesLeadInput {
   emailConsentAttested?: boolean;
   /** Optional saved door-memory UUID carried into the new homeowner record. */
   doorMemoryClientEventId?: string | null;
+}
+
+export interface SalesLeadCaptureReceipt {
+  lead: SalesRepLead;
+  status: "created" | "already_saved";
 }
 
 export interface UpdateSalesLeadInput {

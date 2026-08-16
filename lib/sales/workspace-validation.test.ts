@@ -39,6 +39,7 @@ describe("sales workspace validation", () => {
 
   it("returns normalized, bounded lead data", () => {
     const result = validateCreateSalesLead({
+      clientEventId: "00000000-0000-4000-8000-000000000101",
       fullName: "  Jordan Homeowner  ",
       propertyAddress: "  123 Atlas Way  ",
       phone: "702-555-1212",
@@ -50,6 +51,7 @@ describe("sales workspace validation", () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value).toMatchObject({
+        clientEventId: "00000000-0000-4000-8000-000000000101",
         fullName: "Jordan Homeowner",
         propertyAddress: "123 Atlas Way",
         phone: "+17025551212",
@@ -58,6 +60,31 @@ describe("sales workspace validation", () => {
         smsConsentAttested: true,
       });
     }
+  });
+
+  it("requires one device save identity separate from Door Memory", () => {
+    const base = {
+      fullName: "Jordan Homeowner",
+      propertyAddress: "123 Atlas Way",
+      phone: "530-555-0101",
+    };
+    expect(validateCreateSalesLead(base)).toEqual({
+      ok: false,
+      error:
+        "This homeowner draft needs a fresh save reference. Close and reopen it.",
+    });
+    expect(
+      validateCreateSalesLead({
+        ...base,
+        clientEventId: "00000000-0000-4000-8000-000000000101",
+        doorMemoryClientEventId:
+          "00000000-0000-4000-8000-000000000101",
+      }),
+    ).toEqual({
+      ok: false,
+      error:
+        "The homeowner save and doorstep entry need separate retry references.",
+    });
   });
 
   it("accepts only bounded field pulse activities", () => {

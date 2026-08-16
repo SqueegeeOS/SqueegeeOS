@@ -246,6 +246,12 @@ async function runSchemaChecks(
       column: "lead_intake_id",
     },
     {
+      id: "sales-lead-capture-retry-schema",
+      label: "sales_rep_leads.client_event_id",
+      table: "sales_rep_leads",
+      column: "client_event_id",
+    },
+    {
       id: "sales-lead-interactions-schema",
       label: "sales_rep_lead_interactions",
       table: "sales_rep_lead_interactions",

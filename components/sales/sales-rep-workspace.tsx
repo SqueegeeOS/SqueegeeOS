@@ -58,6 +58,12 @@ import {
 import { presentationWorkspacePath } from "@/lib/presentations/navigation";
 import { deriveSalesRepLaunchReadiness } from "@/lib/sales/rep-launch-readiness";
 import { salesLeadSourceLabel } from "@/lib/sales/lead-intake-assignment";
+import {
+  hasMeaningfulSalesLeadCaptureDraft,
+  parseSalesLeadCaptureDraft,
+  salesLeadCaptureDraftStorageKey,
+  serializeSalesLeadCaptureDraft,
+} from "@/lib/sales/lead-capture-draft";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -78,6 +84,7 @@ interface ActivityMutationResponse {
 
 interface LeadMutationResponse {
   lead?: SalesRepLead;
+  status?: "created" | "already_saved";
   error?: string;
   message?: string;
 }
@@ -143,18 +150,21 @@ const EMPTY_LEADS: SalesRepLead[] = [];
 const EMPTY_RECENT_WINS: SalesRepRecentWin[] = [];
 const EMPTY_DOOR_MEMORIES: SalesDoorMemory[] = [];
 
-const EMPTY_LEAD_FORM: CreateSalesLeadInput = {
-  fullName: "",
-  propertyAddress: "",
-  phone: "",
-  email: "",
-  estimatedArrDollars: 1200,
-  nextFollowUpAt: "",
-  notes: "",
-  smsConsentAttested: false,
-  emailConsentAttested: false,
-  doorMemoryClientEventId: null,
-};
+function emptyLeadForm(clientEventId = ""): CreateSalesLeadInput {
+  return {
+    clientEventId,
+    fullName: "",
+    propertyAddress: "",
+    phone: "",
+    email: "",
+    estimatedArrDollars: 1200,
+    nextFollowUpAt: "",
+    notes: "",
+    smsConsentAttested: false,
+    emailConsentAttested: false,
+    doorMemoryClientEventId: null,
+  };
+}
 
 type ManualPulseActivity =
   | "door_knock"
@@ -358,6 +368,20 @@ function writeOfflinePulseQueue(repSlug: string, queue: OfflinePulseEntry[]) {
   }
 }
 
+function recoverLeadCaptureDraft(repSlug: string): CreateSalesLeadInput {
+  if (typeof window === "undefined") return emptyLeadForm();
+  const key = salesLeadCaptureDraftStorageKey(repSlug);
+  try {
+    const raw = window.localStorage.getItem(key);
+    const restored = parseSalesLeadCaptureDraft(raw, repSlug);
+    if (restored) return restored;
+    if (raw) window.localStorage.removeItem(key);
+  } catch {
+    // Storage can be unavailable. The connected save path still works.
+  }
+  return emptyLeadForm();
+}
+
 function isPacificToday(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return false;
@@ -465,7 +489,9 @@ export function SalesRepWorkspace({
   const [undoableActivity, setUndoableActivity] = useState<SalesActivityReceipt | null>(null);
   const [undoPending, setUndoPending] = useState(false);
   const [leadFormOpen, setLeadFormOpen] = useState(false);
-  const [leadForm, setLeadForm] = useState<CreateSalesLeadInput>(EMPTY_LEAD_FORM);
+  const [leadForm, setLeadForm] = useState<CreateSalesLeadInput>(() =>
+    recoverLeadCaptureDraft(repSlug),
+  );
   const [leadSaving, setLeadSaving] = useState(false);
   const [leadSaveIntent, setLeadSaveIntent] = useState<
     "follow-up" | "build-plan" | null
@@ -622,6 +648,31 @@ export function SalesRepWorkspace({
     });
     return () => window.cancelAnimationFrame(frame);
   }, []);
+
+  useEffect(() => {
+    const key = salesLeadCaptureDraftStorageKey(repSlug);
+    if (!hasMeaningfulSalesLeadCaptureDraft(leadForm)) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // A blocked device store never prevents the connected server save.
+      }
+      return;
+    }
+    if (!leadForm.clientEventId) return;
+
+    const timeout = window.setTimeout(() => {
+      try {
+        window.localStorage.setItem(
+          key,
+          serializeSalesLeadCaptureDraft(repSlug, leadForm),
+        );
+      } catch {
+        // The live form still retains the draft until the page is closed.
+      }
+    }, 250);
+    return () => window.clearTimeout(timeout);
+  }, [leadForm, repSlug]);
 
   useEffect(() => {
     if (!notice || undoableActivity) return;
@@ -882,9 +933,38 @@ export function SalesRepWorkspace({
     }
   };
 
+  const openLeadCapture = () => {
+    setLeadForm((current) =>
+      current.clientEventId
+        ? current
+        : { ...current, clientEventId: window.crypto.randomUUID() },
+    );
+    setLeadFormOpen(true);
+  };
+
+  const clearLeadCaptureDraft = () => {
+    try {
+      window.localStorage.removeItem(salesLeadCaptureDraftStorageKey(repSlug));
+    } catch {
+      // The in-memory reset below remains authoritative for this session.
+    }
+    setLeadForm(emptyLeadForm());
+  };
+
+  const discardLeadCaptureDraft = () => {
+    if (
+      hasMeaningfulSalesLeadCaptureDraft(leadForm) &&
+      !window.confirm("Discard this unsaved homeowner draft from this device?")
+    ) {
+      return;
+    }
+    clearLeadCaptureDraft();
+    setLeadFormOpen(false);
+  };
+
   const openHomeownerFromDoor = (draft: DoorMemoryDraft) => {
     setLeadForm({
-      ...EMPTY_LEAD_FORM,
+      ...emptyLeadForm(window.crypto.randomUUID()),
       propertyAddress: draft.propertyAddress,
       nextFollowUpAt:
         draft.disposition === "follow_up" ? suggestedFollowUpValue(1) : "",
@@ -1290,7 +1370,7 @@ export function SalesRepWorkspace({
         | null;
       if (!response.ok) throw new Error(body?.error ?? "Could not save homeowner.");
       if (!body?.lead?.id) {
-        setLeadForm(EMPTY_LEAD_FORM);
+        clearLeadCaptureDraft();
         setLeadFormOpen(false);
         setNotice(body?.message ?? "Homeowner saved for follow-up.");
         setError(
@@ -1299,7 +1379,7 @@ export function SalesRepWorkspace({
         await loadWorkspace();
         return;
       }
-      setLeadForm(EMPTY_LEAD_FORM);
+      clearLeadCaptureDraft();
       setLeadFormOpen(false);
       if (saveIntent === "build-plan") {
         setNotice("Homeowner saved. Opening their Home Care Plan…");
@@ -1310,7 +1390,11 @@ export function SalesRepWorkspace({
       await loadWorkspace();
     } catch (saveError) {
       setError(
-        saveError instanceof Error ? saveError.message : "Could not save homeowner.",
+        !navigator.onLine || saveError instanceof TypeError
+          ? "Connection dropped. This homeowner draft is still safe on this device. Retry the same save when online—HomeAtlas will not create a duplicate."
+          : saveError instanceof Error
+            ? saveError.message
+            : "Could not save homeowner.",
       );
     } finally {
       setLeadSaving(false);
@@ -1560,7 +1644,7 @@ export function SalesRepWorkspace({
           <FirstFieldMission
             displayName={profile.displayName}
             readiness={firstFieldMission}
-            onAddHomeowner={() => setLeadFormOpen(true)}
+            onAddHomeowner={openLeadCapture}
             onRefresh={() => void refreshFirstFieldMission()}
             refreshing={missionRefreshing}
           />
@@ -1874,7 +1958,7 @@ export function SalesRepWorkspace({
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <button
                   type="button"
-                  onClick={() => setLeadFormOpen(true)}
+                  onClick={openLeadCapture}
                   className={craftPrimaryButton}
                 >
                   Add homeowner
@@ -1954,7 +2038,7 @@ export function SalesRepWorkspace({
               </div>
               <button
                 type="button"
-                onClick={() => setLeadFormOpen(true)}
+                onClick={openLeadCapture}
                 className="min-h-11 text-xs uppercase tracking-[0.16em] text-accent"
               >
                 + New
@@ -2706,7 +2790,7 @@ export function SalesRepWorkspace({
           >
             <span className="font-serif text-xl leading-none">+1</span> Door
           </button>
-          <button type="button" onClick={() => setLeadFormOpen(true)} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[9px] uppercase tracking-[0.14em] text-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+          <button type="button" onClick={openLeadCapture} className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[9px] uppercase tracking-[0.14em] text-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <span className="font-serif text-lg">◎</span> Homeowner
           </button>
           <a href="#follow-ups" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[9px] uppercase tracking-[0.14em] text-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
@@ -2756,6 +2840,18 @@ export function SalesRepWorkspace({
                 >
                   ×
                 </button>
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.06] px-4 py-3">
+                <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-emerald-200/80">
+                  Field-safe draft
+                </p>
+                <p className="mt-1 text-xs leading-5 text-white/55">
+                  Kept on this authorized device for up to 24 hours and cleared
+                  after a confirmed save. If signal drops, retrying creates one
+                  homeowner—not a duplicate. Contact permissions must be checked
+                  again after a reload.
+                </p>
               </div>
 
               <form onSubmit={saveLead} className="mt-7 space-y-5">
@@ -2891,8 +2987,16 @@ export function SalesRepWorkspace({
                 {error ? <p className="text-sm text-red-200" role="alert">{error}</p> : null}
 
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={discardLeadCaptureDraft}
+                    disabled={leadSaving}
+                    className="min-h-11 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-red-200/70 disabled:opacity-40"
+                  >
+                    Discard draft
+                  </button>
                   <button type="button" onClick={() => setLeadFormOpen(false)} className={craftSecondaryButton}>
-                    Cancel
+                    Keep &amp; close
                   </button>
                   <button
                     type="submit"
