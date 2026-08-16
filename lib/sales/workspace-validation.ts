@@ -4,6 +4,12 @@ import {
   type SalesActivityType,
   type UpdateSalesLeadInput,
 } from "./workspace-types";
+import {
+  SALES_DOOR_DISPOSITIONS,
+  normalizeSalesDoorAddress,
+  normalizeSalesDoorAddressKey,
+  type SalesDoorDisposition,
+} from "./door-memory";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const E164_PATTERN = /^\+[1-9]\d{7,14}$/;
@@ -32,11 +38,12 @@ export function normalizeNorthAmericanPhone(value: unknown): string | null {
 }
 
 export function validateCreateSalesLead(input: unknown):
-  | { ok: true; value: Required<Omit<CreateSalesLeadInput, "phone" | "email" | "nextFollowUpAt" | "notes">> & {
+  | { ok: true; value: Required<Omit<CreateSalesLeadInput, "phone" | "email" | "nextFollowUpAt" | "notes" | "doorMemoryClientEventId">> & {
       phone: string | null;
       email: string | null;
       nextFollowUpAt: string | null;
       notes: string;
+      doorMemoryClientEventId: string | null;
     } }
   | { ok: false; error: string } {
   if (!input || typeof input !== "object" || Array.isArray(input)) {
@@ -52,6 +59,8 @@ export function validateCreateSalesLead(input: unknown):
   const notes = cleanText(raw.notes, 2000);
   const smsConsentAttested = raw.smsConsentAttested === true;
   const emailConsentAttested = raw.emailConsentAttested === true;
+  const doorMemoryClientEventId =
+    cleanText(raw.doorMemoryClientEventId, 80) || null;
 
   if (fullName.length < 2) {
     return { ok: false, error: "Enter the homeowner's name." };
@@ -73,6 +82,12 @@ export function validateCreateSalesLead(input: unknown):
   }
   if (emailConsentAttested && !email) {
     return { ok: false, error: "An email address is required for email permission." };
+  }
+  if (
+    doorMemoryClientEventId &&
+    !UUID_PATTERN.test(doorMemoryClientEventId)
+  ) {
+    return { ok: false, error: "Door memory reference is invalid." };
   }
 
   const estimatedArrDollars = Number(raw.estimatedArrDollars ?? 0);
@@ -101,6 +116,7 @@ export function validateCreateSalesLead(input: unknown):
       notes,
       smsConsentAttested,
       emailConsentAttested,
+      doorMemoryClientEventId,
     },
   };
 }
@@ -170,6 +186,76 @@ export function validateCreateSalesActivity(input: unknown):
   return {
     ok: true,
     value: { activityType, quantity, leadId, clientEventId, occurredAt },
+  };
+}
+
+export function validateCreateSalesDoorMemory(input: unknown):
+  | {
+      ok: true;
+      value: {
+        doorActivityClientEventId: string;
+        clientEventId: string;
+        propertyAddress: string;
+        addressKey: string;
+        disposition: SalesDoorDisposition;
+        notes: string;
+        leadId: string | null;
+      };
+    }
+  | { ok: false; error: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, error: "Door details are required." };
+  }
+
+  const raw = input as Record<string, unknown>;
+  const doorActivityClientEventId = cleanText(
+    raw.doorActivityClientEventId,
+    80,
+  );
+  const clientEventId = cleanText(raw.clientEventId, 80);
+  if (!UUID_PATTERN.test(doorActivityClientEventId)) {
+    return { ok: false, error: "Door activity reference is invalid." };
+  }
+  if (!UUID_PATTERN.test(clientEventId)) {
+    return { ok: false, error: "Door memory retry reference is invalid." };
+  }
+  if (clientEventId === doorActivityClientEventId) {
+    return {
+      ok: false,
+      error: "Door activity and memory require separate retry references.",
+    };
+  }
+
+  const propertyAddress = normalizeSalesDoorAddress(
+    cleanText(raw.propertyAddress, 260),
+  );
+  const addressKey = normalizeSalesDoorAddressKey(propertyAddress);
+  if (propertyAddress.length < 5 || addressKey.length < 3) {
+    return { ok: false, error: "Enter the property address for this door." };
+  }
+
+  const disposition = cleanText(raw.disposition, 40) as SalesDoorDisposition;
+  if (!SALES_DOOR_DISPOSITIONS.includes(disposition)) {
+    return { ok: false, error: "Choose what happened at this door." };
+  }
+
+  const notes = cleanText(raw.notes, 1200);
+  const leadId = cleanText(raw.leadId, 80) || null;
+  if (leadId && !UUID_PATTERN.test(leadId)) {
+    return { ok: false, error: "Door homeowner reference is invalid." };
+  }
+
+  return {
+    ok: true,
+    value: {
+      doorActivityClientEventId,
+      clientEventId,
+      propertyAddress,
+      addressKey,
+      disposition,
+      notes,
+      leadId,
+    },
   };
 }
 

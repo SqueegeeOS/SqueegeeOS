@@ -5,6 +5,10 @@ const workspace = readFileSync(
   new URL("../../components/sales/sales-rep-workspace.tsx", import.meta.url),
   "utf8",
 );
+const doorMemory = readFileSync(
+  new URL("../../components/sales/door-memory.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("sales representative workspace activity safety", () => {
   it("never exposes a manual signed-membership counter", () => {
@@ -70,6 +74,31 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain('fetch("/api/presentations"');
     expect(workspace).toContain("Build their plan");
     expect(workspace).toContain("Save & build plan");
+  });
+
+  it("captures address outcomes without contacting or charging a homeowner", () => {
+    expect(workspace).toContain('kind: "door_memory"');
+    expect(workspace).toContain("doorActivityClientEventId");
+    expect(workspace).toContain("activityStillQueued");
+    expect(workspace).toContain("openHomeownerFromDoor");
+    expect(workspace).toContain("doorMemoryClientEventId");
+    expect(doorMemory).toContain("What happened here?");
+    expect(doorMemory).toContain('priorAtAddress.disposition === "do_not_knock"');
+    expect(doorMemory).toContain("Prior address history");
+    expect(doorMemory).toContain("This does not text, email, enroll, or charge");
+    expect(doorMemory).toContain("Checking saved address history");
+  });
+
+  it("preserves activity-before-memory ordering in the offline field queue", () => {
+    expect(workspace).toContain('kind: "activity"');
+    expect(workspace).toContain('candidate.kind === "door_memory"');
+    expect(workspace).toContain(
+      'queued.kind === "activity"',
+    );
+    expect(workspace).toContain(
+      "entry.doorActivityClientEventId === target.clientEventId",
+    );
+    expect(workspace).toContain("safe idempotent retry");
   });
 
   it("allows phone calls while keeping texts and emails consent-gated", () => {

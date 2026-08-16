@@ -29,6 +29,27 @@ describe("sales workspace active-queue loading contract", () => {
     expect(server).toContain("leadsToday: leadsTodayResult.count");
   });
 
+  it("loads a bounded recent door history without making the field desk fail closed", () => {
+    expect(server).toContain("loadRecentDoorMemories(rep.id)");
+    expect(server).toContain("RECENT_DOOR_MEMORY_LIMIT = 20");
+    expect(server).toContain('.from("sales_rep_door_visits")');
+    expect(server).toContain('status: "unavailable"');
+    expect(server).toContain("recentDoorMemories: doorMemoryResult.memories");
+  });
+
+  it("proves door ownership and retry identity before accepting an outcome", () => {
+    expect(server).toContain(
+      '.eq("client_event_id", input.doorActivityClientEventId)',
+    );
+    expect(server).toContain('activityResult.data.event_type !== "door_knock"');
+    expect(server).toContain("activityResult.data.reversed_at");
+    expect(server).toContain(
+      '.eq("client_event_id", input.clientEventId)',
+    );
+    expect(server).toContain("assertDoorMemoryRetryMatches");
+    expect(server).toContain('insertResult.error?.code !== "23505"');
+  });
+
   it("fails visibly instead of presenting an unprovably partial active queue", () => {
     expect(server).toContain("if (result.count === null)");
     expect(server).toContain(
