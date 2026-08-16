@@ -96,6 +96,29 @@ describe("owner signed-close payment handoff", () => {
     expect(html).not.toContain("disabled=\"\"");
   });
 
+  it("keeps successful Stripe completion visible during the next handoff step", () => {
+    const html = renderToStaticMarkup(
+      createElement(SignedHandoffCard, {
+        handoff: handoff({
+          stage: "property_pairing_needed",
+          label: "Pair property",
+          completedSteps: 2,
+          paymentHandoffProgress: {
+            state: "completed",
+            canSend: false,
+            emailSentAt: "2026-08-16T17:05:00.000Z",
+            expiresAt: "2026-08-17T17:05:00.000Z",
+          },
+        }),
+        onAccepted: () => undefined,
+      }),
+    );
+
+    expect(html).toContain("Stripe confirmed · card on file");
+    expect(html).toContain("Pair property");
+    expect(html).not.toContain("Email secure Stripe link");
+  });
+
   it("withholds the email control when customer-email proof needs attention", () => {
     const html = renderToStaticMarkup(
       createElement(SignedHandoffCard, {

@@ -209,4 +209,11 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).not.toContain("stripe_payment_method_id");
     expect(workspace).not.toContain("stripe_customer_id");
   });
+
+  it("revalidates an accepted Stripe handoff without sending or charging", () => {
+    expect(workspace).toContain("usePaymentHandoffRefresh");
+    expect(workspace).toContain('stage === "payment_pending"');
+    expect(workspace).toContain("Check Stripe now");
+    expect(workspace).toContain("Stripe confirmed · card on file");
+  });
 });

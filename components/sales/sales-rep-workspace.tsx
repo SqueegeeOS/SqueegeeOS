@@ -21,6 +21,7 @@ import {
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { paymentHandoffSendLabel } from "@/lib/membership/payment-handoff-progress";
+import { usePaymentHandoffRefresh } from "@/lib/membership/use-payment-handoff-refresh";
 import {
   buildStandardRepProfile,
   DAVID_REP_PROFILE,
@@ -618,6 +619,16 @@ export function SalesRepWorkspace({
     },
     [loadWorkspace],
   );
+
+  const hasPendingPaymentHandoff = Boolean(
+    workspace?.recentWins.some(
+      (win) => win.productionHandoff?.stage === "payment_pending",
+    ),
+  );
+  usePaymentHandoffRefresh({
+    enabled: hasPendingPaymentHandoff,
+    refresh: loadWorkspace,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -2756,7 +2767,21 @@ export function SalesRepWorkspace({
                                   ? `Link active until ${followUpLabel(handoff.paymentHandoffProgress.expiresAt)}.`
                                   : "Waiting for Stripe confirmation."}
                               </p>
+                              <button
+                                type="button"
+                                onClick={() => void loadWorkspace()}
+                                className="mt-2 min-h-10 rounded-full border border-current/25 bg-black/10 px-3 text-[9px] font-bold uppercase tracking-[0.12em]"
+                              >
+                                Check Stripe now
+                              </button>
                             </div>
+                          ) : handoff.paymentHandoffProgress.state === "completed" ? (
+                            <p
+                              className="mt-3 rounded-xl border border-emerald-200/20 bg-emerald-200/[0.07] px-3 py-2 text-[10px] font-bold uppercase tracking-[0.11em] text-emerald-100"
+                              role="status"
+                            >
+                              Stripe confirmed · card on file
+                            </p>
                           ) : handoff.paymentHandoffProgress.state === "preparing" ? (
                             <p className="mt-3 rounded-xl border border-current/15 bg-black/15 px-3 py-2 text-[10px] leading-4 text-current/80">
                               HomeAtlas is inside its five-minute safety window.
