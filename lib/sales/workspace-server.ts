@@ -6,7 +6,6 @@ import {
   type SalesRepProfile,
 } from "./rep-config";
 import type {
-  CreateSalesLeadInput,
   RecordSalesLeadInteractionInput,
   SalesActivityReceipt,
   SalesActivityReversalReceipt,
@@ -16,6 +15,7 @@ import type {
   SalesLeadInteraction,
   SalesLeadInteractionReceipt,
   SalesLeadAttentionSnapshot,
+  SalesLeadCaptureReceipt,
   SalesLeadSource,
   SalesLeadStatus,
   SalesRepLead,
@@ -56,6 +56,11 @@ import {
   type SalesRepLaunchEvidenceRow,
   unavailableSalesRepLaunchCountsEvidence,
 } from "./rep-launch-readiness";
+import {
+  buildSalesLeadCaptureFingerprint,
+  salesLeadCaptureFingerprintMatches,
+  type CanonicalSalesLeadCapture,
+} from "./lead-capture-idempotency";
 
 interface SalesRepRow {
   id: string;
@@ -83,6 +88,9 @@ export interface PresentationSalesLeadPrefill {
 
 interface SalesLeadRow {
   id: string;
+  client_event_id: string | null;
+  capture_fingerprint: string | null;
+  door_memory_client_event_id: string | null;
   lead_intake_id: string | null;
   full_name: string;
   property_address: string;
@@ -159,7 +167,7 @@ interface SalesAttributionRow {
 }
 
 const SALES_LEAD_SELECT =
-  "id, lead_intake_id, full_name, property_address, phone_normalized, email_normalized, status, source, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at";
+  "id, client_event_id, capture_fingerprint, door_memory_client_event_id, lead_intake_id, full_name, property_address, phone_normalized, email_normalized, status, source, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at";
 const OPEN_SALES_LEAD_STATUSES: SalesLeadStatus[] = [
   "new",
   "follow_up",
@@ -954,24 +962,64 @@ export async function loadSalesLeadAttentionSnapshot(
   };
 }
 
+async function loadSalesLeadCaptureRetry(
+  supabase: SupabaseClient,
+  repId: string,
+  clientEventId: string,
+): Promise<SalesLeadRow | null> {
+  const result = await supabase
+    .from("sales_rep_leads")
+    .select(SALES_LEAD_SELECT)
+    .eq("rep_id", repId)
+    .eq("client_event_id", clientEventId)
+    .maybeSingle();
+  if (result.error) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(result.error.message),
+    );
+  }
+  return (result.data as SalesLeadRow | null) ?? null;
+}
+
+function assertSalesLeadCaptureRetryMatches(
+  row: SalesLeadRow,
+  input: CanonicalSalesLeadCapture,
+) {
+  if (
+    row.client_event_id !== input.clientEventId ||
+    !salesLeadCaptureFingerprintMatches(row.capture_fingerprint, input)
+  ) {
+    throw new SalesWorkspaceActionError(
+      "That save reference already belongs to a different homeowner draft. Close this draft and reopen a fresh capture.",
+    );
+  }
+}
+
 export async function createSalesLead(
   slug: string,
-  input: Required<Omit<CreateSalesLeadInput, "phone" | "email" | "nextFollowUpAt" | "notes" | "doorMemoryClientEventId">> & {
-    phone: string | null;
-    email: string | null;
-    nextFollowUpAt: string | null;
-    notes: string;
-    doorMemoryClientEventId: string | null;
-  },
-): Promise<SalesRepLead> {
+  input: CanonicalSalesLeadCapture,
+): Promise<SalesLeadCaptureReceipt> {
   const rep = await loadRepRow(slug);
   const supabase = createPrivilegedServerSupabaseClient();
   const consentRecordedAt = new Date().toISOString();
+  const captureFingerprint = buildSalesLeadCaptureFingerprint(input);
+  const existing = await loadSalesLeadCaptureRetry(
+    supabase,
+    rep.id,
+    input.clientEventId,
+  );
+  if (existing) {
+    assertSalesLeadCaptureRetryMatches(existing, input);
+    return { lead: leadFromRow(existing), status: "already_saved" };
+  }
 
   const { data, error } = await supabase
     .from("sales_rep_leads")
     .insert({
       rep_id: rep.id,
+      client_event_id: input.clientEventId,
+      capture_fingerprint: captureFingerprint,
+      door_memory_client_event_id: input.doorMemoryClientEventId,
       full_name: input.fullName,
       property_address: input.propertyAddress,
       phone_normalized: input.phone,
@@ -999,47 +1047,27 @@ export async function createSalesLead(
     .select(
       SALES_LEAD_SELECT,
     )
-    .single();
+    .maybeSingle();
 
   if (error || !data) {
+    if (error?.code === "23505") {
+      const raced = await loadSalesLeadCaptureRetry(
+        supabase,
+        rep.id,
+        input.clientEventId,
+      );
+      if (raced) {
+        assertSalesLeadCaptureRetryMatches(raced, input);
+        return { lead: leadFromRow(raced), status: "already_saved" };
+      }
+    }
     throw new SalesWorkspaceUnavailableError(
       readableStorageError(error?.message ?? "Lead insert failed"),
     );
   }
 
   const lead = leadFromRow(data as SalesLeadRow);
-  const { error: activityError } = await supabase
-    .from("sales_rep_activity_events")
-    .insert({
-      rep_id: rep.id,
-      lead_id: lead.id,
-      event_type: "lead_captured",
-      quantity: 1,
-      source_path: profileFromRow(rep).workspacePath,
-    });
-
-  if (activityError) {
-    console.error("[sales-workspace] lead activity insert failed", activityError.message);
-  }
-
-  if (input.doorMemoryClientEventId) {
-    const { error: doorBindingError } = await supabase
-      .from("sales_rep_door_visits")
-      .update({ lead_id: lead.id })
-      .eq("rep_id", rep.id)
-      .eq("client_event_id", input.doorMemoryClientEventId)
-      .is("lead_id", null);
-    if (doorBindingError) {
-      // The homeowner remains safely captured even if optional field-history
-      // lineage needs repair; never invite a duplicate lead retry.
-      console.error(
-        "[sales-workspace] door memory lead binding failed",
-        doorBindingError.message,
-      );
-    }
-  }
-
-  return lead;
+  return { lead, status: "created" };
 }
 
 export async function updateSalesLead(

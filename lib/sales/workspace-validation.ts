@@ -54,6 +54,7 @@ export function validateCreateSalesLead(input: unknown):
   }
 
   const raw = input as Record<string, unknown>;
+  const clientEventId = cleanText(raw.clientEventId, 80);
   const fullName = cleanText(raw.fullName, 140);
   const propertyAddress = cleanText(raw.propertyAddress, 260);
   const rawPhone = cleanText(raw.phone, 40);
@@ -86,11 +87,23 @@ export function validateCreateSalesLead(input: unknown):
   if (emailConsentAttested && !email) {
     return { ok: false, error: "An email address is required for email permission." };
   }
+  if (!UUID_PATTERN.test(clientEventId)) {
+    return {
+      ok: false,
+      error: "This homeowner draft needs a fresh save reference. Close and reopen it.",
+    };
+  }
   if (
     doorMemoryClientEventId &&
     !UUID_PATTERN.test(doorMemoryClientEventId)
   ) {
     return { ok: false, error: "Door memory reference is invalid." };
+  }
+  if (doorMemoryClientEventId === clientEventId) {
+    return {
+      ok: false,
+      error: "The homeowner save and doorstep entry need separate retry references.",
+    };
   }
 
   const estimatedArrDollars = Number(raw.estimatedArrDollars ?? 0);
@@ -110,6 +123,7 @@ export function validateCreateSalesLead(input: unknown):
   return {
     ok: true,
     value: {
+      clientEventId,
       fullName,
       propertyAddress,
       phone,

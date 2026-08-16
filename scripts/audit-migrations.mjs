@@ -134,13 +134,14 @@ const checks = [
   ["075", "atomic Door Memory conversations", (s) => s.doorConversationTriggerReady],
   ["077", "one owner and next action per customer inquiry", (s) => hasColumn(s, "sales_rep_leads", "lead_intake_id") && constraintIncludes(s, "sales_rep_leads", "foreign key (lead_intake_id)", "lead_intakes", "on delete restrict") && constraintIncludes(s, "sales_rep_leads", "lead_intake_id", "next_follow_up_at") && s.indexes.has("sales_rep_leads_lead_intake_uidx") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
   ["078", "append-only lead interaction memory", (s) => hasTable(s, "sales_rep_lead_interactions") && hasColumns(s, "sales_rep_lead_interactions", "client_event_id", "recorded_by", "channel", "outcome", "expected_lead_updated_at", "next_follow_up_at") && s.indexes.has("sales_rep_lead_interactions_rep_client_uidx") && s.indexes.has("sales_rep_lead_interactions_lead_recent_idx") && s.rlsTables.has("sales_rep_lead_interactions") && s.leadInteractionTriggerReady && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
+  ["079", "idempotent field homeowner capture", (s) => hasColumns(s, "sales_rep_leads", "client_event_id", "capture_fingerprint", "door_memory_client_event_id") && s.indexes.has("sales_rep_leads_rep_client_event_uidx") && s.indexes.has("sales_rep_leads_rep_door_memory_uidx") && s.leadCaptureTriggerReady && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
 ];
 
 await client.connect();
 try {
   await client.query("begin read only");
 
-  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, fieldPolicies, fieldPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable, publicDefinerExecutables, functionDefaultPrivileges, jobberLeasePrivileges, pgTrgmExtension, doorConversationTrigger, leadInteractionTrigger] = await Promise.all([
+  const [tables, columns, constraints, indexes, enums, rls, referralPolicies, customerPolicies, customerPrivileges, fieldPolicies, fieldPrivileges, googlePolicies, googlePublicPrivileges, googleServicePrivileges, updatedAt, securityPosture, storageTable, publicDefinerExecutables, functionDefaultPrivileges, jobberLeasePrivileges, pgTrgmExtension, doorConversationTrigger, leadInteractionTrigger, leadCaptureTrigger] = await Promise.all([
     client.query("select table_name from information_schema.tables where table_schema = 'public'"),
     client.query("select table_name, column_name, is_nullable from information_schema.columns where table_schema = 'public'"),
     client.query("select c.relname as table_name, pg_get_constraintdef(k.oid) as definition from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public'"),
@@ -164,6 +165,7 @@ try {
     client.query("select n.nspname as schema_name from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pg_trgm' limit 1"),
     client.query("select exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid join pg_namespace n on n.oid = p.pronamespace where t.tgrelid = 'public.sales_rep_door_visits'::regclass and t.tgname = 'sales_rep_door_visits_record_conversation' and t.tgenabled = 'O' and not t.tgisinternal and pg_get_triggerdef(t.oid) ilike '%AFTER INSERT%' and n.nspname = 'public' and p.proname = 'homeatlas_record_door_conversation_activity' and not p.prosecdef and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=pg_catalog, public%' and not has_function_privilege('anon', p.oid, 'execute') and not has_function_privilege('authenticated', p.oid, 'execute') and not has_function_privilege('service_role', p.oid, 'execute')) as ready"),
     client.query("select exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid join pg_namespace n on n.oid = p.pronamespace where t.tgrelid = to_regclass('public.sales_rep_lead_interactions') and t.tgname = 'sales_rep_lead_interactions_record' and t.tgenabled = 'O' and not t.tgisinternal and pg_get_triggerdef(t.oid) ilike '%BEFORE INSERT%' and n.nspname = 'public' and p.proname = 'homeatlas_record_sales_lead_interaction' and not p.prosecdef and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=pg_catalog, public%' and not has_function_privilege('anon', p.oid, 'execute') and not has_function_privilege('authenticated', p.oid, 'execute') and not has_function_privilege('service_role', p.oid, 'execute')) as ready"),
+    client.query("select exists (select 1 from pg_trigger t join pg_proc p on p.oid = t.tgfoid join pg_namespace n on n.oid = p.pronamespace where t.tgrelid = to_regclass('public.sales_rep_leads') and t.tgname = 'sales_rep_leads_record_capture' and t.tgenabled = 'O' and not t.tgisinternal and pg_get_triggerdef(t.oid) ilike '%AFTER INSERT%' and n.nspname = 'public' and p.proname = 'homeatlas_record_sales_lead_capture' and not p.prosecdef and coalesce(array_to_string(p.proconfig, ','), '') like '%search_path=pg_catalog, public%' and not has_function_privilege('anon', p.oid, 'execute') and not has_function_privilege('authenticated', p.oid, 'execute') and not has_function_privilege('service_role', p.oid, 'execute')) as ready"),
   ]);
 
   let agreementBucket = null;
@@ -202,6 +204,7 @@ try {
     pgTrgmSchema: pgTrgmExtension.rows[0]?.schema_name ?? null,
     doorConversationTriggerReady: doorConversationTrigger.rows[0]?.ready === true,
     leadInteractionTriggerReady: leadInteractionTrigger.rows[0]?.ready === true,
+    leadCaptureTriggerReady: leadCaptureTrigger.rows[0]?.ready === true,
     agreementBucket,
     visitMediaBucket,
   };
