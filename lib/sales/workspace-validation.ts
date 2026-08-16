@@ -1,6 +1,9 @@
 import {
   SALES_ACTIVITY_TYPES,
+  SALES_LEAD_INTERACTION_CHANNELS,
+  SALES_LEAD_INTERACTION_OUTCOMES,
   type CreateSalesLeadInput,
+  type RecordSalesLeadInteractionInput,
   type SalesActivityType,
   type UpdateSalesLeadInput,
 } from "./workspace-types";
@@ -327,6 +330,106 @@ export function validateUpdateSalesLead(input: unknown):
       estimatedArrDollars: Math.round(estimatedArrDollars * 100) / 100,
       nextFollowUpAt,
       notes,
+    },
+  };
+}
+
+export function validateRecordSalesLeadInteraction(input: unknown):
+  | {
+      ok: true;
+      value: Required<Omit<RecordSalesLeadInteractionInput, "note" | "nextFollowUpAt">> & {
+        note: string;
+        nextFollowUpAt: string | null;
+      };
+    }
+  | { ok: false; error: string } {
+  if (!input || typeof input !== "object" || Array.isArray(input)) {
+    return { ok: false, error: "Follow-up outcome details are required." };
+  }
+
+  const raw = input as Record<string, unknown>;
+  const leadId = cleanText(raw.leadId, 80);
+  const clientEventId = cleanText(raw.clientEventId, 80);
+  if (!UUID_PATTERN.test(leadId)) {
+    return { ok: false, error: "Lead reference is invalid." };
+  }
+  if (!UUID_PATTERN.test(clientEventId)) {
+    return { ok: false, error: "Follow-up retry reference is invalid." };
+  }
+
+  const channel = cleanText(
+    raw.channel,
+    40,
+  ) as RecordSalesLeadInteractionInput["channel"];
+  if (!SALES_LEAD_INTERACTION_CHANNELS.includes(channel)) {
+    return { ok: false, error: "Choose how the interaction happened." };
+  }
+
+  const outcome = cleanText(
+    raw.outcome,
+    60,
+  ) as RecordSalesLeadInteractionInput["outcome"];
+  if (!SALES_LEAD_INTERACTION_OUTCOMES.includes(outcome)) {
+    return { ok: false, error: "Choose what happened with this lead." };
+  }
+
+  const note = cleanText(raw.note, 1200);
+  if (outcome === "not_interested" && note.length < 3) {
+    return { ok: false, error: "Add a short reason before closing this lead." };
+  }
+
+  const expectedLeadUpdatedAt = cleanText(raw.expectedLeadUpdatedAt, 80);
+  const expectedTimestamp = new Date(expectedLeadUpdatedAt);
+  if (!expectedLeadUpdatedAt || Number.isNaN(expectedTimestamp.getTime())) {
+    return {
+      ok: false,
+      error: "Refresh this lead before recording the follow-up outcome.",
+    };
+  }
+
+  let nextFollowUpAt: string | null = null;
+  if (raw.nextFollowUpAt) {
+    const parsed = new Date(String(raw.nextFollowUpAt));
+    if (Number.isNaN(parsed.getTime())) {
+      return { ok: false, error: "Choose a valid next-action time." };
+    }
+    nextFollowUpAt = parsed.toISOString();
+  }
+
+  if (outcome === "not_interested") {
+    if (nextFollowUpAt) {
+      return {
+        ok: false,
+        error: "A closed lead cannot keep a future next action.",
+      };
+    }
+  } else {
+    const nextTimestamp = nextFollowUpAt
+      ? new Date(nextFollowUpAt).getTime()
+      : Number.NaN;
+    const now = Date.now();
+    if (
+      !Number.isFinite(nextTimestamp) ||
+      nextTimestamp <= now ||
+      nextTimestamp > now + 366 * 24 * 60 * 60 * 1000
+    ) {
+      return {
+        ok: false,
+        error: "Choose a future next action within one year.",
+      };
+    }
+  }
+
+  return {
+    ok: true,
+    value: {
+      leadId,
+      clientEventId,
+      channel,
+      outcome,
+      note,
+      nextFollowUpAt,
+      expectedLeadUpdatedAt: expectedTimestamp.toISOString(),
     },
   };
 }

@@ -9,6 +9,7 @@ import { SalesPhoneAccessPanel } from "@/components/admin/sales-phone-access-pan
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
+import { LeadInteractionControl } from "@/components/sales/lead-interaction-control";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import type {
@@ -18,7 +19,10 @@ import type {
 } from "@/lib/sales/owner-pipeline";
 import type { SalesLeadActionMoment } from "@/lib/sales/lead-action-priority";
 import type { SalesProductionHandoffStage } from "@/lib/sales/production-handoff";
-import type { SalesLeadStatus } from "@/lib/sales/workspace-types";
+import type {
+  RecordSalesLeadInteractionInput,
+  SalesLeadStatus,
+} from "@/lib/sales/workspace-types";
 
 const ACTION_STYLE: Record<
   SalesLeadActionMoment,
@@ -227,6 +231,27 @@ function LeadActionCard({
     }
   }
 
+  async function recordInteraction(input: RecordSalesLeadInteractionInput) {
+    const response = await fetch("/api/admin/sales/pipeline", {
+      method: "POST",
+      headers: getAdminRequestHeaders(),
+      body: JSON.stringify({
+        repSlug: lead.repSlug,
+        interaction: input,
+      }),
+    });
+    const body = (await response.json().catch(() => null)) as
+      | { message?: string; error?: string }
+      | null;
+    if (!response.ok) {
+      throw new Error(body?.error ?? "The follow-up outcome could not be recorded.");
+    }
+    const message =
+      body?.message ?? "Outcome recorded. No message, appointment, or charge was sent.";
+    void onSaved(message);
+    return message;
+  }
+
   return (
     <article
       id={`owner-sales-lead-${lead.id}`}
@@ -302,6 +327,8 @@ function LeadActionCard({
               : `${lead.presentationStatus} presentation linked`}
         </p>
       </div>
+
+      <LeadInteractionControl lead={lead} onRecord={recordInteraction} />
 
       {!editing && lead.notes ? (
         <p className="mt-4 rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3 text-sm leading-relaxed text-white/52">

@@ -7,11 +7,14 @@ import {
 } from "./rep-config";
 import type {
   CreateSalesLeadInput,
+  RecordSalesLeadInteractionInput,
   SalesActivityReceipt,
   SalesActivityReversalReceipt,
   SalesActivityType,
   SalesDoorMemory,
   SalesDoorMemoryReceipt,
+  SalesLeadInteraction,
+  SalesLeadInteractionReceipt,
   SalesLeadAttentionSnapshot,
   SalesLeadSource,
   SalesLeadStatus,
@@ -101,6 +104,23 @@ interface SalesActivityRow {
   quantity: number;
 }
 
+interface SalesLeadInteractionRow {
+  id: string;
+  lead_id: string;
+  client_event_id: string;
+  recorded_by: SalesLeadInteraction["recordedBy"];
+  channel: SalesLeadInteraction["channel"];
+  outcome: SalesLeadInteraction["outcome"];
+  note: string | null;
+  previous_status: SalesLeadInteraction["previousStatus"];
+  resulting_status: SalesLeadInteraction["resultingStatus"];
+  previous_next_follow_up_at: string | null;
+  next_follow_up_at: string | null;
+  expected_lead_updated_at: string;
+  source_path: string;
+  occurred_at: string;
+}
+
 interface SalesDoorMemoryRow {
   id: string;
   door_activity_id: string;
@@ -147,6 +167,11 @@ const OPEN_SALES_LEAD_STATUSES: SalesLeadStatus[] = [
   "considering",
 ];
 const SALES_LEAD_PAGE_SIZE = 500;
+const SALES_LEAD_INTERACTION_SELECT =
+  "id, lead_id, client_event_id, recorded_by, channel, outcome, note, previous_status, resulting_status, previous_next_follow_up_at, next_follow_up_at, expected_lead_updated_at, source_path, occurred_at";
+const SALES_LEAD_INTERACTION_PAGE_SIZE = 500;
+const SALES_LEAD_INTERACTION_LEAD_CHUNK_SIZE = 100;
+const RECENT_SALES_LEAD_INTERACTION_LIMIT = 5;
 const SALES_ATTRIBUTION_SELECT =
   "id, lead_id, presentation_id, membership_id, signed_agreement_id, qualification_status, attributed_arr_cents, attributed_at";
 const SALES_ATTRIBUTION_PAGE_SIZE = 500;
@@ -183,6 +208,7 @@ function readableStorageError(message: string): string {
   if (
     message.includes("sales_reps") ||
     message.includes("sales_rep_leads") ||
+    message.includes("sales_rep_lead_interactions") ||
     message.includes("sales_rep_door_visits") ||
     message.includes("sales_rep_attributions") ||
     message.includes("reversed_at") ||
@@ -210,7 +236,10 @@ function profileFromRow(row: SalesRepRow): SalesRepProfile {
   });
 }
 
-function leadFromRow(row: SalesLeadRow): SalesRepLead {
+function leadFromRow(
+  row: SalesLeadRow,
+  recentInteractions: SalesLeadInteraction[] = [],
+): SalesRepLead {
   return {
     id: row.id,
     leadIntakeId: row.lead_intake_id,
@@ -225,9 +254,92 @@ function leadFromRow(row: SalesLeadRow): SalesRepLead {
     notes: row.notes ?? "",
     smsConsentStatus: row.sms_consent_status,
     emailConsentStatus: row.email_consent_status,
+    recentInteractions,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function interactionFromRow(
+  row: SalesLeadInteractionRow,
+): SalesLeadInteraction {
+  return {
+    id: row.id,
+    leadId: row.lead_id,
+    recordedBy: row.recorded_by,
+    channel: row.channel,
+    outcome: row.outcome,
+    note: row.note ?? "",
+    previousStatus: row.previous_status,
+    resultingStatus: row.resulting_status,
+    previousNextFollowUpAt: row.previous_next_follow_up_at,
+    nextFollowUpAt: row.next_follow_up_at,
+    occurredAt: row.occurred_at,
+  };
+}
+
+function chunks<T>(values: T[], size: number): T[][] {
+  const result: T[][] = [];
+  for (let index = 0; index < values.length; index += size) {
+    result.push(values.slice(index, index + size));
+  }
+  return result;
+}
+
+async function loadRecentSalesLeadInteractions(
+  repId: string,
+  leadIds: string[],
+): Promise<Map<string, SalesLeadInteraction[]>> {
+  const interactionsByLeadId = new Map<string, SalesLeadInteraction[]>();
+  const uniqueLeadIds = [...new Set(leadIds)];
+  if (uniqueLeadIds.length === 0) return interactionsByLeadId;
+
+  const supabase = createPrivilegedServerSupabaseClient();
+  for (const leadIdChunk of chunks(
+    uniqueLeadIds,
+    SALES_LEAD_INTERACTION_LEAD_CHUNK_SIZE,
+  )) {
+    let offset = 0;
+    while (true) {
+      const result = await supabase
+        .from("sales_rep_lead_interactions")
+        .select(SALES_LEAD_INTERACTION_SELECT, { count: "exact" })
+        .eq("rep_id", repId)
+        .in("lead_id", leadIdChunk)
+        .order("occurred_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(offset, offset + SALES_LEAD_INTERACTION_PAGE_SIZE - 1);
+
+      if (result.error) {
+        throw new SalesWorkspaceUnavailableError(
+          readableStorageError(result.error.message),
+        );
+      }
+      if (result.count === null) {
+        throw new SalesWorkspaceUnavailableError(
+          "HomeAtlas could not prove that the lead interaction history was complete.",
+        );
+      }
+
+      const page = (result.data ?? []) as SalesLeadInteractionRow[];
+      for (const row of page) {
+        const current = interactionsByLeadId.get(row.lead_id) ?? [];
+        if (current.length < RECENT_SALES_LEAD_INTERACTION_LIMIT) {
+          current.push(interactionFromRow(row));
+          interactionsByLeadId.set(row.lead_id, current);
+        }
+      }
+      offset += page.length;
+      if (offset >= result.count) break;
+      if (page.length === 0) {
+        throw new SalesWorkspaceUnavailableError(
+          "HomeAtlas could not finish loading lead interaction history.",
+        );
+      }
+    }
+  }
+
+  return interactionsByLeadId;
 }
 
 function doorMemoryFromRow(row: SalesDoorMemoryRow): SalesDoorMemory {
@@ -649,7 +761,13 @@ export async function loadSalesWorkspace(
     );
   }
 
-  const leads = openLeadRows.map(leadFromRow);
+  const recentInteractions = await loadRecentSalesLeadInteractions(
+    rep.id,
+    openLeadRows.map((lead) => lead.id),
+  );
+  const leads = openLeadRows.map((lead) =>
+    leadFromRow(lead, recentInteractions.get(lead.id) ?? []),
+  );
   const activities = (activityResult.data ?? []) as SalesActivityRow[];
   const activityCount = (eventType: string) =>
     activities.reduce(
@@ -823,9 +941,15 @@ export async function loadSalesLeadAttentionSnapshot(
 ): Promise<SalesLeadAttentionSnapshot> {
   const rep = await loadRepRow(slug);
   const openLeadRows = await loadAllOpenSalesRepLeadRows(rep.id);
+  const recentInteractions = await loadRecentSalesLeadInteractions(
+    rep.id,
+    openLeadRows.map((lead) => lead.id),
+  );
   return {
     profile: profileFromRow(rep),
-    leads: openLeadRows.map(leadFromRow),
+    leads: openLeadRows.map((lead) =>
+      leadFromRow(lead, recentInteractions.get(lead.id) ?? []),
+    ),
     generatedAt: referenceDate.toISOString(),
   };
 }
@@ -1005,6 +1129,240 @@ export async function updateSalesLead(
   }
 
   return leadFromRow(data as SalesLeadRow);
+}
+
+function sameTimestamp(left: string | null, right: string | null): boolean {
+  if (left === null || right === null) return left === right;
+  const leftTime = Date.parse(left);
+  const rightTime = Date.parse(right);
+  return Number.isFinite(leftTime) &&
+    Number.isFinite(rightTime) &&
+    leftTime === rightTime;
+}
+
+function assertLeadInteractionRetryMatches(
+  row: SalesLeadInteractionRow,
+  expected: {
+    leadId: string;
+    recordedBy: SalesLeadInteraction["recordedBy"];
+    channel: SalesLeadInteraction["channel"];
+    outcome: SalesLeadInteraction["outcome"];
+    note: string;
+    nextFollowUpAt: string | null;
+    expectedLeadUpdatedAt: string;
+    sourcePath: string;
+  },
+) {
+  if (
+    row.lead_id !== expected.leadId ||
+    row.recorded_by !== expected.recordedBy ||
+    row.channel !== expected.channel ||
+    row.outcome !== expected.outcome ||
+    (row.note ?? "") !== expected.note ||
+    !sameTimestamp(row.next_follow_up_at, expected.nextFollowUpAt) ||
+    !sameTimestamp(
+      row.expected_lead_updated_at,
+      expected.expectedLeadUpdatedAt,
+    ) ||
+    row.source_path !== expected.sourcePath
+  ) {
+    throw new SalesWorkspaceActionError(
+      "That follow-up retry reference was already used for a different outcome.",
+      409,
+    );
+  }
+}
+
+async function leadInteractionReceipt(
+  repId: string,
+  leadId: string,
+  interactionRow: SalesLeadInteractionRow,
+): Promise<SalesLeadInteractionReceipt> {
+  const supabase = createPrivilegedServerSupabaseClient();
+  const leadResult = await supabase
+    .from("sales_rep_leads")
+    .select(SALES_LEAD_SELECT)
+    .eq("id", leadId)
+    .eq("rep_id", repId)
+    .maybeSingle();
+  if (leadResult.error) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(leadResult.error.message),
+    );
+  }
+  if (!leadResult.data) {
+    throw new SalesWorkspaceActionError(
+      "That homeowner is not in this field workspace.",
+      404,
+    );
+  }
+
+  const recentInteractions = await loadRecentSalesLeadInteractions(repId, [leadId]);
+  return {
+    interaction: interactionFromRow(interactionRow),
+    lead: leadFromRow(
+      leadResult.data as SalesLeadRow,
+      recentInteractions.get(leadId) ?? [],
+    ),
+  };
+}
+
+/**
+ * Preserve what happened and advance the private action queue in the same SQL
+ * statement. This is deliberately record-only: no provider send, call,
+ * appointment, agreement, enrollment, invoice, or payment action occurs here.
+ */
+export async function recordSalesLeadInteraction(
+  slug: string,
+  recordedBy: SalesLeadInteraction["recordedBy"],
+  input: Required<
+    Omit<RecordSalesLeadInteractionInput, "note" | "nextFollowUpAt">
+  > & {
+    note: string;
+    nextFollowUpAt: string | null;
+  },
+): Promise<SalesLeadInteractionReceipt> {
+  const rep = await loadRepRow(slug);
+  const supabase = createPrivilegedServerSupabaseClient();
+  const sourcePath = profileFromRow(rep).workspacePath;
+  const expected = {
+    leadId: input.leadId,
+    recordedBy,
+    channel: input.channel,
+    outcome: input.outcome,
+    note: input.note,
+    nextFollowUpAt: input.nextFollowUpAt,
+    expectedLeadUpdatedAt: input.expectedLeadUpdatedAt,
+    sourcePath,
+  };
+
+  const priorResult = await supabase
+    .from("sales_rep_lead_interactions")
+    .select(SALES_LEAD_INTERACTION_SELECT)
+    .eq("rep_id", rep.id)
+    .eq("client_event_id", input.clientEventId)
+    .maybeSingle();
+  if (priorResult.error) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(priorResult.error.message),
+    );
+  }
+  if (priorResult.data) {
+    const prior = priorResult.data as SalesLeadInteractionRow;
+    assertLeadInteractionRetryMatches(prior, expected);
+    return leadInteractionReceipt(rep.id, input.leadId, prior);
+  }
+
+  const leadResult = await supabase
+    .from("sales_rep_leads")
+    .select(SALES_LEAD_SELECT)
+    .eq("id", input.leadId)
+    .eq("rep_id", rep.id)
+    .maybeSingle();
+  if (leadResult.error) {
+    throw new SalesWorkspaceUnavailableError(
+      readableStorageError(leadResult.error.message),
+    );
+  }
+  if (!leadResult.data) {
+    throw new SalesWorkspaceActionError(
+      "That homeowner is not in this field workspace.",
+      404,
+    );
+  }
+
+  const lead = leadResult.data as SalesLeadRow;
+  if (!OPEN_SALES_LEAD_STATUSES.includes(lead.status)) {
+    throw new SalesWorkspaceActionError(
+      "Completed sales outcomes cannot receive a follow-up interaction.",
+      409,
+    );
+  }
+  if (input.channel === "call" && !lead.phone_normalized) {
+    throw new SalesWorkspaceActionError(
+      "Add a phone number before recording a call.",
+      400,
+    );
+  }
+  if (
+    input.channel === "sms" &&
+    (!lead.phone_normalized || lead.sms_consent_status !== "opted_in")
+  ) {
+    throw new SalesWorkspaceActionError(
+      "Text permission and a phone number are required before recording a text.",
+      400,
+    );
+  }
+  if (
+    input.channel === "email" &&
+    (!lead.email_normalized || lead.email_consent_status !== "opted_in")
+  ) {
+    throw new SalesWorkspaceActionError(
+      "Email permission and an address are required before recording an email.",
+      400,
+    );
+  }
+
+  const insertResult = await supabase
+    .from("sales_rep_lead_interactions")
+    .insert({
+      rep_id: rep.id,
+      lead_id: input.leadId,
+      client_event_id: input.clientEventId,
+      recorded_by: recordedBy,
+      channel: input.channel,
+      outcome: input.outcome,
+      note: input.note || null,
+      expected_lead_updated_at: input.expectedLeadUpdatedAt,
+      next_follow_up_at: input.nextFollowUpAt,
+      source_path: sourcePath,
+    })
+    .select(SALES_LEAD_INTERACTION_SELECT)
+    .single();
+
+  if (!insertResult.error && insertResult.data) {
+    return leadInteractionReceipt(
+      rep.id,
+      input.leadId,
+      insertResult.data as SalesLeadInteractionRow,
+    );
+  }
+  if (insertResult.error?.code === "23505") {
+    const retryResult = await supabase
+      .from("sales_rep_lead_interactions")
+      .select(SALES_LEAD_INTERACTION_SELECT)
+      .eq("rep_id", rep.id)
+      .eq("client_event_id", input.clientEventId)
+      .maybeSingle();
+    if (retryResult.error || !retryResult.data) {
+      throw new SalesWorkspaceUnavailableError(
+        readableStorageError(
+          retryResult.error?.message ?? "sales_rep_lead_interactions",
+        ),
+      );
+    }
+    const retried = retryResult.data as SalesLeadInteractionRow;
+    assertLeadInteractionRetryMatches(retried, expected);
+    return leadInteractionReceipt(rep.id, input.leadId, retried);
+  }
+  if (insertResult.error?.code === "40001") {
+    throw new SalesWorkspaceActionError(
+      "That homeowner changed in another session. Refresh before recording the outcome.",
+      409,
+    );
+  }
+  if (["23503", "23514"].includes(insertResult.error?.code ?? "")) {
+    throw new SalesWorkspaceActionError(
+      insertResult.error?.message ?? "That follow-up outcome could not be recorded.",
+      409,
+    );
+  }
+
+  throw new SalesWorkspaceUnavailableError(
+    readableStorageError(
+      insertResult.error?.message ?? "sales_rep_lead_interactions",
+    ),
+  );
 }
 
 /**

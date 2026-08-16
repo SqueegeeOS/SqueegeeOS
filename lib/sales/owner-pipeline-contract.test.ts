@@ -31,6 +31,9 @@ describe("owner sales inbox release contract", () => {
     expect(route).toContain("authorizeAdminRequest(request.headers)");
     expect(route).toContain("validateUpdateSalesLead(raw.lead)");
     expect(route).toContain("updateSalesLead(repSlug, validation.value)");
+    expect(route).toContain("validateRecordSalesLeadInteraction(raw.interaction)");
+    expect(route).toContain('"owner",');
+    expect(route).toContain("recordSalesLeadInteraction");
     expect(route).toContain('"Cache-Control": "private, no-store"');
     expect(route.toLowerCase()).not.toContain("twilio");
     expect(route.toLowerCase()).not.toContain("resend");

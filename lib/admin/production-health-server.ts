@@ -246,6 +246,11 @@ async function runSchemaChecks(
       column: "lead_intake_id",
     },
     {
+      id: "sales-lead-interactions-schema",
+      label: "sales_rep_lead_interactions",
+      table: "sales_rep_lead_interactions",
+    },
+    {
       id: "technician-visit-automation-schema",
       label: "technician_visit_events",
       table: "technician_visit_events",

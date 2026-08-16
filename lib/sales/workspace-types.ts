@@ -26,6 +26,46 @@ export const SALES_LEAD_STATUSES = [
 
 export type SalesLeadStatus = (typeof SALES_LEAD_STATUSES)[number];
 export type ContactConsentStatus = "unknown" | "opted_in" | "opted_out";
+
+export const SALES_LEAD_INTERACTION_CHANNELS = [
+  "call",
+  "email",
+  "sms",
+  "in_person",
+] as const;
+
+export type SalesLeadInteractionChannel =
+  (typeof SALES_LEAD_INTERACTION_CHANNELS)[number];
+
+export const SALES_LEAD_INTERACTION_OUTCOMES = [
+  "no_answer",
+  "spoke_follow_up",
+  "presentation_scheduled",
+  "not_interested",
+] as const;
+
+export type SalesLeadInteractionOutcome =
+  (typeof SALES_LEAD_INTERACTION_OUTCOMES)[number];
+
+export interface SalesLeadInteraction {
+  id: string;
+  leadId: string;
+  recordedBy: "owner" | "sales_rep";
+  channel: SalesLeadInteractionChannel;
+  outcome: SalesLeadInteractionOutcome;
+  note: string;
+  previousStatus: Extract<
+    SalesLeadStatus,
+    "new" | "follow_up" | "presentation" | "considering"
+  >;
+  resultingStatus: Extract<
+    SalesLeadStatus,
+    "follow_up" | "presentation" | "considering" | "lost"
+  >;
+  previousNextFollowUpAt: string | null;
+  nextFollowUpAt: string | null;
+  occurredAt: string;
+}
 export type SalesLeadSource =
   | "door_to_door"
   | "referral"
@@ -48,6 +88,7 @@ export interface SalesRepLead {
   notes: string;
   smsConsentStatus: ContactConsentStatus;
   emailConsentStatus: ContactConsentStatus;
+  recentInteractions: SalesLeadInteraction[];
   createdAt: string;
   updatedAt: string;
 }
@@ -130,6 +171,21 @@ export interface UpdateSalesLeadInput {
   notes?: string | null;
 }
 
+export interface RecordSalesLeadInteractionInput {
+  leadId: string;
+  clientEventId: string;
+  channel: SalesLeadInteractionChannel;
+  outcome: SalesLeadInteractionOutcome;
+  note?: string | null;
+  nextFollowUpAt?: string | null;
+  expectedLeadUpdatedAt: string;
+}
+
+export interface SalesLeadInteractionReceipt {
+  interaction: SalesLeadInteraction;
+  lead: SalesRepLead;
+}
+
 export interface CreateSalesActivityInput {
   activityType: SalesActivityType;
   quantity?: number;
@@ -174,6 +230,7 @@ export interface SalesActivityReversalReceipt {
 export type SalesWorkspaceCommand =
   | { kind: "lead"; lead: CreateSalesLeadInput }
   | { kind: "update_lead"; lead: UpdateSalesLeadInput }
+  | { kind: "lead_interaction"; interaction: RecordSalesLeadInteractionInput }
   | { kind: "activity"; activity: CreateSalesActivityInput }
   | { kind: "door_memory"; memory: CreateSalesDoorMemoryInput }
   | { kind: "undo_activity"; activityId: string };

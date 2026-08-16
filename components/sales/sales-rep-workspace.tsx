@@ -11,6 +11,7 @@ import {
   type DoorMemoryDraft,
 } from "@/components/sales/door-memory";
 import { FirstFieldMission } from "@/components/sales/first-field-mission";
+import { LeadInteractionControl } from "@/components/sales/lead-interaction-control";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
@@ -21,6 +22,7 @@ import {
 } from "@/lib/sales/rep-config";
 import type {
   CreateSalesLeadInput,
+  RecordSalesLeadInteractionInput,
   SalesActivityReceipt,
   SalesActivityType,
   SalesDoorMemory,
@@ -1375,6 +1377,35 @@ export function SalesRepWorkspace({
     }
   };
 
+  const recordLeadInteraction = async (
+    input: RecordSalesLeadInteractionInput,
+  ) => {
+    setNotice(null);
+    setError(null);
+    const response = await fetch(
+      `/api/sales/${encodeURIComponent(repSlug)}/workspace`,
+      {
+        method: "POST",
+        headers: getAdminRequestHeaders(),
+        body: JSON.stringify({
+          kind: "lead_interaction",
+          interaction: input,
+        }),
+      },
+    );
+    const body = (await response.json().catch(() => null)) as
+      | { message?: string; error?: string }
+      | null;
+    if (!response.ok) {
+      throw new Error(body?.error ?? "The follow-up outcome could not be recorded.");
+    }
+    const message =
+      body?.message ?? "Outcome recorded. No message, appointment, or charge was sent.";
+    setNotice(message);
+    void loadWorkspace();
+    return message;
+  };
+
   const workspaceLeads = workspace?.leads ?? EMPTY_LEADS;
   const recentDoorMemories =
     workspace?.recentDoorMemories ?? EMPTY_DOOR_MEMORIES;
@@ -2109,6 +2140,11 @@ export function SalesRepWorkspace({
                         ) : null}
                       </div>
                     ) : null}
+                    <LeadInteractionControl
+                      lead={lead}
+                      onRecord={recordLeadInteraction}
+                      showContactActions={false}
+                    />
                     <div className="mt-4 grid gap-2 min-[430px]:grid-cols-2">
                       <button
                         type="button"

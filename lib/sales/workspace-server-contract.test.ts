@@ -70,6 +70,20 @@ describe("sales workspace active-queue loading contract", () => {
     );
   });
 
+  it("loads complete recent interaction memory and makes retries exact", () => {
+    expect(server).toContain('from("sales_rep_lead_interactions")');
+    expect(server).toContain("loadRecentSalesLeadInteractions");
+    expect(server).toContain("SALES_LEAD_INTERACTION_PAGE_SIZE");
+    expect(server).toContain(
+      "HomeAtlas could not prove that the lead interaction history was complete.",
+    );
+    expect(server).toContain("assertLeadInteractionRetryMatches");
+    expect(server).toContain('insertResult.error?.code === "23505"');
+    expect(server).toContain('insertResult.error?.code === "40001"');
+    expect(server).toContain("recordSalesLeadInteraction");
+    expect(server).toContain("deliberately record-only");
+  });
+
   it("pages the complete signed-close ledger instead of silently stopping at the provider row cap", () => {
     expect(server).toContain("SALES_ATTRIBUTION_PAGE_SIZE");
     expect(server).toContain(
