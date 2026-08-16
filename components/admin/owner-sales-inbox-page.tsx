@@ -26,7 +26,11 @@ import type {
   OwnerSalesPipelineSnapshot,
 } from "@/lib/sales/owner-pipeline";
 import type { SalesLeadActionMoment } from "@/lib/sales/lead-action-priority";
-import { salesLeadSourceLabel } from "@/lib/sales/lead-intake-assignment";
+import {
+  salesLeadSourceLabel,
+  salesRepLeadWorkspaceHref,
+  type LeadIntakeSalesAssignment,
+} from "@/lib/sales/lead-intake-assignment";
 import type { SalesProductionHandoffStage } from "@/lib/sales/production-handoff";
 import type { EnrollmentPacketProgressTone } from "@/lib/enrollment/packet-progress";
 import type {
@@ -55,6 +59,11 @@ const ACTION_STYLE: Record<
     className: "border-emerald-300/20 bg-emerald-300/[0.07] text-emerald-100",
   },
 };
+
+interface OwnerSalesNotice {
+  message: string;
+  links?: Array<{ href: string; label: string }>;
+}
 
 const HANDOFF_STYLE: Record<
   SalesProductionHandoffStage,
@@ -739,7 +748,10 @@ function InboundTriage({
 }: {
   snapshot: OwnerSalesPipelineSnapshot | null;
   loading: boolean;
-  onAssigned: (message: string) => Promise<void>;
+  onAssigned: (
+    leadName: string,
+    assignment: LeadIntakeSalesAssignment,
+  ) => Promise<void>;
 }) {
   const inbound = snapshot?.inbound;
   const salesReps = (snapshot?.reps ?? []).map((rep) => ({
@@ -839,9 +851,7 @@ function InboundTriage({
                     initialSalesReps={salesReps}
                     compact
                     onChanged={(assignment) => {
-                      void onAssigned(
-                        `${lead.name} is now owned by ${assignment.repDisplayName}.`,
-                      );
+                      void onAssigned(lead.name, assignment);
                     }}
                   />
                 </div>
@@ -873,7 +883,7 @@ function OwnerSalesInboxContent() {
   const [snapshot, setSnapshot] = useState<OwnerSalesPipelineSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<OwnerSalesNotice | null>(null);
   const [query, setQuery] = useState("");
   const [repSlug, setRepSlug] = useState("all");
   const [moment, setMoment] = useState<"all" | SalesLeadActionMoment>("all");
@@ -966,7 +976,30 @@ function OwnerSalesInboxContent() {
   }, [moment, query, repSlug, snapshot]);
 
   async function handleSaved(message: string) {
-    setNotice(message);
+    setNotice({ message });
+    await load();
+  }
+
+  async function handleInboundAssigned(
+    leadName: string,
+    assignment: LeadIntakeSalesAssignment,
+  ) {
+    setNotice({
+      message: `${leadName} is now owned by ${assignment.repDisplayName}. The exact record is ready—no customer was contacted.`,
+      links: [
+        {
+          href: `/hq/sales#owner-sales-lead-${assignment.salesRepLeadId}`,
+          label: "Open owner record",
+        },
+        {
+          href: salesRepLeadWorkspaceHref(
+            assignment.repWorkspacePath,
+            assignment.salesRepLeadId,
+          ),
+          label: `Open in ${assignment.repDisplayName}'s desk`,
+        },
+      ],
+    });
     await load();
   }
 
@@ -1008,7 +1041,20 @@ function OwnerSalesInboxContent() {
             aria-live="polite"
             className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] px-4 py-3 text-sm text-emerald-100"
           >
-            {notice}
+            <p>{notice.message}</p>
+            {notice.links ? (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {notice.links.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="inline-flex min-h-10 items-center rounded-xl border border-emerald-200/20 bg-emerald-200/[0.07] px-3 text-xs font-semibold text-emerald-50 transition hover:border-emerald-200/35 hover:bg-emerald-200/[0.11]"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </div>
         ) : null}
         {error ? (
@@ -1023,7 +1069,7 @@ function OwnerSalesInboxContent() {
         <InboundTriage
           snapshot={snapshot}
           loading={loading}
-          onAssigned={handleSaved}
+          onAssigned={handleInboundAssigned}
         />
 
         <SalesPhoneAccessPanel />

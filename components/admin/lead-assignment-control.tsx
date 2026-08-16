@@ -11,6 +11,7 @@ import {
   futureLocalDateTimeValue,
   tomorrowMorningLocalDateTimeValue,
 } from "@/lib/sales/lead-assignment-time";
+import { salesRepLeadWorkspaceHref } from "@/lib/sales/lead-intake-assignment";
 
 function localInputValue(value: string): string {
   const parsed = new Date(value);
@@ -184,7 +185,10 @@ export function LeadAssignmentControl({
           {assignment ? (
             <p className="mt-1 text-sm text-foreground">
               <Link
-                href={assignment.repWorkspacePath}
+                href={salesRepLeadWorkspaceHref(
+                  assignment.repWorkspacePath,
+                  assignment.salesRepLeadId,
+                )}
                 className="font-medium underline-offset-2 hover:text-accent hover:underline"
               >
                 {assignment.repDisplayName}
