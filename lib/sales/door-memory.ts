@@ -9,6 +9,18 @@ export const SALES_DOOR_DISPOSITIONS = [
 
 export type SalesDoorDisposition = (typeof SALES_DOOR_DISPOSITIONS)[number];
 
+const CONVERSATIONAL_DOOR_DISPOSITIONS = new Set<SalesDoorDisposition>([
+  "conversation",
+  "follow_up",
+  "interested",
+]);
+
+export function salesDoorDispositionCountsConversation(
+  disposition: SalesDoorDisposition,
+): boolean {
+  return CONVERSATIONAL_DOOR_DISPOSITIONS.has(disposition);
+}
+
 export function normalizeSalesDoorAddress(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }

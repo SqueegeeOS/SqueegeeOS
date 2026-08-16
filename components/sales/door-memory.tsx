@@ -15,6 +15,7 @@ import {
 import {
   SALES_DOOR_DISPOSITIONS,
   normalizeSalesDoorAddressKey,
+  salesDoorDispositionCountsConversation,
   salesDoorDispositionLabel,
   type SalesDoorDisposition,
 } from "@/lib/sales/door-memory";
@@ -30,9 +31,9 @@ export interface DoorMemoryDraft {
 
 const DISPOSITION_DETAIL: Record<SalesDoorDisposition, string> = {
   not_home: "Nobody answered",
-  conversation: "Had a conversation",
-  follow_up: "Come back or reconnect",
-  interested: "Ready for the next step",
+  conversation: "Had a conversation · +1 talk",
+  follow_up: "Come back or reconnect · +1 talk",
+  interested: "Ready for the next step · +1 talk",
   not_interested: "Not moving forward now",
   do_not_knock: "Never approach again",
 };
@@ -277,6 +278,13 @@ export function DoorMemorySheet({
                     : "Save door & move on"}
             </button>
           </div>
+          {draft.disposition &&
+          salesDoorDispositionCountsConversation(draft.disposition) ? (
+            <p className="mt-3 text-center text-[10px] font-semibold leading-4 text-sky-100 sm:text-right">
+              This outcome counts one conversation automatically. No second tap
+              needed.
+            </p>
+          ) : null}
           <p className="mt-3 text-center text-[10px] leading-4 text-muted/65 sm:text-right">
             Private field history only. This does not text, email, enroll, or charge
             anyone.
