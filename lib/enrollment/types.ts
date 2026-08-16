@@ -18,6 +18,11 @@ export type EnrollmentPacketStatus =
   | "needs_attention"
   | "voided";
 
+export interface EnrollmentPacketStatusSnapshot {
+  status: EnrollmentPacketStatus;
+  updatedAt: string;
+}
+
 export interface EnrollmentVisitSnapshot {
   label: string;
   timing: string;

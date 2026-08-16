@@ -61,6 +61,8 @@ import {
   salesLeadCaptureFingerprintMatches,
   type CanonicalSalesLeadCapture,
 } from "./lead-capture-idempotency";
+import { loadSalesLeadCloseJourneys } from "./lead-close-journey-server";
+import type { SalesLeadCloseJourney } from "./lead-close-journey";
 
 interface SalesRepRow {
   id: string;
@@ -247,6 +249,7 @@ function profileFromRow(row: SalesRepRow): SalesRepProfile {
 function leadFromRow(
   row: SalesLeadRow,
   recentInteractions: SalesLeadInteraction[] = [],
+  closeJourney: SalesLeadCloseJourney | null = null,
 ): SalesRepLead {
   return {
     id: row.id,
@@ -262,6 +265,7 @@ function leadFromRow(
     notes: row.notes ?? "",
     smsConsentStatus: row.sms_consent_status,
     emailConsentStatus: row.email_consent_status,
+    closeJourney,
     recentInteractions,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -769,12 +773,33 @@ export async function loadSalesWorkspace(
     );
   }
 
-  const recentInteractions = await loadRecentSalesLeadInteractions(
-    rep.id,
-    openLeadRows.map((lead) => lead.id),
-  );
+  const [recentInteractions, closeJourneys] = await Promise.all([
+    loadRecentSalesLeadInteractions(
+      rep.id,
+      openLeadRows.map((lead) => lead.id),
+    ),
+    loadSalesLeadCloseJourneys(
+      rep.id,
+      openLeadRows.map((lead) => ({
+        id: lead.id,
+        leadIntakeId: lead.lead_intake_id,
+      })),
+    ).catch((error: unknown) => {
+      // Close progress is an operational assist. A provider/read failure must
+      // not take the field desk away or manufacture a false customer stage.
+      console.error(
+        "[sales-workspace] nonfatal close-journey load failed",
+        error,
+      );
+      return new Map<string, SalesLeadCloseJourney>();
+    }),
+  ]);
   const leads = openLeadRows.map((lead) =>
-    leadFromRow(lead, recentInteractions.get(lead.id) ?? []),
+    leadFromRow(
+      lead,
+      recentInteractions.get(lead.id) ?? [],
+      closeJourneys.get(lead.id) ?? null,
+    ),
   );
   const activities = (activityResult.data ?? []) as SalesActivityRow[];
   const activityCount = (eventType: string) =>
@@ -949,14 +974,33 @@ export async function loadSalesLeadAttentionSnapshot(
 ): Promise<SalesLeadAttentionSnapshot> {
   const rep = await loadRepRow(slug);
   const openLeadRows = await loadAllOpenSalesRepLeadRows(rep.id);
-  const recentInteractions = await loadRecentSalesLeadInteractions(
-    rep.id,
-    openLeadRows.map((lead) => lead.id),
-  );
+  const [recentInteractions, closeJourneys] = await Promise.all([
+    loadRecentSalesLeadInteractions(
+      rep.id,
+      openLeadRows.map((lead) => lead.id),
+    ),
+    loadSalesLeadCloseJourneys(
+      rep.id,
+      openLeadRows.map((lead) => ({
+        id: lead.id,
+        leadIntakeId: lead.lead_intake_id,
+      })),
+    ).catch((error: unknown) => {
+      console.error(
+        "[sales-workspace] nonfatal owner close-journey load failed",
+        error,
+      );
+      return new Map<string, SalesLeadCloseJourney>();
+    }),
+  ]);
   return {
     profile: profileFromRow(rep),
     leads: openLeadRows.map((lead) =>
-      leadFromRow(lead, recentInteractions.get(lead.id) ?? []),
+      leadFromRow(
+        lead,
+        recentInteractions.get(lead.id) ?? [],
+        closeJourneys.get(lead.id) ?? null,
+      ),
     ),
     generatedAt: referenceDate.toISOString(),
   };

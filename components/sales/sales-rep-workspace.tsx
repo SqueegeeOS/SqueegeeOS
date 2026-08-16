@@ -64,6 +64,14 @@ import {
   salesLeadCaptureDraftStorageKey,
   serializeSalesLeadCaptureDraft,
 } from "@/lib/sales/lead-capture-draft";
+import type { EnrollmentPacketProgressTone } from "@/lib/enrollment/packet-progress";
+
+const CLOSE_JOURNEY_STYLE: Record<EnrollmentPacketProgressTone, string> = {
+  neutral: "border-white/10 bg-white/[0.035] text-white/68",
+  accent: "border-accent/25 bg-accent/[0.07] text-accent",
+  warning: "border-amber-300/25 bg-amber-300/[0.07] text-amber-100",
+  success: "border-emerald-300/22 bg-emerald-300/[0.065] text-emerald-100",
+};
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -2224,6 +2232,19 @@ export function SalesRepWorkspace({
                         ) : null}
                       </div>
                     ) : null}
+                    {lead.closeJourney ? (
+                      <div
+                        className={`mt-4 rounded-2xl border p-3.5 ${CLOSE_JOURNEY_STYLE[lead.closeJourney.tone]}`}
+                        role="status"
+                      >
+                        <p className="text-[10px] font-bold uppercase tracking-[0.15em] opacity-80">
+                          Close journey · {lead.closeJourney.label}
+                        </p>
+                        <p className="mt-1.5 text-xs leading-relaxed text-white/55">
+                          {lead.closeJourney.detail}
+                        </p>
+                      </div>
+                    ) : null}
                     <LeadInteractionControl
                       lead={lead}
                       onRecord={recordLeadInteraction}
@@ -2234,12 +2255,12 @@ export function SalesRepWorkspace({
                         type="button"
                         onClick={() => void openLeadPresentation(lead.id)}
                         disabled={presentationOpeningLeadId !== null}
-                        aria-label={`Build a Home Care Plan for ${lead.fullName}`}
+                        aria-label={`${lead.closeJourney?.actionLabel ?? "Build a Home Care Plan"} for ${lead.fullName}`}
                         className="inline-flex min-h-12 items-center justify-center rounded-full border border-accent/40 bg-accent/[0.08] px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-accent disabled:cursor-wait disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                       >
                         {presentationOpeningLeadId === lead.id
                           ? "Opening plan…"
-                          : "Build their plan"}
+                          : (lead.closeJourney?.actionLabel ?? "Build their plan")}
                       </button>
                       <button
                         type="button"

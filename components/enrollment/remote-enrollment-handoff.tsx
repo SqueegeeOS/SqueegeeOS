@@ -1,9 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
-import type { EnrollmentSalesContext } from "@/lib/enrollment/types";
+import {
+  enrollmentPacketProgress,
+  type EnrollmentPacketProgressTone,
+} from "@/lib/enrollment/packet-progress";
+import type {
+  EnrollmentPacketStatusSnapshot,
+  EnrollmentSalesContext,
+} from "@/lib/enrollment/types";
 import { SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 import type { PresentationData, PresentationTier } from "@/lib/presentations/types";
 
@@ -20,18 +27,27 @@ function price(value: number): string {
   return Number.isFinite(value) && value > 0 ? value.toFixed(2) : "";
 }
 
+const PROGRESS_TONE_CLASS: Record<EnrollmentPacketProgressTone, string> = {
+  neutral: "border-white/12 bg-white/[0.045] text-white/70",
+  accent: "border-accent/25 bg-accent/[0.075] text-accent",
+  warning: "border-amber-300/25 bg-amber-300/[0.075] text-amber-100",
+  success: "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-100",
+};
+
 export function RemoteEnrollmentHandoff({
   presentation,
   tier,
   firstVisitPrice,
   recurringVisitPrice,
   annualizedValue,
+  returnTo = null,
 }: {
   presentation: PresentationData;
   tier: PresentationTier;
   firstVisitPrice: number;
   recurringVisitPrice: number;
   annualizedValue: number;
+  returnTo?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [firstRate, setFirstRate] = useState(() => price(firstVisitPrice));
@@ -44,9 +60,57 @@ export function RemoteEnrollmentHandoff({
   const [context, setContext] = useState<EnrollmentSalesContext | null>(null);
   const [noticeDays, setNoticeDays] = useState<3 | 5 | null>(null);
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [checkingStatus, setCheckingStatus] = useState(true);
+  const [packetStatus, setPacketStatus] =
+    useState<EnrollmentPacketStatusSnapshot | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [readiness, setReadiness] = useState<ReadinessPayload | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const loadStatus = async () => {
+      try {
+        const params = new URLSearchParams({ presentationId: presentation.id });
+        const response = await fetch(`/api/admin/enrollment-packets?${params}`, {
+          headers: getAdminRequestHeaders(),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+        const body = (await response.json().catch(() => null)) as {
+          packet?: EnrollmentPacketStatusSnapshot | null;
+          error?: string;
+        } | null;
+        if (!response.ok) {
+          throw new Error(
+            body?.error ?? "Previous secure handoff progress could not be checked.",
+          );
+        }
+        const nextStatus = body?.packet ?? null;
+        setPacketStatus(nextStatus);
+        if (
+          nextStatus &&
+          !enrollmentPacketProgress(nextStatus.status).blocksNewSend
+        ) {
+          setExpanded(true);
+        }
+      } catch (statusLoadError) {
+        if (statusLoadError instanceof DOMException && statusLoadError.name === "AbortError") {
+          return;
+        }
+        setStatusError(
+          statusLoadError instanceof Error
+            ? statusLoadError.message
+            : "Previous secure handoff progress could not be checked.",
+        );
+      } finally {
+        if (!controller.signal.aborted) setCheckingStatus(false);
+      }
+    };
+
+    void loadStatus();
+    return () => controller.abort();
+  }, [presentation.id]);
 
   const send = async () => {
     setSending(true);
@@ -70,12 +134,16 @@ export function RemoteEnrollmentHandoff({
       const body = (await response.json().catch(() => null)) as {
         error?: string;
         readiness?: ReadinessPayload;
+        status?: "signature_sent";
       } | null;
       if (!response.ok) {
         setReadiness(body?.readiness ?? null);
         throw new Error(body?.error ?? "The secure handoff could not be sent.");
       }
-      setSent(true);
+      setPacketStatus({
+        status: body?.status ?? "signature_sent",
+        updatedAt: new Date().toISOString(),
+      });
     } catch (sendError) {
       setError(
         sendError instanceof Error
@@ -87,18 +155,56 @@ export function RemoteEnrollmentHandoff({
     }
   };
 
-  if (sent) {
+  if (checkingStatus) {
     return (
-      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-300/[0.08] p-5 text-left">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200/75">
-          Secure handoff sent
+      <div
+        className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 text-left"
+        aria-live="polite"
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/42">
+          Checking secure handoff
+        </p>
+        <p className="mt-2 text-xs leading-relaxed text-white/48">
+          Restoring the last verified signature and Stripe step…
+        </p>
+      </div>
+    );
+  }
+
+  const durableProgress = packetStatus
+    ? enrollmentPacketProgress(packetStatus.status)
+    : null;
+  const progressHref = returnTo ?? "/hq/enrollment";
+  const progressHrefLabel = returnTo
+    ? "Return to field desk"
+    : "Open Enrollment Desk";
+
+  if (durableProgress && packetStatus && durableProgress.blocksNewSend) {
+    return (
+      <div
+        className={`rounded-2xl border p-5 text-left ${PROGRESS_TONE_CLASS[durableProgress.tone]}`}
+        aria-live="polite"
+      >
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] opacity-75">
+          {durableProgress.eyebrow}
         </p>
         <h3 className="mt-2 font-serif text-xl font-light text-white">
-          DocuSign is on its way.
+          {durableProgress.title}
         </h3>
         <p className="mt-2 text-xs leading-relaxed text-white/55">
-          {presentation.clientName} will sign the two-document packet at {presentation.clientEmail}. After signature, HomeAtlas automatically sends the separate Stripe card link and opens the private portal.
+          {durableProgress.detail}
         </p>
+        {packetStatus.status === "signature_sent" ? (
+          <p className="mt-3 text-xs leading-relaxed text-white/45">
+            DocuSign sent the agreement for {presentation.clientName} to {presentation.clientEmail}.
+          </p>
+        ) : null}
+        <Link
+          href={progressHref}
+          className="mt-4 inline-flex text-xs font-semibold text-accent hover:underline"
+        >
+          {progressHrefLabel} →
+        </Link>
       </div>
     );
   }
@@ -163,6 +269,26 @@ export function RemoteEnrollmentHandoff({
       <p className="mt-3 text-xs leading-relaxed text-white/48">
         DocuSign emails the MSA plus the property quote. Stripe arrives only after the agreement is complete.
       </p>
+
+      {durableProgress ? (
+        <div
+          className={`mt-4 rounded-xl border p-3 ${PROGRESS_TONE_CLASS[durableProgress.tone]}`}
+          role="status"
+        >
+          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] opacity-75">
+            {durableProgress.eyebrow}
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-white/62">
+            {durableProgress.detail}
+          </p>
+        </div>
+      ) : null}
+
+      {statusError ? (
+        <p className="mt-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-xs leading-relaxed text-amber-100">
+          {statusError} The send remains server-protected and idempotent.
+        </p>
+      ) : null}
 
       <div className="mt-5 grid grid-cols-2 gap-3">
         <label className="text-[10px] uppercase tracking-[0.14em] text-white/40">
@@ -281,10 +407,10 @@ export function RemoteEnrollmentHandoff({
             </ul>
           ) : null}
           <Link
-            href="/hq/enrollment"
+            href={progressHref}
             className="mt-3 inline-flex text-xs font-semibold text-accent hover:underline"
           >
-            Open Enrollment Desk →
+            {progressHrefLabel} →
           </Link>
         </div>
       ) : null}
@@ -295,7 +421,11 @@ export function RemoteEnrollmentHandoff({
         disabled={!canSend || sending}
         className="mt-5 min-h-13 w-full rounded-xl bg-gradient-to-br from-accent to-[#ead8ad] px-5 text-sm font-bold text-[#0b0b0a] disabled:cursor-not-allowed disabled:opacity-35"
       >
-        {sending ? "Preparing secure packet…" : `Email secure packet to ${presentation.clientEmail || "customer"}`}
+        {sending
+          ? "Preparing secure packet…"
+          : durableProgress
+            ? `${durableProgress.actionLabel} for ${presentation.clientEmail || "customer"}`
+            : `Email secure packet to ${presentation.clientEmail || "customer"}`}
       </button>
       <p className="mt-3 text-center text-[10px] leading-relaxed text-white/28">
         No agreement is sent unless the attorney-approved templates and every provider check are green.

@@ -84,6 +84,13 @@ describe("sales workspace active-queue loading contract", () => {
     expect(server).toContain("deliberately record-only");
   });
 
+  it("restores a safe close journey without taking down the field desk", () => {
+    expect(server).toContain("loadSalesLeadCloseJourneys");
+    expect(server).toContain("closeJourneys.get(lead.id) ?? null");
+    expect(server).toContain("nonfatal close-journey load failed");
+    expect(server).toContain("nonfatal owner close-journey load failed");
+  });
+
   it("resolves repeated mobile homeowner saves to one exact capture", () => {
     expect(server).toContain("loadSalesLeadCaptureRetry");
     expect(server).toContain("assertSalesLeadCaptureRetryMatches");

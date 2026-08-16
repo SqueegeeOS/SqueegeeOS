@@ -2,6 +2,7 @@ import type { SalesRepProfile } from "./rep-config";
 import type { SalesRepLaunchCountsEvidence } from "./rep-launch-readiness";
 import type { SalesProductionHandoffRecord } from "./production-handoff";
 import type { SalesDoorDisposition } from "./door-memory";
+import type { SalesLeadCloseJourney } from "./lead-close-journey";
 
 export const SALES_ACTIVITY_TYPES = [
   "door_knock",
@@ -88,6 +89,7 @@ export interface SalesRepLead {
   notes: string;
   smsConsentStatus: ContactConsentStatus;
   emailConsentStatus: ContactConsentStatus;
+  closeJourney: SalesLeadCloseJourney | null;
   recentInteractions: SalesLeadInteraction[];
   createdAt: string;
   updatedAt: string;
