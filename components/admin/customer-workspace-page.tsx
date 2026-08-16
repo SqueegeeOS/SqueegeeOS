@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/craft/glass-card";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
+import { LeadAssignmentControl } from "@/components/admin/lead-assignment-control";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
   schedulePresentationFromLead,
@@ -404,6 +405,15 @@ export function CustomerWorkspacePage({
                 </button>
               ) : null}
             </div>
+
+            {workspace.lead && workspace.lead.status !== "archived" ? (
+              <div className="mb-8">
+                <LeadAssignmentControl
+                  leadIntakeId={workspace.lead.id}
+                  loadOnMount
+                />
+              </div>
+            ) : null}
 
             <div className="grid gap-6 lg:grid-cols-2">
               <Section title="Contact">

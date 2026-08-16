@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 const server = readFileSync(
   new URL("./workspace-server.ts", import.meta.url),
   "utf8",
-);
+).replace(/\r\n/g, "\n");
 
 describe("sales workspace active-queue loading contract", () => {
   it("pages through only active leads instead of letting closed history crowd them out", () => {

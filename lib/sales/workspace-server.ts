@@ -13,6 +13,7 @@ import type {
   SalesDoorMemory,
   SalesDoorMemoryReceipt,
   SalesLeadAttentionSnapshot,
+  SalesLeadSource,
   SalesLeadStatus,
   SalesRepLead,
   SalesRepRecentWin,
@@ -70,6 +71,7 @@ export interface ActiveSalesRepIdentity {
 
 export interface PresentationSalesLeadPrefill {
   id: string;
+  leadIntakeId: string | null;
   fullName: string;
   propertyAddress: string;
   phone: string | null;
@@ -78,11 +80,13 @@ export interface PresentationSalesLeadPrefill {
 
 interface SalesLeadRow {
   id: string;
+  lead_intake_id: string | null;
   full_name: string;
   property_address: string;
   phone_normalized: string | null;
   email_normalized: string | null;
   status: SalesLeadStatus;
+  source: SalesLeadSource;
   estimated_arr_cents: number;
   next_follow_up_at: string | null;
   notes: string | null;
@@ -135,7 +139,7 @@ interface SalesAttributionRow {
 }
 
 const SALES_LEAD_SELECT =
-  "id, full_name, property_address, phone_normalized, email_normalized, status, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at";
+  "id, lead_intake_id, full_name, property_address, phone_normalized, email_normalized, status, source, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at";
 const OPEN_SALES_LEAD_STATUSES: SalesLeadStatus[] = [
   "new",
   "follow_up",
@@ -209,11 +213,13 @@ function profileFromRow(row: SalesRepRow): SalesRepProfile {
 function leadFromRow(row: SalesLeadRow): SalesRepLead {
   return {
     id: row.id,
+    leadIntakeId: row.lead_intake_id,
     fullName: row.full_name,
     propertyAddress: row.property_address,
     phone: row.phone_normalized,
     email: row.email_normalized,
     status: row.status,
+    source: row.source,
     estimatedArrCents: Number(row.estimated_arr_cents) || 0,
     nextFollowUpAt: row.next_follow_up_at,
     notes: row.notes ?? "",
@@ -541,7 +547,7 @@ export async function resolvePresentationSalesLineage(
     const supabase = createPrivilegedServerSupabaseClient();
     const { data, error } = await supabase
       .from("sales_rep_leads")
-      .select("id, full_name, property_address, phone_normalized, email_normalized")
+      .select("id, lead_intake_id, full_name, property_address, phone_normalized, email_normalized")
       .eq("id", leadId)
       .eq("rep_id", rep.id)
       .maybeSingle();
@@ -553,6 +559,8 @@ export async function resolvePresentationSalesLineage(
     }
     leadPrefill = {
       id: String(data.id),
+      leadIntakeId:
+        typeof data.lead_intake_id === "string" ? data.lead_intake_id : null,
       fullName: String(data.full_name),
       propertyAddress: String(data.property_address),
       phone:
@@ -865,7 +873,7 @@ export async function createSalesLead(
       source: "door_to_door",
     })
     .select(
-      "id, full_name, property_address, phone_normalized, email_normalized, status, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at",
+      SALES_LEAD_SELECT,
     )
     .single();
 
@@ -961,7 +969,7 @@ export async function updateSalesLead(
     .eq("rep_id", rep.id)
     .eq("updated_at", String(existing.data.updated_at))
     .select(
-      "id, full_name, property_address, phone_normalized, email_normalized, status, estimated_arr_cents, next_follow_up_at, notes, sms_consent_status, email_consent_status, created_at, updated_at",
+      SALES_LEAD_SELECT,
     )
     .maybeSingle();
 

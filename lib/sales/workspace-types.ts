@@ -26,14 +26,23 @@ export const SALES_LEAD_STATUSES = [
 
 export type SalesLeadStatus = (typeof SALES_LEAD_STATUSES)[number];
 export type ContactConsentStatus = "unknown" | "opted_in" | "opted_out";
+export type SalesLeadSource =
+  | "door_to_door"
+  | "referral"
+  | "event"
+  | "manual"
+  | "request_form"
+  | "facebook_lead_ad";
 
 export interface SalesRepLead {
   id: string;
+  leadIntakeId: string | null;
   fullName: string;
   propertyAddress: string;
   phone: string | null;
   email: string | null;
   status: SalesLeadStatus;
+  source: SalesLeadSource;
   estimatedArrCents: number;
   nextFollowUpAt: string | null;
   notes: string;

@@ -240,6 +240,12 @@ async function runSchemaChecks(
       table: "sales_rep_access_grants",
     },
     {
+      id: "sales-request-assignment-schema",
+      label: "sales_rep_leads.lead_intake_id",
+      table: "sales_rep_leads",
+      column: "lead_intake_id",
+    },
+    {
       id: "technician-visit-automation-schema",
       label: "technician_visit_events",
       table: "technician_visit_events",

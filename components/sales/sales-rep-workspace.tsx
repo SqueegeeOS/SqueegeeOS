@@ -55,6 +55,7 @@ import {
 } from "@/lib/sales/lead-action-filter";
 import { presentationWorkspacePath } from "@/lib/presentations/navigation";
 import { deriveSalesRepLaunchReadiness } from "@/lib/sales/rep-launch-readiness";
+import { salesLeadSourceLabel } from "@/lib/sales/lead-intake-assignment";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -2045,6 +2046,9 @@ export function SalesRepWorkspace({
                       <div className="min-w-0">
                         <h3 className="truncate font-serif text-xl text-foreground">{lead.fullName}</h3>
                         <p className="mt-1 truncate text-xs text-muted">{lead.propertyAddress}</p>
+                        <p className="mt-1 text-[9px] uppercase tracking-[0.16em] text-accent/80">
+                          {salesLeadSourceLabel(lead.source)}
+                        </p>
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1.5">
                         <span className={`rounded-full border px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.14em] ${nextActionStyle.className}`}>

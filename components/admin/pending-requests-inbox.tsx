@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion, useReducedMotion } from "framer-motion";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { LeadAssignmentControl } from "@/components/admin/lead-assignment-control";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
@@ -23,6 +24,10 @@ import { craftEyebrow, craftHeading, craftInput } from "@/lib/craft/tokens";
 import { customerWorkspaceHref } from "@/lib/hq/customer-workspace/routes";
 import { riseSubtle } from "@/lib/motion/system";
 import { ROUTES } from "@/lib/navigation/config";
+import type {
+  LeadIntakeSalesAssignment,
+  LeadIntakeSalesRepOption,
+} from "@/lib/sales/lead-intake-assignment";
 
 const FILTERS: Array<{ id: LeadIntakeFilter; label: string }> = [
   { id: "new", label: "New" },
@@ -58,14 +63,20 @@ function RequestInboxRow({
   lead,
   index,
   busy,
+  assignment,
+  salesReps,
   onOpen,
   onSchedule,
+  onAssigned,
 }: {
   lead: LeadIntakeRecord;
   index: number;
   busy: boolean;
+  assignment: LeadIntakeSalesAssignment | null;
+  salesReps: LeadIntakeSalesRepOption[];
   onOpen: () => void;
   onSchedule: () => void;
+  onAssigned: (assignment: LeadIntakeSalesAssignment) => void;
 }) {
   const reduceMotion = useReducedMotion();
   const delay = reduceMotion ? 0 : Math.min(index, 8) * 0.06;
@@ -83,59 +94,66 @@ function RequestInboxRow({
       animate="visible"
       variants={riseSubtle}
       transition={{ delay }}
-      role="button"
-      tabIndex={0}
-      onClick={onOpen}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          onOpen();
-        }
-      }}
-      className="group flex cursor-pointer items-start gap-4 border-b border-border/20 px-5 py-4 transition-colors last:border-0 hover:bg-surface/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-accent/30 sm:px-6"
+      className="group border-b border-border/20 px-5 py-4 transition-colors last:border-0 hover:bg-surface/20 sm:px-6"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="truncate font-medium text-foreground">{lead.name}</p>
-          <time
-            dateTime={lead.submittedAt}
-            className="shrink-0 text-xs tabular-nums text-muted"
-          >
-            {formatLeadSubmittedRelative(lead.submittedAt)}
-          </time>
-        </div>
-        <p className="mt-1 truncate text-sm leading-relaxed text-muted">
-          {detailLine}
-        </p>
-      </div>
-
-      <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5">
-        <span
-          className={
-            lead.status === "new"
-              ? "text-xs uppercase tracking-[0.14em] text-accent"
-              : "text-xs uppercase tracking-[0.14em] text-muted"
-          }
+      <div className="flex items-start gap-4">
+        <button
+          type="button"
+          onClick={onOpen}
+          className="min-w-0 flex-1 rounded-xl text-left outline-none focus-visible:ring-1 focus-visible:ring-accent/40"
         >
-          {formatLeadIntakeStatus(lead.status)}
-        </span>
-        {lead.status !== "archived" ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              onSchedule();
-            }}
-            className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-muted shadow-[var(--shadow-ambient)] backdrop-blur-sm transition-[border-color,color,opacity] duration-300 hover:border-accent/25 hover:text-foreground disabled:opacity-40 max-sm:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="truncate font-medium text-foreground">{lead.name}</p>
+            <time
+              dateTime={lead.submittedAt}
+              className="shrink-0 text-xs tabular-nums text-muted"
+            >
+              {formatLeadSubmittedRelative(lead.submittedAt)}
+            </time>
+          </div>
+          <p className="mt-1 truncate text-sm leading-relaxed text-muted">
+            {detailLine}
+          </p>
+        </button>
+
+        <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5">
+          <span
+            className={
+              lead.status === "new"
+                ? "text-xs uppercase tracking-[0.14em] text-accent"
+                : "text-xs uppercase tracking-[0.14em] text-muted"
+            }
           >
-            {lead.status === "scheduled"
-              ? "Open presentation"
-              : "Schedule presentation"}
-          </button>
-        ) : null}
+            {formatLeadIntakeStatus(lead.status)}
+          </span>
+          {lead.status !== "archived" ? (
+            <button
+              type="button"
+              disabled={busy || !assignment}
+              onClick={onSchedule}
+              title={assignment ? undefined : "Assign an owner and next action first"}
+              className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-muted shadow-[var(--shadow-ambient)] backdrop-blur-sm transition-[border-color,color,opacity] duration-300 hover:border-accent/25 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {!assignment
+                ? "Assign first"
+                : lead.status === "scheduled"
+                  ? "Open presentation"
+                  : "Schedule presentation"}
+            </button>
+          ) : null}
+        </div>
       </div>
+      {lead.status !== "archived" ? (
+        <div className="mt-3">
+          <LeadAssignmentControl
+            leadIntakeId={lead.id}
+            initialAssignment={assignment}
+            initialSalesReps={salesReps}
+            compact
+            onChanged={onAssigned}
+          />
+        </div>
+      ) : null}
     </motion.div>
   );
 }
@@ -143,6 +161,8 @@ function RequestInboxRow({
 export function PendingRequestsInbox() {
   const router = useRouter();
   const [leads, setLeads] = useState<LeadIntakeRecord[]>([]);
+  const [assignments, setAssignments] = useState<LeadIntakeSalesAssignment[]>([]);
+  const [salesReps, setSalesReps] = useState<LeadIntakeSalesRepOption[]>([]);
   const [newCount, setNewCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,9 +183,13 @@ export function PendingRequestsInbox() {
       }
       const data = (await response.json()) as {
         leads: LeadIntakeRecord[];
+        assignments: LeadIntakeSalesAssignment[];
+        salesReps: LeadIntakeSalesRepOption[];
         newCount: number;
       };
       setLeads(data.leads);
+      setAssignments(data.assignments);
+      setSalesReps(data.salesReps);
       setNewCount(data.newCount);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load requests");
@@ -185,6 +209,10 @@ export function PendingRequestsInbox() {
   const filteredLeads = useMemo(
     () => filterLeads(leads, statusFilter, searchQuery),
     [leads, searchQuery, statusFilter],
+  );
+  const assignmentsByLeadId = useMemo(
+    () => new Map(assignments.map((assignment) => [assignment.leadIntakeId, assignment])),
+    [assignments],
   );
 
   const runSchedule = useCallback(
@@ -212,8 +240,9 @@ export function PendingRequestsInbox() {
           <p className={craftEyebrow}>Founder inbox</p>
           <h1 className={`${craftHeading} mt-3 text-3xl sm:text-4xl`}>Requests</h1>
           <p className="mt-4 max-w-2xl text-sm leading-[1.65] text-muted">
-            Every home care request from the public form — follow up, schedule a
-            presentation, or archive when handled.
+            Every request gets one accountable owner and a future next action
+            before it enters the presentation flow. Assignment never contacts
+            the customer.
           </p>
         </MotionReveal>
 
@@ -282,8 +311,18 @@ export function PendingRequestsInbox() {
                 lead={lead}
                 index={index}
                 busy={actingId === lead.id}
+                assignment={assignmentsByLeadId.get(lead.id) ?? null}
+                salesReps={salesReps}
                 onOpen={() => router.push(customerWorkspaceHref("lead", lead.id))}
                 onSchedule={() => void runSchedule(lead)}
+                onAssigned={(assignment) =>
+                  setAssignments((current) => [
+                    ...current.filter(
+                      (item) => item.leadIntakeId !== assignment.leadIntakeId,
+                    ),
+                    assignment,
+                  ])
+                }
               />
             ))}
           </GlassCard>

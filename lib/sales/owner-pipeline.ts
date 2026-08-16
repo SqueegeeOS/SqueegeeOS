@@ -31,6 +31,7 @@ export interface OwnerSalesPresentationSource {
   id: string;
   salesRepId: string | null;
   salesRepLeadId: string | null;
+  leadIntakeId: string | null;
   status: "draft" | "presented" | "signed";
   updatedAt: string;
 }
@@ -164,12 +165,23 @@ export function buildOwnerSalesPipelineSnapshot(input: {
     string,
     OwnerSalesPresentationSource[]
   >();
+  const presentationsByLeadIntakeId = new Map<
+    string,
+    OwnerSalesPresentationSource[]
+  >();
 
   for (const presentation of input.presentations) {
-    if (!presentation.salesRepLeadId) continue;
-    const existing = presentationsByLeadId.get(presentation.salesRepLeadId) ?? [];
-    existing.push(presentation);
-    presentationsByLeadId.set(presentation.salesRepLeadId, existing);
+    if (presentation.salesRepLeadId) {
+      const existing = presentationsByLeadId.get(presentation.salesRepLeadId) ?? [];
+      existing.push(presentation);
+      presentationsByLeadId.set(presentation.salesRepLeadId, existing);
+    }
+    if (presentation.leadIntakeId) {
+      const existing =
+        presentationsByLeadIntakeId.get(presentation.leadIntakeId) ?? [];
+      existing.push(presentation);
+      presentationsByLeadIntakeId.set(presentation.leadIntakeId, existing);
+    }
   }
 
   const queue = buildSalesLeadActionQueue(
@@ -182,8 +194,16 @@ export function buildOwnerSalesPipelineSnapshot(input: {
     const rep = source ? repsById.get(source.repId) : null;
     if (!source || !rep) return [];
 
-    const linked = (presentationsByLeadId.get(item.lead.id) ?? []).filter(
-      (presentation) => presentation.salesRepId === rep.id,
+    const linked = [
+      ...(presentationsByLeadId.get(item.lead.id) ?? []),
+      ...(item.lead.leadIntakeId
+        ? (presentationsByLeadIntakeId.get(item.lead.leadIntakeId) ?? [])
+        : []),
+    ].filter(
+      (presentation, index, records) =>
+        presentation.salesRepId === rep.id &&
+        records.findIndex((candidate) => candidate.id === presentation.id) ===
+          index,
     );
     const presentation = presentationForLead(linked);
 

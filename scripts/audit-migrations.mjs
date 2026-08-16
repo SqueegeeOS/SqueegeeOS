@@ -132,6 +132,7 @@ const checks = [
   ["073", "private internal database functions", (s) => s.publicSecurityDefinerBrowserExecutables === 0 && s.appFunctionDefaultBrowserExecGrants === 0 && s.jobberLeaseServiceExecute],
   ["074", "private pg_trgm extension schema", (s) => s.pgTrgmSchema === "extensions" && ["jobber_visit_projections_search_idx", "jobber_client_projections_search_idx"].every((index) => s.indexes.has(index))],
   ["075", "atomic Door Memory conversations", (s) => s.doorConversationTriggerReady],
+  ["077", "one owner and next action per customer inquiry", (s) => hasColumn(s, "sales_rep_leads", "lead_intake_id") && constraintIncludes(s, "sales_rep_leads", "foreign key (lead_intake_id)", "lead_intakes", "on delete restrict") && constraintIncludes(s, "sales_rep_leads", "lead_intake_id", "next_follow_up_at") && s.indexes.has("sales_rep_leads_lead_intake_uidx") && s.customerPublicPolicies === 0 && s.customerPublicPrivileges === 0],
 ];
 
 await client.connect();

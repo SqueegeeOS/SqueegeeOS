@@ -21,6 +21,10 @@ import {
   SalesWorkspaceActionError,
   SalesWorkspaceUnavailableError,
 } from "@/lib/sales/workspace-server";
+import {
+  LeadIntakeAssignmentError,
+  loadLeadIntakeSalesAssignment,
+} from "@/lib/sales/lead-intake-assignment-server";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -94,19 +98,29 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    if (requestedLeadIntakeId && (requestedRepSlug || requestedLeadId)) {
+    let lineage = requestedRepSlug
+      ? await resolvePresentationSalesLineage(requestedRepSlug, requestedLeadId)
+      : null;
+    const lineageLeadIntakeId = lineage?.lead?.leadIntakeId ?? null;
+    if (
+      requestedLeadIntakeId &&
+      lineageLeadIntakeId &&
+      requestedLeadIntakeId !== lineageLeadIntakeId
+    ) {
       return NextResponse.json(
-        { error: "A presentation can have only one originating lead." },
+        { error: "That request does not belong to this sales lead." },
         { status: 400 },
       );
     }
+    const effectiveLeadIntakeId =
+      requestedLeadIntakeId ?? lineageLeadIntakeId;
 
-    // Customer identity for an inquiry-linked presentation is resolved on the
-    // server. Stale or modified browser values can never replace the intake.
-    const leadIntake = requestedLeadIntakeId
-      ? await getLeadIntakeById(requestedLeadIntakeId)
+    // Customer identity for an inquiry-linked presentation is always resolved
+    // from the intake. Browser values and sales snapshots never replace it.
+    const leadIntake = effectiveLeadIntakeId
+      ? await getLeadIntakeById(effectiveLeadIntakeId)
       : null;
-    if (requestedLeadIntakeId && !leadIntake) {
+    if (effectiveLeadIntakeId && !leadIntake) {
       return NextResponse.json(
         { error: "Customer inquiry was not found." },
         { status: 404 },
@@ -119,9 +133,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const lineage = requestedRepSlug
-      ? await resolvePresentationSalesLineage(requestedRepSlug, requestedLeadId)
-      : null;
     if (!lineage && requestedLeadId) {
       return NextResponse.json(
         { error: "A sales representative is required for that lead." },
@@ -138,6 +149,42 @@ export async function POST(req: NextRequest) {
             salesRepLeadId: lineage.leadId,
           })
         : null;
+
+    if (leadIntake) {
+      const assignment = await loadLeadIntakeSalesAssignment(leadIntake.id);
+      if (assignment) {
+        if (
+          lineage &&
+          (lineage.id !== assignment.repId ||
+            lineage.leadId !== assignment.salesRepLeadId)
+        ) {
+          return NextResponse.json(
+            { error: "That request is assigned to a different sales workspace." },
+            { status: 409 },
+          );
+        }
+        if (!lineage) {
+          lineage = await resolvePresentationSalesLineage(
+            assignment.repSlug,
+            assignment.salesRepLeadId,
+          );
+        }
+      } else if (!existingPresentation) {
+        return NextResponse.json(
+          { error: "Assign an owner and future next action before scheduling." },
+          { status: 409 },
+        );
+      }
+      if (
+        actor.kind === "sales_rep" &&
+        (!lineage || !canSalesActorAccessRep(actor, lineage.slug))
+      ) {
+        return NextResponse.json(
+          { error: "This request is not assigned to your sales workspace." },
+          { status: 403 },
+        );
+      }
+    }
     let presentation = existingPresentation;
     let resumed = Boolean(existingPresentation);
 
@@ -157,7 +204,9 @@ export async function POST(req: NextRequest) {
             ? leadCreatorLabel(leadIntake.source)
             : (lineage?.displayName ?? requestedCreator),
           salesRepId: lineage?.id ?? null,
-          salesRepLeadId: lineage?.leadId ?? null,
+          // Inquiry and field-lead origins are mutually exclusive at the
+          // database layer. The assignment is recovered through lead_intake_id.
+          salesRepLeadId: leadIntake ? null : (lineage?.leadId ?? null),
           leadIntakeId: leadIntake?.id ?? null,
           tier: leadIntake?.membershipTier ?? body.tier,
           homeSqft:
@@ -247,10 +296,14 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (
       error instanceof SalesWorkspaceActionError ||
-      error instanceof SalesWorkspaceUnavailableError
+      error instanceof SalesWorkspaceUnavailableError ||
+      error instanceof LeadIntakeAssignmentError
     ) {
       const status =
-        error instanceof SalesWorkspaceActionError ? error.status : 503;
+        error instanceof SalesWorkspaceActionError ||
+        error instanceof LeadIntakeAssignmentError
+          ? error.status
+          : 503;
       return NextResponse.json({ error: error.message }, { status });
     }
     console.error("[presentations] create error:", error);
