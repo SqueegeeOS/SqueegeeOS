@@ -52,6 +52,9 @@ export function LeadAssignmentControl({
   leadIntakeId,
   initialAssignment = null,
   initialSalesReps = [],
+  initialRepSlug = "",
+  initialMinutesAhead = 15,
+  assignLabel = "Assign",
   loadOnMount = false,
   compact = false,
   onChanged,
@@ -59,6 +62,9 @@ export function LeadAssignmentControl({
   leadIntakeId: string;
   initialAssignment?: LeadIntakeSalesAssignment | null;
   initialSalesReps?: LeadIntakeSalesRepOption[];
+  initialRepSlug?: string;
+  initialMinutesAhead?: number;
+  assignLabel?: string;
   loadOnMount?: boolean;
   compact?: boolean;
   onChanged?: (assignment: LeadIntakeSalesAssignment) => void;
@@ -68,13 +74,17 @@ export function LeadAssignmentControl({
   const [salesReps, setSalesReps] =
     useState<LeadIntakeSalesRepOption[]>(initialSalesReps);
   const [repSlug, setRepSlug] = useState(
-    initialAssignment?.repSlug ?? initialSalesReps[0]?.slug ?? "",
+    initialAssignment?.repSlug ??
+      (initialSalesReps.some((rep) => rep.slug === initialRepSlug)
+        ? initialRepSlug
+        : initialSalesReps[0]?.slug) ??
+      "",
   );
   const [referenceTime] = useState(() => Date.now());
   const [nextFollowUpAt, setNextFollowUpAt] = useState(() =>
     initialAssignment
       ? localInputValue(initialAssignment.nextFollowUpAt)
-      : futureLocalDateTimeValue(new Date(referenceTime)),
+      : futureLocalDateTimeValue(new Date(referenceTime), initialMinutesAhead),
   );
   const [busy, setBusy] = useState(loadOnMount);
   const [error, setError] = useState<string | null>(null);
@@ -240,7 +250,7 @@ export function LeadAssignmentControl({
           onClick={() => void save()}
           className="min-h-10 rounded-xl border border-accent/35 bg-accent/10 px-4 text-[10px] font-medium uppercase tracking-[0.14em] text-accent transition hover:border-accent/60 disabled:opacity-40"
         >
-          {busy ? "Saving…" : assignment ? "Update" : "Assign"}
+          {busy ? "Saving…" : assignment ? "Update" : assignLabel}
         </button>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
