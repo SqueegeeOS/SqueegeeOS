@@ -10,6 +10,7 @@ import {
   DoorMemoryTimeline,
   type DoorMemoryDraft,
 } from "@/components/sales/door-memory";
+import { FirstFieldMission } from "@/components/sales/first-field-mission";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
@@ -53,6 +54,7 @@ import {
   type SalesLeadQueueFilter,
 } from "@/lib/sales/lead-action-filter";
 import { presentationWorkspacePath } from "@/lib/presentations/navigation";
+import { deriveSalesRepLaunchReadiness } from "@/lib/sales/rep-launch-readiness";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -492,6 +494,7 @@ export function SalesRepWorkspace({
   const [doorMemoryDraft, setDoorMemoryDraft] =
     useState<DoorMemoryDraft | null>(null);
   const [doorMemorySaving, setDoorMemorySaving] = useState(false);
+  const [missionRefreshing, setMissionRefreshing] = useState(false);
 
   const profile = workspace?.profile ?? fallbackProfile(repSlug);
   const metrics = workspace?.metrics ?? EMPTY_METRICS;
@@ -499,6 +502,16 @@ export function SalesRepWorkspace({
   const milestone = useMemo(
     () => getMilestoneProgress(profile, metrics.qualifiedRetainedMembers),
     [metrics.qualifiedRetainedMembers, profile],
+  );
+  const firstFieldMission = useMemo(
+    () =>
+      workspace
+        ? deriveSalesRepLaunchReadiness({
+            phonePass: "installed",
+            counts: workspace.launchEvidence,
+          })
+        : null,
+    [workspace],
   );
   const queuedPulseTotals = useMemo(
     () =>
@@ -538,6 +551,15 @@ export function SalesRepWorkspace({
       setLoading(false);
     }
   }, [repSlug]);
+
+  const refreshFirstFieldMission = useCallback(async () => {
+    setMissionRefreshing(true);
+    try {
+      await loadWorkspace();
+    } finally {
+      setMissionRefreshing(false);
+    }
+  }, [loadWorkspace]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1502,6 +1524,15 @@ export function SalesRepWorkspace({
       </header>
 
       <main className="mx-auto max-w-6xl px-3 pb-8 pt-4 sm:px-8 sm:pt-7">
+        {sessionKind === "sales_rep" && firstFieldMission ? (
+          <FirstFieldMission
+            displayName={profile.displayName}
+            readiness={firstFieldMission}
+            onAddHomeowner={() => setLeadFormOpen(true)}
+            onRefresh={() => void refreshFirstFieldMission()}
+            refreshing={missionRefreshing}
+          />
+        ) : null}
         <section id="pulse" aria-labelledby="field-pulse-title">
           <div className="mb-4 flex flex-col items-start gap-2 px-1 min-[480px]:flex-row min-[480px]:items-end min-[480px]:justify-between min-[480px]:gap-4">
             <div>

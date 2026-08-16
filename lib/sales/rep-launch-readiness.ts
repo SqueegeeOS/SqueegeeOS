@@ -11,6 +11,54 @@ export interface SalesRepLaunchCountsEvidence {
   verifiedCloseCount: number | null;
 }
 
+export interface SalesRepLaunchEvidenceRow {
+  rep_id: string;
+  door_count: number | string | null;
+  lead_count: number | string | null;
+  presentation_count: number | string | null;
+  verified_close_count: number | string | null;
+}
+
+export function unavailableSalesRepLaunchCountsEvidence(): SalesRepLaunchCountsEvidence {
+  return {
+    status: "unavailable",
+    doorCount: null,
+    leadCount: null,
+    presentationCount: null,
+    verifiedCloseCount: null,
+  };
+}
+
+function normalizedLaunchCount(value: number | string | null): number | null {
+  if (value === null) return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+export function salesRepLaunchCountsEvidenceFromRow(
+  row: SalesRepLaunchEvidenceRow,
+): SalesRepLaunchCountsEvidence | null {
+  const doorCount = normalizedLaunchCount(row.door_count);
+  const leadCount = normalizedLaunchCount(row.lead_count);
+  const presentationCount = normalizedLaunchCount(row.presentation_count);
+  const verifiedCloseCount = normalizedLaunchCount(row.verified_close_count);
+  if (
+    doorCount === null ||
+    leadCount === null ||
+    presentationCount === null ||
+    verifiedCloseCount === null
+  ) {
+    return null;
+  }
+  return {
+    status: "complete",
+    doorCount,
+    leadCount,
+    presentationCount,
+    verifiedCloseCount,
+  };
+}
+
 export type SalesRepLaunchStepState = "complete" | "pending" | "unknown";
 
 export interface SalesRepLaunchStep {

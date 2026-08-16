@@ -44,6 +44,11 @@ import {
   type SalesProductionHandoffAttributionSource,
 } from "./production-handoff-server";
 import type { SalesProductionHandoffSnapshot } from "./production-handoff";
+import {
+  salesRepLaunchCountsEvidenceFromRow,
+  type SalesRepLaunchEvidenceRow,
+  unavailableSalesRepLaunchCountsEvidence,
+} from "./rep-launch-readiness";
 
 interface SalesRepRow {
   id: string;
@@ -586,6 +591,7 @@ export async function loadSalesWorkspace(
     activityResult,
     attributions,
     doorMemoryResult,
+    launchEvidenceResult,
   ] =
     await Promise.all([
       loadAllOpenSalesRepLeadRows(rep.id),
@@ -604,6 +610,7 @@ export async function loadSalesWorkspace(
         .lt("occurred_at", endUtc.toISOString()),
       loadAllSalesRepAttributionRows(rep.id),
       loadRecentDoorMemories(rep.id),
+      supabase.rpc("homeatlas_sales_rep_launch_evidence"),
     ]);
 
   const firstError = leadsTodayResult.error ?? activityResult.error;
@@ -625,6 +632,22 @@ export async function loadSalesWorkspace(
       0,
     );
   const openLeads = leads;
+  let launchEvidence = unavailableSalesRepLaunchCountsEvidence();
+  if (!launchEvidenceResult.error) {
+    const launchEvidenceRow = (
+      (launchEvidenceResult.data ?? []) as SalesRepLaunchEvidenceRow[]
+    ).find((row) => row.rep_id === rep.id);
+    if (launchEvidenceRow) {
+      launchEvidence =
+        salesRepLaunchCountsEvidenceFromRow(launchEvidenceRow) ??
+        unavailableSalesRepLaunchCountsEvidence();
+    }
+  } else {
+    console.error(
+      "[sales-workspace] nonfatal first-loop evidence load failed",
+      launchEvidenceResult.error,
+    );
+  }
   const closedAttributions = attributions.filter(
     (attribution) => attribution.qualification_status !== "cancelled",
   );
@@ -652,6 +675,7 @@ export async function loadSalesWorkspace(
 
   return {
     profile: profileFromRow(rep),
+    launchEvidence,
     metrics: {
       doorsToday: activityCount("door_knock"),
       conversationsToday: activityCount("conversation"),

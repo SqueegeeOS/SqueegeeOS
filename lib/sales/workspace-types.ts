@@ -1,4 +1,5 @@
 import type { SalesRepProfile } from "./rep-config";
+import type { SalesRepLaunchCountsEvidence } from "./rep-launch-readiness";
 import type { SalesProductionHandoffRecord } from "./production-handoff";
 import type { SalesDoorDisposition } from "./door-memory";
 
@@ -77,6 +78,7 @@ export interface SalesDoorMemory {
 
 export interface SalesWorkspacePayload {
   profile: SalesRepProfile;
+  launchEvidence: SalesRepLaunchCountsEvidence;
   metrics: SalesWorkspaceMetrics;
   leads: SalesRepLead[];
   recentDoorMemories: SalesDoorMemory[];

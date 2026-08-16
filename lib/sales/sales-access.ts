@@ -8,7 +8,12 @@ import {
   SALES_SESSION_COOKIE_NAME,
   SALES_SESSION_TTL_MS,
 } from "./sales-access-config";
-import type { SalesRepLaunchCountsEvidence } from "./rep-launch-readiness";
+import {
+  salesRepLaunchCountsEvidenceFromRow,
+  type SalesRepLaunchCountsEvidence,
+  type SalesRepLaunchEvidenceRow,
+  unavailableSalesRepLaunchCountsEvidence,
+} from "./rep-launch-readiness";
 
 export {
   SALES_INVITE_TTL_MS,
@@ -143,14 +148,6 @@ function toGrantView(row: SalesRepAccessGrantRow): SalesRepAccessGrantView {
   };
 }
 
-interface SalesRepLaunchEvidenceRow {
-  rep_id: string;
-  door_count: number | string | null;
-  lead_count: number | string | null;
-  presentation_count: number | string | null;
-  verified_close_count: number | string | null;
-}
-
 function isFutureDate(value: string | null, reference: Date): boolean {
   if (!value) return false;
   const timestamp = Date.parse(value);
@@ -172,36 +169,6 @@ export function isCurrentSalesRepAccessGrant(
     );
   }
   return false;
-}
-
-function normalizedLaunchCount(value: number | string | null): number | null {
-  if (value === null) return null;
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
-}
-
-function launchEvidenceFromRow(
-  row: SalesRepLaunchEvidenceRow,
-): SalesRepLaunchCountsEvidence | null {
-  const doorCount = normalizedLaunchCount(row.door_count);
-  const leadCount = normalizedLaunchCount(row.lead_count);
-  const presentationCount = normalizedLaunchCount(row.presentation_count);
-  const verifiedCloseCount = normalizedLaunchCount(row.verified_close_count);
-  if (
-    doorCount === null ||
-    leadCount === null ||
-    presentationCount === null ||
-    verifiedCloseCount === null
-  ) {
-    return null;
-  }
-  return {
-    status: "complete",
-    doorCount,
-    leadCount,
-    presentationCount,
-    verifiedCloseCount,
-  };
 }
 
 export async function authorizeSalesRequest(
@@ -475,7 +442,7 @@ export async function listSalesRepAccessRoster(): Promise<{
   if (!launchEvidenceResult.error) {
     for (const row of (launchEvidenceResult.data ??
       []) as SalesRepLaunchEvidenceRow[]) {
-      const evidence = launchEvidenceFromRow(row);
+      const evidence = salesRepLaunchCountsEvidenceFromRow(row);
       if (evidence) launchEvidence.set(row.rep_id, evidence);
     }
   }
@@ -487,13 +454,8 @@ export async function listSalesRepAccessRoster(): Promise<{
       displayName: rep.display_name,
       roleTitle: rep.role_title,
       currentGrant: currentGrantByRep.get(rep.id) ?? null,
-      launchEvidence: launchEvidence.get(rep.id) ?? {
-        status: "unavailable",
-        doorCount: null,
-        leadCount: null,
-        presentationCount: null,
-        verifiedCloseCount: null,
-      },
+      launchEvidence:
+        launchEvidence.get(rep.id) ?? unavailableSalesRepLaunchCountsEvidence(),
     })),
     grants,
   };

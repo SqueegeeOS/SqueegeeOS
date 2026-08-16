@@ -9,6 +9,10 @@ const doorMemory = readFileSync(
   new URL("../../components/sales/door-memory.tsx", import.meta.url),
   "utf8",
 );
+const firstMission = readFileSync(
+  new URL("../../components/sales/first-field-mission.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("sales representative workspace activity safety", () => {
   it("never exposes a manual signed-membership counter", () => {
@@ -74,6 +78,17 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain('fetch("/api/presentations"');
     expect(workspace).toContain("Build their plan");
     expect(workspace).toContain("Save & build plan");
+  });
+
+  it("guides an installed rep through one evidence-backed revenue loop", () => {
+    expect(workspace).toContain("deriveSalesRepLaunchReadiness");
+    expect(workspace).toContain('phonePass: "installed"');
+    expect(workspace).toContain('sessionKind === "sales_rep"');
+    expect(workspace).toContain("FirstFieldMission");
+    expect(firstMission).toContain("One real homeowner, all the way through.");
+    expect(firstMission).toContain("never from a practice tap");
+    expect(firstMission).toContain("No message or payment happens");
+    expect(firstMission).toContain("Capture first homeowner");
   });
 
   it("captures address outcomes without contacting or charging a homeowner", () => {

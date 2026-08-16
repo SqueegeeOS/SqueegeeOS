@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   deriveSalesRepLaunchReadiness,
+  salesRepLaunchCountsEvidenceFromRow,
+  unavailableSalesRepLaunchCountsEvidence,
   type SalesRepLaunchCountsEvidence,
 } from "./rep-launch-readiness";
 
@@ -13,6 +15,37 @@ const emptyCounts: SalesRepLaunchCountsEvidence = {
 };
 
 describe("sales rep first-loop readiness", () => {
+  it("normalizes database counts without treating malformed evidence as zero", () => {
+    expect(
+      salesRepLaunchCountsEvidenceFromRow({
+        rep_id: "rep-1",
+        door_count: "4",
+        lead_count: 2,
+        presentation_count: "1",
+        verified_close_count: 0,
+      }),
+    ).toEqual({
+      status: "complete",
+      doorCount: 4,
+      leadCount: 2,
+      presentationCount: 1,
+      verifiedCloseCount: 0,
+    });
+
+    expect(
+      salesRepLaunchCountsEvidenceFromRow({
+        rep_id: "rep-1",
+        door_count: "not-a-count",
+        lead_count: 0,
+        presentation_count: 0,
+        verified_close_count: 0,
+      }),
+    ).toBeNull();
+    expect(unavailableSalesRepLaunchCountsEvidence().status).toBe(
+      "unavailable",
+    );
+  });
+
   it("starts with a founder-issued pass without inventing field progress", () => {
     const readiness = deriveSalesRepLaunchReadiness({
       phonePass: "missing",
