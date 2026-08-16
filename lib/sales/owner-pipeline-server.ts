@@ -12,6 +12,7 @@ import {
 } from "./rep-config";
 import {
   buildOwnerSalesPipelineSnapshot,
+  type OwnerSalesHandoffSource,
   type OwnerSalesLeadSource,
   type OwnerSalesPipelineSnapshot,
   type OwnerSalesPresentationSource,
@@ -19,6 +20,7 @@ import {
 } from "./owner-pipeline";
 import {
   loadSalesLeadAttentionSnapshot,
+  loadSalesProductionHandoffAttentionForRoster,
   SalesWorkspaceUnavailableError,
 } from "./workspace-server";
 
@@ -179,9 +181,36 @@ export async function loadOwnerSalesPipeline(
 ): Promise<OwnerSalesPipelineSnapshot> {
   ensureOwnerSalesStorage();
   const reps = await loadAllActiveSalesReps();
-  const snapshots = await Promise.all(
-    reps.map((rep) => loadSalesLeadAttentionSnapshot(rep.slug, reference)),
-  );
+  const [snapshots, handoffs] = await Promise.all([
+    Promise.all(
+      reps.map((rep) => loadSalesLeadAttentionSnapshot(rep.slug, reference)),
+    ),
+    loadSalesProductionHandoffAttentionForRoster(reps, reference)
+      .then((rosterHandoffs): OwnerSalesHandoffSource[] => {
+        const repsById = new Map(reps.map((rep) => [rep.id, rep]));
+        return rosterHandoffs.flatMap(({ repId, handoff }) => {
+          const rep = repsById.get(repId);
+          return rep
+            ? [
+                {
+                  repId,
+                  repSlug: rep.slug,
+                  repDisplayName: rep.displayName,
+                  repWorkspacePath: rep.workspacePath,
+                  handoff,
+                },
+              ]
+            : [];
+        });
+      })
+      .catch((error: unknown) => {
+        console.error(
+          "[owner-sales-pipeline] nonfatal signed handoff load failed",
+          error,
+        );
+        return null;
+      }),
+  ]);
   const leads: OwnerSalesLeadSource[] = snapshots.flatMap((snapshot, index) =>
     snapshot.leads.map((lead) => ({
       repId: reps[index].id,
@@ -197,6 +226,7 @@ export async function loadOwnerSalesPipeline(
     reps,
     leads,
     presentations,
+    handoffs,
     reference,
   });
 }

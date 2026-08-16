@@ -21,6 +21,8 @@ describe("owner sales inbox release contract", () => {
     expect(server).toContain(".range(offset, offset + REP_PAGE_SIZE - 1)");
     expect(server).toContain("PRESENTATION_LEAD_CHUNK_SIZE");
     expect(server).toContain("loadSalesLeadAttentionSnapshot");
+    expect(server).toContain("loadSalesProductionHandoffAttentionForRoster");
+    expect(server).toContain("nonfatal signed handoff load failed");
     expect(server).toContain("HomeAtlas could not prove");
     expect(server).not.toMatch(/\.(?:insert|update|upsert|delete)\(/);
   });
@@ -46,6 +48,12 @@ describe("owner sales inbox release contract", () => {
     expect(page).toContain("lead.presentationHref");
     expect(page).toContain("Build presentation");
     expect(page).toContain("Resume presentation");
+    expect(page).toContain("Signed → scheduled");
+    expect(page).toContain("Every close stays owned until the first visit is real.");
+    expect(page).toContain("handoff.actionHref");
+    expect(page).toContain("handoff.repWorkspacePath");
+    expect(page).toContain("refusing to display a false zero");
+    expect(page).toContain("This desk reads proof; it does not send, charge, or schedule.");
     expect(page).toContain(
       "Saving does not text, email, enroll, or charge this customer.",
     );
