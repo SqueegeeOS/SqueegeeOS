@@ -48,6 +48,7 @@ interface BeforeInstallPromptEvent extends Event {
 
 interface SalesRepWorkspaceProps {
   repSlug: string;
+  sessionKind: "admin" | "sales_rep";
 }
 
 interface ActivityMutationResponse {
@@ -363,7 +364,10 @@ async function fetchSalesWorkspace(repSlug: string): Promise<SalesWorkspacePaylo
   return body;
 }
 
-export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
+export function SalesRepWorkspace({
+  repSlug,
+  sessionKind,
+}: SalesRepWorkspaceProps) {
   const [workspace, setWorkspace] = useState<SalesWorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [workspaceLoadError, setWorkspaceLoadError] = useState<string | null>(null);
@@ -2105,14 +2109,28 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
             <p className="text-[9px] uppercase tracking-[0.2em] text-accent">Sell</p>
             <p className="mt-2 text-sm text-foreground">Open a HomeAtlas presentation →</p>
           </Link>
-          <Link href="/hq/communications" className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 transition-colors hover:border-accent/25">
-            <p className="text-[9px] uppercase tracking-[0.2em] text-accent">Follow up</p>
-            <p className="mt-2 text-sm text-foreground">Open the shared customer inbox →</p>
-          </Link>
-          <Link href="/hq/memberships" className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 transition-colors hover:border-accent/25">
-            <p className="text-[9px] uppercase tracking-[0.2em] text-accent">Handoff</p>
-            <p className="mt-2 text-sm text-foreground">See active memberships →</p>
-          </Link>
+          {sessionKind === "sales_rep" ? (
+            <a href="#follow-ups" className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 transition-colors hover:border-accent/25">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-accent">Follow up</p>
+              <p className="mt-2 text-sm text-foreground">Open your next-action queue →</p>
+            </a>
+          ) : (
+            <Link href="/hq/communications" className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 transition-colors hover:border-accent/25">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-accent">Follow up</p>
+              <p className="mt-2 text-sm text-foreground">Open the shared customer inbox →</p>
+            </Link>
+          )}
+          {sessionKind === "sales_rep" ? (
+            <a href="#verified-closes" className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 transition-colors hover:border-accent/25">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-accent">Handoff</p>
+              <p className="mt-2 text-sm text-foreground">See your verified closes →</p>
+            </a>
+          ) : (
+            <Link href="/hq/memberships" className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5 transition-colors hover:border-accent/25">
+              <p className="text-[9px] uppercase tracking-[0.2em] text-accent">Handoff</p>
+              <p className="mt-2 text-sm text-foreground">See active memberships →</p>
+            </Link>
+          )}
         </section>
       </main>
 
@@ -2191,9 +2209,17 @@ export function SalesRepWorkspace({ repSlug }: SalesRepWorkspaceProps) {
           <a href="#follow-ups" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[9px] uppercase tracking-[0.14em] text-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
             <span className="font-serif text-lg">↗</span> Follow-ups
           </a>
-          <Link href="/hq" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[9px] uppercase tracking-[0.14em] text-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
-            <span className="font-serif text-lg">⌂</span> HQ
-          </Link>
+          {sessionKind === "sales_rep" ? (
+            <form action="/api/sales/access/logout" method="post">
+              <button type="submit" className="flex min-h-16 w-full flex-col items-center justify-center gap-1 rounded-xl text-[9px] uppercase tracking-[0.14em] text-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+                <span className="font-serif text-lg">↪</span> Sign out
+              </button>
+            </form>
+          ) : (
+            <Link href="/hq" className="flex min-h-16 flex-col items-center justify-center gap-1 rounded-xl text-[9px] uppercase tracking-[0.14em] text-muted hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+              <span className="font-serif text-lg">⌂</span> HQ
+            </Link>
+          )}
         </div>
       </nav>
 

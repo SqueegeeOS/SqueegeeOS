@@ -22,7 +22,10 @@ import type { MembershipPlanId } from "@/lib/membership/types";
 import { isCarePlanQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import type { PresentationQuoteSnapshot } from "@/lib/presentations/quote-snapshot";
 import { resolveMemberEmail } from "@/lib/agreement/resolve-member-email";
-import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import {
+  authorizeSalesRequest,
+  salesActorOwnsPresentation,
+} from "@/lib/sales/sales-access";
 import {
   hasCompleteClientAddress,
   parseClientAddress,
@@ -38,12 +41,23 @@ function isSignatureDataUrl(value: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  if (!authorizeAdminRequest(req.headers)) {
+  const actor = await authorizeSalesRequest(req.headers);
+  if (!actor) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
     const body = await req.json();
+    if (
+      actor.kind === "sales_rep" &&
+      (typeof body.presentationId !== "string" ||
+        !(await salesActorOwnsPresentation(actor, body.presentationId)))
+    ) {
+      return NextResponse.json(
+        { error: "This phone pass can sign only its own presentation." },
+        { status: 403 },
+      );
+    }
     const { signatureDataUrl, signedAt, presentationId, ...mutableFields } = body;
     let {
       memberName,

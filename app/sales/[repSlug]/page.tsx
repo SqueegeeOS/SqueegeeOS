@@ -1,4 +1,6 @@
 import { SalesRepWorkspace } from "@/components/sales/sales-rep-workspace";
+import { requireSalesWorkspacePageActor } from "@/lib/sales/sales-access-dal";
+import { salesWorkspacePath } from "@/lib/sales/sales-access-paths";
 
 export const dynamic = "force-dynamic";
 
@@ -8,5 +10,9 @@ export default async function SalesRepFieldDeskPage({
   params: Promise<{ repSlug: string }>;
 }) {
   const { repSlug } = await params;
-  return <SalesRepWorkspace repSlug={repSlug} />;
+  const actor = await requireSalesWorkspacePageActor(
+    repSlug,
+    salesWorkspacePath(repSlug),
+  );
+  return <SalesRepWorkspace repSlug={repSlug} sessionKind={actor.kind} />;
 }

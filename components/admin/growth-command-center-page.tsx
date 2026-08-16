@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { OwnerLeverageScoreboard } from "@/components/admin/owner-leverage-scoreboard";
+import { SalesPhoneAccessPanel } from "@/components/admin/sales-phone-access-panel";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
@@ -308,6 +309,8 @@ function GrowthContent() {
         </section>
 
         <OwnerLeverageScoreboard />
+
+        <SalesPhoneAccessPanel />
 
         <section className="mt-16 rounded-[2rem] border border-white/[0.08] bg-[#0d0c0a]/85 p-5 sm:p-8">
           <div className="grid gap-8 xl:grid-cols-[0.85fr_1.15fr]">

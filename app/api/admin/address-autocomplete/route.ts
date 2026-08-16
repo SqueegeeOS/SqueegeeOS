@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import { authorizeSalesRequest } from "@/lib/sales/sales-access";
 import {
   fetchAddressSuggestions,
   fetchResolvedAddress,
@@ -12,7 +12,7 @@ function error(message: string, status: number) {
 }
 
 export async function POST(request: Request) {
-  if (!authorizeAdminRequest(request.headers)) {
+  if (!(await authorizeSalesRequest(request.headers))) {
     return error("Unauthorized", 401);
   }
 

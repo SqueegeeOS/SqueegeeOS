@@ -8,10 +8,17 @@ import {
   type MembershipLifecycleState,
 } from "@/lib/membership/membership-status";
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
-import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import { authorizeSalesPresentationRequest } from "@/lib/sales/sales-access";
 
 export async function GET(req: NextRequest) {
-  if (!authorizeAdminRequest(req.headers)) {
+  const presentationId = req.nextUrl.searchParams.get("presentationId");
+  if (!presentationId) {
+    return NextResponse.json(
+      { error: "presentationId is required" },
+      { status: 400 },
+    );
+  }
+  if (!(await authorizeSalesPresentationRequest(req.headers, presentationId))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -19,14 +26,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       { error: "Supabase is not configured" },
       { status: 503 },
-    );
-  }
-
-  const presentationId = req.nextUrl.searchParams.get("presentationId");
-  if (!presentationId) {
-    return NextResponse.json(
-      { error: "presentationId is required" },
-      { status: 400 },
     );
   }
 

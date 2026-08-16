@@ -333,6 +333,7 @@ export function PresentationPlanStudio({
         method: "POST",
         headers: getAdminRequestHeaders(),
         body: JSON.stringify({
+          presentationId: presentation.id,
           brief: brief.trim(),
           currentTier: presentation.tier,
           customerName: presentation.clientName,

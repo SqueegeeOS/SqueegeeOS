@@ -8,6 +8,10 @@ import {
 } from "@/lib/presentations/repository";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import {
+  authorizeSalesRequest,
+  canSalesActorAccessRep,
+} from "@/lib/sales/sales-access";
+import {
   getLeadIntakeById,
   updateLeadIntakeStatus,
 } from "@/lib/acquisition/leads/repository";
@@ -48,9 +52,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  if (!authorizeAdminRequest(req.headers)) {
-    return unauthorized();
-  }
+  const actor = await authorizeSalesRequest(req.headers);
+  if (!actor) return unauthorized();
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -68,6 +71,17 @@ export async function POST(req: NextRequest) {
       typeof body.leadIntakeId === "string" && body.leadIntakeId.trim()
         ? body.leadIntakeId.trim()
         : null;
+    if (
+      actor.kind === "sales_rep" &&
+      (!requestedRepSlug ||
+        !canSalesActorAccessRep(actor, requestedRepSlug) ||
+        requestedLeadIntakeId)
+    ) {
+      return NextResponse.json(
+        { error: "This phone pass can create only its own field presentations." },
+        { status: 403 },
+      );
+    }
     if (requestedLeadId && !UUID_PATTERN.test(requestedLeadId)) {
       return NextResponse.json(
         { error: "Lead reference is invalid." },

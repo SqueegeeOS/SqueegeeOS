@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import { authorizeSalesPresentationRequest } from "@/lib/sales/sales-access";
 import { getPresentation } from "@/lib/presentations/repository";
 import {
   EnrollmentNotReadyError,
@@ -37,12 +37,16 @@ function salesContext(value: unknown): EnrollmentSalesContext | null {
 }
 
 export async function POST(request: Request) {
-  if (!authorizeAdminRequest(request.headers)) return unauthorized();
-
   try {
     const body = (await request.json()) as Record<string, unknown>;
     const presentationId =
       typeof body.presentationId === "string" ? body.presentationId.trim() : "";
+    if (
+      !presentationId ||
+      !(await authorizeSalesPresentationRequest(request.headers, presentationId))
+    ) {
+      return unauthorized();
+    }
     const selectedTier = tier(body.tier);
     const firstVisitPrice = positivePrice(body.firstVisitPrice);
     const recurringVisitPrice = positivePrice(body.recurringVisitPrice);
