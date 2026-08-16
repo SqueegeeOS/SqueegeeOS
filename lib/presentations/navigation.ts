@@ -63,9 +63,10 @@ export function presentationWorkspacePath(
 }
 
 /**
- * After card setup, return a field-originated close to the exact rep desk and
- * carry only the presentation reference needed to verify the signed ledger.
- * Ordinary HQ presentations keep the existing editor destination.
+ * After card setup or a customer-device payment handoff, return a
+ * field-originated close to the exact rep desk and carry only the presentation
+ * reference needed to verify the signed ledger. Ordinary HQ presentations
+ * keep the existing editor destination.
  */
 export function presentationCompletionPath(
   presentationId: string,
