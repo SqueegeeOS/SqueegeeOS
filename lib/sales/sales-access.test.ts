@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   SALES_SESSION_COOKIE_NAME,
   hashSalesAccessToken,
+  isCurrentSalesRepAccessGrant,
   isSalesAccessToken,
   issueOpaqueSalesToken,
   salesSessionTokenFromHeaders,
@@ -61,5 +62,53 @@ describe("sales representative phone access", () => {
     expect(
       salesAccessPath({ returnTo: "/david", repSlug: "david" }),
     ).toContain("rep=david");
+  });
+
+  it("does not present expired or revoked phone passes as current", () => {
+    const reference = new Date("2026-08-16T18:00:00.000Z");
+    const base = {
+      id: "grant-1",
+      repId: "rep-1",
+      inviteExpiresAt: "2026-08-16T19:00:00.000Z",
+      sessionExpiresAt: null,
+      claimedAt: null,
+      revokedAt: null,
+      createdAt: "2026-08-16T17:00:00.000Z",
+    };
+
+    expect(
+      isCurrentSalesRepAccessGrant({ ...base, status: "pending" }, reference),
+    ).toBe(true);
+    expect(
+      isCurrentSalesRepAccessGrant(
+        {
+          ...base,
+          status: "pending",
+          inviteExpiresAt: "2026-08-16T17:59:59.000Z",
+        },
+        reference,
+      ),
+    ).toBe(false);
+    expect(
+      isCurrentSalesRepAccessGrant(
+        {
+          ...base,
+          status: "active",
+          claimedAt: "2026-08-16T17:10:00.000Z",
+          sessionExpiresAt: "2026-09-16T18:00:00.000Z",
+        },
+        reference,
+      ),
+    ).toBe(true);
+    expect(
+      isCurrentSalesRepAccessGrant(
+        {
+          ...base,
+          status: "pending",
+          revokedAt: "2026-08-16T17:30:00.000Z",
+        },
+        reference,
+      ),
+    ).toBe(false);
   });
 });

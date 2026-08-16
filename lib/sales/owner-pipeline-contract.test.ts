@@ -41,6 +41,8 @@ describe("owner sales inbox release contract", () => {
       "`${ROUTES.hqSales}#owner-sales-lead-${item.lead.id}`",
     );
     expect(page).toContain('fetch("/api/admin/sales/pipeline"');
+    expect(page).toContain("SalesPhoneAccessPanel");
+    expect(page).toContain('href="#sales-phone-access"');
     expect(page).toContain("lead.presentationHref");
     expect(page).toContain("Build presentation");
     expect(page).toContain("Resume presentation");

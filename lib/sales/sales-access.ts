@@ -8,6 +8,7 @@ import {
   SALES_SESSION_COOKIE_NAME,
   SALES_SESSION_TTL_MS,
 } from "./sales-access-config";
+import type { SalesRepLaunchCountsEvidence } from "./rep-launch-readiness";
 
 export {
   SALES_INVITE_TTL_MS,
@@ -57,6 +58,7 @@ export interface SalesRepAccessRosterMember {
   displayName: string;
   roleTitle: string;
   currentGrant: SalesRepAccessGrantView | null;
+  launchEvidence: SalesRepLaunchCountsEvidence;
 }
 
 interface SalesRepRow {
@@ -138,6 +140,67 @@ function toGrantView(row: SalesRepAccessGrantRow): SalesRepAccessGrantView {
     claimedAt: row.claimed_at,
     revokedAt: row.revoked_at,
     createdAt: row.created_at,
+  };
+}
+
+interface SalesRepLaunchEvidenceRow {
+  rep_id: string;
+  door_count: number | string | null;
+  lead_count: number | string | null;
+  presentation_count: number | string | null;
+  verified_close_count: number | string | null;
+}
+
+function isFutureDate(value: string | null, reference: Date): boolean {
+  if (!value) return false;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && timestamp > reference.getTime();
+}
+
+export function isCurrentSalesRepAccessGrant(
+  grant: SalesRepAccessGrantView,
+  reference = new Date(),
+): boolean {
+  if (grant.revokedAt) return false;
+  if (grant.status === "pending") {
+    return !grant.claimedAt && isFutureDate(grant.inviteExpiresAt, reference);
+  }
+  if (grant.status === "active") {
+    return (
+      Boolean(grant.claimedAt) &&
+      isFutureDate(grant.sessionExpiresAt, reference)
+    );
+  }
+  return false;
+}
+
+function normalizedLaunchCount(value: number | string | null): number | null {
+  if (value === null) return null;
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function launchEvidenceFromRow(
+  row: SalesRepLaunchEvidenceRow,
+): SalesRepLaunchCountsEvidence | null {
+  const doorCount = normalizedLaunchCount(row.door_count);
+  const leadCount = normalizedLaunchCount(row.lead_count);
+  const presentationCount = normalizedLaunchCount(row.presentation_count);
+  const verifiedCloseCount = normalizedLaunchCount(row.verified_close_count);
+  if (
+    doorCount === null ||
+    leadCount === null ||
+    presentationCount === null ||
+    verifiedCloseCount === null
+  ) {
+    return null;
+  }
+  return {
+    status: "complete",
+    doorCount,
+    leadCount,
+    presentationCount,
+    verifiedCloseCount,
   };
 }
 
@@ -365,7 +428,7 @@ export async function listSalesRepAccessRoster(): Promise<{
   grants: SalesRepAccessGrantView[];
 }> {
   const supabase = createServiceRoleSupabaseClient();
-  const [repResult, grantResult] = await Promise.all([
+  const [repResult, grantResult, launchEvidenceResult] = await Promise.all([
     supabase
       .from("sales_reps")
       .select("id, slug, display_name, role_title, status")
@@ -378,6 +441,7 @@ export async function listSalesRepAccessRoster(): Promise<{
       )
       .order("created_at", { ascending: false })
       .limit(500),
+    supabase.rpc("homeatlas_sales_rep_launch_evidence"),
   ]);
   if (repResult.error) {
     throw new Error("Could not load active sales representatives.");
@@ -391,23 +455,45 @@ export async function listSalesRepAccessRoster(): Promise<{
   const grants = ((grantResult.data ?? []) as SalesRepAccessGrantRow[]).map(
     toGrantView,
   );
+  const reference = new Date();
   const currentGrantByRep = new Map<string, SalesRepAccessGrantView>();
   for (const grant of grants) {
     if (
       !currentGrantByRep.has(grant.repId) &&
-      (grant.status === "pending" || grant.status === "active")
+      isCurrentSalesRepAccessGrant(grant, reference)
     ) {
       currentGrantByRep.set(grant.repId, grant);
     }
   }
 
+  const reps = ((repResult.data ?? []) as SalesRepRow[]).sort((left, right) => {
+    if (left.slug === "david") return right.slug === "david" ? 0 : -1;
+    if (right.slug === "david") return 1;
+    return left.display_name.localeCompare(right.display_name);
+  });
+  const launchEvidence = new Map<string, SalesRepLaunchCountsEvidence>();
+  if (!launchEvidenceResult.error) {
+    for (const row of (launchEvidenceResult.data ??
+      []) as SalesRepLaunchEvidenceRow[]) {
+      const evidence = launchEvidenceFromRow(row);
+      if (evidence) launchEvidence.set(row.rep_id, evidence);
+    }
+  }
+
   return {
-    reps: ((repResult.data ?? []) as SalesRepRow[]).map((rep) => ({
+    reps: reps.map((rep) => ({
       repId: rep.id,
       repSlug: rep.slug,
       displayName: rep.display_name,
       roleTitle: rep.role_title,
       currentGrant: currentGrantByRep.get(rep.id) ?? null,
+      launchEvidence: launchEvidence.get(rep.id) ?? {
+        status: "unavailable",
+        doorCount: null,
+        leadCount: null,
+        presentationCount: null,
+        verifiedCloseCount: null,
+      },
     })),
     grants,
   };

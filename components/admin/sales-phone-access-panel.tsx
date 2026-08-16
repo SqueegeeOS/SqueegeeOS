@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import {
+  deriveSalesRepLaunchReadiness,
+  type SalesRepLaunchCountsEvidence,
+} from "@/lib/sales/rep-launch-readiness";
 
 interface GrantView {
   id: string;
@@ -17,6 +21,7 @@ interface RosterMember {
   displayName: string;
   roleTitle: string;
   currentGrant: GrantView | null;
+  launchEvidence: SalesRepLaunchCountsEvidence;
 }
 
 interface RosterResponse {
@@ -194,7 +199,10 @@ export function SalesPhoneAccessPanel() {
   }
 
   return (
-    <section className="mt-12 overflow-hidden rounded-[2rem] border border-emerald-300/15 bg-[radial-gradient(circle_at_88%_0%,rgba(110,231,183,0.09),transparent_34%),rgba(13,18,16,0.88)] p-5 sm:p-8">
+    <section
+      id="sales-phone-access"
+      className="mt-12 scroll-mt-28 overflow-hidden rounded-[2rem] border border-emerald-300/15 bg-[radial-gradient(circle_at_88%_0%,rgba(110,231,183,0.09),transparent_34%),rgba(13,18,16,0.88)] p-5 sm:p-8"
+    >
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div className="max-w-3xl">
           <p className="text-[10px] uppercase tracking-[0.22em] text-emerald-200/70">
@@ -257,6 +265,15 @@ export function SalesPhoneAccessPanel() {
         {reps.map((rep) => {
           const status = grantStatus(rep.currentGrant);
           const working = workingRep === rep.repSlug;
+          const readiness = deriveSalesRepLaunchReadiness({
+            phonePass:
+              rep.currentGrant?.status === "active"
+                ? "installed"
+                : rep.currentGrant?.status === "pending"
+                  ? "install_link_ready"
+                  : "missing",
+            counts: rep.launchEvidence,
+          });
           return (
             <article
               key={rep.repId}
@@ -276,6 +293,57 @@ export function SalesPhoneAccessPanel() {
               <p className="mt-4 text-xs leading-relaxed text-white/42">
                 {status.detail}
               </p>
+              <div className="mt-4 rounded-2xl border border-white/[0.07] bg-black/20 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-white/42">
+                    First durable loop
+                  </p>
+                  <p className="text-[10px] tabular-nums text-emerald-100/70">
+                    {readiness.completedCount}/{readiness.totalCount} proven
+                  </p>
+                </div>
+                <div
+                  className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5"
+                  aria-label={`${rep.displayName}'s first field revenue loop`}
+                >
+                  {readiness.steps.map((step) => (
+                    <div
+                      key={step.id}
+                      className={`rounded-xl border px-2.5 py-2.5 ${
+                        step.state === "complete"
+                          ? "border-emerald-300/20 bg-emerald-300/[0.065]"
+                          : step.state === "unknown"
+                            ? "border-amber-300/20 bg-amber-300/[0.05]"
+                            : "border-white/[0.07] bg-white/[0.02]"
+                      }`}
+                    >
+                      <p
+                        className={`text-[9px] font-semibold uppercase tracking-[0.1em] ${
+                          step.state === "complete"
+                            ? "text-emerald-100"
+                            : step.state === "unknown"
+                              ? "text-amber-100/75"
+                              : "text-white/45"
+                        }`}
+                      >
+                        {step.state === "complete"
+                          ? "✓ "
+                          : step.state === "unknown"
+                            ? "? "
+                            : "○ "}
+                        {step.label}
+                      </p>
+                      <p className="mt-1 text-[9px] leading-4 text-white/32">
+                        {step.detail}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs leading-5 text-white/52">
+                  <span className="font-semibold text-emerald-100/80">Next:</span>{" "}
+                  {readiness.nextAction}
+                </p>
+              </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"

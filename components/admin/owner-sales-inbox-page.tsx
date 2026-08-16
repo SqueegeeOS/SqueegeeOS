@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { SalesPhoneAccessPanel } from "@/components/admin/sales-phone-access-panel";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import { MotionReveal } from "@/components/craft/motion-reveal";
@@ -483,6 +484,8 @@ function OwnerSalesInboxContent() {
           </div>
         ) : null}
 
+        <SalesPhoneAccessPanel />
+
         <section className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Stat
             label="Active reps"
@@ -592,12 +595,18 @@ function OwnerSalesInboxContent() {
           ) : snapshot?.summary.openLeadCount === 0 ? (
             <GlassCard tone="subtle" className="mt-5 px-6 py-14 text-center">
               <p className="font-serif text-3xl font-light text-[#f5f2eb]">
-                The field queue is clear.
+                The field queue is waiting for its first real homeowner.
               </p>
               <p className="mx-auto mt-3 max-w-xl text-sm leading-relaxed text-white/42">
-                A lead captured from David or another rep will appear here with its
-                owner, address, consent state, potential ARR, and next action.
+                Activate the rep&apos;s phone above, then the first saved homeowner will
+                appear here with ownership, consent, potential ARR, and a next action.
               </p>
+              <a
+                href="#sales-phone-access"
+                className="mt-5 inline-flex min-h-11 items-center rounded-full border border-emerald-300/25 bg-emerald-300/[0.07] px-5 text-xs font-semibold text-emerald-100"
+              >
+                Set up a field phone
+              </a>
             </GlassCard>
           ) : (
             <GlassCard tone="subtle" className="mt-5 px-6 py-12 text-center">
