@@ -89,6 +89,17 @@ describe("sales representative workspace activity safety", () => {
     expect(doorMemory).toContain("Checking saved address history");
   });
 
+  it("turns one conversational door result into one field talk", () => {
+    expect(workspace).toContain("salesDoorDispositionCountsConversation");
+    expect(workspace).toContain("totals.conversationsToday += 1");
+    expect(workspace).toContain('label: "Extra talk"');
+    expect(workspace).toContain('detail: "No saved door"');
+    expect(workspace).toContain("counts the talk automatically");
+    expect(doorMemory).toContain(
+      "This outcome counts one conversation automatically.",
+    );
+  });
+
   it("preserves activity-before-memory ordering in the offline field queue", () => {
     expect(workspace).toContain('kind: "activity"');
     expect(workspace).toContain('candidate.kind === "door_memory"');

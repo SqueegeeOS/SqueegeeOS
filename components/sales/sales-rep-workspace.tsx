@@ -30,7 +30,10 @@ import type {
   SalesWorkspacePayload,
   UpdateSalesLeadInput,
 } from "@/lib/sales/workspace-types";
-import type { SalesDoorDisposition } from "@/lib/sales/door-memory";
+import {
+  salesDoorDispositionCountsConversation,
+  type SalesDoorDisposition,
+} from "@/lib/sales/door-memory";
 import {
   craftEyebrow,
   craftHeading,
@@ -228,8 +231,8 @@ const QUICK_ACTIONS: Array<{
   },
   {
     type: "conversation",
-    label: "Good talk",
-    detail: "Log conversation",
+    label: "Extra talk",
+    detail: "No saved door",
     metric: "conversationsToday",
   },
   {
@@ -501,7 +504,12 @@ export function SalesRepWorkspace({
     () =>
       offlineQueue.filter((entry) => isPacificToday(entry.createdAt)).reduce(
         (totals, entry) => {
-          if (entry.kind !== "activity") return totals;
+          if (entry.kind === "door_memory") {
+            if (salesDoorDispositionCountsConversation(entry.disposition)) {
+              totals.conversationsToday += 1;
+            }
+            return totals;
+          }
           if (entry.activityType === "door_knock") totals.doorsToday += 1;
           if (entry.activityType === "conversation") {
             totals.conversationsToday += 1;
@@ -877,14 +885,21 @@ export function SalesRepWorkspace({
       createdAt: new Date().toISOString(),
     };
     const finish = (mode: "queued" | "synced") => {
+      const countsConversation = salesDoorDispositionCountsConversation(
+        entry.disposition,
+      );
       setDoorMemoryDraft(null);
       setUndoableActivity(null);
       setFixedDoorFeedback({
         mode,
         message:
           mode === "queued"
-            ? "Door address and outcome are safe on this phone."
-            : "Door address and outcome are saved to HomeAtlas.",
+            ? countsConversation
+              ? "Door outcome and one talk are safe on this phone."
+              : "Door address and outcome are safe on this phone."
+            : countsConversation
+              ? "Door outcome saved and one talk counted."
+              : "Door address and outcome are saved to HomeAtlas.",
         clientEventId:
           mode === "queued" ? draft.doorActivityClientEventId : undefined,
       });
@@ -1048,7 +1063,11 @@ export function SalesRepWorkspace({
                 current?.clientEventId === entry.doorActivityClientEventId
               ? {
                   mode: "synced",
-                  message: "Door address and outcome are now synced.",
+                  message: salesDoorDispositionCountsConversation(
+                    entry.disposition,
+                  )
+                    ? "Door outcome synced and one talk counted."
+                    : "Door address and outcome are now synced.",
                 }
               : current,
         );
@@ -1628,9 +1647,10 @@ export function SalesRepWorkspace({
           </div>
 
           <p className="mt-3 px-1 text-[11px] font-medium leading-5 text-muted sm:text-xs">
-            Door, Talk, and Presented save instantly. Synced entries have a
-            ten-minute undo; phone-only entries can be removed before sync. The big
-            Next door button starts each house.
+            Next door starts each house. Saving Talked, Follow up, or Interested
+            counts the talk automatically. Use Extra talk only away from a saved
+            door. Presented saves separately; phone-only entries sync when service
+            returns.
           </p>
 
           {offlineQueue.length > 0 ? (
