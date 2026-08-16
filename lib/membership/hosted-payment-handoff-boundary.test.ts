@@ -119,5 +119,27 @@ describe("hosted payment handoff boundaries", () => {
     expect(button).toContain(
       "`/api/admin/memberships/${encodeURIComponent(membershipId)}/send-payment-link`",
     );
+    expect(button).toContain("setAccepted(true)");
+    expect(button).toContain("sending || accepted");
+    expect(button).toContain("Stripe email accepted");
+  });
+
+  it("lets the field rep recover a verified close without exposing HQ-only actions", () => {
+    const workspace = projectFile(
+      "components/sales/sales-rep-workspace.tsx",
+    );
+
+    expect(workspace).toContain("PaymentSetupEmailButton");
+    expect(workspace).toContain("presentationId={handoff.presentationId}");
+    expect(workspace).toContain(
+      'handoff.paymentHandoffProgress.canSend',
+    );
+    expect(workspace).toContain("paymentHandoffSendLabel(");
+    expect(workspace).toContain("onAccepted={handlePaymentSetupAccepted}");
+    expect(workspace).toContain("Sends only when pressed");
+    expect(workspace).toContain("setup step does not charge the customer");
+    expect(workspace).toContain("HQ owns next step");
+    expect(workspace).toContain("presentationPresentPath(handoff.presentationId");
+    expect(workspace).not.toContain("void send()");
   });
 });

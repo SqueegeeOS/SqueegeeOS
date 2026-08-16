@@ -84,6 +84,7 @@ export interface OwnerSalesHandoffQueue {
     signedCount: number | null;
     readyCount: number | null;
     actionCount: number | null;
+    waitingCount: number | null;
     scheduleUnknownCount: number | null;
   };
   records: OwnerSalesPipelineHandoff[];
@@ -121,7 +122,8 @@ const HANDOFF_STAGE_PRIORITY: Record<SalesProductionHandoffStage, number> = {
   job_pairing_needed: 3,
   source_unavailable: 4,
   schedule_needed: 5,
-  ready: 6,
+  payment_pending: 6,
+  ready: 7,
 };
 
 function presentationTimestamp(value: string): number {
@@ -279,6 +281,9 @@ export function buildOwnerSalesPipelineSnapshot(input: {
   const readyCount = handoffRecords.filter(
     (handoff) => handoff.stage === "ready",
   ).length;
+  const waitingCount = handoffRecords.filter(
+    (handoff) => handoff.stage === "payment_pending",
+  ).length;
   const scheduleUnknownCount = handoffRecords.filter(
     (handoff) => handoff.stage === "source_unavailable",
   ).length;
@@ -308,8 +313,9 @@ export function buildOwnerSalesPipelineSnapshot(input: {
         signedCount: handoffsAvailable ? handoffRecords.length : null,
         readyCount: handoffsAvailable ? readyCount : null,
         actionCount: handoffsAvailable
-          ? handoffRecords.length - readyCount
+          ? handoffRecords.length - readyCount - waitingCount
           : null,
+        waitingCount: handoffsAvailable ? waitingCount : null,
         scheduleUnknownCount: handoffsAvailable
           ? scheduleUnknownCount
           : null,

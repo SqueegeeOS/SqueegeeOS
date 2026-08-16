@@ -71,11 +71,18 @@ function handoffSource(
     handoff: {
       attributionId: "attribution-base",
       membershipId: "membership-base",
+      presentationId: "presentation-base",
       homeownerName: "Mandi Rivera",
       propertyAddress: "88 Oak Way",
       attributedArrCents: 120_000,
       attributedAt: "2026-08-16T17:00:00.000Z",
       paymentSetupEmailState: "card_on_file",
+      paymentHandoffProgress: {
+        state: "completed",
+        canSend: false,
+        emailSentAt: "2026-08-16T16:30:00.000Z",
+        expiresAt: "2026-08-17T16:30:00.000Z",
+      },
       stage: "ready",
       label: "Production ready",
       detail: "All five proofs are verified.",
@@ -228,6 +235,12 @@ describe("owner sales pipeline", () => {
           membershipId: "membership-payment",
           homeownerName: "Joani Cole",
           paymentSetupEmailState: "ready",
+          paymentHandoffProgress: {
+            state: "not_started",
+            canSend: true,
+            emailSentAt: null,
+            expiresAt: null,
+          },
           stage: "payment_needed",
           label: "Payment setup needed",
           detail: "The signed customer still needs a card on file.",
@@ -245,6 +258,7 @@ describe("owner sales pipeline", () => {
       signedCount: 2,
       readyCount: 1,
       actionCount: 1,
+      waitingCount: 0,
       scheduleUnknownCount: 0,
     });
     expect(snapshot.handoffs.records.map((handoff) => handoff.attributionId)).toEqual([
@@ -256,6 +270,37 @@ describe("owner sales pipeline", () => {
       repWorkspacePath: "/david",
       homeownerName: "Joani Cole",
       completedSteps: 1,
+    });
+  });
+
+  it("counts an accepted active card link as waiting instead of owner work", () => {
+    const snapshot = buildOwnerSalesPipelineSnapshot({
+      reps: REPS,
+      leads: [],
+      presentations: [],
+      handoffs: [
+        handoffSource(REPS[1], {
+          stage: "payment_pending",
+          label: "Waiting on customer card setup",
+          detail: "The secure Stripe email was accepted.",
+          completedSteps: 1,
+          paymentSetupEmailState: "ready",
+          paymentHandoffProgress: {
+            state: "email_sent",
+            canSend: false,
+            emailSentAt: "2026-08-16T17:30:00.000Z",
+            expiresAt: "2026-08-17T17:30:00.000Z",
+          },
+        }),
+      ],
+      reference,
+    });
+
+    expect(snapshot.handoffs.summary).toMatchObject({
+      signedCount: 1,
+      actionCount: 0,
+      waitingCount: 1,
+      readyCount: 0,
     });
   });
 
@@ -275,6 +320,7 @@ describe("owner sales pipeline", () => {
         signedCount: null,
         readyCount: null,
         actionCount: null,
+        waitingCount: null,
         scheduleUnknownCount: null,
       },
     });

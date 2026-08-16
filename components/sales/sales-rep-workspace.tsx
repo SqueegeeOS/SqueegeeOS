@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FieldPropertyAddressInput } from "@/components/address/field-property-address-input";
+import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
 import {
@@ -19,6 +20,7 @@ import {
 } from "@/components/sales/service-interest-control";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { paymentHandoffSendLabel } from "@/lib/membership/payment-handoff-progress";
 import {
   buildStandardRepProfile,
   DAVID_REP_PROFILE,
@@ -60,7 +62,10 @@ import {
   filterSalesLeadActionQueue,
   type SalesLeadQueueFilter,
 } from "@/lib/sales/lead-action-filter";
-import { presentationWorkspacePath } from "@/lib/presentations/navigation";
+import {
+  presentationPresentPath,
+  presentationWorkspacePath,
+} from "@/lib/presentations/navigation";
 import { deriveSalesRepLaunchReadiness } from "@/lib/sales/rep-launch-readiness";
 import { salesLeadSourceLabel } from "@/lib/sales/lead-intake-assignment";
 import {
@@ -237,6 +242,7 @@ const PRODUCTION_HANDOFF_STYLE: Record<
   string
 > = {
   payment_needed: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+  payment_pending: "border-violet-300/30 bg-violet-300/[0.08] text-violet-100",
   membership_attention: "border-red-300/30 bg-red-300/[0.08] text-red-100",
   property_pairing_needed: "border-sky-300/25 bg-sky-300/[0.07] text-sky-100",
   job_pairing_needed: "border-sky-300/25 bg-sky-300/[0.07] text-sky-100",
@@ -604,6 +610,14 @@ export function SalesRepWorkspace({
       setMissionRefreshing(false);
     }
   }, [loadWorkspace]);
+
+  const handlePaymentSetupAccepted = useCallback(
+    (message: string) => {
+      setNotice(message);
+      void loadWorkspace();
+    },
+    [loadWorkspace],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -2651,6 +2665,29 @@ export function SalesRepWorkspace({
                 {recentWins.map((win) => {
                   const status = RECENT_WIN_STATUS[win.status];
                   const handoff = win.productionHandoff;
+                  const fieldPaymentActionHref =
+                    sessionKind === "sales_rep" &&
+                    handoff?.presentationId &&
+                    (handoff.stage === "payment_needed" ||
+                      handoff.stage === "payment_pending")
+                      ? presentationPresentPath(handoff.presentationId, {
+                          returnTo: profile.workspacePath,
+                        })
+                      : null;
+                  const visibleActionHref =
+                    sessionKind === "admin"
+                      ? handoff
+                        ? handoff.actionHref
+                        : null
+                      : fieldPaymentActionHref;
+                  const canFieldEmailPaymentSetup = Boolean(
+                    sessionKind === "sales_rep" &&
+                      handoff?.stage === "payment_needed" &&
+                      handoff.paymentSetupEmailState === "ready" &&
+                      handoff.paymentHandoffProgress.canSend &&
+                      handoff.membershipId &&
+                      handoff.presentationId,
+                  );
                   return (
                     <article
                       key={win.id}
@@ -2706,17 +2743,62 @@ export function SalesRepWorkspace({
                           <p className="mt-1 text-[11px] leading-5 text-current/80">
                             {handoff.detail}
                           </p>
+                          {handoff.paymentHandoffProgress.state === "email_sent" ? (
+                            <div className="mt-3 rounded-xl border border-current/15 bg-black/15 px-3 py-2 text-[10px] leading-4 text-current/80">
+                              <p className="font-bold uppercase tracking-[0.11em]">
+                                Secure email accepted
+                              </p>
+                              <p className="mt-1">
+                                {handoff.paymentHandoffProgress.emailSentAt
+                                  ? `Sent ${followUpLabel(handoff.paymentHandoffProgress.emailSentAt)}. `
+                                  : ""}
+                                {handoff.paymentHandoffProgress.expiresAt
+                                  ? `Link active until ${followUpLabel(handoff.paymentHandoffProgress.expiresAt)}.`
+                                  : "Waiting for Stripe confirmation."}
+                              </p>
+                            </div>
+                          ) : handoff.paymentHandoffProgress.state === "preparing" ? (
+                            <p className="mt-3 rounded-xl border border-current/15 bg-black/15 px-3 py-2 text-[10px] leading-4 text-current/80">
+                              HomeAtlas is inside its five-minute safety window.
+                              Refresh before retrying so the customer receives one
+                              deliberate email.
+                            </p>
+                          ) : null}
                           {handoff.nextScheduledAt && handoff.stage === "ready" ? (
                             <p className="mt-2 text-[10px] font-semibold uppercase tracking-[0.1em] text-current">
                               Next visit · {handoffVisitDateLabel(handoff.nextScheduledAt)}
                             </p>
                           ) : null}
-                          <Link
-                            href={handoff.actionHref}
-                            className="mt-3 inline-flex min-h-10 items-center rounded-full border border-current/25 bg-black/10 px-3 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors hover:bg-black/20"
-                          >
-                            {handoff.actionLabel} →
-                          </Link>
+                          {canFieldEmailPaymentSetup ? (
+                            <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3">
+                              <PaymentSetupEmailButton
+                                membershipId={handoff.membershipId}
+                                presentationId={handoff.presentationId}
+                                canSend
+                                idleLabel={paymentHandoffSendLabel(
+                                  handoff.paymentHandoffProgress.state,
+                                )}
+                                variant="primary"
+                                onAccepted={handlePaymentSetupAccepted}
+                              />
+                              <p className="mt-2 text-[10px] leading-4 text-current/70">
+                                Sends only when pressed. Stripe saves the card; this
+                                setup step does not charge the customer.
+                              </p>
+                            </div>
+                          ) : null}
+                          {visibleActionHref ? (
+                            <Link
+                              href={visibleActionHref}
+                              className="mt-3 inline-flex min-h-10 items-center rounded-full border border-current/25 bg-black/10 px-3 text-[10px] font-bold uppercase tracking-[0.12em] transition-colors hover:bg-black/20"
+                            >
+                              {handoff.actionLabel} →
+                            </Link>
+                          ) : sessionKind === "sales_rep" ? (
+                            <span className="mt-3 inline-flex min-h-10 items-center rounded-full border border-current/20 bg-black/10 px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-current/70">
+                              HQ owns next step · {handoff.actionLabel}
+                            </span>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="mt-4 rounded-xl border border-amber-300/30 bg-amber-300/[0.07] p-3 text-amber-50">

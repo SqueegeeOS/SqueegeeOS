@@ -4,10 +4,13 @@ import {
   type HqMembershipStatusInput,
 } from "@/lib/membership/membership-status";
 import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
+import type { PaymentHandoffProgress } from "@/lib/membership/payment-handoff-progress";
 import { ROUTES } from "@/lib/navigation/config";
+import { presentationPresentPath } from "@/lib/presentations/navigation";
 
 export const SALES_PRODUCTION_HANDOFF_STAGES = [
   "payment_needed",
+  "payment_pending",
   "membership_attention",
   "property_pairing_needed",
   "job_pairing_needed",
@@ -38,6 +41,7 @@ export interface SalesProductionHandoffInput {
   attributedAt: string;
   membership: SalesProductionHandoffMembership | null;
   paymentSetupEmailState: PaymentSetupEmailState;
+  paymentHandoffProgress: PaymentHandoffProgress;
   propertyLinked: boolean;
   recurringJobCount: number;
   scheduleSourceState: SalesProductionScheduleSourceState;
@@ -48,11 +52,13 @@ export interface SalesProductionHandoffInput {
 export interface SalesProductionHandoffRecord {
   attributionId: string;
   membershipId: string | null;
+  presentationId: string | null;
   homeownerName: string;
   propertyAddress: string;
   attributedArrCents: number;
   attributedAt: string;
   paymentSetupEmailState: PaymentSetupEmailState;
+  paymentHandoffProgress: PaymentHandoffProgress;
   stage: SalesProductionHandoffStage;
   label: string;
   detail: string;
@@ -71,6 +77,7 @@ export interface SalesProductionHandoffSnapshot {
     signedCount: number;
     readyCount: number;
     actionCount: number;
+    waitingCount: number;
     scheduleUnknownCount: number;
   };
 }
@@ -79,6 +86,15 @@ function memberHref(membershipId: string | null): string {
   return membershipId
     ? ROUTES.hqCustomerWorkspace("membership", membershipId)
     : ROUTES.hqMembership;
+}
+
+function signedCloseHref(
+  presentationId: string | null,
+  membershipId: string | null,
+): string {
+  return presentationId
+    ? presentationPresentPath(presentationId)
+    : memberHref(membershipId);
 }
 
 function common(
@@ -95,6 +111,10 @@ function common(
   return {
     attributionId: input.attributionId,
     membershipId: input.membershipId,
+    presentationId:
+      input.membership?.id === input.membershipId
+        ? input.membership.presentation_id
+        : null,
     homeownerName: input.homeownerName.trim() || "Signed homeowner",
     propertyAddress:
       input.propertyAddress.trim() || "Service property on file",
@@ -106,10 +126,42 @@ function common(
     ),
     attributedAt: input.attributedAt,
     paymentSetupEmailState: input.paymentSetupEmailState,
+    paymentHandoffProgress: input.paymentHandoffProgress,
     totalSteps: 5,
     nextScheduledAt: input.nextScheduledAt,
     scheduleObservedAt: input.scheduleObservedAt,
   };
+}
+
+function paymentRecoveryCopy(
+  progress: PaymentHandoffProgress,
+): { label: string; detail: string } {
+  switch (progress.state) {
+    case "expired":
+      return {
+        label: "Secure card link expired",
+        detail:
+          "The customer did not finish before the Stripe link expired. Reissue a fresh secure setup email; this still does not charge them.",
+      };
+    case "delivery_failed":
+      return {
+        label: "Payment email needs retry",
+        detail:
+          "The secure Stripe page is ready, but the email provider did not accept the last delivery. Retry the labeled email action.",
+      };
+    case "stalled":
+      return {
+        label: "Payment handoff stalled",
+        detail:
+          "The secure setup handoff did not finish preparing. Resume it from the signed close; HomeAtlas will reuse safe work when possible.",
+      };
+    default:
+      return {
+        label: "Payment setup needed",
+        detail:
+          "The signed agreement, customer email, and standing authorization are verified. Email the Stripe-hosted card setup link; this step does not charge the customer.",
+      };
+  }
 }
 
 function paymentSetupAttention(
@@ -186,15 +238,66 @@ export function deriveSalesProductionHandoff(
         actionHref: memberHref(membership.id),
       };
     }
+    if (input.paymentHandoffProgress.state === "email_sent") {
+      return {
+        ...base,
+        stage: "payment_pending",
+        label: "Waiting on customer card setup",
+        detail:
+          "The email provider accepted the secure Stripe link. HomeAtlas is waiting for Stripe to confirm the saved card; no owner action is due while the link remains active.",
+        completedSteps: 1,
+        actionLabel: "Open signed close",
+        actionHref: signedCloseHref(base.presentationId, membership.id),
+      };
+    }
+    if (input.paymentHandoffProgress.state === "preparing") {
+      return {
+        ...base,
+        stage: "payment_pending",
+        label: "Preparing secure card handoff",
+        detail:
+          "HomeAtlas is preparing the Stripe-hosted setup email. Refresh shortly before attempting another action.",
+        completedSteps: 1,
+        actionLabel: "Open signed close",
+        actionHref: signedCloseHref(base.presentationId, membership.id),
+      };
+    }
+    if (input.paymentHandoffProgress.state === "completed") {
+      return {
+        ...base,
+        stage: "membership_attention",
+        label: "Payment evidence review",
+        detail:
+          "Stripe handoff evidence says setup completed, but the membership does not confirm a saved card. HQ must reconcile the records before production starts.",
+        completedSteps: 1,
+        actionLabel: "Review payment evidence",
+        actionHref: memberHref(membership.id),
+      };
+    }
+    if (input.paymentHandoffProgress.state === "review_required") {
+      return {
+        ...base,
+        stage: "membership_attention",
+        label: "Payment handoff review",
+        detail:
+          "The private Stripe handoff ledger needs review. HomeAtlas will not offer another customer email until HQ resolves the recorded mismatch.",
+        completedSteps: 1,
+        actionLabel: "Review payment evidence",
+        actionHref: memberHref(membership.id),
+      };
+    }
+    const recovery = paymentRecoveryCopy(input.paymentHandoffProgress);
     return {
       ...base,
       stage: "payment_needed",
-      label: "Payment setup needed",
-      detail:
-        "The signed agreement, customer email, and standing authorization are verified. Email the Stripe-hosted card setup link; this step does not charge the customer.",
+      label: recovery.label,
+      detail: recovery.detail,
       completedSteps: 1,
-      actionLabel: "Open member record",
-      actionHref: memberHref(membership.id),
+      actionLabel:
+        input.paymentHandoffProgress.state === "not_started"
+          ? "Open signed close"
+          : "Recover payment handoff",
+      actionHref: signedCloseHref(base.presentationId, membership.id),
     };
   }
 
@@ -289,6 +392,9 @@ export function buildSalesProductionHandoffSnapshot(input: {
       : left.attributionId.localeCompare(right.attributionId);
   });
   const readyCount = records.filter((record) => record.stage === "ready").length;
+  const waitingCount = records.filter(
+    (record) => record.stage === "payment_pending",
+  ).length;
   const scheduleUnknownCount = records.filter(
     (record) => record.stage === "source_unavailable",
   ).length;
@@ -299,7 +405,8 @@ export function buildSalesProductionHandoffSnapshot(input: {
     summary: {
       signedCount: records.length,
       readyCount,
-      actionCount: records.length - readyCount,
+      actionCount: records.length - readyCount - waitingCount,
+      waitingCount,
       scheduleUnknownCount,
     },
   };
