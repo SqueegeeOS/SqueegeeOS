@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
+import { presentationWorkspacePath } from "@/lib/presentations/navigation";
 
 export function NewPresentationPage({
   createdBy = "Team",
@@ -46,11 +47,7 @@ export function NewPresentationPage({
       if (!response.ok || !body?.presentation?.id) {
         throw new Error(body?.error ?? "Could not create presentation");
       }
-      router.replace(
-        body.presentation.status === "signed"
-          ? `/presentations/${body.presentation.id}/present`
-          : `/presentations/${body.presentation.id}/edit`,
-      );
+      router.replace(presentationWorkspacePath(body.presentation));
     } catch (createError) {
       setError(
         createError instanceof Error

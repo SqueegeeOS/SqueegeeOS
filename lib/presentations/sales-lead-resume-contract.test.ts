@@ -10,6 +10,10 @@ const route = read("../../app/api/presentations/route.ts");
 const launcher = read(
   "../../components/presentations/new-presentation-page.tsx",
 );
+const workspace = read(
+  "../../components/sales/sales-rep-workspace.tsx",
+);
+const navigation = read("./navigation.ts");
 
 describe("sales lead presentation resume contract", () => {
   it("looks up exact server-owned rep and lead lineage before creating", () => {
@@ -39,11 +43,26 @@ describe("sales lead presentation resume contract", () => {
   });
 
   it("opens the authoritative signed outcome or editable active draft", () => {
-    expect(launcher).toContain('body.presentation.status === "signed"');
+    expect(navigation).toContain('presentation.status === "signed"');
+    expect(launcher).toContain("presentationWorkspacePath(body.presentation)");
     expect(launcher).toContain(
       "HomeAtlas will resume this homeowner’s presentation or create it once",
     );
     expect(launcher).toContain("Open homeowner presentation");
     expect(launcher).toContain("Open this homeowner");
+  });
+
+  it("moves a field lead into that idempotent presentation in one action", () => {
+    expect(workspace).toContain('fetch("/api/presentations"');
+    expect(workspace).toContain(
+      "body: JSON.stringify({ repSlug: profile.slug, salesRepLeadId: leadId })",
+    );
+    expect(workspace).toContain("presentationWorkspacePath(body.presentation)");
+    expect(workspace).toContain('data-intent="build-plan"');
+    expect(workspace).toContain("Save & build plan");
+    expect(workspace).toContain("Build their plan");
+    expect(workspace).not.toContain(
+      "&lead=${encodeURIComponent(lead.id)}",
+    );
   });
 });

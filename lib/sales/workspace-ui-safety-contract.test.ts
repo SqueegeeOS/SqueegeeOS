@@ -67,8 +67,9 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain("Phone-only field totals");
     expect(workspace).toContain("Partial field totals");
     expect(workspace).toContain("min-[480px]:flex-row");
-    expect(workspace).toContain("&lead=${encodeURIComponent(lead.id)}");
-    expect(workspace).toContain("Pitch this homeowner");
+    expect(workspace).toContain('fetch("/api/presentations"');
+    expect(workspace).toContain("Build their plan");
+    expect(workspace).toContain("Save & build plan");
   });
 
   it("allows phone calls while keeping texts and emails consent-gated", () => {

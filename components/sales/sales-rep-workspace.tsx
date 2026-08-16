@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { GlassCard } from "@/components/craft/glass-card";
@@ -40,6 +41,7 @@ import {
   filterSalesLeadActionQueue,
   type SalesLeadQueueFilter,
 } from "@/lib/sales/lead-action-filter";
+import { presentationWorkspacePath } from "@/lib/presentations/navigation";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -55,6 +57,18 @@ interface ActivityMutationResponse {
   activity?: SalesActivityReceipt;
   error?: string;
   message?: string;
+}
+
+interface LeadMutationResponse {
+  lead?: SalesRepLead;
+  error?: string;
+  message?: string;
+}
+
+interface PresentationMutationResponse {
+  presentation?: { id: string; status?: string | null };
+  error?: string;
+  resumed?: boolean;
 }
 
 interface OfflinePulseEntry {
@@ -368,6 +382,7 @@ export function SalesRepWorkspace({
   repSlug,
   sessionKind,
 }: SalesRepWorkspaceProps) {
+  const router = useRouter();
   const [workspace, setWorkspace] = useState<SalesWorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [workspaceLoadError, setWorkspaceLoadError] = useState<string | null>(null);
@@ -380,6 +395,12 @@ export function SalesRepWorkspace({
   const [leadFormOpen, setLeadFormOpen] = useState(false);
   const [leadForm, setLeadForm] = useState<CreateSalesLeadInput>(EMPTY_LEAD_FORM);
   const [leadSaving, setLeadSaving] = useState(false);
+  const [leadSaveIntent, setLeadSaveIntent] = useState<
+    "follow-up" | "build-plan" | null
+  >(null);
+  const [presentationOpeningLeadId, setPresentationOpeningLeadId] = useState<
+    string | null
+  >(null);
   const [editingLeadId, setEditingLeadId] = useState<string | null>(null);
   const [leadActionDraft, setLeadActionDraft] = useState<LeadActionDraft | null>(
     null,
@@ -907,9 +928,60 @@ export function SalesRepWorkspace({
     }
   };
 
+  const openLeadPresentation = async (
+    leadId: string,
+    options: { homeownerJustSaved?: boolean } = {},
+  ): Promise<boolean> => {
+    if (presentationOpeningLeadId) return false;
+
+    setPresentationOpeningLeadId(leadId);
+    setError(null);
+    if (!options.homeownerJustSaved) setNotice(null);
+    try {
+      const response = await fetch("/api/presentations", {
+        method: "POST",
+        headers: getAdminRequestHeaders(),
+        body: JSON.stringify({ repSlug: profile.slug, salesRepLeadId: leadId }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | PresentationMutationResponse
+        | null;
+      if (!response.ok || !body?.presentation?.id) {
+        throw new Error(body?.error ?? "Could not open this homeowner’s plan.");
+      }
+
+      navigator.vibrate?.(18);
+      router.push(presentationWorkspacePath(body.presentation));
+      return true;
+    } catch (presentationError) {
+      if (options.homeownerJustSaved) {
+        setNotice(
+          "Homeowner saved. Their plan is safe to retry from the follow-up queue.",
+        );
+      }
+      setError(
+        presentationError instanceof Error
+          ? presentationError.message
+          : "HomeAtlas could not open the plan. Nothing was duplicated or sent.",
+      );
+      await loadWorkspace();
+      return false;
+    } finally {
+      setPresentationOpeningLeadId(null);
+    }
+  };
+
   const saveLead = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as
+      | HTMLElement
+      | null;
+    const saveIntent =
+      submitter?.dataset.intent === "build-plan"
+        ? "build-plan"
+        : "follow-up";
     setLeadSaving(true);
+    setLeadSaveIntent(saveIntent);
     setUndoableActivity(null);
     setNotice(null);
     setError(null);
@@ -922,14 +994,28 @@ export function SalesRepWorkspace({
           body: JSON.stringify({ kind: "lead", lead: leadForm }),
         },
       );
-      const body = (await response.json().catch(() => null)) as {
-        error?: string;
-        message?: string;
-      } | null;
+      const body = (await response.json().catch(() => null)) as
+        | LeadMutationResponse
+        | null;
       if (!response.ok) throw new Error(body?.error ?? "Could not save homeowner.");
+      if (!body?.lead?.id) {
+        setLeadForm(EMPTY_LEAD_FORM);
+        setLeadFormOpen(false);
+        setNotice(body?.message ?? "Homeowner saved for follow-up.");
+        setError(
+          "HomeAtlas saved the homeowner but could not open their plan from this response. Use their queue card instead of saving them again.",
+        );
+        await loadWorkspace();
+        return;
+      }
       setLeadForm(EMPTY_LEAD_FORM);
       setLeadFormOpen(false);
-      setNotice(body?.message ?? "Homeowner saved.");
+      if (saveIntent === "build-plan") {
+        setNotice("Homeowner saved. Opening their Home Care Plan…");
+        await openLeadPresentation(body.lead.id, { homeownerJustSaved: true });
+        return;
+      }
+      setNotice(body.message ?? "Homeowner saved for follow-up.");
       await loadWorkspace();
     } catch (saveError) {
       setError(
@@ -937,6 +1023,7 @@ export function SalesRepWorkspace({
       );
     } finally {
       setLeadSaving(false);
+      setLeadSaveIntent(null);
     }
   };
 
@@ -1698,12 +1785,17 @@ export function SalesRepWorkspace({
                       </div>
                     ) : null}
                     <div className="mt-4 grid gap-2 min-[430px]:grid-cols-2">
-                      <Link
-                        href={`/presentations/new?rep=${encodeURIComponent(profile.slug)}&lead=${encodeURIComponent(lead.id)}`}
-                        className="inline-flex min-h-12 items-center justify-center rounded-full border border-accent/40 bg-accent/[0.08] px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      <button
+                        type="button"
+                        onClick={() => void openLeadPresentation(lead.id)}
+                        disabled={presentationOpeningLeadId !== null}
+                        aria-label={`Build a Home Care Plan for ${lead.fullName}`}
+                        className="inline-flex min-h-12 items-center justify-center rounded-full border border-accent/40 bg-accent/[0.08] px-4 text-[10px] font-bold uppercase tracking-[0.14em] text-accent disabled:cursor-wait disabled:opacity-55 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                       >
-                        Pitch this homeowner
-                      </Link>
+                        {presentationOpeningLeadId === lead.id
+                          ? "Opening plan…"
+                          : "Build their plan"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
@@ -2371,10 +2463,31 @@ export function SalesRepWorkspace({
                   <button type="button" onClick={() => setLeadFormOpen(false)} className={craftSecondaryButton}>
                     Cancel
                   </button>
-                  <button type="submit" disabled={leadSaving} className={craftPrimaryButton}>
-                    {leadSaving ? "Saving…" : "Save homeowner"}
+                  <button
+                    type="submit"
+                    data-intent="follow-up"
+                    disabled={leadSaving || presentationOpeningLeadId !== null}
+                    className={craftSecondaryButton}
+                  >
+                    {leadSaving && leadSaveIntent === "follow-up"
+                      ? "Saving…"
+                      : "Save for follow-up"}
+                  </button>
+                  <button
+                    type="submit"
+                    data-intent="build-plan"
+                    disabled={leadSaving || presentationOpeningLeadId !== null}
+                    className={craftPrimaryButton}
+                  >
+                    {leadSaving && leadSaveIntent === "build-plan"
+                      ? "Building…"
+                      : "Save & build plan"}
                   </button>
                 </div>
+                <p className="text-center text-[10px] leading-4 text-muted/65 sm:text-right">
+                  Building a plan opens pricing immediately. Neither option contacts
+                  or charges the customer.
+                </p>
               </form>
             </GlassCard>
           </div>
