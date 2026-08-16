@@ -1,6 +1,5 @@
 import "server-only";
 
-import { listLeadIntakes } from "@/lib/acquisition/leads/repository";
 import { loadBillingWorkspace } from "@/lib/admin/billing-workspace-server";
 import { loadOwnerLeverageSnapshot } from "@/lib/admin/owner-leverage-server";
 import { loadCustomerAftercareSnapshot } from "@/lib/aftercare/customer-aftercare-server";
@@ -14,15 +13,10 @@ import { loadJobberTodayBoard } from "@/lib/care-operations/jobber-today";
 import { loadCommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness";
 import { loadTechnicianReadinessSnapshot } from "@/lib/field-operations/technician-readiness-server";
 import { loadTechnicianCapacitySnapshot } from "@/lib/field-operations/technician-capacity-server";
-import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
-import { DAVID_REP_PROFILE } from "@/lib/sales/rep-config";
 import { loadReferralAttentionSnapshot } from "@/lib/referrals/attention-server";
 import { loadSalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle-server";
-import {
-  loadSalesLeadAttentionSnapshot,
-  loadSalesProductionHandoffAttentionSnapshot,
-} from "@/lib/sales/workspace-server";
+import { loadOwnerSalesAttentionSnapshot } from "@/lib/sales/owner-pipeline-server";
 
 async function captureSource<T>(input: {
   id: string;
@@ -41,9 +35,7 @@ export async function loadOwnerAttentionQueue(
   reference = new Date(),
 ): Promise<OwnerAttentionResponse> {
   const [
-    customerLeads,
-    davidPipeline,
-    salesHandoffs,
+    ownerSales,
     salesRetention,
     today,
     ownerLeverage,
@@ -56,30 +48,10 @@ export async function loadOwnerAttentionQueue(
     productionHealth,
   ] = await Promise.all([
     captureSource({
-      id: "customer_leads",
-      unavailableDetail: "Atlas could not read the customer request inbox.",
-      load: () => {
-        if (!isCloudPersistenceConnected()) {
-          throw new Error("Cloud persistence is not connected.");
-        }
-        return listLeadIntakes();
-      },
-    }),
-    captureSource({
-      id: "david_pipeline",
-      unavailableDetail: "Atlas could not read David’s open pipeline.",
-      load: () =>
-        loadSalesLeadAttentionSnapshot(DAVID_REP_PROFILE.slug, reference),
-    }),
-    captureSource({
-      id: "sales_handoffs",
+      id: "owner_sales",
       unavailableDetail:
-        "Atlas could not verify whether David’s signed members reached scheduled production.",
-      load: () =>
-        loadSalesProductionHandoffAttentionSnapshot(
-          DAVID_REP_PROFILE.slug,
-          reference,
-        ),
+        "Atlas could not read the all-rep owner, next-action, and signed-handoff ledger.",
+      load: () => loadOwnerSalesAttentionSnapshot(reference),
     }),
     captureSource({
       id: "sales_retention",
@@ -170,9 +142,7 @@ export async function loadOwnerAttentionQueue(
 
   return buildOwnerAttentionQueue({
     now: reference,
-    customerLeads,
-    davidPipeline,
-    salesHandoffs,
+    ownerSales,
     salesRetention,
     today,
     ownerLeverage,

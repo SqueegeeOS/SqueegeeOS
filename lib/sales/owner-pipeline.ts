@@ -116,6 +116,17 @@ export interface OwnerSalesPipelineSnapshot {
   handoffs: OwnerSalesHandoffQueue;
 }
 
+/**
+ * Server-side attention source that keeps the complete unassigned intake set
+ * beside the client-safe sales pipeline DTO. The Sales page intentionally
+ * receives only a bounded visible intake queue, while HQ attention still needs
+ * the oldest unowned request and an honest overflow count.
+ */
+export interface OwnerSalesAttentionSnapshot {
+  pipeline: OwnerSalesPipelineSnapshot;
+  unassignedInbound: LeadIntakeRecord[] | null;
+}
+
 const PRESENTATION_STATUS_PRIORITY: Record<
   OwnerSalesPresentationSource["status"],
   number

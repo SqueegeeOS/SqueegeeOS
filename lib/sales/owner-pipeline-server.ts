@@ -19,6 +19,7 @@ import {
 import {
   buildOwnerSalesPipelineSnapshot,
   type OwnerSalesHandoffSource,
+  type OwnerSalesAttentionSnapshot,
   type OwnerSalesLeadSource,
   type OwnerSalesPipelineSnapshot,
   type OwnerSalesPresentationSource,
@@ -209,9 +210,9 @@ async function loadUnassignedInboundRequests(): Promise<LeadIntakeRecord[]> {
   return activeIntakes.filter((lead) => !assignedIds.has(lead.id));
 }
 
-export async function loadOwnerSalesPipeline(
+export async function loadOwnerSalesAttentionSnapshot(
   reference = new Date(),
-): Promise<OwnerSalesPipelineSnapshot> {
+): Promise<OwnerSalesAttentionSnapshot> {
   ensureOwnerSalesStorage();
   const reps = await loadAllActiveSalesReps();
   const [snapshots, handoffs, unassignedInbound] = await Promise.all([
@@ -260,16 +261,25 @@ export async function loadOwnerSalesPipeline(
   );
   const presentations = await loadPresentationsForLeads(leads);
 
-  return buildOwnerSalesPipelineSnapshot({
-    reps,
-    leads,
-    presentations,
-    unassignedInbound,
-    inboundRouting: resolveInboundLeadRouting(
+  return {
+    pipeline: buildOwnerSalesPipelineSnapshot({
       reps,
-      process.env[INBOUND_LEAD_OWNER_ENV],
-    ),
-    handoffs,
-    reference,
-  });
+      leads,
+      presentations,
+      unassignedInbound,
+      inboundRouting: resolveInboundLeadRouting(
+        reps,
+        process.env[INBOUND_LEAD_OWNER_ENV],
+      ),
+      handoffs,
+      reference,
+    }),
+    unassignedInbound,
+  };
+}
+
+export async function loadOwnerSalesPipeline(
+  reference = new Date(),
+): Promise<OwnerSalesPipelineSnapshot> {
+  return (await loadOwnerSalesAttentionSnapshot(reference)).pipeline;
 }

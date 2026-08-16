@@ -50,7 +50,7 @@ describe("owner sales inbox release contract", () => {
   it("gives HQ a direct queue and exact presentation handoff", () => {
     expect(navigation).toContain('hqSales: "/hq/sales"');
     expect(attention).toContain(
-      "`${ROUTES.hqSales}#owner-sales-lead-${item.lead.id}`",
+      "`${ROUTES.hqSales}#owner-sales-lead-${lead.id}`",
     );
     expect(page).toContain('fetch("/api/admin/sales/pipeline"');
     expect(page).toContain("SalesPhoneAccessPanel");
