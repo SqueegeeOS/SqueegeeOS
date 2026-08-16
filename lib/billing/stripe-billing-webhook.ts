@@ -12,6 +12,7 @@ import {
 } from "./stripe-payment-intent-binding";
 import { reconcileMemberAddonPaymentIntent } from "./member-addon-checkout";
 import { reconcileEnrollmentSetupIntent } from "@/lib/enrollment/reconcile-stripe-setup";
+import { reconcileHostedMembershipSetupIntent } from "@/lib/membership/reconcile-hosted-payment-setup";
 
 export type StripeBillingWebhookResult =
   | { status: "processed"; billingOrderId: string | null }
@@ -344,9 +345,11 @@ export async function processStripeBillingWebhook(input: {
       input.event.type === "setup_intent.succeeded" &&
       input.event.data.object.object === "setup_intent"
     ) {
-      const outcome = await reconcileEnrollmentSetupIntent(
-        input.event.data.object as Stripe.SetupIntent,
-      );
+      const setupIntent = input.event.data.object as Stripe.SetupIntent;
+      const outcome =
+        setupIntent.metadata?.homeatlas_operation === "membership_hosted_setup"
+          ? await reconcileHostedMembershipSetupIntent(setupIntent)
+          : await reconcileEnrollmentSetupIntent(setupIntent);
       await markWebhookProcessed(input.event);
       return {
         status: outcome === "ignored" ? "ignored" : "processed",
