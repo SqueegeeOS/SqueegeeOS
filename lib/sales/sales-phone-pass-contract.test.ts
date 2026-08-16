@@ -30,6 +30,8 @@ const presentPage = read("../../app/presentations/[id]/present/page.tsx");
 const newPresentation = read(
   "../../components/presentations/new-presentation-page.tsx",
 );
+const accessPanel = read("../../components/admin/sales-phone-access-panel.tsx");
+const salesInbox = read("../../components/admin/owner-sales-inbox-page.tsx");
 
 describe("sales phone-pass least-privilege contract", () => {
   it("stores hashes only and grants the table and RPCs only to service_role", () => {
@@ -100,5 +102,15 @@ describe("sales phone-pass least-privilege contract", () => {
     expect(adminGrantRoute).not.toContain("twilio");
     expect(adminGrantRoute).not.toContain("resend");
     expect(adminGrantRoute).not.toContain("stripe");
+  });
+
+  it("puts truthful activation and first-loop proof in the owner sales cockpit", () => {
+    expect(salesInbox).toContain("SalesPhoneAccessPanel");
+    expect(accessPanel).toContain('id="sales-phone-access"');
+    expect(accessPanel).toContain("deriveSalesRepLaunchReadiness");
+    expect(access).toContain('.rpc("homeatlas_sales_rep_launch_evidence")');
+    expect(accessPanel).not.toContain("twilio");
+    expect(accessPanel).not.toContain("resend");
+    expect(accessPanel).not.toContain("stripe");
   });
 });
