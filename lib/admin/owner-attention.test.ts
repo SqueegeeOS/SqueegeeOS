@@ -550,7 +550,7 @@ describe("owner attention queue", () => {
 
     expect(item).toMatchObject({
       priority: "critical",
-      href: "/david#follow-ups",
+      href: "/hq/sales#owner-sales-lead-david-lead-1",
       affectedCount: 1,
     });
     expect(item?.detail).toContain("$1,200 potential ARR");
