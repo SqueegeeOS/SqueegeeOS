@@ -6,6 +6,7 @@ import { processDueScheduledCommunications } from "@/lib/communications/service"
 import { markJobberWebhookEventsReconciled } from "@/lib/integrations/jobber-webhook";
 import { runAutomaticMembershipBilling } from "@/lib/billing/automatic-billing-executor";
 import { qualifyDueSalesAttributions } from "@/lib/sales/attribution-lifecycle-server";
+import { reconcileSignedMembershipAttributionsForActiveReps } from "@/lib/sales/signed-attribution-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,20 @@ export async function GET(request: Request) {
   const requestStartedAt = Date.now();
   const snapshotStartedAt = new Date(requestStartedAt).toISOString();
   try {
+    const signatureAttributionRepairs =
+      await reconcileSignedMembershipAttributionsForActiveReps().catch((error) => {
+        console.error(
+          "[jobber-reconcile-cron] signed attribution repair failed",
+          {
+            reason: error instanceof Error ? error.message : "unknown",
+          },
+        );
+        return {
+          status: "failed" as const,
+          error:
+            "Signed attribution repair failed; Jobber reconciliation continued.",
+        };
+      });
     const retentionQualifications = await qualifyDueSalesAttributions({
       referenceDate: new Date(requestStartedAt),
     }).catch((error) => {
@@ -79,6 +94,7 @@ export async function GET(request: Request) {
         sync,
         webhookInbox,
         scheduledCommunications,
+        signatureAttributionRepairs,
         retentionQualifications,
         billing,
         reminders,

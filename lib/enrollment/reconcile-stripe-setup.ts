@@ -12,6 +12,7 @@ import { loadMembershipForPayment } from "@/lib/membership/load-membership-for-p
 import { getPortalAccessUrlForMembership } from "@/lib/persistence/queries/portal-access";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { syncMembershipSalesAttributionLifecycle } from "@/lib/sales/attribution-lifecycle-server";
+import { recordSignedMembershipAttribution } from "@/lib/sales/signed-attribution-server";
 import { getStripe } from "@/lib/stripe/server";
 import type { EnrollmentPacketRow } from "./types";
 
@@ -74,6 +75,14 @@ async function finishRemoteActivation(input: {
     console.error("[enrollment] savings repair required", error);
   }
   try {
+    if (membership.presentation_id) {
+      await recordSignedMembershipAttribution({
+        presentationId: membership.presentation_id,
+        membershipId: membership.id,
+        agreementId: membership.agreement_id,
+        signedAt: membership.started_at,
+      });
+    }
     await syncMembershipSalesAttributionLifecycle({
       supabase,
       membershipId: membership.id,

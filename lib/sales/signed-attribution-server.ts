@@ -79,6 +79,12 @@ export interface SignedAttributionReconciliationResult {
   remaining: number;
 }
 
+export interface SignedAttributionFleetReconciliationResult
+  extends SignedAttributionReconciliationResult {
+  activeReps: number;
+  failedReps: number;
+}
+
 function addUtcMonths(value: string, months: number): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -409,4 +415,61 @@ export async function reconcileSignedMembershipAttributionsForRep(
     failed,
     remaining: unresolved + Math.max(0, missing.length - cleared),
   };
+}
+
+/**
+ * Bounded system repair for signature-time attribution writes that were
+ * deliberately non-blocking. This makes attribution eventual even when an
+ * owner never opens a representative workspace after a close.
+ */
+export async function reconcileSignedMembershipAttributionsForActiveReps(
+  repairLimitPerRep = 5,
+  repScanLimit = 25,
+): Promise<SignedAttributionFleetReconciliationResult> {
+  const boundedRepLimit = Math.max(1, Math.min(25, Math.floor(repScanLimit)));
+  const supabase = createPrivilegedServerSupabaseClient();
+  const repsResult = await supabase
+    .from("sales_reps")
+    .select("id", { count: "exact" })
+    .eq("status", "active")
+    .order("id", { ascending: true })
+    .range(0, boundedRepLimit - 1);
+  if (repsResult.error) throw new Error(repsResult.error.message);
+  if (repsResult.count === null) {
+    throw new Error("HomeAtlas could not prove active salesperson coverage.");
+  }
+  const reps = (repsResult.data ?? []) as Array<{ id: string }>;
+  if (repsResult.count > reps.length) {
+    throw new Error(
+      "Active salesperson attribution repair exceeded its coverage limit.",
+    );
+  }
+
+  const summary: SignedAttributionFleetReconciliationResult = {
+    activeReps: reps.length,
+    failedReps: 0,
+    inspected: 0,
+    repaired: 0,
+    failed: 0,
+    remaining: 0,
+  };
+  for (const rep of reps) {
+    try {
+      const result = await reconcileSignedMembershipAttributionsForRep(
+        rep.id,
+        repairLimitPerRep,
+      );
+      summary.inspected += result.inspected;
+      summary.repaired += result.repaired;
+      summary.failed += result.failed;
+      summary.remaining += result.remaining;
+    } catch (error) {
+      summary.failedReps += 1;
+      console.error("[sales-attribution] active rep reconciliation failed", {
+        repId: rep.id,
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
+  return summary;
 }
