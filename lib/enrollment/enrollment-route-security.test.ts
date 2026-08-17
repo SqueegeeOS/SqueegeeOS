@@ -7,6 +7,9 @@ function read(relativePath: string): string {
 
 const sendRoute = read("../../app/api/admin/enrollment-packets/route.ts");
 const readinessRoute = read("../../app/api/admin/enrollment/readiness/route.ts");
+const docusignProbeRoute = read(
+  "../../app/api/admin/enrollment/docusign/probe/route.ts",
+);
 const connectRoute = read("../../app/api/integrations/docusign/connect/route.ts");
 const stripeHandoff = read("./stripe-handoff.ts");
 const docusignProcessor = read("./process-docusign-connect.ts");
@@ -54,6 +57,19 @@ describe("enrollment route security contract", () => {
     expect(
       docusignProcessor.indexOf("completeRemoteEnrollmentSignature"),
     ).toBeLessThan(docusignProcessor.indexOf("createEnrollmentStripeHandoff"));
+  });
+
+  it("keeps the read-only DocuSign probe behind HQ auth and away from envelope writes", () => {
+    expect(docusignProbeRoute).toContain("authorizeAdminRequest(request.headers)");
+    expect(docusignProbeRoute).toContain("probeDocuSignEnrollmentTemplate");
+    expect(
+      docusignProbeRoute.indexOf("authorizeAdminRequest(request.headers)"),
+    ).toBeLessThan(
+      docusignProbeRoute.lastIndexOf("probeDocuSignEnrollmentTemplate()"),
+    );
+    expect(docusignProbeRoute).not.toMatch(
+      /createDocuSignEnrollmentEnvelope|sendCreatedDocuSignEnvelope|createEnrollmentStripeHandoff/,
+    );
   });
 
   it("keeps cash/check owner-only and structurally outside every Stripe handoff", () => {

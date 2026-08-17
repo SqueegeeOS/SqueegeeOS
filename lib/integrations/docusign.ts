@@ -4,7 +4,10 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import type { EnrollmentDocumentSnapshot } from "@/lib/enrollment/types";
-import { buildDocuSignEnrollmentTabs } from "@/lib/enrollment/docusign-tabs";
+import {
+  buildDocuSignEnrollmentTabs,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS,
+} from "@/lib/enrollment/docusign-tabs";
 
 export interface DocuSignConfig {
   integrationKey: string;
@@ -21,6 +24,25 @@ export interface DocuSignConfig {
 export interface DocuSignConfigState {
   configured: boolean;
   missing: string[];
+}
+
+export interface DocuSignEnrollmentTemplateProbe {
+  ok: boolean;
+  authorization: boolean;
+  templateFound: boolean;
+  customerRoleFound: boolean;
+  templateName: string | null;
+  documentCount: number;
+  signatureTabCount: number;
+  missingTabLabels: string[];
+  connectHmacConfigured: boolean;
+  errorCode:
+    | null
+    | "configuration_missing"
+    | "authorization_failed"
+    | "template_lookup_failed"
+    | "template_mismatch";
+  message: string;
 }
 
 export interface DocuSignEnvelopeEvent {
@@ -169,6 +191,173 @@ async function docuSignAccessToken(
     throw new Error(`DocuSign authorization failed: ${description}`);
   }
   return body.access_token;
+}
+
+function collectTemplateTabLabels(value: unknown): Set<string> {
+  const labels = new Set<string>();
+  const root = record(value);
+  if (!root) return labels;
+  for (const tabs of Object.values(root)) {
+    if (!Array.isArray(tabs)) continue;
+    for (const tab of tabs) {
+      const row = record(tab);
+      if (typeof row?.tabLabel === "string" && row.tabLabel.trim()) {
+        labels.add(row.tabLabel.trim());
+      }
+    }
+  }
+  return labels;
+}
+
+function providerFailureMessage(body: unknown, status: number): string {
+  const row = record(body);
+  return (
+    firstString(row?.message, row?.errorCode, row?.error) ?? `HTTP ${status}`
+  );
+}
+
+export async function probeDocuSignEnrollmentTemplate(input: {
+  config?: DocuSignConfig;
+  fetch?: typeof fetch;
+} = {}): Promise<DocuSignEnrollmentTemplateProbe> {
+  const config = input.config ?? resolveDocuSignConfig();
+  const request = input.fetch ?? fetch;
+  const probeRequired: Array<[string, string]> = [
+    ["DOCUSIGN_INTEGRATION_KEY", config.integrationKey],
+    ["DOCUSIGN_USER_ID", config.userId],
+    ["DOCUSIGN_ACCOUNT_ID", config.accountId],
+    ["DOCUSIGN_ACCOUNT_BASE_URI", config.accountBaseUri],
+    ["DOCUSIGN_PRIVATE_KEY_BASE64", config.privateKey],
+    ["DOCUSIGN_ENROLLMENT_TEMPLATE_ID", config.enrollmentTemplateId],
+  ];
+  const missing = probeRequired
+    .filter(([, current]) => !current)
+    .map(([name]) => name);
+  const base: Omit<DocuSignEnrollmentTemplateProbe, "ok" | "errorCode" | "message"> = {
+    authorization: false,
+    templateFound: false,
+    customerRoleFound: false,
+    templateName: null,
+    documentCount: 0,
+    signatureTabCount: 0,
+    missingTabLabels: Object.values(DOCUSIGN_ENROLLMENT_TAB_LABELS),
+    connectHmacConfigured: Boolean(config.connectHmacSecret),
+  };
+
+  if (missing.length > 0) {
+    return {
+      ...base,
+      ok: false,
+      errorCode: "configuration_missing",
+      message: `Add ${missing.join(", ")} before running the read-only check.`,
+    };
+  }
+
+  let accessToken: string;
+  try {
+    accessToken = await docuSignAccessToken(config, request);
+  } catch (error) {
+    return {
+      ...base,
+      ok: false,
+      errorCode: "authorization_failed",
+      message:
+        error instanceof Error
+          ? error.message
+          : "DocuSign authorization failed.",
+    };
+  }
+
+  const accountPath = `${config.accountBaseUri}/restapi/v2.1/accounts/${encodeURIComponent(config.accountId)}`;
+  const templatePath = `${accountPath}/templates/${encodeURIComponent(config.enrollmentTemplateId)}`;
+  const readJson = async (url: string, label: string): Promise<unknown> => {
+    const response = await request(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        `${label} failed: ${providerFailureMessage(body, response.status)}`,
+      );
+    }
+    return body;
+  };
+
+  try {
+    const template = record(await readJson(templatePath, "Template lookup"));
+    const templateDefinition = record(template?.envelopeTemplateDefinition);
+    const [recipientsRaw, documentsRaw] = await Promise.all([
+      readJson(`${templatePath}/recipients`, "Template recipient lookup"),
+      readJson(`${templatePath}/documents`, "Template document lookup"),
+    ]);
+    const recipients = record(recipientsRaw);
+    const signers = Array.isArray(recipients?.signers)
+      ? recipients.signers.map(record).filter((row): row is Record<string, unknown> => Boolean(row))
+      : [];
+    const customer = signers.find(
+      (signer) => firstString(signer.roleName) === config.customerRoleName,
+    );
+    const recipientId = firstString(customer?.recipientId);
+    const tabsRaw = recipientId
+      ? await readJson(
+          `${templatePath}/recipients/${encodeURIComponent(recipientId)}/tabs`,
+          "Template tab lookup",
+        )
+      : null;
+    const tabs = record(tabsRaw);
+    const tabLabels = collectTemplateTabLabels(tabs);
+    const missingTabLabels = Object.values(
+      DOCUSIGN_ENROLLMENT_TAB_LABELS,
+    ).filter((label) => !tabLabels.has(label));
+    const documents = record(documentsRaw);
+    const documentRows = [
+      documents?.templateDocuments,
+      documents?.envelopeDocuments,
+      documents?.documents,
+    ].find(Array.isArray);
+    const documentCount = Array.isArray(documentRows) ? documentRows.length : 0;
+    const signatureTabCount = Array.isArray(tabs?.signHereTabs)
+      ? tabs.signHereTabs.length
+      : 0;
+    const customerRoleFound = Boolean(customer && recipientId);
+    const templateFound = Boolean(
+      firstString(template?.templateId, templateDefinition?.templateId),
+    );
+    const ok =
+      templateFound &&
+      customerRoleFound &&
+      documentCount >= 2 &&
+      signatureTabCount >= 1 &&
+      missingTabLabels.length === 0;
+
+    return {
+      ...base,
+      ok,
+      authorization: true,
+      templateFound,
+      customerRoleFound,
+      templateName: firstString(template?.name, templateDefinition?.name),
+      documentCount,
+      signatureTabCount,
+      missingTabLabels,
+      errorCode: ok ? null : "template_mismatch",
+      message: ok
+        ? "DocuSign OAuth and the two-document HomeAtlas template passed the read-only check. Connect still requires one signed webhook rehearsal."
+        : "DocuSign authorized, but the configured template does not yet match the HomeAtlas document, role, signature, and locked-tab contract.",
+    };
+  } catch (error) {
+    return {
+      ...base,
+      authorization: true,
+      ok: false,
+      errorCode: "template_lookup_failed",
+      message:
+        error instanceof Error
+          ? error.message
+          : "DocuSign template lookup failed.",
+    };
+  }
 }
 
 export async function createDocuSignEnrollmentEnvelope(input: {

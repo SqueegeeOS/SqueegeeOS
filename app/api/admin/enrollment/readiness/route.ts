@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { getEnrollmentLegalReviewPacket } from "@/lib/enrollment/legal-review-packet";
+import { getEnrollmentProviderLaunchPlan } from "@/lib/enrollment/provider-launch";
 import { getEnrollmentReadiness } from "@/lib/enrollment/readiness";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 
@@ -12,6 +13,7 @@ export async function GET(request: Request) {
   }
   const readiness = await getEnrollmentReadiness();
   const legalReviewPacket = getEnrollmentLegalReviewPacket();
+  const providerLaunchPlan = getEnrollmentProviderLaunchPlan(readiness);
   const databaseReady = readiness.checks.find((check) => check.id === "database")?.ready;
   if (!databaseReady) {
     return NextResponse.json({
@@ -19,6 +21,7 @@ export async function GET(request: Request) {
       documentVersions: [],
       packets: [],
       legalReviewPacket,
+      providerLaunchPlan,
       loadedAt: new Date().toISOString(),
     });
   }
@@ -50,6 +53,7 @@ export async function GET(request: Request) {
     documentVersions: versions.data ?? [],
     packets: packets.data ?? [],
     legalReviewPacket,
+    providerLaunchPlan,
     loadedAt: new Date().toISOString(),
   });
 }
