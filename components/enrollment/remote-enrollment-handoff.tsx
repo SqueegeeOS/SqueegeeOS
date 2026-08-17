@@ -24,6 +24,23 @@ interface ReadinessPayload {
   }>;
 }
 
+interface EnrollmentPreflightPayload {
+  mode: "no_side_effects";
+  readyToSend: boolean;
+  snapshotSha256: string;
+  summary: {
+    tierLabel: string;
+    visitsPerYear: number;
+    paymentRail: PaymentRail;
+  };
+  checks: Array<{
+    id: string;
+    label: string;
+    ready: boolean;
+    detail: string;
+  }>;
+}
+
 function price(value: number): string {
   return Number.isFinite(value) && value > 0 ? value.toFixed(2) : "";
 }
@@ -63,12 +80,17 @@ export function RemoteEnrollmentHandoff({
   const [paymentRail, setPaymentRail] =
     useState<PaymentRail>("stripe_card");
   const [sending, setSending] = useState(false);
+  const [preflighting, setPreflighting] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [packetStatus, setPacketStatus] =
     useState<EnrollmentPacketStatusSnapshot | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [readiness, setReadiness] = useState<ReadinessPayload | null>(null);
+  const [preflight, setPreflight] = useState<{
+    inputKey: string;
+    report: EnrollmentPreflightPayload;
+  } | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -116,6 +138,18 @@ export function RemoteEnrollmentHandoff({
     return () => controller.abort();
   }, [presentation.id]);
 
+  const submissionPayload = () => ({
+    presentationId: presentation.id,
+    tier,
+    firstVisitPrice: Number(firstRate),
+    recurringVisitPrice: Number(recurringRate),
+    annualizedValue: Number(firstYearTotal),
+    salesContext: context,
+    homeSolicitationNoticeDays:
+      context === "customer_home" ? noticeDays : null,
+    paymentRail,
+  });
+
   const send = async () => {
     setSending(true);
     setError(null);
@@ -124,17 +158,7 @@ export function RemoteEnrollmentHandoff({
       const response = await fetch("/api/admin/enrollment-packets", {
         method: "POST",
         headers: getAdminRequestHeaders(),
-        body: JSON.stringify({
-          presentationId: presentation.id,
-          tier,
-          firstVisitPrice: Number(firstRate),
-          recurringVisitPrice: Number(recurringRate),
-          annualizedValue: Number(firstYearTotal),
-          salesContext: context,
-          homeSolicitationNoticeDays:
-            context === "customer_home" ? noticeDays : null,
-          paymentRail,
-        }),
+        body: JSON.stringify(submissionPayload()),
       });
       const body = (await response.json().catch(() => null)) as {
         error?: string;
@@ -158,6 +182,39 @@ export function RemoteEnrollmentHandoff({
       );
     } finally {
       setSending(false);
+    }
+  };
+
+  const runPreflight = async () => {
+    setPreflighting(true);
+    setError(null);
+    setReadiness(null);
+    const payload = submissionPayload();
+    const inputKey = JSON.stringify(payload);
+    try {
+      const response = await fetch("/api/admin/enrollment/preflight", {
+        method: "POST",
+        headers: getAdminRequestHeaders(),
+        body: JSON.stringify(payload),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        report?: EnrollmentPreflightPayload;
+        error?: string;
+      } | null;
+      if (!response.ok || !body?.report) {
+        throw new Error(
+          body?.error ?? "The no-send enrollment rehearsal could not run.",
+        );
+      }
+      setPreflight({ inputKey, report: body.report });
+    } catch (preflightError) {
+      setError(
+        preflightError instanceof Error
+          ? preflightError.message
+          : "The no-send enrollment rehearsal could not run.",
+      );
+    } finally {
+      setPreflighting(false);
     }
   };
 
@@ -244,6 +301,10 @@ export function RemoteEnrollmentHandoff({
     Number(firstRate) > 0 &&
     Number(recurringRate) > 0 &&
     Number(firstYearTotal) > 0;
+  const activePreflight =
+    preflight?.inputKey === JSON.stringify(submissionPayload())
+      ? preflight.report
+      : null;
   const recalculateFirstYear = (nextFirst: string, nextRecurring: string) => {
     const first = Number(nextFirst);
     const recurring = Number(nextRecurring);
@@ -459,9 +520,78 @@ export function RemoteEnrollmentHandoff({
 
       <button
         type="button"
+        onClick={runPreflight}
+        disabled={!canSend || preflighting || sending}
+        className="mt-5 min-h-12 w-full rounded-xl border border-white/12 bg-white/[0.045] px-5 text-sm font-semibold text-white/75 transition hover:border-accent/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+      >
+        {preflighting
+          ? "Checking the exact handoff…"
+          : "Run no-send rehearsal"}
+      </button>
+      <p className="mt-2 text-center text-[10px] leading-relaxed text-white/30">
+        Validates this exact customer, plan, scope, prices, authority, and every
+        launch gate. Creates nothing and contacts nobody.
+      </p>
+
+      {activePreflight ? (
+        <div
+          className={`mt-4 rounded-xl border p-4 ${
+            activePreflight.readyToSend
+              ? "border-emerald-300/25 bg-emerald-300/[0.07]"
+              : "border-amber-300/20 bg-amber-300/[0.055]"
+          }`}
+          role="status"
+        >
+          <p
+            className={`text-[10px] font-semibold uppercase tracking-[0.16em] ${
+              activePreflight.readyToSend
+                ? "text-emerald-200"
+                : "text-amber-100"
+            }`}
+          >
+            {activePreflight.readyToSend
+              ? "Exact handoff ready"
+              : "Deal valid · launch gate paused"}
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-white/58">
+            {activePreflight.summary.tierLabel} ·{" "}
+            {activePreflight.summary.visitsPerYear} visits ·{" "}
+            {activePreflight.summary.paymentRail === "manual_cash_check"
+              ? "cash / check"
+              : "Stripe card"}
+          </p>
+          <p className="mt-2 break-all font-mono text-[9px] leading-relaxed text-white/35">
+            PRE-FLIGHT SHA-256 {activePreflight.snapshotSha256}
+          </p>
+          {!activePreflight.readyToSend ? (
+            <ul className="mt-3 space-y-2 border-t border-white/[0.07] pt-3">
+              {activePreflight.checks
+                .filter((check) => !check.ready)
+                .map((check) => (
+                  <li key={check.id} className="text-[11px] leading-relaxed text-white/48">
+                    <strong className="text-white/68">{check.label}:</strong>{" "}
+                    {check.detail}
+                  </li>
+                ))}
+            </ul>
+          ) : (
+            <p className="mt-3 border-t border-white/[0.07] pt-3 text-[11px] leading-relaxed text-emerald-100/75">
+              Every server gate is green. Nothing was sent; use the separate
+              send button only when the intended recipient is confirmed.
+            </p>
+          )}
+          <p className="mt-3 text-[10px] leading-relaxed text-white/32">
+            Proof: no packet row, database write, DocuSign envelope, email,
+            Stripe session, saved card, or charge was created.
+          </p>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
         onClick={send}
-        disabled={!canSend || sending}
-        className="mt-5 min-h-13 w-full rounded-xl bg-gradient-to-br from-accent to-[#ead8ad] px-5 text-sm font-bold text-[#0b0b0a] disabled:cursor-not-allowed disabled:opacity-35"
+        disabled={!canSend || sending || preflighting}
+        className="mt-4 min-h-13 w-full rounded-xl bg-gradient-to-br from-accent to-[#ead8ad] px-5 text-sm font-bold text-[#0b0b0a] disabled:cursor-not-allowed disabled:opacity-35"
       >
         {sending
           ? "Preparing secure packet…"
