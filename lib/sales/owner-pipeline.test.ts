@@ -72,6 +72,7 @@ function inbound(
     status: "new",
     submittedAt,
     source: "request_form",
+    clientSubmissionId: null,
     externalLeadId: null,
     sourcePageId: null,
     sourceFormId: null,

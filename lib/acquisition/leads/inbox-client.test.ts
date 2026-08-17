@@ -20,6 +20,7 @@ const lead: LeadIntakeRecord = {
   status: "new",
   submittedAt: "2026-08-14T12:00:00.000Z",
   source: "request_form",
+  clientSubmissionId: "00000000-0000-4000-8000-000000000081",
   externalLeadId: null,
   sourcePageId: null,
   sourceFormId: null,

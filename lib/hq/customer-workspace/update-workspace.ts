@@ -73,6 +73,8 @@ export async function updateLeadIntakeFields(
     submittedAt: data.submitted_at as string,
     source:
       data.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+    clientSubmissionId:
+      (data.client_submission_id as string | null) ?? null,
     externalLeadId: (data.external_lead_id as string | null) ?? null,
     sourcePageId: (data.source_page_id as string | null) ?? null,
     sourceFormId: (data.source_form_id as string | null) ?? null,
