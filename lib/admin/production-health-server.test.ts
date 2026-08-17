@@ -186,6 +186,7 @@ describe("production health storage and schema wiring", () => {
     expect(source).toContain(
       '.from(SIGNED_AGREEMENT_BUCKET).list("", {',
     );
+    expect(source).not.toContain('search: ".pdf"');
     expect(source).not.toContain(".production-health-probe.pdf");
   });
 });
