@@ -10,6 +10,10 @@ import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
+import type {
+  EnrollmentLegalReviewDocumentId,
+  EnrollmentLegalReviewPacket,
+} from "@/lib/enrollment/legal-review-packet";
 
 interface EnrollmentDeskData {
   readiness: {
@@ -48,6 +52,7 @@ interface EnrollmentDeskData {
     last_error_message: string | null;
     updated_at: string;
   }>;
+  legalReviewPacket: EnrollmentLegalReviewPacket;
   loadedAt: string;
 }
 
@@ -59,6 +64,8 @@ function EnrollmentDeskContent() {
   const [data, setData] = useState<EnrollmentDeskData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedLegalDocument, setSelectedLegalDocument] =
+    useState<EnrollmentLegalReviewDocumentId>("master_service_agreement");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,6 +97,10 @@ function EnrollmentDeskContent() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  const activeLegalDocument = data?.legalReviewPacket.documents.find(
+    (document) => document.id === selectedLegalDocument,
+  );
 
   return (
     <AmbientStage className="px-4 py-10 text-foreground sm:px-6 sm:py-12">
@@ -190,13 +201,188 @@ function EnrollmentDeskContent() {
               </div>
               {!data.readiness.readyToSend ? (
                 <p className="mt-6 rounded-xl border border-accent/15 bg-accent/[0.05] px-4 py-3 text-xs leading-relaxed text-muted">
-                  The app side is built to fail closed. The attorney-review brief
-                  lives in <code className="text-accent">docs/legal/CALIFORNIA_ENROLLMENT_PACKET_ATTORNEY_REVIEW.md</code>;
-                  after counsel approves the exact two-document DocuSign
-                  template, record both approved hashes and add the listed
-                  Vercel variables.
+                  The app side is built to fail closed. Use the review room below
+                  to inspect the working packet now. After your lawyer reviews the
+                  exact customer-facing versions, HomeAtlas records both content
+                  hashes and unlocks the controlled provider test.
                 </p>
               ) : null}
+            </GlassCard>
+
+            <GlassCard tone="subtle" padding="lg" motion="rise">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <p className={craftEyebrow}>Agreement review room</p>
+                  <h2 className="mt-2 font-serif text-2xl font-light sm:text-3xl">
+                    See exactly what the customer accepts
+                  </h2>
+                  <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
+                    {data.legalReviewPacket.summary}
+                  </p>
+                </div>
+                <span className="w-fit rounded-full border border-amber-300/25 bg-amber-300/[0.07] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-amber-100">
+                  Working review packet
+                </span>
+              </div>
+
+              <div className="mt-7 grid gap-5 lg:grid-cols-[0.34fr_0.66fr]">
+                <div className="space-y-2">
+                  {data.legalReviewPacket.documents.map((document) => {
+                    const selected = document.id === selectedLegalDocument;
+                    return (
+                      <button
+                        key={document.id}
+                        type="button"
+                        onClick={() => setSelectedLegalDocument(document.id)}
+                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                          selected
+                            ? "border-accent/30 bg-accent/[0.09]"
+                            : "border-white/[0.08] bg-black/10 hover:border-white/[0.14]"
+                        }`}
+                      >
+                        <span className="block text-sm font-medium text-foreground">
+                          {document.title}
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-relaxed text-muted">
+                          {document.purpose}
+                        </span>
+                        <span
+                          className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-[9px] uppercase tracking-[0.12em] ${
+                            document.status === "working_draft"
+                              ? "bg-accent/10 text-accent"
+                              : "bg-amber-300/10 text-amber-100"
+                          }`}
+                        >
+                          {document.status === "working_draft"
+                            ? "Review candidate"
+                            : "Exact lawyer text required"}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {activeLegalDocument ? (
+                  <article className="rounded-3xl border border-white/[0.09] bg-black/15 p-5 sm:p-6">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.16em] text-accent">
+                          {activeLegalDocument.version}
+                        </p>
+                        <h3 className="mt-2 font-serif text-2xl font-light">
+                          {activeLegalDocument.title}
+                        </h3>
+                      </div>
+                      <span className="w-fit rounded-full border border-white/10 px-3 py-1.5 text-[9px] uppercase tracking-[0.12em] text-muted">
+                        Internal preview
+                      </span>
+                    </div>
+
+                    <div className="mt-6 space-y-2">
+                      {activeLegalDocument.sections.map((section, index) => (
+                        <details
+                          key={section.heading}
+                          open={index === 0}
+                          className="group rounded-2xl border border-white/[0.08] bg-white/[0.02]"
+                        >
+                          <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium marker:content-none">
+                            <span className="flex items-center justify-between gap-3">
+                              {section.heading}
+                              <span className="text-accent transition group-open:rotate-45">
+                                +
+                              </span>
+                            </span>
+                          </summary>
+                          <div className="space-y-3 border-t border-white/[0.06] px-4 py-4">
+                            {section.paragraphs.map((paragraph) => (
+                              <p
+                                key={paragraph}
+                                className="text-xs leading-[1.75] text-muted"
+                              >
+                                {paragraph}
+                              </p>
+                            ))}
+                          </div>
+                        </details>
+                      ))}
+                    </div>
+
+                    <div className="mt-6 rounded-2xl border border-amber-300/15 bg-amber-300/[0.045] p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-amber-100">
+                        Final review focus
+                      </p>
+                      <ul className="mt-3 space-y-2">
+                        {activeLegalDocument.reviewFocus.map((item) => (
+                          <li
+                            key={item}
+                            className="flex gap-2 text-xs leading-relaxed text-muted"
+                          >
+                            <span className="text-amber-200">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </article>
+                ) : null}
+              </div>
+
+              <div className="mt-8 border-t border-white/[0.08] pt-7">
+                <p className={craftEyebrow}>The customer journey</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-5">
+                  {data.legalReviewPacket.customerJourney.map((step) => (
+                    <div
+                      key={step.step}
+                      className="rounded-2xl border border-white/[0.08] bg-black/10 p-4"
+                    >
+                      <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/10 text-[11px] font-semibold text-accent">
+                        {step.step}
+                      </span>
+                      <h3 className="mt-3 text-sm font-medium">{step.title}</h3>
+                      <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                        {step.detail}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
+                <div className="rounded-2xl border border-emerald-300/15 bg-emerald-300/[0.035] p-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-emerald-200">
+                    HomeAtlas operating rules
+                  </p>
+                  <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {data.legalReviewPacket.operatingRules.map((rule) => (
+                      <li
+                        key={rule}
+                        className="flex gap-2 text-xs leading-relaxed text-muted"
+                      >
+                        <span className="text-emerald-300">✓</span>
+                        <span>{rule}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="rounded-2xl border border-white/[0.08] bg-black/10 p-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted">
+                    Primary California sources
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {data.legalReviewPacket.sourceLinks.map((source) => (
+                      <a
+                        key={source.href}
+                        href={source.href}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block text-xs leading-relaxed text-accent underline decoration-accent/30 underline-offset-4 hover:decoration-accent"
+                      >
+                        {source.label}
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              </div>
             </GlassCard>
 
             <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">

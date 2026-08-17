@@ -19,6 +19,11 @@ describe("enrollment route security contract", () => {
     expect(readinessRoute).toContain("authorizeAdminRequest(request.headers)");
     expect(sendRoute).toContain("export async function GET(request: Request)");
     expect(sendRoute).toContain("loadEnrollmentPacketStatus(presentationId)");
+    expect(
+      readinessRoute.indexOf("authorizeAdminRequest(request.headers)"),
+    ).toBeLessThan(
+      readinessRoute.indexOf("getEnrollmentLegalReviewPacket()"),
+    );
   });
 
   it("verifies DocuSign against the untouched body before processing", () => {

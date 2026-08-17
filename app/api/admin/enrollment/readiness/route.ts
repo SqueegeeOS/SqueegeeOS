@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import { getEnrollmentLegalReviewPacket } from "@/lib/enrollment/legal-review-packet";
 import { getEnrollmentReadiness } from "@/lib/enrollment/readiness";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 
@@ -10,12 +11,14 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const readiness = await getEnrollmentReadiness();
+  const legalReviewPacket = getEnrollmentLegalReviewPacket();
   const databaseReady = readiness.checks.find((check) => check.id === "database")?.ready;
   if (!databaseReady) {
     return NextResponse.json({
       readiness,
       documentVersions: [],
       packets: [],
+      legalReviewPacket,
       loadedAt: new Date().toISOString(),
     });
   }
@@ -46,6 +49,7 @@ export async function GET(request: Request) {
     readiness,
     documentVersions: versions.data ?? [],
     packets: packets.data ?? [],
+    legalReviewPacket,
     loadedAt: new Date().toISOString(),
   });
 }
