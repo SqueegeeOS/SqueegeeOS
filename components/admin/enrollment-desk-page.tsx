@@ -26,6 +26,26 @@ interface EnrollmentDeskData {
       missing: string[];
     }>;
   };
+  providerLaunchPlan: {
+    connectCallbackUrl: string;
+    customerRoleName: string;
+    requiredTabLabels: string[];
+    requiredEnvelopeEvents: string[];
+    canRunDocuSignProbe: boolean;
+    probeSafetyNote: string;
+    steps: Array<{
+      id: string;
+      label: string;
+      status: "complete" | "action_needed" | "waiting";
+      detail: string;
+      missing: string[];
+    }>;
+    links: {
+      docusignAppsAndKeys: string;
+      docusignConnect: string;
+      vercelEnvironmentVariables: string;
+    };
+  };
   documentVersions: Array<{
     id: string;
     document_kind: string;
@@ -57,6 +77,20 @@ interface EnrollmentDeskData {
   loadedAt: string;
 }
 
+interface DocuSignProbeResult {
+  ok: boolean;
+  authorization: boolean;
+  templateFound: boolean;
+  customerRoleFound: boolean;
+  templateName: string | null;
+  documentCount: number;
+  signatureTabCount: number;
+  missingTabLabels: string[];
+  connectHmacConfigured: boolean;
+  errorCode: string | null;
+  message: string;
+}
+
 function prettyStatus(value: string): string {
   return value.replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
@@ -67,6 +101,10 @@ function EnrollmentDeskContent() {
   const [loading, setLoading] = useState(true);
   const [selectedLegalDocument, setSelectedLegalDocument] =
     useState<EnrollmentLegalReviewDocumentId>("master_service_agreement");
+  const [docusignProbe, setDocusignProbe] =
+    useState<DocuSignProbeResult | null>(null);
+  const [probingDocusign, setProbingDocusign] = useState(false);
+  const [copiedCallback, setCopiedCallback] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,6 +136,44 @@ function EnrollmentDeskContent() {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  const runDocusignProbe = useCallback(async () => {
+    setProbingDocusign(true);
+    setDocusignProbe(null);
+    try {
+      const response = await fetch("/api/admin/enrollment/docusign/probe", {
+        method: "POST",
+        headers: getAdminRequestHeaders(),
+        cache: "no-store",
+      });
+      const body = (await response.json().catch(() => null)) as
+        | (DocuSignProbeResult & { error?: string })
+        | null;
+      if (!response.ok || !body) {
+        throw new Error(body?.error ?? "The DocuSign check could not run.");
+      }
+      setDocusignProbe(body);
+    } catch (probeError) {
+      setDocusignProbe({
+        ok: false,
+        authorization: false,
+        templateFound: false,
+        customerRoleFound: false,
+        templateName: null,
+        documentCount: 0,
+        signatureTabCount: 0,
+        missingTabLabels: [],
+        connectHmacConfigured: false,
+        errorCode: "request_failed",
+        message:
+          probeError instanceof Error
+            ? probeError.message
+            : "The DocuSign check could not run.",
+      });
+    } finally {
+      setProbingDocusign(false);
+    }
+  }, []);
 
   const activeLegalDocument = data?.legalReviewPacket.documents.find(
     (document) => document.id === selectedLegalDocument,
@@ -218,6 +294,199 @@ function EnrollmentDeskContent() {
                   hashes and unlocks the controlled provider test.
                 </p>
               ) : null}
+            </GlassCard>
+
+            <GlassCard tone="subtle" padding="lg" motion="rise">
+              <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+                <div>
+                  <p className={craftEyebrow}>Activation map</p>
+                  <h2 className="mt-2 font-serif text-2xl font-light sm:text-3xl">
+                    Turn the handoff on without guesswork
+                  </h2>
+                  <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
+                    HomeAtlas now separates every owner action from every legal
+                    or provider dependency. Secrets stay server-only; this page
+                    exposes only safe URLs, required labels, and missing setting
+                    names.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={data.providerLaunchPlan.links.docusignAppsAndKeys}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 px-4 text-xs text-muted transition hover:border-accent/25 hover:text-foreground"
+                  >
+                    Apps &amp; Keys
+                  </a>
+                  <a
+                    href={data.providerLaunchPlan.links.docusignConnect}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 px-4 text-xs text-muted transition hover:border-accent/25 hover:text-foreground"
+                  >
+                    Connect webhooks
+                  </a>
+                  <a
+                    href={data.providerLaunchPlan.links.vercelEnvironmentVariables}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex min-h-11 items-center justify-center rounded-full border border-white/10 px-4 text-xs text-muted transition hover:border-accent/25 hover:text-foreground"
+                  >
+                    Vercel settings
+                  </a>
+                </div>
+              </div>
+
+              <div className="mt-7 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {data.providerLaunchPlan.steps.map((step, index) => (
+                  <div
+                    key={step.id}
+                    className={`rounded-2xl border p-4 ${
+                      step.status === "complete"
+                        ? "border-emerald-300/15 bg-emerald-300/[0.035]"
+                        : step.status === "action_needed"
+                          ? "border-accent/20 bg-accent/[0.055]"
+                          : "border-white/[0.08] bg-black/10"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.16em] text-muted">
+                          Step {index + 1}
+                        </span>
+                        <h3 className="mt-1 text-sm font-medium text-foreground">
+                          {step.label}
+                        </h3>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-[8px] font-semibold uppercase tracking-[0.12em] ${
+                          step.status === "complete"
+                            ? "bg-emerald-300/10 text-emerald-200"
+                            : step.status === "action_needed"
+                              ? "bg-accent/10 text-accent"
+                              : "bg-white/[0.06] text-muted"
+                        }`}
+                      >
+                        {step.status === "complete"
+                          ? "Done"
+                          : step.status === "action_needed"
+                            ? "Action"
+                            : "Waiting"}
+                      </span>
+                    </div>
+                    <p className="mt-3 text-xs leading-relaxed text-muted">
+                      {step.detail}
+                    </p>
+                    {step.missing.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {step.missing.map((missing) => (
+                          <code
+                            key={missing}
+                            className="rounded-md border border-white/[0.07] bg-black/20 px-2 py-1 text-[9px] text-muted"
+                          >
+                            {missing}
+                          </code>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-6 grid gap-4 xl:grid-cols-[0.56fr_0.44fr]">
+                <div className="rounded-2xl border border-white/[0.08] bg-black/10 p-4 sm:p-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
+                        DocuSign Connect callback
+                      </p>
+                      <p className="mt-2 break-all font-mono text-xs leading-relaxed text-foreground">
+                        {data.providerLaunchPlan.connectCallbackUrl}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        void navigator.clipboard
+                          .writeText(data.providerLaunchPlan.connectCallbackUrl)
+                          .then(() => setCopiedCallback(true));
+                      }}
+                      className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-white/10 px-4 text-xs text-muted hover:text-foreground"
+                    >
+                      {copiedCallback ? "Copied" : "Copy URL"}
+                    </button>
+                  </div>
+                  <p className="mt-3 text-xs leading-relaxed text-muted">
+                    Send JSON envelope events here with HMAC signing enabled.
+                    Customer role: <strong className="text-foreground">{data.providerLaunchPlan.customerRoleName}</strong>.
+                  </p>
+                  <details className="mt-4 rounded-xl border border-white/[0.07] bg-black/15 px-4 py-3">
+                    <summary className="cursor-pointer text-xs font-medium text-foreground">
+                      Template contract · {data.providerLaunchPlan.requiredTabLabels.length} locked fields
+                    </summary>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {data.providerLaunchPlan.requiredTabLabels.map((label) => (
+                        <code
+                          key={label}
+                          className="rounded-md bg-white/[0.045] px-2 py-1 text-[9px] text-muted"
+                        >
+                          {label}
+                        </code>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-[10px] leading-relaxed text-muted">
+                      Events: {data.providerLaunchPlan.requiredEnvelopeEvents.join(", ")}
+                    </p>
+                  </details>
+                </div>
+
+                <div className="rounded-2xl border border-accent/15 bg-accent/[0.045] p-4 sm:p-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
+                    Read-only provider check
+                  </p>
+                  <h3 className="mt-2 font-serif text-xl font-light">
+                    Prove the template before a customer can receive it
+                  </h3>
+                  <p className="mt-3 text-xs leading-relaxed text-muted">
+                    {data.providerLaunchPlan.probeSafetyNote}
+                  </p>
+                  <button
+                    type="button"
+                    disabled={
+                      probingDocusign ||
+                      !data.providerLaunchPlan.canRunDocuSignProbe
+                    }
+                    onClick={() => void runDocusignProbe()}
+                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-accent px-5 text-xs font-semibold text-on-accent transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {probingDocusign
+                      ? "Checking OAuth + template…"
+                      : data.providerLaunchPlan.canRunDocuSignProbe
+                        ? "Run read-only DocuSign check"
+                        : "Add JWT + template settings first"}
+                  </button>
+                  {docusignProbe ? (
+                    <div
+                      className={`mt-4 rounded-xl border px-4 py-3 text-xs leading-relaxed ${
+                        docusignProbe.ok
+                          ? "border-emerald-300/20 bg-emerald-300/[0.06] text-emerald-100"
+                          : "border-amber-300/20 bg-amber-300/[0.055] text-amber-100"
+                      }`}
+                    >
+                      <p className="font-medium">
+                        {docusignProbe.ok ? "Template contract passed" : "Still safely blocked"}
+                      </p>
+                      <p className="mt-1 opacity-80">{docusignProbe.message}</p>
+                      {docusignProbe.authorization ? (
+                        <p className="mt-2 text-[10px] opacity-75">
+                          {docusignProbe.documentCount} documents · {docusignProbe.signatureTabCount} signature tabs · {docusignProbe.missingTabLabels.length} missing locked fields
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
             </GlassCard>
 
             <GlassCard tone="subtle" padding="lg" motion="rise">

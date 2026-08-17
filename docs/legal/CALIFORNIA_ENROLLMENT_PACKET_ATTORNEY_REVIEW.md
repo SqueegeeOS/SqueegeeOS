@@ -63,6 +63,8 @@ Create one DocuSign template containing both documents in this order:
 
 The template must have one remote signer role named `Customer` and locked text tabs with the labels documented in `lib/enrollment/docusign-tabs.ts`. HomeAtlas will refuse to send unless both database document versions are approved and the provider configuration is complete.
 
+The private `/hq/enrollment` Activation Map now exposes the exact production Connect callback, Customer-role name, required tab-label manifest, missing environment-variable names, and ordered launch steps. Its DocuSign probe is read-only: it obtains an OAuth token and reads the configured template definition, documents, recipients, and recipient tabs. It does not create an envelope, send an email, approve a document version, or touch Stripe. A passing probe therefore proves the JWT/template contract only; the HMAC-signed Connect path still requires one business-owned end-to-end rehearsal.
+
 After counsel approves the exact PDFs/template:
 
 1. Calculate a SHA-256 hash for each approved source document.
@@ -70,8 +72,9 @@ After counsel approves the exact PDFs/template:
 3. Configure the DocuSign, legal identity, Stripe, Resend, and public-origin environment variables in Vercel.
 4. Grant DocuSign JWT impersonation consent once for the integration user.
 5. Configure DocuSign Connect to post JSON envelope events to `/api/integrations/docusign/connect` with HMAC signing enabled.
-6. Add `setup_intent.succeeded` to the existing Stripe webhook endpoint, then send a test packet to a business-controlled email, finish DocuSign, finish Stripe setup, and verify the portal.
-7. Only after that end-to-end test succeeds, set `STRIPE_ENROLLMENT_SETUP_WEBHOOK_CONFIRMED=true` and use the workflow with a real customer.
+6. Run the read-only DocuSign check in `/hq/enrollment` and resolve every template mismatch before any envelope is created.
+7. Add `setup_intent.succeeded` to the existing Stripe webhook endpoint, then send a test packet to a business-controlled email, finish DocuSign, finish Stripe setup, and verify the portal.
+8. Only after that end-to-end test succeeds, set `STRIPE_ENROLLMENT_SETUP_WEBHOOK_CONFIRMED=true` and use the workflow with a real customer.
 
 ## Sources counsel should review
 
