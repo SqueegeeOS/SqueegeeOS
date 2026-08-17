@@ -6,6 +6,10 @@ function read(relativePath: string): string {
 }
 
 const sendRoute = read("../../app/api/admin/enrollment-packets/route.ts");
+const preflightRoute = read(
+  "../../app/api/admin/enrollment/preflight/route.ts",
+);
+const preflight = read("./preflight.ts");
 const readinessRoute = read("../../app/api/admin/enrollment/readiness/route.ts");
 const docusignProbeRoute = read(
   "../../app/api/admin/enrollment/docusign/probe/route.ts",
@@ -59,6 +63,28 @@ describe("enrollment route security contract", () => {
     ).toBeLessThan(docusignProcessor.indexOf("createEnrollmentStripeHandoff"));
   });
 
+  it("keeps no-send rehearsal behind presentation ownership and free of side effects", () => {
+    expect(preflightRoute).toContain(
+      "authorizeSalesPresentationRequest(request.headers, presentationId)",
+    );
+    expect(preflightRoute.indexOf("authorizeSalesPresentationRequest")).toBeLessThan(
+      preflightRoute.indexOf("getPresentation(presentationId)"),
+    );
+    expect(preflightRoute).toContain("buildEnrollmentPreflightReport");
+    expect(preflight).toContain('mode: "no_side_effects"');
+    expect(`${preflightRoute}\n${preflight}`).not.toMatch(
+      /sendEnrollmentPacket|createDocuSignEnrollmentEnvelope|sendCreatedDocuSignEnvelope|createEnrollmentStripeHandoff|createServiceRoleSupabaseClient/,
+    );
+    expect(preflightRoute).not.toMatch(
+      /\.(insert|update|delete)\(/,
+    );
+  });
+
+  it("parses preflight and send requests through the same contract", () => {
+    expect(sendRoute).toContain("parseEnrollmentSubmission(body)");
+    expect(preflightRoute).toContain("parseEnrollmentSubmission(body)");
+  });
+
   it("keeps the read-only DocuSign probe behind HQ auth and away from envelope writes", () => {
     expect(docusignProbeRoute).toContain("authorizeAdminRequest(request.headers)");
     expect(docusignProbeRoute).toContain("probeDocuSignEnrollmentTemplate");
@@ -73,7 +99,9 @@ describe("enrollment route security contract", () => {
   });
 
   it("keeps cash/check owner-only and structurally outside every Stripe handoff", () => {
-    expect(sendRoute).toContain('selectedPaymentRail === "manual_cash_check"');
+    expect(sendRoute).toContain(
+      'parsed.value.paymentRail === "manual_cash_check"',
+    );
     expect(sendRoute).toContain('actor.kind !== "admin"');
     expect(docusignProcessor).toContain(
       'packet.payment_rail === "manual_cash_check"',

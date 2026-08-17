@@ -5,13 +5,8 @@ import {
   EnrollmentNotReadyError,
   sendEnrollmentPacket,
 } from "@/lib/enrollment/send-packet";
-import type { EnrollmentSalesContext } from "@/lib/enrollment/types";
-import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 import { loadEnrollmentPacketStatus } from "@/lib/enrollment/packet-status-server";
-import {
-  DEFAULT_PAYMENT_RAIL,
-  isPaymentRail,
-} from "@/lib/billing/payment-rail";
+import { parseEnrollmentSubmission } from "@/lib/enrollment/submission";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,27 +14,6 @@ export const dynamic = "force-dynamic";
 
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-}
-function positivePrice(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) && parsed > 0 && parsed <= 1_000_000
-    ? Math.round(parsed * 100) / 100
-    : null;
-}
-
-function tier(value: unknown): SqueegeeKingTierId | null {
-  return value === "biannual" || value === "triannual" || value === "quarterly"
-    ? value
-    : null;
-}
-
-function salesContext(value: unknown): EnrollmentSalesContext | null {
-  return value === "customer_home" ||
-    value === "business_premises" ||
-    value === "remote" ||
-    value === "other"
-    ? value
-    : null;
 }
 
 export async function GET(request: Request) {
@@ -72,39 +46,17 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
-    const presentationId =
-      typeof body.presentationId === "string" ? body.presentationId.trim() : "";
+    const parsed = parseEnrollmentSubmission(body);
+    const presentationId = parsed.ok
+      ? parsed.value.presentationId
+      : parsed.presentationId;
     const actor = presentationId
       ? await authorizeSalesPresentationRequest(request.headers, presentationId)
       : null;
     if (!presentationId || !actor) {
       return unauthorized();
     }
-    const selectedTier = tier(body.tier);
-    const firstVisitPrice = positivePrice(body.firstVisitPrice);
-    const recurringVisitPrice = positivePrice(body.recurringVisitPrice);
-    const annualizedValue = positivePrice(body.annualizedValue);
-    const context = salesContext(body.salesContext);
-    const selectedPaymentRail =
-      body.paymentRail === undefined
-        ? DEFAULT_PAYMENT_RAIL
-        : isPaymentRail(body.paymentRail)
-          ? body.paymentRail
-          : null;
-    const noticeDays =
-      body.homeSolicitationNoticeDays === 3 ||
-      body.homeSolicitationNoticeDays === 5
-        ? body.homeSolicitationNoticeDays
-        : null;
-    if (
-      !presentationId ||
-      !selectedTier ||
-      !firstVisitPrice ||
-      !recurringVisitPrice ||
-      !annualizedValue ||
-      !context ||
-      !selectedPaymentRail
-    ) {
+    if (!parsed.ok) {
       return NextResponse.json(
         { error: "Complete the customer, plan, rates, and sales context first." },
         { status: 400 },
@@ -112,7 +64,7 @@ export async function POST(request: Request) {
     }
 
     if (
-      selectedPaymentRail === "manual_cash_check" &&
+      parsed.value.paymentRail === "manual_cash_check" &&
       actor.kind !== "admin"
     ) {
       return NextResponse.json(
@@ -137,13 +89,14 @@ export async function POST(request: Request) {
 
     const result = await sendEnrollmentPacket({
       presentation,
-      tier: selectedTier,
-      firstVisitPrice,
-      recurringVisitPrice,
-      annualizedValue,
-      salesContext: context,
-      homeSolicitationNoticeDays: context === "customer_home" ? noticeDays : null,
-      paymentRail: selectedPaymentRail,
+      tier: parsed.value.tier,
+      firstVisitPrice: parsed.value.firstVisitPrice,
+      recurringVisitPrice: parsed.value.recurringVisitPrice,
+      annualizedValue: parsed.value.annualizedValue,
+      salesContext: parsed.value.salesContext,
+      homeSolicitationNoticeDays:
+        parsed.value.homeSolicitationNoticeDays,
+      paymentRail: parsed.value.paymentRail,
       actor:
         actor.kind === "admin"
           ? "homeatlas_hq"
