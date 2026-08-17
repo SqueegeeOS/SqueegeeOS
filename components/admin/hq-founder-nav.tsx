@@ -18,7 +18,8 @@ function cn(...parts: Array<string | false | null | undefined>): string {
 
 const FOUNDER_NAV_ITEMS = [
   { label: "Today", href: ROUTES.hqToday },
-  { label: "Pulse", href: ROUTES.hqActivation, accent: true },
+  { label: "Atlas", href: ROUTES.hqAtlas, accent: true },
+  { label: "Pulse", href: ROUTES.hqActivation },
   { label: "Requests", href: ROUTES.hqPendingRequests, requests: true },
   { label: "Sales", href: ROUTES.hqSales },
   { label: "Enroll", href: ROUTES.hqEnrollment },

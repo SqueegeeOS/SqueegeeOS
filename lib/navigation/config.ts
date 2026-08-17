@@ -16,6 +16,7 @@ export const ROUTES = {
   requests: "/employee/requests",
   settings: "/employee/settings",
   hq: "/hq",
+  hqAtlas: "/hq/atlas",
   hqOurStory: "/hq/our-story",
   hqCarePlanBuilder: "/hq/care-plan-builder",
   hqPricingSettings: "/hq/settings/pricing",
