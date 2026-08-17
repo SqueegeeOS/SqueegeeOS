@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export type EnrollmentLegalReviewDocumentId =
   | "master_service_agreement"
   | "service_quote_agreement"
@@ -16,10 +18,20 @@ export interface EnrollmentLegalReviewDocument {
   status: "working_draft" | "lawyer_text_required";
   sections: EnrollmentLegalReviewSection[];
   reviewFocus: string[];
+  integrity: EnrollmentLegalReviewIntegrity;
+}
+
+export interface EnrollmentLegalReviewIntegrity {
+  algorithm: "sha256";
+  schema: "homeatlas-legal-review-v1";
+  scope: "internal_review_copy";
+  sha256: string;
 }
 
 export interface EnrollmentLegalReviewPacket {
   packetLabel: string;
+  packetRevision: string;
+  sourceCheckedAt: string;
   summary: string;
   documents: EnrollmentLegalReviewDocument[];
   customerJourney: Array<{
@@ -32,6 +44,86 @@ export interface EnrollmentLegalReviewPacket {
     label: string;
     href: string;
   }>;
+  integrity: EnrollmentLegalReviewIntegrity;
+}
+
+type EnrollmentLegalReviewDocumentSource = Omit<
+  EnrollmentLegalReviewDocument,
+  "integrity"
+>;
+
+type EnrollmentLegalReviewPacketSource = Omit<
+  EnrollmentLegalReviewPacket,
+  "documents" | "integrity"
+> & {
+  documents: EnrollmentLegalReviewDocumentSource[];
+};
+
+const LEGAL_REVIEW_INTEGRITY_SCHEMA = "homeatlas-legal-review-v1" as const;
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+export function canonicalLegalReviewDocumentCopy(
+  document: EnrollmentLegalReviewDocumentSource,
+): string {
+  return JSON.stringify([
+    LEGAL_REVIEW_INTEGRITY_SCHEMA,
+    document.id,
+    document.title,
+    document.version,
+    document.purpose,
+    document.status,
+    document.sections.map((section) => [
+      section.heading,
+      ...section.paragraphs,
+    ]),
+    document.reviewFocus,
+  ]);
+}
+
+function reviewIntegrity(value: string): EnrollmentLegalReviewIntegrity {
+  return {
+    algorithm: "sha256",
+    schema: LEGAL_REVIEW_INTEGRITY_SCHEMA,
+    scope: "internal_review_copy",
+    sha256: sha256(value),
+  };
+}
+
+function attachDocumentIntegrity(
+  document: EnrollmentLegalReviewDocumentSource,
+): EnrollmentLegalReviewDocument {
+  return {
+    ...document,
+    integrity: reviewIntegrity(canonicalLegalReviewDocumentCopy(document)),
+  };
+}
+
+function canonicalLegalReviewPacketCopy(input: {
+  packet: EnrollmentLegalReviewPacketSource;
+  documents: EnrollmentLegalReviewDocument[];
+}): string {
+  return JSON.stringify([
+    LEGAL_REVIEW_INTEGRITY_SCHEMA,
+    input.packet.packetLabel,
+    input.packet.packetRevision,
+    input.packet.sourceCheckedAt,
+    input.packet.summary,
+    input.documents.map((document) => [
+      document.id,
+      document.version,
+      document.integrity.sha256,
+    ]),
+    input.packet.customerJourney.map((step) => [
+      step.step,
+      step.title,
+      step.detail,
+    ]),
+    input.packet.operatingRules,
+    input.packet.sourceLinks.map((source) => [source.label, source.href]),
+  ]);
 }
 
 /**
@@ -41,8 +133,10 @@ export interface EnrollmentLegalReviewPacket {
  * versioned, hashed agreement rows in Supabase.
  */
 export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
-  return {
+  const packet: EnrollmentLegalReviewPacketSource = {
     packetLabel: "California HomeAtlas enrollment packet",
+    packetRevision: "2026-08-17.1",
+    sourceCheckedAt: "2026-08-16",
     summary:
       "One DocuSign envelope contains the durable Master Service Agreement and the property-specific Service & Quote Agreement. The complete proposed drafts now cover service standards, visit-by-visit scope, card or owner-approved cash/check, add-ons, renewal, cancellation, responsibility, and dispute handling. After signing, a separate Stripe-hosted page collects a card when that rail is selected. HomeAtlas retains the exact document snapshot, provider evidence, and portal handoff as one enrollment record.",
     documents: [
@@ -309,5 +403,13 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
         href: "https://oag.ca.gov/news/press-releases/attorney-general-bonta-issues-consumer-alert-california%E2%80%99s-automatic-renewal-law",
       },
     ],
+  };
+  const documents = packet.documents.map(attachDocumentIntegrity);
+  return {
+    ...packet,
+    documents,
+    integrity: reviewIntegrity(
+      canonicalLegalReviewPacketCopy({ packet, documents }),
+    ),
   };
 }
