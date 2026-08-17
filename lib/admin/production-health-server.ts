@@ -554,7 +554,6 @@ async function runStorageChecks(): Promise<ProductionHealthSection> {
               limit: 100,
               offset: 0,
               sortBy: { column: "created_at", order: "desc" },
-              search: ".pdf",
             });
 
           if (agreementObjectsError) {
