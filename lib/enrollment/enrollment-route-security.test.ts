@@ -55,4 +55,19 @@ describe("enrollment route security contract", () => {
       docusignProcessor.indexOf("completeRemoteEnrollmentSignature"),
     ).toBeLessThan(docusignProcessor.indexOf("createEnrollmentStripeHandoff"));
   });
+
+  it("keeps cash/check owner-only and structurally outside every Stripe handoff", () => {
+    expect(sendRoute).toContain('selectedPaymentRail === "manual_cash_check"');
+    expect(sendRoute).toContain('actor.kind !== "admin"');
+    expect(docusignProcessor).toContain(
+      'packet.payment_rail === "manual_cash_check"',
+    );
+    expect(docusignProcessor).toContain("completeManualPaymentHandoff");
+    expect(
+      docusignProcessor.indexOf('packet.payment_rail === "manual_cash_check"'),
+    ).toBeLessThan(docusignProcessor.lastIndexOf("createEnrollmentStripeHandoff"));
+    expect(stripeHandoff).toContain(
+      'input.packet.payment_rail !== "stripe_card"',
+    );
+  });
 });

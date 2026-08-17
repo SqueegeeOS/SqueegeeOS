@@ -70,6 +70,7 @@ describe("attorney-controlled enrollment snapshot", () => {
       annualizedValue: 900,
       salesContext: "customer_home",
       homeSolicitationNoticeDays: 3,
+      paymentRail: "stripe_card",
       createdAt: "2026-08-15T12:30:00.000Z",
     });
 
@@ -109,6 +110,7 @@ describe("attorney-controlled enrollment snapshot", () => {
         annualizedValue: 900,
         salesContext: "customer_home",
         homeSolicitationNoticeDays: null,
+        paymentRail: "stripe_card",
       }),
     ).toThrow(/3-day or senior 5-day/);
   });
@@ -123,7 +125,28 @@ describe("attorney-controlled enrollment snapshot", () => {
         annualizedValue: 900,
         salesContext: "remote",
         homeSolicitationNoticeDays: 3,
+        paymentRail: "stripe_card",
       }),
     ).toThrow(/only valid for a customer-home sale/);
+  });
+
+  it("freezes an owner-approved cash or check arrangement without card authorization", () => {
+    const snapshot = buildEnrollmentDocumentSnapshot({
+      presentation: presentation(),
+      tier: "quarterly",
+      firstVisitPrice: 275,
+      recurringVisitPrice: 200,
+      annualizedValue: 900,
+      salesContext: "remote",
+      homeSolicitationNoticeDays: null,
+      paymentRail: "manual_cash_check",
+    });
+
+    expect(snapshot.schemaVersion).toBe(2);
+    expect(snapshot.payment).toMatchObject({ rail: "manual_cash_check" });
+    expect(snapshot.disclosures.billingSummary).toContain("cash or check");
+    expect(snapshot.disclosures.billingConsent).toContain(
+      "not authorized for automatic card charges",
+    );
   });
 });

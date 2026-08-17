@@ -11,6 +11,7 @@ import {
   PRESENTATION_LAYOUT_OPTIONS,
   summarizeCarePlan,
   type CarePlanPresetId,
+  type CarePlanPricedServiceId,
   type CarePlanServiceId,
   type CarePlanServicePolicy,
   type CarePlanServiceState,
@@ -49,12 +50,17 @@ const PLAN_PRESETS: Array<{
   {
     id: "flexible_add_ons",
     label: "Ask each visit",
-    description: "Interior, screens, and cobwebbing stay optional.",
+    description: "Every extra service stays optional until confirmed.",
   },
   {
     id: "full_service",
     label: "Whole-home care",
     description: "Interior, screens, and cobwebbing every visit.",
+  },
+  {
+    id: "solar_window_rotation",
+    label: "Solar + glass rotation",
+    description: "Solar, solar + exterior, solar, then exterior.",
   },
 ];
 
@@ -62,6 +68,7 @@ const ASSISTANT_EXAMPLES = [
   "Quarterly exterior. Interior once a year. Screens only if they ask.",
   "Mandi wants exterior and screens every visit, with interior on the first visit each year.",
   "Bi-annual exterior. Ask about screens, interior, and cobwebbing before each visit.",
+  "Quarterly: solar panels first, exterior windows plus panels second, panels third, exterior windows fourth. Interior is optional for $150.",
 ];
 
 const SERVICE_POLICY_OPTIONS: Array<{
@@ -76,24 +83,58 @@ const SERVICE_POLICY_OPTIONS: Array<{
 
 const CARE_PLAN_SERVICES: Array<{
   id: CarePlanServiceId;
+  priceId: CarePlanPricedServiceId | null;
   label: string;
   description: string;
 }> = [
   {
+    id: "exteriorWindows",
+    priceId: null,
+    label: "Exterior windows",
+    description: "Uses the base visit price and can now vary by visit.",
+  },
+  {
     id: "screens",
+    priceId: "screens",
     label: "Screen cleaning",
     description: "Standard presentation add-on is $50 when included.",
   },
   {
     id: "interiorWindows",
+    priceId: "interiorWindows",
     label: "Interior windows",
     description: "Standard presentation add-on is $100 when included.",
   },
   {
     id: "cobwebRemoval",
+    priceId: "cobwebRemoval",
     label: "Cobweb removal",
     description: "Editable field price; never part of the website estimate.",
   },
+  {
+    id: "solarPanels",
+    priceId: "solarPanels",
+    label: "Solar panels",
+    description: "Property-specific. Quote it here or set the exact visit total.",
+  },
+  {
+    id: "pressureWashing",
+    priceId: "pressureWashing",
+    label: "Pressure washing",
+    description: "Property-specific. Never added to a website estimate automatically.",
+  },
+];
+
+const VISIT_SERVICE_CONTROLS: Array<{
+  id: CarePlanServiceId;
+  label: string;
+}> = [
+  { id: "exteriorWindows", label: "Exterior windows" },
+  { id: "solarPanels", label: "Solar panels" },
+  { id: "interiorWindows", label: "Interior windows" },
+  { id: "screens", label: "Screens" },
+  { id: "cobwebRemoval", label: "Cobweb removal" },
+  { id: "pressureWashing", label: "Pressure washing" },
 ];
 
 type AssistantResponse = {
@@ -174,51 +215,46 @@ function VisitEditor({
         ) : null}
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <div className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.04] px-3 py-2.5">
-          <p className="text-[10px] uppercase tracking-[0.14em] text-emerald-200/60">
-            Exterior
-          </p>
-          <p className="mt-1 text-sm text-emerald-100">Always included</p>
-        </div>
+      <div className="mt-4 grid grid-cols-1 gap-3">
         <div className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5">
           <p className="text-[10px] uppercase tracking-[0.14em] text-white/40">
             Scope
           </p>
           <p className="mt-1 truncate text-sm text-white/65">
             {[
+              visit.exteriorWindows,
               visit.interiorWindows,
               visit.screens,
               visit.cobwebRemoval,
-            ].filter((state) => state === "included").length} add-on service
+              visit.solarPanels,
+              visit.pressureWashing,
+            ].filter((state) => state === "included").length} service
             {[
+              visit.exteriorWindows,
               visit.interiorWindows,
               visit.screens,
               visit.cobwebRemoval,
+              visit.solarPanels,
+              visit.pressureWashing,
             ].filter((state) => state === "included").length === 1
               ? ""
               : "s"}{" "}
-            included
+            included this visit
           </p>
         </div>
       </div>
 
-      <div className="mt-3 grid gap-3 sm:grid-cols-3">
-        <ServiceStateControl
-          label="Interior windows"
-          value={visit.interiorWindows}
-          onChange={(interiorWindows) => onChange({ ...visit, interiorWindows })}
-        />
-        <ServiceStateControl
-          label="Screens"
-          value={visit.screens}
-          onChange={(screens) => onChange({ ...visit, screens })}
-        />
-        <ServiceStateControl
-          label="Cobweb removal"
-          value={visit.cobwebRemoval}
-          onChange={(cobwebRemoval) => onChange({ ...visit, cobwebRemoval })}
-        />
+      <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {VISIT_SERVICE_CONTROLS.map((service) => (
+          <ServiceStateControl
+            key={service.id}
+            label={service.label}
+            value={visit[service.id]}
+            onChange={(state) =>
+              onChange({ ...visit, [service.id]: state })
+            }
+          />
+        ))}
       </div>
 
       <details className="mt-4 border-t border-white/[0.07] pt-3">
@@ -306,7 +342,10 @@ export function PresentationPlanStudio({
     );
   };
 
-  const setServicePrice = (serviceId: CarePlanServiceId, value: number) => {
+  const setServicePrice = (
+    serviceId: CarePlanPricedServiceId,
+    value: number,
+  ) => {
     setPlan({
       ...presentation.carePlan,
       servicePrices: {
@@ -532,7 +571,7 @@ export function PresentationPlanStudio({
                 </p>
               </div>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-3">
+              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {CARE_PLAN_SERVICES.map((service) => {
                   const policy = deriveCarePlanServicePolicy(
                     presentation.carePlan,
@@ -570,7 +609,7 @@ export function PresentationPlanStudio({
                           ))}
                         </select>
                       </label>
-                      <label className="mt-3 block">
+                      {service.priceId ? <label className="mt-3 block">
                         <span className="mb-1.5 block text-[9px] uppercase tracking-[0.14em] text-white/40">
                           Price when included
                         </span>
@@ -583,10 +622,10 @@ export function PresentationPlanStudio({
                             inputMode="decimal"
                             min="0"
                             step="1"
-                            value={presentation.carePlan.servicePrices[service.id]}
+                            value={presentation.carePlan.servicePrices[service.priceId]}
                             onChange={(event) =>
                               setServicePrice(
-                                service.id,
+                                service.priceId!,
                                 Number.parseFloat(event.target.value),
                               )
                             }
@@ -594,7 +633,11 @@ export function PresentationPlanStudio({
                             className="min-h-11 w-full rounded-xl border border-white/10 bg-[#121212] pl-7 pr-3 text-sm text-white outline-none focus:border-[#c9a96e]/60"
                           />
                         </div>
-                      </label>
+                      </label> : (
+                        <p className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 py-2.5 text-[10px] leading-relaxed text-white/45">
+                          Included visits use the presentation&apos;s exterior base rate.
+                        </p>
+                      )}
                       {policy === "selected_visits" ? (
                         <p className="mt-2 text-[10px] leading-relaxed text-[#d8c28f]/70">
                           Choose Included, Optional, or Not included on each visit below.

@@ -8,6 +8,10 @@ import {
 import type { EnrollmentSalesContext } from "@/lib/enrollment/types";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 import { loadEnrollmentPacketStatus } from "@/lib/enrollment/packet-status-server";
+import {
+  DEFAULT_PAYMENT_RAIL,
+  isPaymentRail,
+} from "@/lib/billing/payment-rail";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -70,10 +74,10 @@ export async function POST(request: Request) {
     const body = (await request.json()) as Record<string, unknown>;
     const presentationId =
       typeof body.presentationId === "string" ? body.presentationId.trim() : "";
-    if (
-      !presentationId ||
-      !(await authorizeSalesPresentationRequest(request.headers, presentationId))
-    ) {
+    const actor = presentationId
+      ? await authorizeSalesPresentationRequest(request.headers, presentationId)
+      : null;
+    if (!presentationId || !actor) {
       return unauthorized();
     }
     const selectedTier = tier(body.tier);
@@ -81,6 +85,12 @@ export async function POST(request: Request) {
     const recurringVisitPrice = positivePrice(body.recurringVisitPrice);
     const annualizedValue = positivePrice(body.annualizedValue);
     const context = salesContext(body.salesContext);
+    const selectedPaymentRail =
+      body.paymentRail === undefined
+        ? DEFAULT_PAYMENT_RAIL
+        : isPaymentRail(body.paymentRail)
+          ? body.paymentRail
+          : null;
     const noticeDays =
       body.homeSolicitationNoticeDays === 3 ||
       body.homeSolicitationNoticeDays === 5
@@ -92,11 +102,25 @@ export async function POST(request: Request) {
       !firstVisitPrice ||
       !recurringVisitPrice ||
       !annualizedValue ||
-      !context
+      !context ||
+      !selectedPaymentRail
     ) {
       return NextResponse.json(
         { error: "Complete the customer, plan, rates, and sales context first." },
         { status: 400 },
+      );
+    }
+
+    if (
+      selectedPaymentRail === "manual_cash_check" &&
+      actor.kind !== "admin"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Cash/check accounts require HomeAtlas owner approval. Save the presentation and ask HQ to send this packet.",
+        },
+        { status: 403 },
       );
     }
 
@@ -119,6 +143,11 @@ export async function POST(request: Request) {
       annualizedValue,
       salesContext: context,
       homeSolicitationNoticeDays: context === "customer_home" ? noticeDays : null,
+      paymentRail: selectedPaymentRail,
+      actor:
+        actor.kind === "admin"
+          ? "homeatlas_hq"
+          : `sales_rep:${actor.repSlug}`,
     });
     return NextResponse.json(result);
   } catch (error) {

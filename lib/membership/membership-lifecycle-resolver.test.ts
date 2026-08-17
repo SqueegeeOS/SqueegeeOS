@@ -60,7 +60,7 @@ describe("resolveMembershipLifecycle", () => {
 
     expect(result.state).toBe("inconsistent");
     expect(result.inconsistencies).toContain(
-      "status_active_without_payment_setup_completed_at",
+      "status_active_without_payment_arrangement",
     );
   });
 

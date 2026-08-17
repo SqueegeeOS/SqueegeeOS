@@ -18,6 +18,7 @@ export interface AutomaticBillingMembershipInput {
   stripePaymentMethodId: string | null;
   visitPrice: number | null;
   automaticBillingEnabled: boolean;
+  paymentRail: "stripe_card" | "manual_cash_check";
   billingAuthorizationIssues: string[];
 }
 
@@ -89,6 +90,9 @@ export function automaticBillingBlockingReasons(input: {
   const appointment = input.appointment;
 
   if (membership.status !== "active") reasons.push("membership_not_active");
+  if (membership.paymentRail !== "stripe_card") {
+    reasons.push("membership_payment_rail_not_stripe");
+  }
   reasons.push(...membership.billingAuthorizationIssues);
   if (!membership.paymentSetupCompletedAt) {
     reasons.push("payment_setup_incomplete");

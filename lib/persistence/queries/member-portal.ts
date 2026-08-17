@@ -147,6 +147,9 @@ interface MembershipRow {
   payment_setup_completed_at: string | null;
   presentation_id: string | null;
   stripe_payment_method_id: string | null;
+  payment_rail: "stripe_card" | "manual_cash_check";
+  manual_payment_approved_at: string | null;
+  manual_payment_approved_by: string | null;
   agreement_id: string | null;
   membership_enrollment_savings: number | null;
 }
@@ -387,6 +390,11 @@ function buildMemberProfileFromHomeowner(
       status: membership?.status ?? "inactive",
       payment_setup_completed_at: membership?.payment_setup_completed_at ?? null,
       stripe_payment_method_id: membership?.stripe_payment_method_id ?? null,
+      payment_rail: membership?.payment_rail,
+      manual_payment_approved_at:
+        membership?.manual_payment_approved_at ?? null,
+      manual_payment_approved_by:
+        membership?.manual_payment_approved_by ?? null,
       agreement_id: membership?.agreement_id ?? undefined,
       sales_tier: membership?.sales_tier ?? undefined,
       visit_price: membership?.visit_price ?? undefined,
@@ -425,6 +433,11 @@ function buildMemberProfile(
       status: membership?.status ?? "inactive",
       payment_setup_completed_at: membership?.payment_setup_completed_at ?? null,
       stripe_payment_method_id: membership?.stripe_payment_method_id ?? null,
+      payment_rail: membership?.payment_rail,
+      manual_payment_approved_at:
+        membership?.manual_payment_approved_at ?? null,
+      manual_payment_approved_by:
+        membership?.manual_payment_approved_by ?? null,
       agreement_id: membership?.agreement_id ?? undefined,
       sales_tier: membership?.sales_tier ?? undefined,
       visit_price: membership?.visit_price ?? undefined,
@@ -528,11 +541,14 @@ export async function getMemberPortalDataBySlugs(
     { count: profile ? 1 : 0 },
   );
 
-  const paymentMethodLabel = membershipRow?.payment_setup_completed_at
-    ? await resolvePortalPaymentMethodLabel(
-        membershipRow.stripe_payment_method_id,
-      )
-    : null;
+  const paymentMethodLabel =
+    membershipRow?.payment_rail === "manual_cash_check"
+      ? "Cash or check account"
+      : membershipRow?.payment_setup_completed_at
+        ? await resolvePortalPaymentMethodLabel(
+            membershipRow.stripe_payment_method_id,
+          )
+        : null;
 
   const { data: agreementRow } = await supabase
     .from("signed_agreements")
@@ -858,6 +874,11 @@ export async function getMemberPortalDataBySlugs(
           status: membershipRow.status,
           payment_setup_completed_at: membershipRow.payment_setup_completed_at,
           stripe_payment_method_id: membershipRow.stripe_payment_method_id,
+          payment_rail: membershipRow.payment_rail,
+          manual_payment_approved_at:
+            membershipRow.manual_payment_approved_at,
+          manual_payment_approved_by:
+            membershipRow.manual_payment_approved_by,
           agreement_id: membershipRow.agreement_id ?? undefined,
           sales_tier: membershipRow.sales_tier ?? undefined,
           visit_price: membershipRow.visit_price ?? undefined,

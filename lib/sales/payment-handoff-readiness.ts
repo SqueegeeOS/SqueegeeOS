@@ -76,5 +76,6 @@ export function resolveSalesPaymentSetupEmailState(input: {
     billingAuthorizationVersion: agreement.billing_authorization_version,
     billingAuthorizedAt: agreement.billing_authorized_at,
     billingTermsHash: agreement.billing_terms_hash,
+    paymentRail: membership.payment_rail,
   });
 }

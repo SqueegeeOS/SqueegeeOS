@@ -43,6 +43,9 @@ export async function createEnrollmentStripeHandoff(input: {
   emailSent: boolean;
   reused: boolean;
 }> {
+  if (input.packet.payment_rail !== "stripe_card") {
+    throw new Error("Cash/check enrollment never creates a Stripe handoff.");
+  }
   if (!isStripeServerEnabled()) {
     throw new Error("Stripe is not configured for the enrollment handoff.");
   }
@@ -50,7 +53,7 @@ export async function createEnrollmentStripeHandoff(input: {
   const membershipResult = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, presentation_id, stripe_customer_id, status",
+      "id, homeowner_id, property_id, presentation_id, payment_rail, stripe_customer_id, status",
     )
     .eq("id", input.membershipId)
     .maybeSingle();
@@ -59,6 +62,9 @@ export async function createEnrollmentStripeHandoff(input: {
   const membership = membershipResult.data;
   if (membership.presentation_id !== input.packet.presentation_id) {
     throw new Error("Enrollment packet and membership presentation do not match.");
+  }
+  if (membership.payment_rail !== "stripe_card") {
+    throw new Error("This membership is not a Stripe-card account.");
   }
 
   const stripe = getStripe();

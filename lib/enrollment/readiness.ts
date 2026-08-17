@@ -12,6 +12,7 @@ import {
   resolveDocuSignConfig,
 } from "@/lib/integrations/docusign";
 import type { ApprovedAgreementVersion } from "./types";
+import type { PaymentRail } from "@/lib/billing/payment-rail";
 
 export interface EnrollmentLegalIdentity {
   companyName: string;
@@ -36,6 +37,17 @@ export interface EnrollmentReadiness {
     serviceQuote: ApprovedAgreementVersion | null;
   };
   legalIdentity: EnrollmentLegalIdentity | null;
+}
+
+export function enrollmentReadyForPaymentRail(
+  readiness: EnrollmentReadiness,
+  paymentRail: PaymentRail,
+): boolean {
+  return readiness.checks.every(
+    (check) =>
+      check.ready ||
+      (paymentRail === "manual_cash_check" && check.id === "stripe"),
+  );
 }
 
 function env(name: string): string {

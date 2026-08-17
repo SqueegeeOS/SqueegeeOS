@@ -89,6 +89,7 @@ function MonthViewSection({
 }) {
   const planBreakdown = [
     { label: "Quarterly visits", value: monthView.visitsByPlanType.quarterly },
+    { label: "3× / year visits", value: monthView.visitsByPlanType.triannual },
     { label: "Bi-Annual visits", value: monthView.visitsByPlanType.biannual },
     { label: "Unknown plan", value: monthView.visitsByPlanType.unknown },
   ];
@@ -214,7 +215,8 @@ function CommandCenterContent() {
   }, []);
 
   useEffect(() => {
-    void loadData();
+    const timer = window.setTimeout(() => void loadData(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadData]);
 
   return (

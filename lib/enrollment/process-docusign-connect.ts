@@ -9,6 +9,7 @@ import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/clie
 import { completeRemoteEnrollmentSignature } from "./complete-remote-signature";
 import { createEnrollmentStripeHandoff } from "./stripe-handoff";
 import type { EnrollmentPacketRow } from "./types";
+import { completeManualPaymentHandoff } from "./manual-payment-handoff";
 
 type PacketWithVersions = EnrollmentPacketRow & {
   msa_version_id: string;
@@ -46,7 +47,12 @@ export async function processDocuSignEnrollmentConnect(input: {
   event: DocuSignEnvelopeEvent;
   rawBody: string;
 }): Promise<{
-  status: "ignored" | "recorded" | "payment_sent" | "already_processed";
+  status:
+    | "ignored"
+    | "recorded"
+    | "payment_sent"
+    | "portal_ready"
+    | "already_processed";
   packetId: string | null;
 }> {
   const supabase = createServiceRoleSupabaseClient();
@@ -168,7 +174,14 @@ export async function processDocuSignEnrollmentConnect(input: {
       return { status: "already_processed", packetId: packet.id };
     }
     if (!packet.membership_id) {
-      throw new Error("Signed packet has no membership for Stripe setup.");
+      throw new Error("Signed packet has no membership for activation.");
+    }
+    if (packet.payment_rail === "manual_cash_check") {
+      await completeManualPaymentHandoff({
+        packet,
+        membershipId: packet.membership_id,
+      });
+      return { status: "portal_ready", packetId: packet.id };
     }
     await createEnrollmentStripeHandoff({
       packet,

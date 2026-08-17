@@ -223,10 +223,12 @@ async function buildProgrammaticAgreement(
     for (const [index, visit] of input.carePlan.visits.entries()) {
       const scheduledPrice = input.carePlanPricing?.visits[index]?.total;
       const scope = [
-        "Exterior windows included",
+        `Exterior windows: ${serviceStateLabel(visit.exteriorWindows).toLowerCase()}`,
         `Interior windows: ${serviceStateLabel(visit.interiorWindows).toLowerCase()}`,
         `Screens: ${serviceStateLabel(visit.screens).toLowerCase()}`,
         `Cobweb removal: ${serviceStateLabel(visit.cobwebRemoval).toLowerCase()}`,
+        `Solar panels: ${serviceStateLabel(visit.solarPanels).toLowerCase()}`,
+        `Pressure washing: ${serviceStateLabel(visit.pressureWashing).toLowerCase()}`,
       ].join("; ");
       layout.drawParagraph(
         `${index + 1}. ${visit.label} (${visit.timing})${

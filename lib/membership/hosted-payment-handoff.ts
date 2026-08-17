@@ -108,13 +108,18 @@ async function loadSignedMembershipContext(
   const membershipResult = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, presentation_id, agreement_id, status, stripe_customer_id, stripe_payment_method_id, payment_setup_completed_at",
+      "id, homeowner_id, property_id, presentation_id, agreement_id, status, payment_rail, stripe_customer_id, stripe_payment_method_id, payment_setup_completed_at",
     )
     .eq("id", membershipId)
     .maybeSingle();
   if (membershipResult.error) throw new Error(membershipResult.error.message);
   const membership = membershipResult.data;
   if (!membership) throw new Error("Membership not found.");
+  if (membership.payment_rail !== "stripe_card") {
+    throw new Error(
+      "Cash/check accounts cannot receive a Stripe card setup link.",
+    );
+  }
   if (
     membership.status !== "pending_payment" ||
     membership.payment_setup_completed_at ||

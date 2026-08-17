@@ -12,12 +12,16 @@ import {
   buildEnrollmentDocumentSnapshot,
   normalizeEnrollmentEmail,
 } from "./document-snapshot";
-import { getEnrollmentReadiness } from "./readiness";
+import {
+  enrollmentReadyForPaymentRail,
+  getEnrollmentReadiness,
+} from "./readiness";
 import { enrollmentTokenSha256, generateEnrollmentToken } from "./token";
 import type {
   EnrollmentPacketRow,
   EnrollmentSalesContext,
 } from "./types";
+import type { PaymentRail } from "@/lib/billing/payment-rail";
 
 export class EnrollmentNotReadyError extends Error {
   constructor(
@@ -88,6 +92,8 @@ export async function sendEnrollmentPacket(input: {
   annualizedValue: number;
   salesContext: EnrollmentSalesContext;
   homeSolicitationNoticeDays: 3 | 5 | null;
+  paymentRail: PaymentRail;
+  actor: string;
 }): Promise<{
   packetId: string;
   status: "signature_sent";
@@ -97,7 +103,7 @@ export async function sendEnrollmentPacket(input: {
 }> {
   const readiness = await getEnrollmentReadiness();
   if (
-    !readiness.readyToSend ||
+    !enrollmentReadyForPaymentRail(readiness, input.paymentRail) ||
     !readiness.approvedVersions.msa ||
     !readiness.approvedVersions.serviceQuote ||
     !readiness.legalIdentity
@@ -116,6 +122,7 @@ export async function sendEnrollmentPacket(input: {
     annualizedValue: input.annualizedValue,
     salesContext: input.salesContext,
     homeSolicitationNoticeDays: input.homeSolicitationNoticeDays,
+    paymentRail: input.paymentRail,
   });
   const email = normalizeEnrollmentEmail(input.presentation.clientEmail)!;
   const supabase = createServiceRoleSupabaseClient();
@@ -126,6 +133,15 @@ export async function sendEnrollmentPacket(input: {
     .maybeSingle();
   if (existingResult.error) throw new Error(existingResult.error.message);
   let packet = existingResult.data ? asPacket(existingResult.data) : null;
+
+  if (
+    packet?.docusign_envelope_id &&
+    packet.payment_rail !== input.paymentRail
+  ) {
+    throw new Error(
+      "The payment arrangement cannot change after DocuSign begins. Void this packet before preparing a replacement.",
+    );
+  }
 
   if (packet?.status === "voided") {
     throw new Error(
@@ -148,6 +164,8 @@ export async function sendEnrollmentPacket(input: {
   }
 
   const now = new Date();
+  const manualPaymentApprovedAt =
+    input.paymentRail === "manual_cash_check" ? now.toISOString() : null;
   const rawToken = generateEnrollmentToken();
   const packetValues = {
     customer_name: snapshot.customer.name,
@@ -158,6 +176,10 @@ export async function sendEnrollmentPacket(input: {
     annualized_value_cents: snapshot.plan.annualizedValueCents,
     sales_context: input.salesContext,
     home_solicitation_notice_days: input.homeSolicitationNoticeDays,
+    payment_rail: input.paymentRail,
+    manual_payment_approved_at: manualPaymentApprovedAt,
+    manual_payment_approved_by:
+      input.paymentRail === "manual_cash_check" ? input.actor : null,
     msa_version_id: readiness.approvedVersions.msa.id,
     service_agreement_version_id: readiness.approvedVersions.serviceQuote.id,
     document_snapshot: snapshot,
@@ -186,11 +208,13 @@ export async function sendEnrollmentPacket(input: {
     await recordPacketEvent({
       packetId,
       eventType: "packet_created",
-      actor: "homeatlas_hq",
+      actor: input.actor,
       eventData: {
         presentationId: input.presentation.id,
         msaVersion: readiness.approvedVersions.msa.version,
         serviceAgreementVersion: readiness.approvedVersions.serviceQuote.version,
+        paymentRail: input.paymentRail,
+        manualPaymentApprovedAt,
       },
     });
   } else if (!packet.docusign_envelope_id) {
@@ -205,7 +229,8 @@ export async function sendEnrollmentPacket(input: {
     await recordPacketEvent({
       packetId: packet.id,
       eventType: "packet_reprepared",
-      actor: "homeatlas_hq",
+      actor: input.actor,
+      eventData: { paymentRail: input.paymentRail },
     });
   }
 

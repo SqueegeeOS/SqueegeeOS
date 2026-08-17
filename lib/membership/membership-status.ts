@@ -1,5 +1,6 @@
 import type { StripePaymentStatus } from "@/lib/admin/billing-workspace-types";
 import {
+  hasPaymentArrangement as lifecyclePaymentArrangement,
   hasPaymentMethodOnFile as lifecyclePaymentOnFile,
   hasPaymentSignal as lifecyclePaymentSignal,
   isMembershipActive as lifecycleIsActive,
@@ -16,6 +17,9 @@ export interface MembershipStatusFields {
   payment_setup_completed_at: string | null;
   stripe_payment_method_id?: string | null;
   stripe_customer_id?: string | null;
+  payment_rail?: "stripe_card" | "manual_cash_check";
+  manual_payment_approved_at?: string | null;
+  manual_payment_approved_by?: string | null;
 }
 
 /** HQ /hq/memberships row status — operational, not raw DB status. */
@@ -64,6 +68,9 @@ function toLifecycleInput(
     payment_setup_completed_at: m.payment_setup_completed_at,
     stripe_payment_method_id: m.stripe_payment_method_id,
     stripe_customer_id: m.stripe_customer_id,
+    payment_rail: m.payment_rail,
+    manual_payment_approved_at: m.manual_payment_approved_at,
+    manual_payment_approved_by: m.manual_payment_approved_by,
     agreement_id: m.agreement_id,
     sales_tier: m.sales_tier,
     visit_price: m.visit_price,
@@ -78,6 +85,11 @@ export function hasPaymentSignal(m: MembershipStatusFields): boolean {
 
 export function hasPaymentMethodOnFile(m: MembershipStatusFields): boolean {
   return lifecyclePaymentOnFile(toLifecycleInput(m));
+}
+
+/** A saved Stripe card or an explicitly owner-approved cash/check account. */
+export function hasPaymentArrangement(m: MembershipStatusFields): boolean {
+  return lifecyclePaymentArrangement(toLifecycleInput(m));
 }
 
 export function isMembershipCancelled(
@@ -164,7 +176,7 @@ export function resolvePendingMemberReason(
 
   const hasAgreement =
     Boolean(m.agreement_id?.trim()) || hasSignedAgreement;
-  const paymentOnFile = lifecycle.paymentOnFile;
+  const paymentOnFile = lifecycle.paymentArrangementReady;
 
   if (hasAgreement && !paymentOnFile) {
     return "signed_missing_card";

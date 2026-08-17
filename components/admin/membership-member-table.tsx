@@ -198,13 +198,15 @@ function MemberRowActions({ row }: { row: MembershipMemberRow }) {
           onClick={() => void copyPortalLink()}
           disabled={!row.portalUrl}
         />
-        <PaymentSetupEmailButton
-          membershipId={row.membershipId}
-          canSend={row.pendingReason === "signed_missing_card"}
-          onAccepted={(message) =>
-            setWelcomeNotice({ tone: "success", message })
-          }
-        />
+        {row.paymentRail === "stripe_card" ? (
+          <PaymentSetupEmailButton
+            membershipId={row.membershipId}
+            canSend={row.pendingReason === "signed_missing_card"}
+            onAccepted={(message) =>
+              setWelcomeNotice({ tone: "success", message })
+            }
+          />
+        ) : null}
         <RowAction
           label={resendingWelcome ? "Sending…" : "Resend welcome email"}
           onClick={() => void resendWelcomeEmail()}
@@ -236,7 +238,7 @@ export function MembershipMemberTable({
     return (
       <p className="text-sm text-muted">
         {variant === "active"
-          ? "No active members yet. Members appear here once agreement is signed and a card is on file."
+          ? "No active members yet. Members appear here once the agreement and payment arrangement are complete."
           : "No pending members. Agreement or payment gaps will show here."}
       </p>
     );

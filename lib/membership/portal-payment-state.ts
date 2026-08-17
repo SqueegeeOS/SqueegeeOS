@@ -12,6 +12,9 @@ export interface PortalPaymentStateInput {
   paymentSetupCompletedAt: string | null;
   paymentMethodLabel: string | null;
   hasMembership: boolean;
+  paymentRail?: "stripe_card" | "manual_cash_check";
+  manualPaymentApprovedAt?: string | null;
+  manualPaymentApprovedBy?: string | null;
 }
 
 export interface PortalPaymentState {
@@ -27,17 +30,29 @@ export interface PortalPaymentState {
 export function resolvePortalPaymentState(
   input: PortalPaymentStateInput,
 ): PortalPaymentState {
-  const paymentOnFile = hasPaymentMethodOnFile({
+  const cardOnFile = hasPaymentMethodOnFile({
     status: input.membershipStatus,
     payment_setup_completed_at: input.paymentSetupCompletedAt,
   });
+  const manualPaymentReady = Boolean(
+    input.paymentRail === "manual_cash_check" &&
+      input.manualPaymentApprovedAt?.trim() &&
+      input.manualPaymentApprovedBy?.trim(),
+  );
+  const paymentOnFile = cardOnFile || manualPaymentReady;
   const membershipActive = isMembershipActive({
     status: input.membershipStatus,
     payment_setup_completed_at: input.paymentSetupCompletedAt,
+    payment_rail: input.paymentRail,
+    manual_payment_approved_at: input.manualPaymentApprovedAt,
+    manual_payment_approved_by: input.manualPaymentApprovedBy,
   });
   const lifecycle = resolveMembershipLifecycle({
     status: input.membershipStatus,
     payment_setup_completed_at: input.paymentSetupCompletedAt,
+    payment_rail: input.paymentRail,
+    manual_payment_approved_at: input.manualPaymentApprovedAt,
+    manual_payment_approved_by: input.manualPaymentApprovedBy,
   });
   const pendingPayment =
     input.hasMembership &&
@@ -48,15 +63,21 @@ export function resolvePortalPaymentState(
       lifecycle.state === "agreement_pending" ||
       (lifecycle.state === "inconsistent" && !lifecycle.isActive));
 
-  const headline = paymentOnFile
+  const headline = manualPaymentReady
+    ? "Cash or check account"
+    : paymentOnFile
     ? (input.paymentMethodLabel ?? PAYMENT_METHOD_ON_FILE_LABEL)
     : "Add payment method";
 
-  const support = paymentOnFile
+  const support = manualPaymentReady
+    ? "Pay by cash or check after each completed service."
+    : paymentOnFile
     ? "Billed on the 1st of your service month."
     : "Add your payment method to complete your membership.";
 
-  const detailLine = paymentOnFile
+  const detailLine = manualPaymentReady
+    ? "No card is stored and automatic card billing is disabled."
+    : paymentOnFile
     ? "Your payment method is secured on file."
     : "Finish payment setup to activate billing.";
 
@@ -67,6 +88,7 @@ export function resolvePortalPaymentState(
     headline,
     support,
     detailLine,
-    showUpdatePaymentMethod: paymentOnFile && input.hasMembership,
+    showUpdatePaymentMethod:
+      cardOnFile && input.hasMembership && !manualPaymentReady,
   };
 }

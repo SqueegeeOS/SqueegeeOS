@@ -314,6 +314,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    if (membership.payment_rail !== "stripe_card") {
+      return NextResponse.json(
+        {
+          error:
+            "This membership uses an owner-approved cash/check account and cannot accept card setup.",
+        },
+        { status: 409 },
+      );
+    }
+
     const paymentCompletedAt = membership.payment_setup_completed_at;
     const membershipAlreadyActive = Boolean(
       paymentCompletedAt &&

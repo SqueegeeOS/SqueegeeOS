@@ -34,7 +34,7 @@ export async function GET(request: Request) {
     supabase
       .from("enrollment_packets")
       .select(
-        "id, presentation_id, customer_name, customer_email, status, docusign_status, signature_sent_at, signed_at, payment_link_sent_at, payment_completed_at, portal_ready_at, last_error_code, last_error_message, updated_at",
+        "id, presentation_id, customer_name, customer_email, status, payment_rail, docusign_status, signature_sent_at, signed_at, payment_link_sent_at, payment_completed_at, portal_ready_at, last_error_code, last_error_message, updated_at",
       )
       .order("updated_at", { ascending: false })
       .limit(50),

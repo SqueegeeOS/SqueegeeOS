@@ -1,5 +1,6 @@
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 import type { CarePlanServiceState } from "@/lib/presentations/care-plan";
+import type { PaymentRail } from "@/lib/billing/payment-rail";
 
 export type EnrollmentSalesContext =
   | "customer_home"
@@ -20,6 +21,7 @@ export type EnrollmentPacketStatus =
 
 export interface EnrollmentPacketStatusSnapshot {
   status: EnrollmentPacketStatus;
+  paymentRail: PaymentRail;
   updatedAt: string;
 }
 
@@ -27,14 +29,19 @@ export interface EnrollmentVisitSnapshot {
   label: string;
   timing: string;
   priceCents: number;
+  /** Added in schema v2. A missing legacy value means exterior was included. */
+  exteriorWindows?: CarePlanServiceState;
   interiorWindows: CarePlanServiceState;
   screens: CarePlanServiceState;
   cobwebRemoval: CarePlanServiceState;
+  /** Added in schema v2. Missing legacy values mean not included. */
+  solarPanels?: CarePlanServiceState;
+  pressureWashing?: CarePlanServiceState;
   notes: string;
 }
 
 export interface EnrollmentDocumentSnapshot {
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   presentationId: string;
   customer: {
     name: string;
@@ -58,6 +65,11 @@ export interface EnrollmentDocumentSnapshot {
     summary: string;
     customerChoiceNote: string;
     visits: EnrollmentVisitSnapshot[];
+  };
+  /** Added in schema v2. Legacy signed packets are treated as Stripe-card. */
+  payment?: {
+    rail: PaymentRail;
+    arrangementSummary: string;
   };
   disclosures: {
     salesContext: EnrollmentSalesContext;
@@ -91,6 +103,9 @@ export interface EnrollmentPacketRow {
   annualized_value_cents: number;
   sales_context: EnrollmentSalesContext;
   home_solicitation_notice_days: 3 | 5 | null;
+  payment_rail: PaymentRail;
+  manual_payment_approved_at: string | null;
+  manual_payment_approved_by: string | null;
   document_snapshot: EnrollmentDocumentSnapshot;
   public_token_sha256: string;
   public_token_expires_at: string;

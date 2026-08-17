@@ -8,6 +8,10 @@ import type {
   EnrollmentPacketRow,
   EnrollmentPacketStatus,
 } from "./types";
+import {
+  normalizePaymentRail,
+  type PaymentRail,
+} from "@/lib/billing/payment-rail";
 
 export interface PublicEnrollmentStatus {
   customerFirstName: string;
@@ -17,6 +21,7 @@ export interface PublicEnrollmentStatus {
   cadence: string;
   firstVisitPriceCents: number;
   recurringVisitPriceCents: number;
+  paymentRail: PaymentRail;
   status: EnrollmentPacketStatus;
   agreementComplete: boolean;
   paymentComplete: boolean;
@@ -48,6 +53,7 @@ export async function loadPublicEnrollmentStatus(
     .maybeSingle();
   if (result.error || !result.data) return null;
   const packet = result.data as EnrollmentPacketRow;
+  const paymentRail = normalizePaymentRail(packet.payment_rail);
   if (new Date(packet.public_token_expires_at).getTime() <= Date.now()) return null;
   const snapshot = packet.document_snapshot as EnrollmentDocumentSnapshot;
   let portalUrl: string | null = null;
@@ -92,6 +98,7 @@ export async function loadPublicEnrollmentStatus(
     cadence: snapshot.plan.cadence,
     firstVisitPriceCents: packet.first_visit_price_cents,
     recurringVisitPriceCents: packet.recurring_visit_price_cents,
+    paymentRail,
     status: packet.status,
     agreementComplete,
     paymentComplete,
@@ -100,7 +107,8 @@ export async function loadPublicEnrollmentStatus(
       ? packet.stripe_payment_url_expires_at
       : null,
     portalUrl,
-    needsHelp: packet.status === "needs_attention",
+    needsHelp:
+      packet.status === "needs_attention" || Boolean(packet.last_error_code),
     updatedAt: packet.updated_at,
   };
 }

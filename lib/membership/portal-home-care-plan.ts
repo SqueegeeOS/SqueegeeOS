@@ -127,12 +127,18 @@ export function buildPortalHomeCarePlanFromPresentation(
                     presentationRates.carePlanPricing.visits[index]!.total,
                   )})`
                 : ""
-            }: exterior included; interior ${serviceStateLabel(
+            }: exterior ${serviceStateLabel(
+              visit.exteriorWindows,
+            ).toLowerCase()}; interior ${serviceStateLabel(
               visit.interiorWindows,
             ).toLowerCase()}; screens ${serviceStateLabel(
               visit.screens,
             ).toLowerCase()}; cobweb removal ${serviceStateLabel(
               visit.cobwebRemoval,
+            ).toLowerCase()}; solar panels ${serviceStateLabel(
+              visit.solarPanels,
+            ).toLowerCase()}; pressure washing ${serviceStateLabel(
+              visit.pressureWashing,
             ).toLowerCase()}${visit.notes ? `; ${visit.notes}` : ""}.`,
         ),
         ...(customCarePlan.customerChoiceNote

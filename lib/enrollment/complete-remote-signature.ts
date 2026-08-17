@@ -38,6 +38,7 @@ import {
 } from "@/lib/presentations/care-plan";
 import type { PresentationData } from "@/lib/presentations/types";
 import type { EnrollmentDocumentSnapshot, EnrollmentPacketRow } from "./types";
+import { isManualPaymentRail } from "@/lib/billing/payment-rail";
 
 export interface RemoteSignatureCompletion {
   packetId: string;
@@ -140,6 +141,7 @@ export async function completeRemoteEnrollmentSignature(input: {
 }): Promise<RemoteSignatureCompletion> {
   const supabase = createServiceRoleSupabaseClient();
   const packet = input.packet;
+  const manualPayment = isManualPaymentRail(packet.payment_rail);
   const existingAgreement = await supabase
     .from("signed_agreements")
     .select("id, membership_id, homeowner_id, property_id")
@@ -335,6 +337,9 @@ export async function completeRemoteEnrollmentSignature(input: {
         founding_member: founding.foundingMember,
         founding_member_since: founding.foundingMemberSince,
         portal_access_token: portalAccessToken,
+        payment_rail: packet.payment_rail,
+        manual_payment_approved_at: packet.manual_payment_approved_at,
+        manual_payment_approved_by: packet.manual_payment_approved_by,
       })
       .select("id")
       .single();
@@ -372,9 +377,12 @@ export async function completeRemoteEnrollmentSignature(input: {
         id: `visit_${index + 1}`,
         label: visit.label,
         timing: visit.timing,
+        exteriorWindows: visit.exteriorWindows ?? "included",
         interiorWindows: visit.interiorWindows,
         screens: visit.screens,
         cobwebRemoval: visit.cobwebRemoval,
+        solarPanels: visit.solarPanels ?? "not_included",
+        pressureWashing: visit.pressureWashing ?? "not_included",
         notes: visit.notes,
         priceOverride: visit.priceCents / 100,
       })),
@@ -424,7 +432,7 @@ export async function completeRemoteEnrollmentSignature(input: {
     );
   }
 
-  const termsHash = membershipBillingTermsHash();
+  const termsHash = manualPayment ? null : membershipBillingTermsHash();
   const agreementResult = await supabase
     .from("signed_agreements")
     .insert({
@@ -445,10 +453,15 @@ export async function completeRemoteEnrollmentSignature(input: {
       agreement_pdf_url: storedAgreement.url,
       status: "complete",
       storage_backend: "supabase",
-      billing_authorization_version: MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
-      billing_authorized_at: input.signedAt,
-      authorized_visit_price_cents: packet.recurring_visit_price_cents,
+      billing_authorization_version: manualPayment
+        ? null
+        : MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
+      billing_authorized_at: manualPayment ? null : input.signedAt,
+      authorized_visit_price_cents: manualPayment
+        ? null
+        : packet.recurring_visit_price_cents,
       billing_terms_hash: termsHash,
+      payment_rail: packet.payment_rail,
       external_signature_provider: "docusign",
       external_envelope_id: packet.docusign_envelope_id,
       msa_version: versions.msa.version,
@@ -465,34 +478,42 @@ export async function completeRemoteEnrollmentSignature(input: {
   }
   const agreementId = agreementResult.data.id as string;
 
-  const authorizationEvent = await supabase
-    .from("membership_billing_authorization_events")
-    .upsert(
-      {
-        membership_id: membershipId,
-        agreement_id: agreementId,
-        authorization_version: MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
-        authorized_visit_price_cents: packet.recurring_visit_price_cents,
-        billing_terms_hash: termsHash,
-        actor: "customer_docusign_signature",
-        evidence_source: "customer_signature",
-        occurred_at: input.signedAt,
-      },
-      {
-        onConflict:
-          "membership_id,agreement_id,authorization_version,evidence_source",
-        ignoreDuplicates: true,
-      },
-    );
-  if (authorizationEvent.error) throw new Error(authorizationEvent.error.message);
+  if (!manualPayment) {
+    const authorizationEvent = await supabase
+      .from("membership_billing_authorization_events")
+      .upsert(
+        {
+          membership_id: membershipId,
+          agreement_id: agreementId,
+          authorization_version: MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
+          authorized_visit_price_cents: packet.recurring_visit_price_cents,
+          billing_terms_hash: termsHash,
+          actor: "customer_docusign_signature",
+          evidence_source: "customer_signature",
+          occurred_at: input.signedAt,
+        },
+        {
+          onConflict:
+            "membership_id,agreement_id,authorization_version,evidence_source",
+          ignoreDuplicates: true,
+        },
+      );
+    if (authorizationEvent.error) {
+      throw new Error(authorizationEvent.error.message);
+    }
+  }
 
   const membershipLink = await supabase
     .from("memberships")
     .update({
       agreement_id: agreementId,
-      automatic_billing_enabled: true,
+      status: manualPayment ? "active" : "pending_payment",
+      automatic_billing_enabled: !manualPayment,
       automatic_billing_paused_at: null,
       automatic_billing_pause_reason: null,
+      payment_rail: packet.payment_rail,
+      manual_payment_approved_at: packet.manual_payment_approved_at,
+      manual_payment_approved_by: packet.manual_payment_approved_by,
     })
     .eq("id", membershipId);
   if (membershipLink.error) throw new Error(membershipLink.error.message);
@@ -507,7 +528,7 @@ export async function completeRemoteEnrollmentSignature(input: {
       homeowner_id: homeownerId,
       property_id: propertyId,
       membership_id: membershipId,
-      onboarding_status: "pending_payment",
+      onboarding_status: manualPayment ? "complete" : "pending_payment",
       tier: packet.agreement_tier,
       annual_rate: pricing.annualRate,
       visit_rate_overrides: overrides,
