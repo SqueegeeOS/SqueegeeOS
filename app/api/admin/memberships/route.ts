@@ -22,6 +22,21 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
 } from "@/lib/care-operations/model";
+import { readJobberConnectionStatus } from "@/lib/care-operations/jobber-connection-store";
+import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
+import {
+  selectPairedJobberNextVisit,
+  type HqJobberPropertyLink,
+  type HqJobberVisitProjection,
+} from "@/lib/care-operations/jobber-hq-schedule";
+import { buildJobberPortalTimeWindow } from "@/lib/care-operations/jobber-portal-appointments";
+
+export interface HqJobberConnectionSummary {
+  status: "connected" | "refresh_required" | "disconnected" | "error" | "not_connected";
+  lastVerifiedAt: string | null;
+  lastRefreshedAt: string | null;
+  lastErrorCode: string | null;
+}
 
 export interface HqMembershipRow {
   id: string;
@@ -40,6 +55,10 @@ export interface HqMembershipRow {
   nextServiceMonth: string | null;
   nextServiceDate: string | null;
   nextServiceTimeWindow: string | null;
+  nextServiceSource:
+    | "verified_jobber_appointment"
+    | "paired_jobber_projection"
+    | null;
   portalPath: string | null;
   agreementId: string | null;
   founding: boolean;
@@ -219,13 +238,14 @@ export async function GET(request: Request) {
     const propertyIds = [...new Set(rows.map((m) => m.property_id).filter(Boolean))];
 
     const supabase = createServerSupabaseClient();
-    const [homeowners, properties] = await Promise.all([
+    const [homeowners, properties, jobberConnection] = await Promise.all([
       homeownerIds.length
         ? supabase.from("homeowners").select("id, full_name").in("id", homeownerIds)
         : Promise.resolve({ data: [] as Array<{ id: string; full_name: string }>, error: null }),
       propertyIds.length
         ? supabase.from("properties").select("id, address, city").in("id", propertyIds)
         : Promise.resolve({ data: [] as Array<{ id: string; address: string; city: string }>, error: null }),
+      readJobberConnectionStatus().catch(() => null),
     ]);
 
     if (homeowners.error) {
@@ -262,6 +282,42 @@ export async function GET(request: Request) {
       }
     }
 
+    const propertyLinksResult = propertyIds.length
+      ? await supabase
+          .from("jobber_property_links")
+          .select(
+            "connection_id, external_property_id, property_id, membership_id",
+          )
+          .eq("connection_id", JOBBER_CONNECTION_ID)
+          .in("property_id", propertyIds)
+          .eq("link_state", "active")
+      : { data: [], error: null };
+    if (propertyLinksResult.error) {
+      throw new Error(propertyLinksResult.error.message);
+    }
+    const propertyLinks = (propertyLinksResult.data ?? []) as HqJobberPropertyLink[];
+    const externalPropertyIds = [
+      ...new Set(propertyLinks.map((link) => link.external_property_id)),
+    ];
+    const projectionsResult = externalPropertyIds.length
+      ? await supabase
+          .from("jobber_visit_projections")
+          .select(
+            "connection_id, external_property_id, external_visit_id, scheduled_start, scheduled_end, title, visit_status, is_complete",
+          )
+          .eq("connection_id", JOBBER_CONNECTION_ID)
+          .in("external_property_id", externalPropertyIds)
+          .eq("is_complete", false)
+          .not("scheduled_start", "is", null)
+          .gte("scheduled_start", nowIso)
+          .order("scheduled_start", { ascending: true })
+      : { data: [], error: null };
+    if (projectionsResult.error) {
+      throw new Error(projectionsResult.error.message);
+    }
+    const jobberProjections = (projectionsResult.data ??
+      []) as HqJobberVisitProjection[];
+
     const nameById = new Map(
       (homeowners.data ?? []).map((h) => [h.id as string, (h.full_name as string) || ""]),
     );
@@ -281,10 +337,24 @@ export async function GET(request: Request) {
 
     const out: HqMembershipRow[] = rows.map((m) => {
       const upcoming = nextAppointmentByProperty.get(m.property_id) ?? null;
-      const nextScheduledAt = upcoming?.scheduled_at ?? null;
-      const nextServiceTimeWindow = parseTimeWindowFromNotes(
-        upcoming?.notes ?? null,
-      );
+      const pairedJobberVisit = upcoming
+        ? null
+        : selectPairedJobberNextVisit({
+            membershipId: m.id,
+            propertyId: m.property_id,
+            propertyLinks,
+            projections: jobberProjections,
+          });
+      const nextScheduledAt =
+        upcoming?.scheduled_at ?? pairedJobberVisit?.scheduled_start ?? null;
+      const nextServiceTimeWindow = upcoming
+        ? parseTimeWindowFromNotes(upcoming.notes)
+        : pairedJobberVisit
+          ? buildJobberPortalTimeWindow(
+              pairedJobberVisit.scheduled_start,
+              pairedJobberVisit.scheduled_end,
+            )
+          : null;
       const nextServiceDate = nextScheduledAt?.slice(0, 10) ?? null;
       const nextServiceMonth =
         nextServiceDate?.slice(0, 7) ?? m.next_billing_date?.slice(0, 7) ?? null;
@@ -333,6 +403,11 @@ export async function GET(request: Request) {
         nextServiceMonth,
         nextServiceDate,
         nextServiceTimeWindow,
+        nextServiceSource: upcoming
+          ? "verified_jobber_appointment"
+          : pairedJobberVisit
+            ? "paired_jobber_projection"
+            : null,
         portalPath: m.portal_access_token ? `/portal/${m.portal_access_token}` : null,
         agreementId: m.agreement_id,
         founding: Boolean(m.founding_member),
@@ -348,7 +423,21 @@ export async function GET(request: Request) {
       0,
     );
 
-    return NextResponse.json({ rows: out, connected: true, totalAddonRevenue });
+    const jobberConnectionSummary: HqJobberConnectionSummary | null = jobberConnection
+      ? {
+          status: jobberConnection.status,
+          lastVerifiedAt: jobberConnection.lastVerifiedAt,
+          lastRefreshedAt: jobberConnection.lastRefreshedAt,
+          lastErrorCode: jobberConnection.lastErrorCode,
+        }
+      : null;
+
+    return NextResponse.json({
+      rows: out,
+      connected: true,
+      totalAddonRevenue,
+      jobberConnection: jobberConnectionSummary,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to load memberships";
