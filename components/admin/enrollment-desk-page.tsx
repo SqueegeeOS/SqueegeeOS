@@ -121,12 +121,22 @@ function EnrollmentDeskContent() {
                 ready.
               </p>
             </div>
-            <Link
-              href="/presentations"
-              className="inline-flex min-h-11 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.08] px-5 text-xs font-semibold text-accent hover:bg-accent/[0.13]"
-            >
-              Open presentations
-            </Link>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Link
+                href="/hq/enrollment/review"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-xs font-semibold text-on-accent hover:brightness-105"
+              >
+                Print lawyer packet
+              </Link>
+              <Link
+                href="/presentations"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border border-accent/25 bg-accent/[0.08] px-5 text-xs font-semibold text-accent hover:bg-accent/[0.13]"
+              >
+                Open presentations
+              </Link>
+            </div>
           </div>
         </MotionReveal>
 
