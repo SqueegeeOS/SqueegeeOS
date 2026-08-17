@@ -284,6 +284,12 @@ async function runSchemaChecks(
       column: "sms_consent_disclosure_version",
     },
     {
+      id: "lead-request-idempotency-schema",
+      label: "lead_intakes.client_submission_id",
+      table: "lead_intakes",
+      column: "client_submission_id",
+    },
+    {
       id: "customer-contact-consent-schema",
       label: "customer_contact_consent_events",
       table: "customer_contact_consent_events",

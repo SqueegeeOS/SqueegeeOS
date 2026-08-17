@@ -24,6 +24,7 @@ interface LeadIntakeRow {
   status: string;
   submitted_at: string;
   source: string;
+  client_submission_id?: string | null;
   external_lead_id?: string | null;
   source_page_id?: string | null;
   source_form_id?: string | null;
@@ -65,6 +66,7 @@ function rowToRecord(row: LeadIntakeRow): LeadIntakeRecord {
     submittedAt: row.submitted_at,
     source:
       row.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+    clientSubmissionId: row.client_submission_id ?? null,
     externalLeadId: row.external_lead_id ?? null,
     sourcePageId: row.source_page_id ?? null,
     sourceFormId: row.source_form_id ?? null,
@@ -117,6 +119,7 @@ function inputToRow(
     status: "new",
     submitted_at: submittedAt,
     source: input.source ?? "request_form",
+    client_submission_id: input.clientSubmissionId?.trim() || null,
     external_lead_id: input.externalLeadId ?? null,
     source_page_id: input.sourcePageId ?? null,
     source_form_id: input.sourceFormId ?? null,
@@ -222,6 +225,7 @@ export async function createLeadIntake(
     status: "new",
     submittedAt,
     source: input.source ?? "request_form",
+    clientSubmissionId: input.clientSubmissionId?.trim() || null,
     externalLeadId: input.externalLeadId ?? null,
     sourcePageId: input.sourcePageId ?? null,
     sourceFormId: input.sourceFormId ?? null,
@@ -235,6 +239,24 @@ export async function createLeadIntake(
 
   if (isCloudPersistenceConnected()) {
     const supabase = createServerSupabaseClient();
+    if (input.clientSubmissionId?.trim()) {
+      const existing = await supabase
+        .from("lead_intakes")
+        .select("*")
+        .eq("source", "request_form")
+        .eq("client_submission_id", input.clientSubmissionId.trim())
+        .maybeSingle();
+      if (existing.error) {
+        throw new Error(`Failed to check lead intake: ${existing.error.message}`);
+      }
+      if (existing.data) {
+        return {
+          record: rowToRecord(existing.data as LeadIntakeRow),
+          storage: "supabase",
+          duplicate: true,
+        };
+      }
+    }
     if (input.externalLeadId?.trim()) {
       const existing = await supabase
         .from("lead_intakes")
@@ -260,6 +282,21 @@ export async function createLeadIntake(
       .single();
 
     if (error || !data) {
+      if (input.clientSubmissionId?.trim() && error?.code === "23505") {
+        const raced = await supabase
+          .from("lead_intakes")
+          .select("*")
+          .eq("source", "request_form")
+          .eq("client_submission_id", input.clientSubmissionId.trim())
+          .maybeSingle();
+        if (raced.data) {
+          return {
+            record: rowToRecord(raced.data as LeadIntakeRow),
+            storage: "supabase",
+            duplicate: true,
+          };
+        }
+      }
       if (input.externalLeadId?.trim() && error?.code === "23505") {
         const raced = await supabase
           .from("lead_intakes")

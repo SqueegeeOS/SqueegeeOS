@@ -35,6 +35,7 @@ export interface LeadIntakeRecord {
   status: LeadIntakeStatus;
   submittedAt: string;
   source: LeadIntakeSource;
+  clientSubmissionId: string | null;
   externalLeadId: string | null;
   sourcePageId: string | null;
   sourceFormId: string | null;
@@ -64,6 +65,7 @@ export interface CreateLeadIntakeInput {
   estimatedVisitPrice: number | null;
   preferredStartWindow: string | null;
   source?: LeadIntakeSource;
+  clientSubmissionId?: string | null;
   externalLeadId?: string | null;
   sourcePageId?: string | null;
   sourceFormId?: string | null;

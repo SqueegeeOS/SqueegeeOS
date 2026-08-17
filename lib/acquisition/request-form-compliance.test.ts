@@ -18,4 +18,11 @@ describe("public request form SMS disclosure", () => {
     expect(requestFormSource).not.toContain("I agree to receive marketing");
     expect(requestFormSource).not.toContain("I agree to receive promotional");
   });
+
+  it("locks double-clicks and reuses one submission ID for an unchanged retry", () => {
+    expect(requestFormSource).toContain("submitInFlightRef.current");
+    expect(requestFormSource).toContain("submissionAttemptRef.current?.payload");
+    expect(requestFormSource).toContain("createLeadSubmissionId()");
+    expect(requestFormSource).toContain("submissionId: submissionAttempt.id");
+  });
 });

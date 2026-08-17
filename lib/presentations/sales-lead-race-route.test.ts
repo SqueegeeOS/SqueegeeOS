@@ -160,6 +160,7 @@ describe("field lead presentation two-tab race", () => {
       status: "new",
       submittedAt: "2026-08-16T18:00:00.000Z",
       source: "request_form",
+      clientSubmissionId: null,
       externalLeadId: null,
       sourcePageId: null,
       sourceFormId: null,

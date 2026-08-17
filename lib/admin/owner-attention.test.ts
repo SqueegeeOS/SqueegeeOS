@@ -357,6 +357,7 @@ function lead(overrides: Partial<LeadIntakeRecord> = {}): LeadIntakeRecord {
     status: "new",
     submittedAt: "2026-08-14T10:00:00.000Z",
     source: "request_form",
+    clientSubmissionId: null,
     externalLeadId: null,
     sourcePageId: null,
     sourceFormId: null,

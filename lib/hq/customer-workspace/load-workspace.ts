@@ -100,6 +100,8 @@ function mapLeadRow(row: Record<string, unknown>): LeadIntakeRecord {
     submittedAt: row.submitted_at as string,
     source:
       row.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+    clientSubmissionId:
+      (row.client_submission_id as string | null) ?? null,
     externalLeadId: (row.external_lead_id as string | null) ?? null,
     sourcePageId: (row.source_page_id as string | null) ?? null,
     sourceFormId: (row.source_form_id as string | null) ?? null,

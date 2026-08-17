@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { attachLeadToReferral } from "@/lib/referrals/repository";
 import { REFERRAL_COOKIE } from "@/lib/referrals/types";
 import { estimatedPriceForLead } from "@/lib/acquisition/request-params";
+import { isLeadSubmissionId } from "@/lib/acquisition/lead-submission-id";
 import { createLeadIntake } from "@/lib/acquisition/leads/repository";
 import {
   SMS_CONSENT_DISCLOSURE_VERSION,
@@ -22,6 +23,10 @@ import {
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
 import { routeInboundLeadToConfiguredOwner } from "@/lib/sales/inbound-lead-routing-server";
+
+type LeadIntakeRequestBody = Partial<LeadIntakeFormData> & {
+  submissionId?: unknown;
+};
 
 function isServiceOption(value: string): value is (typeof serviceOptions)[number] {
   return (serviceOptions as readonly string[]).includes(value);
@@ -64,11 +69,17 @@ function validateLeadBody(body: Partial<LeadIntakeFormData>): string | null {
 
 export async function POST(request: Request) {
   try {
-    const body = (await request.json()) as Partial<LeadIntakeFormData>;
+    const body = (await request.json()) as LeadIntakeRequestBody;
 
     const validationError = validateLeadBody(body);
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 });
+    }
+    if (!isLeadSubmissionId(body.submissionId)) {
+      return NextResponse.json(
+        { error: "This request needs a valid submission ID. Please try again." },
+        { status: 400 },
+      );
     }
 
     const membershipTier = parseMembershipTier(body.membershipTier);
@@ -115,9 +126,24 @@ export async function POST(request: Request) {
       squareFootage,
       estimatedVisitPrice: estimatedPriceForLead(membershipTier, squareFootage),
       preferredStartWindow,
+      clientSubmissionId: body.submissionId.trim(),
     };
 
-    const { record, storage } = await createLeadIntake(input);
+    const { record, storage, duplicate } = await createLeadIntake(input);
+
+    // A browser retry resolves to the original durable lead. Do not repeat
+    // referral attribution, assignment, acknowledgement, or owner alerts.
+    if (duplicate) {
+      return NextResponse.json({
+        id: record.id,
+        storage,
+        duplicate: true,
+        emailSent: false,
+        smsSent: false,
+        smsScheduled: false,
+        notifySent: false,
+      });
+    }
 
     // Referral attribution: if this visitor arrived through /r/[code],
     // associate the new lead with the referring member. Never fatal.
@@ -189,6 +215,7 @@ export async function POST(request: Request) {
     return NextResponse.json({
       id: record.id,
       storage,
+      duplicate: false,
       emailSent: emailResult.sent,
       smsSent: smsResult.sent,
       smsScheduled: smsResult.scheduled,

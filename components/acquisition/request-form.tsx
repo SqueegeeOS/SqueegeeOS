@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
@@ -16,6 +16,7 @@ import {
   type LeadIntakeFormData,
 } from "@/lib/acquisition/types";
 import { CUSTOMER_CONTACT, CUSTOMER_CTAS } from "@/lib/brand/customer";
+import { createLeadSubmissionId } from "@/lib/acquisition/lead-submission-id";
 import {
   buildSqueegeeKingTierQuote,
   formatTierPeriodPrice,
@@ -117,6 +118,11 @@ function RequestFormFields() {
   const [phase, setPhase] = useState<FormPhase>("form");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const submitInFlightRef = useRef(false);
+  const submissionAttemptRef = useRef<{
+    id: string;
+    payload: string;
+  } | null>(null);
 
   const sqftValue = form.squareFootage ?? SQFT_DEFAULT;
   const estimatedPrice = estimatedPriceForLead(
@@ -159,28 +165,43 @@ function RequestFormFields() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isSubmitting) return;
+    if (submitInFlightRef.current) return;
+
+    submitInFlightRef.current = true;
 
     setIsSubmitting(true);
     setError(null);
 
     try {
+      const payload = JSON.stringify(form);
+      const submissionAttempt =
+        submissionAttemptRef.current?.payload === payload
+          ? submissionAttemptRef.current
+          : { id: createLeadSubmissionId(), payload };
+      submissionAttemptRef.current = submissionAttempt;
+
       const response = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          submissionId: submissionAttempt.id,
+        }),
       });
 
       const data = await response.json();
       if (!response.ok) {
         setError(data.error ?? "Something went wrong. Please try again.");
+        submitInFlightRef.current = false;
         setIsSubmitting(false);
         return;
       }
 
+      submissionAttemptRef.current = null;
       setPhase("transition");
     } catch {
       setError("Something went wrong. Please try again.");
+      submitInFlightRef.current = false;
       setIsSubmitting(false);
     }
   };
