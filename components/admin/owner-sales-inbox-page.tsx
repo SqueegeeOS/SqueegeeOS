@@ -25,6 +25,7 @@ import type {
   OwnerSalesPipelineLead,
   OwnerSalesPipelineSnapshot,
 } from "@/lib/sales/owner-pipeline";
+import type { LeadDuplicateSignal } from "@/lib/acquisition/lead-duplicate-candidates";
 import type { SalesLeadActionMoment } from "@/lib/sales/lead-action-priority";
 import {
   INBOUND_TRIAGE_SLOT_MINUTES,
@@ -68,6 +69,14 @@ interface OwnerSalesNotice {
   message: string;
   links?: Array<{ href: string; label: string }>;
 }
+
+const DUPLICATE_SIGNAL_LABEL: Record<LeadDuplicateSignal, string> = {
+  same_external_lead: "same provider lead",
+  same_submission: "same submission",
+  same_email: "same email",
+  same_phone: "same phone",
+  same_name_and_address: "same name + address",
+};
 
 const HANDOFF_STYLE: Record<
   SalesProductionHandoffStage,
@@ -798,6 +807,14 @@ function InboundTriage({
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {!loading &&
+          inbound?.status === "available" &&
+          (inbound.possibleDuplicateRecordCount ?? 0) > 0 ? (
+            <span className="rounded-full border border-amber-300/20 bg-amber-300/[0.07] px-3 py-1.5 text-xs font-semibold tabular-nums text-amber-100">
+              {inbound.possibleDuplicateRecordCount} possible duplicate
+              {inbound.possibleDuplicateRecordCount === 1 ? "" : "s"}
+            </span>
+          ) : null}
           <span className="rounded-full border border-sky-200/20 bg-sky-200/[0.07] px-3 py-1.5 text-xs font-semibold tabular-nums text-sky-100">
             {loading
               ? "Checking…"
@@ -901,6 +918,9 @@ function InboundTriage({
           </div>
           {inbound.records.map((lead, index) => {
             const services = lead.servicesInterested.join(", ");
+            const duplicateGroup = inbound.duplicateGroups.find((group) =>
+              group.recordIds.includes(lead.id),
+            );
             return (
               <article
                 key={lead.id}
@@ -918,6 +938,11 @@ function InboundTriage({
                       <span className="rounded-full border border-white/[0.08] bg-white/[0.035] px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-white/46">
                         {salesLeadSourceLabel(lead.source)}
                       </span>
+                      {duplicateGroup ? (
+                        <span className="rounded-full border border-amber-300/25 bg-amber-300/[0.08] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-amber-100">
+                          Possible duplicate · {duplicateGroup.recordIds.length}
+                        </span>
+                      ) : null}
                     </div>
                     <p className="mt-1 truncate text-sm text-white/48">
                       {lead.serviceAddress || "Address not provided"}
@@ -928,6 +953,14 @@ function InboundTriage({
                         ? ` · ${lead.preferredStartWindow}`
                         : ""}
                     </p>
+                    {duplicateGroup ? (
+                      <p className="mt-2 max-w-2xl rounded-xl border border-amber-300/15 bg-amber-300/[0.045] px-3 py-2 text-[11px] leading-5 text-amber-50/70">
+                        Matching {duplicateGroup.signals
+                          .map((signal) => DUPLICATE_SIGNAL_LABEL[signal])
+                          .join(", ")}. Review the related requests before assigning.
+                        HomeAtlas has not merged, deleted, or contacted anyone.
+                      </p>
+                    ) : null}
                   </div>
                   <time
                     dateTime={lead.submittedAt}

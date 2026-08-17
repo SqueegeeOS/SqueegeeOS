@@ -1,4 +1,8 @@
 import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
+import {
+  findLeadDuplicateCandidateGroups,
+  type LeadDuplicateCandidateGroup,
+} from "@/lib/acquisition/lead-duplicate-candidates";
 import { presentationWorkspacePath } from "@/lib/presentations/navigation";
 import {
   buildSalesLeadActionQueue,
@@ -96,6 +100,8 @@ export interface OwnerSalesInboundQueue {
   status: "available" | "unavailable";
   count: number | null;
   records: LeadIntakeRecord[];
+  possibleDuplicateRecordCount: number | null;
+  duplicateGroups: LeadDuplicateCandidateGroup[];
   routing: InboundLeadRoutingSnapshot;
 }
 
@@ -302,6 +308,12 @@ export function buildOwnerSalesPipelineSnapshot(input: {
     });
   const handoffsAvailable = input.handoffs !== null;
   const inboundAvailable = input.unassignedInbound !== null;
+  const inboundDuplicateGroups = inboundAvailable
+    ? findLeadDuplicateCandidateGroups(input.unassignedInbound ?? [])
+    : [];
+  const possibleDuplicateRecordCount = new Set(
+    inboundDuplicateGroups.flatMap((group) => group.recordIds),
+  ).size;
   const inboundRecords = [...(input.unassignedInbound ?? [])]
     .sort((left, right) => {
       const timeDifference =
@@ -342,6 +354,10 @@ export function buildOwnerSalesPipelineSnapshot(input: {
       status: inboundAvailable ? "available" : "unavailable",
       count: inboundAvailable ? input.unassignedInbound?.length ?? 0 : null,
       records: inboundRecords,
+      possibleDuplicateRecordCount: inboundAvailable
+        ? possibleDuplicateRecordCount
+        : null,
+      duplicateGroups: inboundDuplicateGroups,
       routing: input.inboundRouting ?? {
         status: "not_configured",
         ownerSlug: null,

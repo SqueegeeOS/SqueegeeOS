@@ -396,6 +396,8 @@ describe("owner sales pipeline", () => {
     expect(snapshot.inbound).toMatchObject({
       status: "available",
       count: 10,
+      possibleDuplicateRecordCount: 0,
+      duplicateGroups: [],
       routing: {
         status: "active",
         ownerSlug: "noah",
@@ -407,6 +409,46 @@ describe("owner sales pipeline", () => {
     expect(snapshot.inbound.records.map((lead) => lead.id)).toEqual(
       unassignedInbound.slice(0, 8).map((lead) => lead.id),
     );
+  });
+
+  it("flags high-confidence historical duplicate candidates without changing records", () => {
+    const snapshot = buildOwnerSalesPipelineSnapshot({
+      reps: REPS,
+      leads: [],
+      presentations: [],
+      unassignedInbound: [
+        inbound("request-original", "2026-08-16T17:00:00.000Z", {
+          name: "Marla Gibson",
+          phone: "(530) 555-0144",
+          email: "MARLA@example.com",
+          serviceAddress: "6473 Alexander Ct.",
+        }),
+        inbound("request-retry", "2026-08-16T17:01:00.000Z", {
+          name: "Marla Gibson",
+          phone: "+1 530-555-0144",
+          email: "marla@example.com",
+          serviceAddress: "6473 Alexander Court",
+        }),
+        inbound("request-family", "2026-08-16T17:02:00.000Z", {
+          name: "Another Household Member",
+          phone: "(530) 555-0144",
+          email: "family@example.com",
+          serviceAddress: "6473 Alexander Ct.",
+        }),
+      ],
+      handoffs: [],
+      reference,
+    });
+
+    expect(snapshot.inbound.possibleDuplicateRecordCount).toBe(2);
+    expect(snapshot.inbound.duplicateGroups).toEqual([
+      {
+        id: "request-original",
+        recordIds: ["request-original", "request-retry"],
+        signals: ["same_email", "same_phone"],
+      },
+    ]);
+    expect(snapshot.inbound.records).toHaveLength(3);
   });
 
   it("marks inbound ownership truth unavailable instead of showing a false zero", () => {
@@ -423,6 +465,8 @@ describe("owner sales pipeline", () => {
       status: "unavailable",
       count: null,
       records: [],
+      possibleDuplicateRecordCount: null,
+      duplicateGroups: [],
       routing: {
         status: "not_configured",
         ownerSlug: null,
