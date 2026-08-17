@@ -1,14 +1,21 @@
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 
-export const PRESENTATION_CARE_PLAN_VERSION = 2 as const;
+export const PRESENTATION_CARE_PLAN_VERSION = 3 as const;
 
 export type PresentationPlanMode = "simple" | "custom";
 export type PresentationLayout = "signature" | "concise" | "story";
 export type CarePlanServiceState = "included" | "optional" | "not_included";
 export type CarePlanServiceId =
+  | "exteriorWindows"
   | "interiorWindows"
   | "screens"
-  | "cobwebRemoval";
+  | "cobwebRemoval"
+  | "solarPanels"
+  | "pressureWashing";
+export type CarePlanPricedServiceId = Exclude<
+  CarePlanServiceId,
+  "exteriorWindows"
+>;
 export type CarePlanServicePolicy =
   | "always_included"
   | "selected_visits"
@@ -19,6 +26,8 @@ export interface CarePlanServicePrices {
   interiorWindows: number;
   screens: number;
   cobwebRemoval: number;
+  solarPanels: number;
+  pressureWashing: number;
 }
 
 /**
@@ -29,15 +38,22 @@ export const DEFAULT_CARE_PLAN_SERVICE_PRICES: CarePlanServicePrices = {
   interiorWindows: 100,
   screens: 50,
   cobwebRemoval: 50,
+  // Property-specific services stay at $0 until the owner quotes them or
+  // supplies an exact visit total. HomeAtlas must never invent the price.
+  solarPanels: 0,
+  pressureWashing: 0,
 };
 
 export interface CarePlanVisit {
   id: string;
   label: string;
   timing: string;
+  exteriorWindows: CarePlanServiceState;
   interiorWindows: CarePlanServiceState;
   screens: CarePlanServiceState;
   cobwebRemoval: CarePlanServiceState;
+  solarPanels: CarePlanServiceState;
+  pressureWashing: CarePlanServiceState;
   notes: string;
   /** Final quoted total for this visit. Null uses the pricing engine. */
   priceOverride: number | null;
@@ -57,7 +73,8 @@ export type CarePlanPresetId =
   | "screens_every_visit"
   | "annual_interior"
   | "flexible_add_ons"
-  | "full_service";
+  | "full_service"
+  | "solar_window_rotation";
 
 export const PRESENTATION_LAYOUT_OPTIONS: Array<{
   id: PresentationLayout;
@@ -147,11 +164,14 @@ export function createDefaultCarePlan(input: {
       id: createVisitId(index),
       label: VISIT_LABELS[input.tier][index] ?? `Visit ${index + 1}`,
       timing: VISIT_TIMING[input.tier][index] ?? "Scheduled with your care team",
+      exteriorWindows: "included",
       interiorWindows: input.includeInterior ? "included" : "not_included",
       screens: input.includeScreens ? "included" : "not_included",
       cobwebRemoval: input.includeCobwebRemoval
         ? "included"
         : "not_included",
+      solarPanels: "not_included",
+      pressureWashing: "not_included",
       notes: "",
       priceOverride: null,
     })),
@@ -243,6 +263,12 @@ export function normalizeCarePlan(
         typeof raw.timing === "string" && raw.timing.trim()
           ? raw.timing.trim().slice(0, 100)
           : base.timing,
+      // Version 1/2 plans had no exterior field because exterior was implicit.
+      // Falling back to the default preserves that signed customer intent.
+      exteriorWindows: serviceState(
+        raw.exteriorWindows,
+        base.exteriorWindows,
+      ),
       interiorWindows: serviceState(
         raw.interiorWindows,
         base.interiorWindows,
@@ -251,6 +277,11 @@ export function normalizeCarePlan(
       cobwebRemoval: serviceState(
         raw.cobwebRemoval,
         base.cobwebRemoval,
+      ),
+      solarPanels: serviceState(raw.solarPanels, base.solarPanels),
+      pressureWashing: serviceState(
+        raw.pressureWashing,
+        base.pressureWashing,
       ),
       notes:
         typeof raw.notes === "string" ? raw.notes.trim().slice(0, 240) : "",
@@ -281,6 +312,14 @@ export function normalizeCarePlan(
       cobwebRemoval: servicePrice(
         rawServicePrices.cobwebRemoval,
         fallback.servicePrices.cobwebRemoval,
+      ),
+      solarPanels: servicePrice(
+        rawServicePrices.solarPanels,
+        fallback.servicePrices.solarPanels,
+      ),
+      pressureWashing: servicePrice(
+        rawServicePrices.pressureWashing,
+        fallback.servicePrices.pressureWashing,
       ),
     },
     visits,
@@ -317,43 +356,75 @@ export function applyCarePlanPreset(
   preset: CarePlanPresetId,
 ): PresentationCarePlan {
   const visits = plan.visits.map((visit, index) => {
+    if (preset === "solar_window_rotation") {
+      return {
+        ...visit,
+        exteriorWindows:
+          index === 1 || index === plan.visits.length - 1
+            ? ("included" as const)
+            : ("not_included" as const),
+        solarPanels:
+          index < Math.min(3, plan.visits.length)
+            ? ("included" as const)
+            : ("not_included" as const),
+        pressureWashing: "not_included" as const,
+        screens: "not_included" as const,
+        interiorWindows: "not_included" as const,
+        cobwebRemoval: "not_included" as const,
+      };
+    }
     if (preset === "screens_every_visit") {
       return {
         ...visit,
+        exteriorWindows: "included" as const,
         screens: "included" as const,
         interiorWindows: "not_included" as const,
         cobwebRemoval: "not_included" as const,
+        solarPanels: "not_included" as const,
+        pressureWashing: "not_included" as const,
       };
     }
     if (preset === "annual_interior") {
       return {
         ...visit,
+        exteriorWindows: "included" as const,
         screens: "not_included" as const,
         interiorWindows: index === 0 ? ("included" as const) : ("not_included" as const),
         cobwebRemoval: "not_included" as const,
+        solarPanels: "not_included" as const,
+        pressureWashing: "not_included" as const,
       };
     }
     if (preset === "flexible_add_ons") {
       return {
         ...visit,
+        exteriorWindows: "included" as const,
         screens: "optional" as const,
         interiorWindows: "optional" as const,
         cobwebRemoval: "optional" as const,
+        solarPanels: "optional" as const,
+        pressureWashing: "optional" as const,
       };
     }
     if (preset === "full_service") {
       return {
         ...visit,
+        exteriorWindows: "included" as const,
         screens: "included" as const,
         interiorWindows: "included" as const,
         cobwebRemoval: "included" as const,
+        solarPanels: "not_included" as const,
+        pressureWashing: "not_included" as const,
       };
     }
     return {
       ...visit,
+      exteriorWindows: "included" as const,
       screens: "not_included" as const,
       interiorWindows: "not_included" as const,
       cobwebRemoval: "not_included" as const,
+      solarPanels: "not_included" as const,
+      pressureWashing: "not_included" as const,
     };
   });
 
@@ -367,6 +438,8 @@ export function applyCarePlanPreset(
       "Exterior windows every visit, with interior, screens, and cobweb removal available by request.",
     full_service:
       "Interior windows, exterior windows, screens, and cobweb removal on every scheduled visit.",
+    solar_window_rotation:
+      "A custom solar-panel and exterior-window rotation, with each visit scoped separately.",
   };
 
   return { ...plan, summary: summaryByPreset[preset], visits };
@@ -440,19 +513,27 @@ export function calculateCarePlanPricing(input: {
   interiorAddOn?: number;
   screensAddOn?: number;
   cobwebAddOn?: number;
+  solarPanelsAddOn?: number;
+  pressureWashingAddOn?: number;
 }): CarePlanPricing {
   const interiorAddOn =
     input.interiorAddOn ?? input.plan.servicePrices.interiorWindows;
   const screensAddOn = input.screensAddOn ?? input.plan.servicePrices.screens;
   const cobwebAddOn =
     input.cobwebAddOn ?? input.plan.servicePrices.cobwebRemoval;
+  const solarPanelsAddOn =
+    input.solarPanelsAddOn ?? input.plan.servicePrices.solarPanels;
+  const pressureWashingAddOn =
+    input.pressureWashingAddOn ?? input.plan.servicePrices.pressureWashing;
   const baseVisitPrice = roundMoney(Math.max(0, input.baseVisitPrice));
   const visits = input.plan.visits.map((visit) => {
     const computed =
-      baseVisitPrice +
+      (visit.exteriorWindows === "included" ? baseVisitPrice : 0) +
       (visit.interiorWindows === "included" ? interiorAddOn : 0) +
       (visit.screens === "included" ? screensAddOn : 0) +
-      (visit.cobwebRemoval === "included" ? cobwebAddOn : 0);
+      (visit.cobwebRemoval === "included" ? cobwebAddOn : 0) +
+      (visit.solarPanels === "included" ? solarPanelsAddOn : 0) +
+      (visit.pressureWashing === "included" ? pressureWashingAddOn : 0);
     const usedOverride = !!visit.priceOverride && visit.priceOverride > 0;
     return {
       id: visit.id,
@@ -475,6 +556,12 @@ export function calculateCarePlanPricing(input: {
 
 export function summarizeCarePlan(plan: PresentationCarePlan): string {
   const total = plan.visits.length;
+  const exteriorIncluded = plan.visits.filter(
+    (visit) => visit.exteriorWindows === "included",
+  ).length;
+  const exteriorOptional = plan.visits.filter(
+    (visit) => visit.exteriorWindows === "optional",
+  ).length;
   const interiorIncluded = plan.visits.filter(
     (visit) => visit.interiorWindows === "included",
   ).length;
@@ -493,7 +580,23 @@ export function summarizeCarePlan(plan: PresentationCarePlan): string {
   const cobwebOptional = plan.visits.filter(
     (visit) => visit.cobwebRemoval === "optional",
   ).length;
-  const parts = [`Exterior ${total}×/yr`];
+  const solarIncluded = plan.visits.filter(
+    (visit) => visit.solarPanels === "included",
+  ).length;
+  const solarOptional = plan.visits.filter(
+    (visit) => visit.solarPanels === "optional",
+  ).length;
+  const pressureIncluded = plan.visits.filter(
+    (visit) => visit.pressureWashing === "included",
+  ).length;
+  const pressureOptional = plan.visits.filter(
+    (visit) => visit.pressureWashing === "optional",
+  ).length;
+  const parts: string[] = [];
+
+  if (exteriorIncluded === total) parts.push(`Exterior ${total}×/yr`);
+  else if (exteriorIncluded > 0) parts.push(`exterior ${exteriorIncluded}×`);
+  else if (exteriorOptional > 0) parts.push("exterior optional");
 
   if (interiorIncluded > 0) parts.push(`interior ${interiorIncluded}×`);
   else if (interiorOptional > 0) parts.push("interior optional");
@@ -506,7 +609,16 @@ export function summarizeCarePlan(plan: PresentationCarePlan): string {
   else if (cobwebIncluded > 0) parts.push(`cobwebs ${cobwebIncluded}×`);
   else if (cobwebOptional > 0) parts.push("cobwebs optional");
 
-  return parts.join(" · ");
+  if (solarIncluded === total) parts.push("solar panels every visit");
+  else if (solarIncluded > 0) parts.push(`solar panels ${solarIncluded}×`);
+  else if (solarOptional > 0) parts.push("solar panels optional");
+
+  if (pressureIncluded === total) parts.push("pressure washing every visit");
+  else if (pressureIncluded > 0) {
+    parts.push(`pressure washing ${pressureIncluded}×`);
+  } else if (pressureOptional > 0) parts.push("pressure washing optional");
+
+  return parts.length > 0 ? parts.join(" · ") : "Custom services by visit";
 }
 
 export function serviceStateLabel(state: CarePlanServiceState): string {

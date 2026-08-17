@@ -118,7 +118,8 @@ function HqMembershipsContent() {
   }, []);
 
   useEffect(() => {
-    void loadMemberships();
+    const timer = window.setTimeout(() => void loadMemberships(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadMemberships]);
 
   const visibleRows = rows.filter((row) => row.rawStatus !== "cancelled");
@@ -230,7 +231,14 @@ function HqMembershipsContent() {
                         ["Yearly value", money(row.yearlyValue)],
                         ["Add-on revenue", money(row.lifetimeAddonRevenue)],
                         ["Member savings", money(row.lifetimeMemberSavings)],
-                        ["Card on file", row.cardOnFile ? "Yes" : "needs setup"],
+                        [
+                          "Payment",
+                          row.paymentRail === "manual_cash_check"
+                            ? "Cash / check"
+                            : row.cardOnFile
+                              ? "Stripe card on file"
+                              : "Stripe setup needed",
+                        ],
                         ["Next service", formatNextService(row)],
                       ] as Array<[string, string]>
                     ).map(([k, v]) => (
@@ -252,7 +260,9 @@ function HqMembershipsContent() {
                       <span className="text-xs text-muted/60">Portal: needs setup</span>
                     )}
                     <span className="text-xs text-muted/60">
-                      Stripe: {row.stripeCustomer ? "customer linked" : "not linked"}
+                      {row.paymentRail === "manual_cash_check"
+                        ? "Owner-approved cash/check account"
+                        : `Stripe: ${row.stripeCustomer ? "customer linked" : "not linked"}`}
                     </span>
                     {row.agreementId ? (
                       <span className="font-mono text-xs text-muted/60">
@@ -261,7 +271,7 @@ function HqMembershipsContent() {
                     ) : (
                       <span className="text-xs text-muted/60">Agreement: unknown</span>
                     )}
-                    {!row.cardOnFile ? (
+                    {!row.cardOnFile && row.paymentRail === "stripe_card" ? (
                       <PaymentSetupEmailButton
                         membershipId={row.id}
                         canSend={Boolean(row.agreementId)}

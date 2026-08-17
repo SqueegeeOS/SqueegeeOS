@@ -42,6 +42,7 @@ interface EnrollmentDeskData {
     customer_name: string;
     customer_email: string;
     status: string;
+    payment_rail: "stripe_card" | "manual_cash_check";
     docusign_status: string | null;
     signature_sent_at: string | null;
     signed_at: string | null;
@@ -468,7 +469,7 @@ function EnrollmentDeskContent() {
                               {packet.customer_name}
                             </p>
                             <p className="mt-1 text-xs text-muted">
-                              {packet.customer_email}
+                              {packet.customer_email} · {packet.payment_rail === "manual_cash_check" ? "cash / check" : "Stripe card"}
                             </p>
                           </div>
                           <span

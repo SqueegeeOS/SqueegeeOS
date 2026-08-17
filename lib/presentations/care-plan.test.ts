@@ -165,16 +165,50 @@ describe("presentation care plans", () => {
     expect(normalized.visits).toHaveLength(4);
     expect(normalized.visits[0]).toMatchObject({
       label: "Spring",
+      exteriorWindows: "included",
       interiorWindows: "included",
       screens: "not_included",
       cobwebRemoval: "not_included",
+      solarPanels: "not_included",
+      pressureWashing: "not_included",
       priceOverride: null,
     });
     expect(normalized.servicePrices).toEqual({
       interiorWindows: 100,
       screens: 50,
       cobwebRemoval: 50,
+      solarPanels: 0,
+      pressureWashing: 0,
     });
     expect(resizeCarePlan(normalized, "triannual").visits).toHaveLength(3);
+  });
+
+  it("supports a solar and exterior rotation without inventing property-specific prices", () => {
+    const plan = applyCarePlanPreset(
+      createDefaultCarePlan({ tier: "quarterly" }),
+      "solar_window_rotation",
+    );
+    const pricing = calculateCarePlanPricing({
+      plan,
+      baseVisitPrice: 200,
+      solarPanelsAddOn: 150,
+    });
+
+    expect(plan.visits.map((visit) => visit.exteriorWindows)).toEqual([
+      "not_included",
+      "included",
+      "not_included",
+      "included",
+    ]);
+    expect(plan.visits.map((visit) => visit.solarPanels)).toEqual([
+      "included",
+      "included",
+      "included",
+      "not_included",
+    ]);
+    expect(pricing.visits.map((visit) => visit.total)).toEqual([
+      150, 350, 150, 200,
+    ]);
+    expect(summarizeCarePlan(plan)).toContain("solar panels 3×");
   });
 });

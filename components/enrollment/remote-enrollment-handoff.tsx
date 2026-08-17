@@ -13,6 +13,7 @@ import type {
 } from "@/lib/enrollment/types";
 import { SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 import type { PresentationData, PresentationTier } from "@/lib/presentations/types";
+import type { PaymentRail } from "@/lib/billing/payment-rail";
 
 interface ReadinessPayload {
   checks?: Array<{
@@ -59,6 +60,8 @@ export function RemoteEnrollmentHandoff({
   );
   const [context, setContext] = useState<EnrollmentSalesContext | null>(null);
   const [noticeDays, setNoticeDays] = useState<3 | 5 | null>(null);
+  const [paymentRail, setPaymentRail] =
+    useState<PaymentRail>("stripe_card");
   const [sending, setSending] = useState(false);
   const [checkingStatus, setCheckingStatus] = useState(true);
   const [packetStatus, setPacketStatus] =
@@ -88,6 +91,7 @@ export function RemoteEnrollmentHandoff({
         }
         const nextStatus = body?.packet ?? null;
         setPacketStatus(nextStatus);
+        if (nextStatus) setPaymentRail(nextStatus.paymentRail);
         if (
           nextStatus &&
           !enrollmentPacketProgress(nextStatus.status).blocksNewSend
@@ -129,6 +133,7 @@ export function RemoteEnrollmentHandoff({
           salesContext: context,
           homeSolicitationNoticeDays:
             context === "customer_home" ? noticeDays : null,
+          paymentRail,
         }),
       });
       const body = (await response.json().catch(() => null)) as {
@@ -142,6 +147,7 @@ export function RemoteEnrollmentHandoff({
       }
       setPacketStatus({
         status: body?.status ?? "signature_sent",
+        paymentRail,
         updatedAt: new Date().toISOString(),
       });
     } catch (sendError) {
@@ -172,7 +178,7 @@ export function RemoteEnrollmentHandoff({
   }
 
   const durableProgress = packetStatus
-    ? enrollmentPacketProgress(packetStatus.status)
+    ? enrollmentPacketProgress(packetStatus.status, packetStatus.paymentRail)
     : null;
   const progressHref = returnTo ?? "/hq/enrollment";
   const progressHrefLabel = returnTo
@@ -220,7 +226,7 @@ export function RemoteEnrollmentHandoff({
           Fast phone handoff · recommended
         </span>
         <span className="mt-2 block font-serif text-xl font-light text-white">
-          Email DocuSign, then Stripe.
+          Email the agreement, then finish securely.
         </span>
         <span className="mt-2 block text-xs leading-relaxed text-white/48">
           One owner tap starts a trustworthy customer flow on their own device. No card details pass through HomeAtlas.
@@ -267,8 +273,44 @@ export function RemoteEnrollmentHandoff({
         </button>
       </div>
       <p className="mt-3 text-xs leading-relaxed text-white/48">
-        DocuSign emails the MSA plus the property quote. Stripe arrives only after the agreement is complete.
+        DocuSign emails the MSA plus the property quote. The selected payment arrangement starts only after the agreement is complete.
       </p>
+
+      <fieldset className="mt-5">
+        <legend className="text-[10px] uppercase tracking-[0.14em] text-white/40">
+          Payment arrangement
+        </legend>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setPaymentRail("stripe_card")}
+            className={`min-h-14 rounded-xl border px-3 text-left text-xs ${
+              paymentRail === "stripe_card"
+                ? "border-accent/45 bg-accent/12 text-accent"
+                : "border-white/10 text-white/45"
+            }`}
+          >
+            <span className="block font-semibold">Secure card on Stripe</span>
+            <span className="mt-1 block text-[10px] opacity-70">
+              Default · supports approved automatic billing
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setPaymentRail("manual_cash_check")}
+            className={`min-h-14 rounded-xl border px-3 text-left text-xs ${
+              paymentRail === "manual_cash_check"
+                ? "border-emerald-300/40 bg-emerald-300/[0.09] text-emerald-100"
+                : "border-white/10 text-white/45"
+            }`}
+          >
+            <span className="block font-semibold">Cash or check account</span>
+            <span className="mt-1 block text-[10px] opacity-70">
+              Owner-only · never enters automatic charges
+            </span>
+          </button>
+        </div>
+      </fieldset>
 
       {durableProgress ? (
         <div
@@ -428,7 +470,9 @@ export function RemoteEnrollmentHandoff({
             : `Email secure packet to ${presentation.clientEmail || "customer"}`}
       </button>
       <p className="mt-3 text-center text-[10px] leading-relaxed text-white/28">
-        No agreement is sent unless the attorney-approved templates and every provider check are green.
+        {paymentRail === "manual_cash_check"
+          ? "Owner approval is recorded with the packet. No Stripe customer, card link, or automatic charge is created."
+          : "No agreement is sent unless the approved templates and every provider check are green."}
       </p>
     </div>
   );

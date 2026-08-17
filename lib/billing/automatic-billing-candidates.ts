@@ -34,6 +34,7 @@ interface MembershipRow {
   stripe_payment_method_id: string | null;
   visit_price: number | string | null;
   automatic_billing_enabled: boolean;
+  payment_rail: "stripe_card" | "manual_cash_check";
 }
 
 interface AppointmentRow {
@@ -157,6 +158,7 @@ function membershipInput(
     stripePaymentMethodId: row.stripe_payment_method_id,
     visitPrice: row.visit_price === null ? null : Number(row.visit_price),
     automaticBillingEnabled: row.automatic_billing_enabled,
+    paymentRail: row.payment_rail,
     billingAuthorizationIssues: membershipBillingAuthorizationIssues(
       authorizationInput(row, agreement),
     ),
@@ -484,7 +486,7 @@ export async function prepareAutomaticBillingOrders(input: {
   const membershipsResult = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, status, billing_schedule, agreement_id, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, visit_price, automatic_billing_enabled",
+      "id, homeowner_id, property_id, status, billing_schedule, agreement_id, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, visit_price, automatic_billing_enabled, payment_rail",
     )
     .in("property_id", propertyIds)
     .eq("status", "active");

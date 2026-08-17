@@ -1,5 +1,5 @@
 import {
-  hasPaymentMethodOnFile,
+  hasPaymentArrangement,
   isMembershipActive,
   type HqMembershipStatusInput,
 } from "@/lib/membership/membership-status";
@@ -226,7 +226,7 @@ export function deriveSalesProductionHandoff(
     };
   }
 
-  if (!hasPaymentMethodOnFile(membership)) {
+  if (!hasPaymentArrangement(membership)) {
     if (input.paymentSetupEmailState !== "ready") {
       const attention = paymentSetupAttention(input.paymentSetupEmailState);
       return {

@@ -19,6 +19,7 @@ const membership = {
   stripePaymentMethodId: "pm_123",
   visitPrice: 250,
   automaticBillingEnabled: true,
+  paymentRail: "stripe_card" as const,
   billingAuthorizationIssues: [],
 };
 
@@ -77,6 +78,17 @@ describe("automatic membership billing rules", () => {
       "membership_automatic_billing_paused",
       "appointment_not_verified",
     ]);
+    expect(
+      automaticBillingBlockingReasons({
+        membership: {
+          ...membership,
+          paymentRail: "manual_cash_check",
+          automaticBillingEnabled: false,
+        },
+        appointment,
+        serviceMonth: "2026-08-01",
+      }),
+    ).toContain("membership_payment_rail_not_stripe");
   });
 
   it("creates a stable per-membership service-month operation key", () => {

@@ -65,6 +65,7 @@ interface ExecutionMembershipRow {
   stripe_payment_method_id: string | null;
   visit_price: number | string | null;
   automatic_billing_enabled: boolean;
+  payment_rail: "stripe_card" | "manual_cash_check";
 }
 
 interface ExecutionAppointmentRow {
@@ -196,6 +197,7 @@ function membershipInput(
     stripePaymentMethodId: row.stripe_payment_method_id,
     visitPrice: row.visit_price === null ? null : Number(row.visit_price),
     automaticBillingEnabled: row.automatic_billing_enabled,
+    paymentRail: row.payment_rail,
     billingAuthorizationIssues: membershipBillingAuthorizationIssues({
       agreementId: row.agreement_id,
       agreementStatus: agreement?.status ?? null,
@@ -288,7 +290,7 @@ async function loadExecutionContext(order: ClaimedBillingOrder): Promise<{
       supabase
         .from("memberships")
         .select(
-          "id, homeowner_id, property_id, status, billing_schedule, agreement_id, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, visit_price, automatic_billing_enabled",
+          "id, homeowner_id, property_id, status, billing_schedule, agreement_id, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, visit_price, automatic_billing_enabled, payment_rail",
         )
         .eq("id", order.membership_id)
         .single(),

@@ -3,6 +3,7 @@ import "server-only";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { isEnrollmentPacketStatus } from "./packet-progress";
 import type { EnrollmentPacketStatusSnapshot } from "./types";
+import { normalizePaymentRail } from "@/lib/billing/payment-rail";
 
 export async function loadEnrollmentPacketStatus(
   presentationId: string,
@@ -10,7 +11,7 @@ export async function loadEnrollmentPacketStatus(
   const supabase = createServiceRoleSupabaseClient();
   const result = await supabase
     .from("enrollment_packets")
-    .select("status, updated_at")
+    .select("status, payment_rail, updated_at")
     .eq("presentation_id", presentationId)
     .maybeSingle();
 
@@ -24,6 +25,7 @@ export async function loadEnrollmentPacketStatus(
 
   return {
     status: result.data.status,
+    paymentRail: normalizePaymentRail(result.data.payment_rail),
     updatedAt: result.data.updated_at,
   };
 }

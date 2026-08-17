@@ -121,7 +121,7 @@ async function loadMemberships(
           supabase
             .from("memberships")
             .select(
-              "id, homeowner_id, property_id, presentation_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, agreement_id, sales_tier, visit_price, visits_per_year",
+              "id, homeowner_id, property_id, presentation_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, agreement_id, sales_tier, visit_price, visits_per_year",
               { count: "exact" },
             )
             .in("id", ids)

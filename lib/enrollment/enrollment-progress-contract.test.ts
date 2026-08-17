@@ -22,7 +22,9 @@ describe("durable enrollment progress contract", () => {
     );
     expect(route).toContain("loadEnrollmentPacketStatus(presentationId)");
     expect(route).toContain('"Cache-Control": "private, no-store, max-age=0"');
-    expect(statusServer).toContain('.select("status, updated_at")');
+    expect(statusServer).toContain(
+      '.select("status, payment_rail, updated_at")',
+    );
     expect(statusServer).toContain('.eq("presentation_id", presentationId)');
     expect(statusServer).not.toContain("customer_email");
     expect(statusServer).not.toContain("docusign_envelope_id");

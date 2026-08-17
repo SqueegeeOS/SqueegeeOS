@@ -16,13 +16,16 @@ export interface MembershipPortalRow {
   payment_setup_completed_at: string | null;
   presentation_id: string | null;
   stripe_payment_method_id: string | null;
+  payment_rail: "stripe_card" | "manual_cash_check";
+  manual_payment_approved_at: string | null;
+  manual_payment_approved_by: string | null;
   agreement_id: string | null;
   membership_enrollment_savings: number | null;
   portal_theme: AtlasThemeId | null;
 }
 
 const MEMBERSHIP_PORTAL_BASE_SELECT =
-  "id, plan_name, price_display, started_at, status, founding_member, founding_member_since, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, presentation_id, stripe_payment_method_id, agreement_id";
+  "id, plan_name, price_display, started_at, status, founding_member, founding_member_since, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, presentation_id, stripe_payment_method_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, agreement_id";
 
 const MEMBERSHIP_PORTAL_FULL_SELECT = `${MEMBERSHIP_PORTAL_BASE_SELECT}, membership_enrollment_savings, portal_theme`;
 

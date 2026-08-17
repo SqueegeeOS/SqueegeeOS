@@ -1,4 +1,5 @@
 import type { EnrollmentPacketStatus } from "./types";
+import type { PaymentRail } from "@/lib/billing/payment-rail";
 
 export type EnrollmentPacketProgressTone =
   | "neutral"
@@ -131,6 +132,32 @@ export function isEnrollmentPacketStatus(
 
 export function enrollmentPacketProgress(
   status: EnrollmentPacketStatus,
+  paymentRail: PaymentRail = "stripe_card",
 ): EnrollmentPacketProgress {
-  return PROGRESS[status];
+  const progress = PROGRESS[status];
+  if (paymentRail !== "manual_cash_check") return progress;
+
+  if (status === "signature_sent") {
+    return {
+      ...progress,
+      detail:
+        "DocuSign has the next move. The owner-approved cash/check account activates after signature; no Stripe step will be created.",
+    };
+  }
+  if (status === "signature_complete") {
+    return {
+      ...progress,
+      title: "Signature secured. Opening their portal.",
+      detail:
+        "The agreement and cash/check arrangement are recorded. HomeAtlas is finalizing the private portal without creating a card setup.",
+    };
+  }
+  if (status === "portal_ready") {
+    return {
+      ...progress,
+      detail:
+        "Agreement, owner-approved cash/check account, customer record, and portal are connected. No automatic card charges are enabled.",
+    };
+  }
+  return progress;
 }

@@ -23,7 +23,7 @@ export interface MembershipMemberRow {
   propertyLabel: string;
   homeownerSlug: string | null;
   propertySlug: string | null;
-  planType: "Quarterly" | "Bi-Annual" | "Unknown";
+  planType: "Quarterly" | "3× Per Year" | "Bi-Annual" | "Unknown";
   visitPrice: number | null;
   yearlyValue: number | null;
   visitsPerYear: number | null;
@@ -31,6 +31,7 @@ export interface MembershipMemberRow {
   nextServiceLabel: string | null;
   paymentStatus: StripePaymentStatus;
   cardLabel: string | null;
+  paymentRail: "stripe_card" | "manual_cash_check";
   membershipStatus: string | null;
   healthBadges: MembershipHealthBadge[];
   missingFlags: string[];
@@ -46,7 +47,7 @@ export interface MembershipMonthDueRow {
   membershipId: string;
   homeownerName: string;
   propertyLabel: string;
-  planType: "Quarterly" | "Bi-Annual" | "Unknown";
+  planType: "Quarterly" | "3× Per Year" | "Bi-Annual" | "Unknown";
   visitPrice: number | null;
   missingFlags: string[];
 }
@@ -58,6 +59,7 @@ export interface MembershipMonthView {
   expectedRevenue: number;
   visitsByPlanType: {
     quarterly: number;
+    triannual: number;
     biannual: number;
     unknown: number;
   };

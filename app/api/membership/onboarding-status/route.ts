@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
       const { data: membership } = await supabase
         .from("memberships")
         .select(
-          "id, status, agreement_id, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, sales_tier, visit_price, visits_per_year",
+          "id, status, agreement_id, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, sales_tier, visit_price, visits_per_year",
         )
         .eq("id", presentation.membership_id)
         .maybeSingle();
@@ -76,6 +76,14 @@ export async function GET(req: NextRequest) {
             (membership.stripe_payment_method_id as string | null) ?? null,
           stripe_customer_id:
             (membership.stripe_customer_id as string | null) ?? null,
+          payment_rail:
+            (membership.payment_rail as
+              | "stripe_card"
+              | "manual_cash_check") ?? "stripe_card",
+          manual_payment_approved_at:
+            (membership.manual_payment_approved_at as string | null) ?? null,
+          manual_payment_approved_by:
+            (membership.manual_payment_approved_by as string | null) ?? null,
           agreement_id: (membership.agreement_id as string | null) ?? null,
           sales_tier: (membership.sales_tier as string | null) ?? null,
           visit_price:

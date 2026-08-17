@@ -10,6 +10,7 @@ import {
   serviceStateLabel,
 } from "@/lib/presentations/care-plan";
 import type { PresentationData } from "@/lib/presentations/types";
+import type { PaymentRail } from "@/lib/billing/payment-rail";
 import {
   SQUEEGEEKING_TIERS,
   type SqueegeeKingTierId,
@@ -24,6 +25,9 @@ export const ENROLLMENT_RENEWAL_SUMMARY =
 
 export const ENROLLMENT_RATE_CHANGE_SUMMARY =
   "The first-visit and continuing rates are shown separately. Any later material or fee change is prospective and will be sent in a retainable notice with a direct cancellation method before it takes effect. HomeAtlas operations target the California fee-change window of no fewer than 7 and no more than 30 days.";
+
+export const MANUAL_PAYMENT_ARRANGEMENT_SUMMARY =
+  "This trusted account pays by cash or check after service. No card is stored, no automatic Stripe charge is authorized, and each payment is recorded against the applicable visit or invoice.";
 
 function cents(value: number): number {
   if (!Number.isFinite(value) || value <= 0) {
@@ -52,6 +56,7 @@ export function buildEnrollmentDocumentSnapshot(input: {
   annualizedValue: number;
   salesContext: EnrollmentSalesContext;
   homeSolicitationNoticeDays: 3 | 5 | null;
+  paymentRail: PaymentRail;
   createdAt?: string;
 }): EnrollmentDocumentSnapshot {
   const customerEmail = normalizeEnrollmentEmail(input.presentation.clientEmail);
@@ -101,7 +106,7 @@ export function buildEnrollmentDocumentSnapshot(input: {
   );
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     presentationId: input.presentation.id,
     customer: {
       name: input.presentation.clientName.trim(),
@@ -134,11 +139,21 @@ export function buildEnrollmentDocumentSnapshot(input: {
           pricing.visits[index] !== undefined
             ? cents(pricing.visits[index]!.total)
             : fallbackVisitPriceCents,
+        exteriorWindows: visit.exteriorWindows,
         interiorWindows: visit.interiorWindows,
         screens: visit.screens,
         cobwebRemoval: visit.cobwebRemoval,
+        solarPanels: visit.solarPanels,
+        pressureWashing: visit.pressureWashing,
         notes: visit.notes,
       })),
+    },
+    payment: {
+      rail: input.paymentRail,
+      arrangementSummary:
+        input.paymentRail === "manual_cash_check"
+          ? MANUAL_PAYMENT_ARRANGEMENT_SUMMARY
+          : "A separate Stripe-hosted setup stores the card securely after signature. HomeAtlas never receives the card number.",
     },
     disclosures: {
       salesContext: input.salesContext,
@@ -146,8 +161,14 @@ export function buildEnrollmentDocumentSnapshot(input: {
       renewalSummary: ENROLLMENT_RENEWAL_SUMMARY,
       cancellationSummary: `${membershipCancellationReimbursementClause(savings)} Cancel with 30 days written notice using the email or online cancellation method shown in the agreement. Any additional California home-solicitation cancellation right controls during its applicable period.`,
       rateChangeSummary: ENROLLMENT_RATE_CHANGE_SUMMARY,
-      billingSummary: MEMBERSHIP_BILLING_FINE_PRINT_BODY,
-      billingConsent: membershipAgreementCheckboxText(),
+      billingSummary:
+        input.paymentRail === "manual_cash_check"
+          ? MANUAL_PAYMENT_ARRANGEMENT_SUMMARY
+          : MEMBERSHIP_BILLING_FINE_PRINT_BODY,
+      billingConsent:
+        input.paymentRail === "manual_cash_check"
+          ? "I understand this owner-approved account is payable by cash or check and is not authorized for automatic card charges."
+          : membershipAgreementCheckboxText(),
     },
     createdAt: input.createdAt ?? new Date().toISOString(),
   };
@@ -159,10 +180,12 @@ export function enrollmentScopePlainText(
   return snapshot.plan.visits
     .map((visit) => {
       const services = [
-        "Exterior windows: Included",
+        `Exterior windows: ${serviceStateLabel(visit.exteriorWindows ?? "included")}`,
         `Interior windows: ${serviceStateLabel(visit.interiorWindows)}`,
         `Screens: ${serviceStateLabel(visit.screens)}`,
         `Cobweb removal: ${serviceStateLabel(visit.cobwebRemoval)}`,
+        `Solar panels: ${serviceStateLabel(visit.solarPanels ?? "not_included")}`,
+        `Pressure washing: ${serviceStateLabel(visit.pressureWashing ?? "not_included")}`,
       ].join("; ");
       return `${visit.label} (${visit.timing}) — ${services}${
         visit.notes ? `; Notes: ${visit.notes}` : ""

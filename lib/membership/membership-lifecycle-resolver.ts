@@ -17,6 +17,9 @@ export interface MembershipLifecycleInput {
   payment_setup_completed_at?: string | null;
   stripe_payment_method_id?: string | null;
   stripe_customer_id?: string | null;
+  payment_rail?: "stripe_card" | "manual_cash_check";
+  manual_payment_approved_at?: string | null;
+  manual_payment_approved_by?: string | null;
   agreement_id?: string | null;
   sales_tier?: string | null;
   visit_price?: number | null;
@@ -41,6 +44,7 @@ export interface MembershipLifecycleResult {
   rawStatus: MembershipStatus;
   isActive: boolean;
   paymentOnFile: boolean;
+  paymentArrangementReady: boolean;
   hasPaymentSignal: boolean;
   hasSignedAgreement: boolean;
   canSchedule: boolean;
@@ -67,8 +71,25 @@ function normalizeRawStatus(status: string): MembershipStatus {
 export function hasPaymentSignal(input: MembershipLifecycleInput): boolean {
   return Boolean(
     input.payment_setup_completed_at?.trim() ||
-      input.stripe_payment_method_id?.trim(),
+      input.stripe_payment_method_id?.trim() ||
+      hasManualPaymentApproval(input),
   );
+}
+
+export function hasManualPaymentApproval(
+  input: MembershipLifecycleInput,
+): boolean {
+  return Boolean(
+    input.payment_rail === "manual_cash_check" &&
+      input.manual_payment_approved_at?.trim() &&
+      input.manual_payment_approved_by?.trim(),
+  );
+}
+
+export function hasPaymentArrangement(
+  input: MembershipLifecycleInput,
+): boolean {
+  return hasPaymentMethodOnFile(input) || hasManualPaymentApproval(input);
 }
 
 /** Strict: payment setup completed timestamp (activation write). */
@@ -90,8 +111,8 @@ function detectInconsistencies(input: MembershipLifecycleInput): string[] {
   const issues: string[] = [];
   const raw = normalizeRawStatus(input.status);
 
-  if (raw === "active" && !hasPaymentMethodOnFile(input)) {
-    issues.push("status_active_without_payment_setup_completed_at");
+  if (raw === "active" && !hasPaymentArrangement(input)) {
+    issues.push("status_active_without_payment_arrangement");
   }
   if (hasPaymentMethodOnFile(input) && raw === "pending_payment") {
     issues.push("payment_completed_while_status_pending_payment");
@@ -135,7 +156,7 @@ function detectInconsistencies(input: MembershipLifecycleInput): string[] {
 export function isMembershipActive(input: MembershipLifecycleInput): boolean {
   const raw = normalizeRawStatus(input.status);
   if (raw !== "active") return false;
-  if (!hasPaymentMethodOnFile(input)) return false;
+  if (!hasPaymentArrangement(input)) return false;
   if (input.agreement_id !== undefined && !input.agreement_id?.trim()) {
     return false;
   }
@@ -154,6 +175,7 @@ export function resolveMembershipLifecycle(
   const rawStatus = normalizeRawStatus(input.status);
   const inconsistencies = detectInconsistencies(input);
   const paymentOnFile = hasPaymentMethodOnFile(input);
+  const paymentArrangementReady = hasPaymentArrangement(input);
   const paymentSignal = hasPaymentSignal(input);
   const signedAgreement = hasSignedAgreementRecord(input);
   const active = isMembershipActive(input);
@@ -190,6 +212,7 @@ export function resolveMembershipLifecycle(
     rawStatus,
     isActive: active,
     paymentOnFile,
+    paymentArrangementReady,
     hasPaymentSignal: paymentSignal,
     hasSignedAgreement: signedAgreement,
     canSchedule: active,

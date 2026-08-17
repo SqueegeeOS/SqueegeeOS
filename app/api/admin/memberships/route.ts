@@ -9,8 +9,6 @@ import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { isMissingColumnError } from "@/lib/persistence/queries/load-membership-portal-row";
 import { MEMBER_ADDON_REVENUE_STATUSES } from "@/lib/persistence/types/member-addon";
 import {
-  hasPaymentMethodOnFile,
-  isMembershipCancelled,
   resolveHqMembershipDisplayStatus,
   resolveMembershipLifecycle,
   type HqMembershipDisplayStatus,
@@ -43,7 +41,7 @@ export interface HqMembershipRow {
   customerName: string;
   address: string;
   planLabel: string;
-  tier: "biannual" | "quarterly" | "unknown";
+  tier: "biannual" | "triannual" | "quarterly" | "unknown";
   status: HqMembershipDisplayStatus;
   lifecycleState: MembershipLifecycleState;
   rawStatus: string;
@@ -51,6 +49,7 @@ export interface HqMembershipRow {
   visitsPerYear: number | null;
   yearlyValue: number | null;
   cardOnFile: boolean;
+  paymentRail: "stripe_card" | "manual_cash_check";
   stripeCustomer: boolean;
   nextServiceMonth: string | null;
   nextServiceDate: string | null;
@@ -86,6 +85,9 @@ interface MembershipQueryRow {
   payment_setup_completed_at: string | null;
   stripe_customer_id: string | null;
   stripe_payment_method_id: string | null;
+  payment_rail: "stripe_card" | "manual_cash_check";
+  manual_payment_approved_at: string | null;
+  manual_payment_approved_by: string | null;
   next_billing_date: string | null;
   portal_access_token: string | null;
   agreement_id: string | null;
@@ -94,7 +96,7 @@ interface MembershipQueryRow {
 }
 
 const MEMBERSHIP_BASE_SELECT =
-  "id, homeowner_id, property_id, sales_tier, visit_price, annual_rate, visits_per_year, status, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, agreement_id, created_at";
+  "id, homeowner_id, property_id, sales_tier, visit_price, annual_rate, visits_per_year, status, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, agreement_id, created_at";
 
 const MEMBERSHIP_EXTENDED_SELECT = `${MEMBERSHIP_BASE_SELECT}, next_billing_date, portal_access_token, founding_member`;
 
@@ -373,6 +375,9 @@ export async function GET(request: Request) {
         payment_setup_completed_at: m.payment_setup_completed_at,
         stripe_payment_method_id: m.stripe_payment_method_id,
         stripe_customer_id: m.stripe_customer_id,
+        payment_rail: m.payment_rail,
+        manual_payment_approved_at: m.manual_payment_approved_at,
+        manual_payment_approved_by: m.manual_payment_approved_by,
         agreement_id: m.agreement_id,
         sales_tier: m.sales_tier,
         visit_price: m.visit_price,
@@ -388,6 +393,8 @@ export async function GET(request: Request) {
         planLabel:
           m.sales_tier === "biannual"
             ? "Bi-Annual"
+            : m.sales_tier === "triannual"
+              ? "3× Per Year"
             : m.sales_tier === "quarterly"
               ? "Quarterly"
               : "Unknown",
@@ -399,6 +406,7 @@ export async function GET(request: Request) {
         visitsPerYear: m.visits_per_year,
         yearlyValue: yearly,
         cardOnFile: Boolean(m.stripe_payment_method_id),
+        paymentRail: m.payment_rail,
         stripeCustomer: Boolean(m.stripe_customer_id),
         nextServiceMonth,
         nextServiceDate,

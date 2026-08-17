@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PaymentRail } from "@/lib/billing/payment-rail";
 
 export interface MembershipRowForPayment {
   id: string;
@@ -12,6 +13,7 @@ export interface MembershipRowForPayment {
   payment_setup_completed_at: string | null;
   started_at: string | null;
   visits_per_year: number | null;
+  payment_rail: PaymentRail;
 }
 
 export async function loadMembershipForPayment(
@@ -19,7 +21,7 @@ export async function loadMembershipForPayment(
   input: { presentationId?: string | null; membershipId?: string | null },
 ): Promise<MembershipRowForPayment | null> {
   let query = supabase.from("memberships").select(
-    "id, homeowner_id, property_id, presentation_id, agreement_id, status, stripe_customer_id, stripe_payment_method_id, payment_setup_completed_at, started_at, visits_per_year",
+    "id, homeowner_id, property_id, presentation_id, agreement_id, status, stripe_customer_id, stripe_payment_method_id, payment_setup_completed_at, started_at, visits_per_year, payment_rail",
   );
 
   if (input.membershipId) {

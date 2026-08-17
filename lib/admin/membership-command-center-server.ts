@@ -12,6 +12,7 @@ import type {
 } from "@/lib/admin/membership-command-center-types";
 import { buildPortalAccessUrl } from "@/lib/membership/portal-access";
 import {
+  hasPaymentArrangement,
   hasPaymentMethodOnFile,
   isMembershipActive,
   isMembershipPendingEnrollment,
@@ -50,6 +51,9 @@ interface MembershipRow {
   payment_setup_completed_at: string | null;
   stripe_customer_id: string | null;
   stripe_payment_method_id: string | null;
+  payment_rail: "stripe_card" | "manual_cash_check";
+  manual_payment_approved_at: string | null;
+  manual_payment_approved_by: string | null;
   portal_access_token: string | null;
   founding_member: boolean;
 }
@@ -113,7 +117,7 @@ const EMPTY_MONTH_VIEW = (referenceDate: Date): MembershipMonthView => {
     }),
     membersDueCount: 0,
     expectedRevenue: 0,
-    visitsByPlanType: { quarterly: 0, biannual: 0, unknown: 0 },
+    visitsByPlanType: { quarterly: 0, triannual: 0, biannual: 0, unknown: 0 },
     dueMembers: [],
     missingDataFlags: [],
   };
@@ -128,11 +132,12 @@ function formatPropertyLabel(property: PropertyRow): string {
 function planTypeFromTier(
   salesTier: string | null,
   planName: string | null,
-): "Quarterly" | "Bi-Annual" | "Unknown" {
+): "Quarterly" | "3× Per Year" | "Bi-Annual" | "Unknown" {
   const tierId = normalizeToSqueegeeKingTier(
     salesTier ?? planName ?? "quarterly",
   );
   if (tierId === "quarterly") return "Quarterly";
+  if (tierId === "triannual") return "3× Per Year";
   if (tierId === "biannual") return "Bi-Annual";
   return "Unknown";
 }
@@ -235,6 +240,7 @@ function resolvePendingReason(
 
 function buildHealthBadges(input: {
   isActive: boolean;
+  paymentArrangementReady: boolean;
   paymentStatus: StripePaymentStatus;
   pendingReason: PendingMemberReason | null;
   dueThisMonth: boolean;
@@ -247,9 +253,10 @@ function buildHealthBadges(input: {
     badges.push("active");
   }
   if (
-    input.paymentStatus === "payment_pending" ||
-    input.paymentStatus === "not_configured" ||
-    input.pendingReason === "signed_missing_card"
+    !input.paymentArrangementReady &&
+    (input.paymentStatus === "payment_pending" ||
+      input.paymentStatus === "not_configured" ||
+      input.pendingReason === "signed_missing_card")
   ) {
     badges.push("needs_card");
   }
@@ -276,6 +283,7 @@ function buildMissingFlags(input: {
   paymentStatus: StripePaymentStatus;
   obligationsCount: number;
   isActive: boolean;
+  paymentArrangementReady: boolean;
 }): string[] {
   const flags: string[] = [];
   if (input.visitPrice == null) flags.push("Visit price unknown");
@@ -286,11 +294,11 @@ function buildMissingFlags(input: {
   if (
     input.isActive &&
     input.obligationsCount === 0 &&
-    input.paymentStatus === "card_on_file"
+    input.paymentArrangementReady
   ) {
     flags.push("Service obligations not generated");
   }
-  if (input.paymentStatus === "payment_pending") {
+  if (!input.paymentArrangementReady && input.paymentStatus === "payment_pending") {
     flags.push("Card not on file");
   }
   return flags;
@@ -324,7 +332,7 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
   const { data: memberships, error: membershipError } = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, presentation_id, agreement_id, status, sales_tier, plan_name, visit_price, annual_rate, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, portal_access_token, founding_member",
+      "id, homeowner_id, property_id, presentation_id, agreement_id, status, sales_tier, plan_name, visit_price, annual_rate, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, portal_access_token, founding_member",
     )
     .neq("status", "cancelled")
     .order("created_at", { ascending: true });
@@ -458,7 +466,7 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
   const pendingMembers: MembershipMemberRow[] = [];
   const dueMembers: MembershipMonthDueRow[] = [];
   const monthMissingFlags = new Set<string>();
-  const visitsByPlanType = { quarterly: 0, biannual: 0, unknown: 0 };
+  const visitsByPlanType = { quarterly: 0, triannual: 0, biannual: 0, unknown: 0 };
   let expectedRevenue = 0;
 
   for (const membership of membershipRows) {
@@ -492,6 +500,7 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
     );
 
     const paymentOnFile = hasPaymentMethodOnFile(membership);
+    const paymentArrangementReady = hasPaymentArrangement(membership);
     const isActive = isMembershipActive(membership);
     const paymentStatus = resolveStripePaymentStatus(membership);
     const planType = planTypeFromTier(membership.sales_tier, membership.plan_name);
@@ -528,15 +537,19 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
       ? null
       : resolvePendingReason(membership, Boolean(agreement));
 
-    const cardLabel = paymentOnFile
-      ? await resolvePortalPaymentMethodLabel(membership.stripe_payment_method_id)
-      : null;
+    const cardLabel =
+      membership.payment_rail === "manual_cash_check" && paymentArrangementReady
+        ? "Cash / check account"
+        : paymentOnFile
+          ? await resolvePortalPaymentMethodLabel(membership.stripe_payment_method_id)
+          : null;
 
     const missingFlags = buildMissingFlags({
       visitPrice,
       yearlyValue,
       nextServiceLabel: nextService.label,
       paymentStatus,
+      paymentArrangementReady,
       obligationsCount: obligations.length,
       isActive,
     });
@@ -559,9 +572,11 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
       nextServiceLabel: nextService.label,
       paymentStatus,
       cardLabel,
+      paymentRail: membership.payment_rail,
       membershipStatus: membership.status,
       healthBadges: buildHealthBadges({
         isActive,
+        paymentArrangementReady,
         paymentStatus,
         pendingReason,
         dueThisMonth,
@@ -611,6 +626,7 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
         monthMissingFlags.add("Some due members are missing visit price");
       }
       if (planType === "Quarterly") visitsByPlanType.quarterly += 1;
+      else if (planType === "3× Per Year") visitsByPlanType.triannual += 1;
       else if (planType === "Bi-Annual") visitsByPlanType.biannual += 1;
       else visitsByPlanType.unknown += 1;
     }
@@ -662,6 +678,7 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
       nextServiceLabel: null,
       paymentStatus: "not_configured",
       cardLabel: null,
+      paymentRail: "stripe_card",
       membershipStatus: null,
       healthBadges: ["attention"],
       missingFlags: ["Agreement presented but not signed"],

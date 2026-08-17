@@ -18,6 +18,7 @@ export interface PaymentSetupEmailStateInput {
   billingAuthorizationVersion: string | null | undefined;
   billingAuthorizedAt: string | null | undefined;
   billingTermsHash: string | null | undefined;
+  paymentRail?: "stripe_card" | "manual_cash_check";
 }
 
 /**
@@ -27,6 +28,9 @@ export interface PaymentSetupEmailStateInput {
 export function resolvePaymentSetupEmailState(
   input: PaymentSetupEmailStateInput,
 ): PaymentSetupEmailState {
+  if (input.paymentRail === "manual_cash_check") {
+    return "not_available";
+  }
   if (
     input.paymentSetupCompletedAt?.trim() ||
     input.stripePaymentMethodId?.trim()

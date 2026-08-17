@@ -192,6 +192,9 @@ export async function reconcileHostedMembershipSetupIntent(
   if (!membership) issues.push("membership_missing");
   if (!agreement) issues.push("agreement_missing");
   if (membership) {
+    if (membership.payment_rail !== "stripe_card") {
+      issues.push("membership_payment_rail_not_stripe");
+    }
     if (membership.presentation_id !== handoff.presentation_id) {
       issues.push("membership_presentation_mismatch");
     }

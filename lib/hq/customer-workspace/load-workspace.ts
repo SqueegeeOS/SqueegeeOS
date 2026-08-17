@@ -196,7 +196,7 @@ async function loadPropertyWorkspace(
       supabase
         .from("memberships")
         .select(
-          "id, status, plan_name, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, started_at, founding_member, presentation_id, agreement_id, stripe_payment_method_id",
+          "id, status, plan_name, sales_tier, visit_price, visits_per_year, payment_setup_completed_at, started_at, founding_member, presentation_id, agreement_id, stripe_payment_method_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by",
         )
         .eq("property_id", propertyId)
         .in("status", ["pending_checkout", "pending_payment", "active", "paused"])
@@ -283,7 +283,9 @@ async function loadPropertyWorkspace(
     : null;
 
   const paymentMethodLabel =
-    membership?.payment_setup_completed_at &&
+    membership?.payment_rail === "manual_cash_check"
+      ? "Cash or check account"
+      : membership?.payment_setup_completed_at &&
     membership?.stripe_payment_method_id
       ? await resolvePortalPaymentMethodLabel(
           membership.stripe_payment_method_id as string,
@@ -297,6 +299,14 @@ async function loadPropertyWorkspace(
           (membership.payment_setup_completed_at as string | null) ?? null,
         paymentMethodLabel,
         hasMembership: true,
+        paymentRail:
+          (membership.payment_rail as
+            | "stripe_card"
+            | "manual_cash_check") ?? "stripe_card",
+        manualPaymentApprovedAt:
+          (membership.manual_payment_approved_at as string | null) ?? null,
+        manualPaymentApprovedBy:
+          (membership.manual_payment_approved_by as string | null) ?? null,
       })
     : null;
 
@@ -323,6 +333,10 @@ async function loadPropertyWorkspace(
           (agreement?.billing_authorized_at as string | null) ?? null,
         billingTermsHash:
           (agreement?.billing_terms_hash as string | null) ?? null,
+        paymentRail:
+          (membership.payment_rail as
+            | "stripe_card"
+            | "manual_cash_check") ?? "stripe_card",
       })
     : null;
 
@@ -341,6 +355,14 @@ async function loadPropertyWorkspace(
         (presentation?.onboarding_status as string | null) ?? undefined,
       presentationStatus: presentation?.status as string | undefined,
       signedAgreementStatus: agreement ? "complete" : undefined,
+      payment_rail:
+        (membership.payment_rail as
+          | "stripe_card"
+          | "manual_cash_check") ?? "stripe_card",
+      manual_payment_approved_at:
+        (membership.manual_payment_approved_at as string | null) ?? null,
+      manual_payment_approved_by:
+        (membership.manual_payment_approved_by as string | null) ?? null,
     });
 
     if (lifecycle.isActive) {
@@ -352,6 +374,14 @@ async function loadPropertyWorkspace(
           payment_setup_completed_at:
             (membership.payment_setup_completed_at as string | null) ?? null,
           agreement_id: (membership.agreement_id as string | null) ?? undefined,
+          payment_rail:
+            (membership.payment_rail as
+              | "stripe_card"
+              | "manual_cash_check") ?? "stripe_card",
+          manual_payment_approved_at:
+            (membership.manual_payment_approved_at as string | null) ?? null,
+          manual_payment_approved_by:
+            (membership.manual_payment_approved_by as string | null) ?? null,
         },
         {
           hasSignedAgreement: Boolean(agreement),

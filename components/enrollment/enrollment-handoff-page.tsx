@@ -90,6 +90,7 @@ export function EnrollmentHandoffPage({
     : status.paymentComplete
       ? "current"
       : "next";
+  const manualPayment = status.paymentRail === "manual_cash_check";
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#08100c] px-5 py-10 text-[#f6f1e7] sm:px-8 sm:py-16">
@@ -134,8 +135,16 @@ export function EnrollmentHandoffPage({
               state={agreementState}
             />
             <Step
-              label="Secure card setup"
-              detail={status.paymentComplete ? "Stripe confirmed your saved payment method. No card number lives in HomeAtlas." : "A separate Stripe page keeps payment details out of the agreement and off our servers."}
+              label={manualPayment ? "Cash/check arrangement" : "Secure card setup"}
+              detail={
+                manualPayment
+                  ? status.paymentComplete
+                    ? "Your owner-approved cash/check account is recorded. No automatic card charge is enabled."
+                    : "HomeAtlas is recording the approved cash/check arrangement without creating a card setup."
+                  : status.paymentComplete
+                    ? "Stripe confirmed your saved payment method. No card number lives in HomeAtlas."
+                    : "A separate Stripe page keeps payment details out of the agreement and off our servers."
+              }
               state={paymentState}
             />
             <Step
@@ -177,7 +186,9 @@ export function EnrollmentHandoffPage({
           ) : null}
 
           <p className="mt-5 text-center text-[11px] leading-relaxed text-white/28">
-            No payment is collected during card setup. Questions? Reply to the SqueegeeKing email that brought you here.
+            {manualPayment
+              ? "No card is stored and automatic card billing is disabled. Questions? Reply to the SqueegeeKing email that brought you here."
+              : "No payment is collected during card setup. Questions? Reply to the SqueegeeKing email that brought you here."}
           </p>
         </section>
       </div>
