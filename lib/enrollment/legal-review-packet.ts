@@ -289,6 +289,10 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
         href: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=BPC&sectionNum=17602",
       },
       {
+        label: "California Civil Code § 1689.5",
+        href: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1689.5",
+      },
+      {
         label: "California Civil Code § 1689.7",
         href: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1689.7",
       },
