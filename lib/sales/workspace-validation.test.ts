@@ -68,7 +68,7 @@ describe("sales workspace validation", () => {
     }
   });
 
-  it("rejects fabricated service identifiers and safely defaults to exterior", () => {
+  it("accepts supported property services, rejects fabricated identifiers, and defaults to exterior", () => {
     const base = {
       clientEventId: "00000000-0000-4000-8000-000000000101",
       fullName: "Jordan Homeowner",
@@ -80,10 +80,20 @@ describe("sales workspace validation", () => {
     if (defaulted.ok) {
       expect(defaulted.value.serviceInterests).toEqual(["exterior_windows"]);
     }
+    const propertyServices = validateCreateSalesLead({
+      ...base,
+      serviceInterests: [
+        "exterior_windows",
+        "pressure_washing",
+        "solar_panels",
+        "gutter_cleaning",
+      ],
+    });
+    expect(propertyServices.ok).toBe(true);
     expect(
       validateCreateSalesLead({
         ...base,
-        serviceInterests: ["exterior_windows", "pressure_washing"],
+        serviceInterests: ["exterior_windows", "roof_replacement"],
       }),
     ).toEqual({
       ok: false,

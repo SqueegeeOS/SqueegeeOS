@@ -25,6 +25,9 @@ import {
   LeadIntakeAssignmentError,
   loadLeadIntakeSalesAssignment,
 } from "@/lib/sales/lead-intake-assignment-server";
+import {
+  salesServiceInterestsFromLeadIntake,
+} from "@/lib/sales/service-interests";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
@@ -214,7 +217,9 @@ export async function POST(req: NextRequest) {
             (typeof body.homeSqft === "number" ? body.homeSqft : undefined),
           quoteSnapshot: leadIntake ? null : (body.quoteSnapshot ?? null),
           serviceInterests: leadIntake
-            ? undefined
+            ? salesServiceInterestsFromLeadIntake(
+                leadIntake.servicesInterested,
+              )
             : lineage?.lead?.serviceInterests,
         });
       } catch (creationError) {

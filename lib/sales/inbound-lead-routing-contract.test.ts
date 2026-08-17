@@ -11,6 +11,7 @@ function read(relativePath: string): string {
 const publicLeadRoute = read("../../app/api/leads/route.ts");
 const metaIngestion = read("../integrations/meta-lead-ingestion.ts");
 const routingServer = read("./inbound-lead-routing-server.ts");
+const assignmentServer = read("./lead-intake-assignment-server.ts");
 const pipelineServer = read("./owner-pipeline-server.ts");
 const ownerPage = read("../../components/admin/owner-sales-inbox-page.tsx");
 const envExample = read("../../.env.example");
@@ -34,6 +35,9 @@ describe("automatic inbound ownership release contract", () => {
     expect(routingServer.toLowerCase()).not.toContain("twilio");
     expect(routingServer.toLowerCase()).not.toContain("resend");
     expect(routingServer.toLowerCase()).not.toContain("stripe");
+    expect(assignmentServer).toContain("services_interested");
+    expect(assignmentServer).toContain("salesServiceInterestsFromLeadIntake");
+    expect(assignmentServer).toContain("service_interests:");
   });
 
   it("shows the verified route in HQ and keeps configuration explicit", () => {
