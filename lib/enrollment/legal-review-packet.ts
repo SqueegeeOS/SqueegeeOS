@@ -44,7 +44,7 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
   return {
     packetLabel: "California HomeAtlas enrollment packet",
     summary:
-      "One DocuSign envelope contains the durable Master Service Agreement and the property-specific Service & Quote Agreement. After signing, a separate Stripe-hosted page collects the payment method. HomeAtlas retains the exact document snapshot, provider evidence, and portal handoff as one enrollment record.",
+      "One DocuSign envelope contains the durable Master Service Agreement and the property-specific Service & Quote Agreement. The complete proposed drafts now cover service standards, visit-by-visit scope, card or owner-approved cash/check, add-ons, renewal, cancellation, responsibility, and dispute handling. After signing, a separate Stripe-hosted page collects a card when that rail is selected. HomeAtlas retains the exact document snapshot, provider evidence, and portal handoff as one enrollment record.",
     documents: [
       {
         id: "master_service_agreement",
@@ -78,7 +78,7 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
             heading: "4. Care standard and service concerns",
             paragraphs: [
               "Accepted services are performed professionally against the written scope. The customer may report a concern through the private portal, notice email, or published company phone so the concern and response remain attached to the property record.",
-              "The final version should state the chosen reporting window and whether inspection, re-service, credit, or another remedy applies to a verified service issue.",
+              "The proposed draft uses a three-calendar-day reporting window for reasonably discoverable concerns and a fair inspection, re-service, correction, credit, or affected-line-item refund as the first remedy, while preserving non-waivable rights.",
             ],
           },
           {
@@ -92,6 +92,7 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
             paragraphs: [
               "The MSA creates no price by itself. The property agreement controls prices, included work, optional work, taxes, credits, cadence, and the selected payment rail.",
               "For card-on-file accounts, the customer enters payment details only on Stripe's hosted page after signing. HomeAtlas stores provider references, not the full card number. A later charge still requires the signed authorization and HomeAtlas billing safety gates.",
+              "For an owner-approved cash/check account, no automatic card charge is attempted; the property agreement states the due date and HomeAtlas records the manual payment and receipt reference.",
             ],
           },
           {
@@ -112,19 +113,19 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
             heading: "9. Warranty and liability framework",
             paragraphs: [
               "The working position is a fair re-service-first remedy for a verified scope issue, with no promise that exterior surfaces will remain clean after weather, construction, irrigation, animals, or other new conditions.",
-              "The final language must preserve non-waivable California consumer rights and carve out fraud, willful misconduct, gross negligence, and liabilities that cannot legally be limited. The lawyer should set any monetary cap, consequential-damage treatment, indemnity, and claim deadline.",
+              "The complete proposal assigns direct harm according to each party's negligence, misconduct, fraud, or material breach; excludes only remote or speculative losses to the extent lawful; and preserves non-waivable California rights. It proposes no hidden consumer indemnity or mandatory arbitration clause.",
             ],
           },
           {
             heading: "10. Disputes and governing law",
             paragraphs: [
-              "The working process is written notice followed by a good-faith attempt to resolve the issue, without blocking small-claims rights or statutory remedies. California law applies; the lawyer should decide venue, mediation, arbitration, class-action language, and fee allocation.",
+              "The proposed process is written notice followed by at least 15 days for a good-faith attempt to resolve the issue, without blocking time-sensitive relief, small-claims rights, or statutory remedies. California law applies and the draft does not require private arbitration.",
             ],
           },
           {
             heading: "11. General contract terms",
             paragraphs: [
-              "The final reviewed version should cover notices, assignment, waiver, severability, amendments, counterparts, survival, force majeure, and the complete-agreement rule. A later signed writing changes an earlier term only to the extent it says so.",
+              "The proposed draft covers notices, assignment with continuity on a business sale, waiver, severability, signed amendments, electronic counterparts, survival, and the complete-agreement rule. A later signed writing changes an earlier term only to the extent it says so.",
             ],
           },
           {
@@ -173,7 +174,7 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
           {
             heading: "Scheduling and access",
             paragraphs: [
-              "The accepted cadence sets the service plan while Jobber supplies operational dates. Weather, access, and safety may move a date. The final version should state the no-access and rescheduling process.",
+              "The accepted cadence sets the service plan while Jobber supplies operational dates. Weather, access, and safety may move a date. The deal snapshot includes the selected no-access and rescheduling process, and schedule visibility never becomes billing authority by itself.",
             ],
           },
           {
@@ -184,10 +185,17 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
             ],
           },
           {
+            heading: "Cash/check and add-on controls",
+            paragraphs: [
+              "An owner-approved cash/check account is expressly identified, is never represented as card-ready, and records a manual due date, payment method, amount, and receipt reference.",
+              "A one-visit add-on records its work, disclosed price or pricing method, affected visit, and customer approval. It does not silently become part of future visits; a permanent change uses a signed amendment or replacement property agreement.",
+            ],
+          },
+          {
             heading: "Cancellation, renewal, and changes",
             paragraphs: [
               "The agreement states the initial term, renewal behavior, 30-day written-notice policy, any enrollment-savings reimbursement, statutory cancellation rights, and the direct portal/email cancellation methods.",
-              "A fee or material-term change notice identifies the current term, new term, effective date, and direct cancellation method before taking effect.",
+              "A clear confirmation block immediately before signing shows the renewal period, amount or range and frequency of charges, and cancellation methods. A fee or material-term change notice identifies the current term, new term, effective date, and direct cancellation method before taking effect.",
             ],
           },
           {
@@ -223,7 +231,7 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
             heading: "What the final DocuSign template must handle",
             paragraphs: [
               "The template needs the required signature-adjacent statement, transaction date, seller identity, cancellation address or method, same-language contract treatment, oral explanation, and required cancellation-form copies.",
-              "The lawyer must confirm the correct statutory period and exact form for SqueegeeKing's service model and for any senior-citizen transaction. HomeAtlas should not improvise this text at send time.",
+              "A concrete conditional insert now proposes the standard and senior lanes, deadline variables, first-page seller block, retainable copies, same-language control, oral-explanation evidence, and unobstructed cancellation intake. The lawyer must still confirm applicability and the exact released form; HomeAtlas never improvises it at send time.",
             ],
           },
         ],
@@ -287,6 +295,14 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
       {
         label: "California Civil Code § 1633.7",
         href: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1633.7",
+      },
+      {
+        label: "California Civil Code § 1671",
+        href: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1671",
+      },
+      {
+        label: "California DOJ automatic-renewal guidance",
+        href: "https://oag.ca.gov/news/press-releases/attorney-general-bonta-issues-consumer-alert-california%E2%80%99s-automatic-renewal-law",
       },
     ],
   };

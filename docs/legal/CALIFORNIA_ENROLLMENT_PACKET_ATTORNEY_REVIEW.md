@@ -4,7 +4,7 @@
 
 HomeAtlas uses one DocuSign envelope containing two visibly separate documents. The customer signs once through DocuSign, then receives a separate Stripe-hosted page to save a payment method. The signed envelope, completion certificate, quote snapshot, provider event history, and final portal link remain connected to one enrollment record.
 
-Working drafts for counsel are in `docs/legal/drafts/`. They are deliberately blocked from customer use and should be replaced or redlined by counsel before the matching database versions are approved.
+Complete proposed drafts for counsel are in `docs/legal/drafts/`. They now include the business terms, payment rails, service-concern process, responsibility framework, dispute process, renewal controls, add-on evidence, and a conditional customer-home cancellation insert. They are deliberately blocked from customer use and should be redlined by counsel before the matching database versions are approved.
 
 ## Document 1 — California LLC Master Service Agreement
 
@@ -15,7 +15,7 @@ The MSA should hold durable relationship terms that do not need to be rewritten 
 3. General service standards, reasonable property access, customer responsibilities, weather and safety rescheduling, and re-service process.
 4. Payment-method authorization framework. Property-specific prices and cadence belong in the Service/Quote Agreement.
 5. Warranty or satisfaction process, permitted subcontracting, insurance language, and records/electronic signatures.
-6. Risk allocation, limitation of liability, indemnity, dispute resolution, governing law, venue, prevailing-party fees, and severability **only in language approved by California counsel**.
+6. A proposed responsibility framework, direct-loss treatment, good-faith dispute process, California governing law, assignment, severability, and complete-agreement terms for counsel to accept or redline.
 7. Order of precedence: the property-specific Service/Quote Agreement controls a conflict about scope, price, cadence, cancellation disclosure, or property terms; the MSA controls the remaining relationship terms.
 
 ## Document 2 — Property Service & Quote Agreement
@@ -36,7 +36,7 @@ The live member portal includes a direct, token-authenticated **Request membersh
 
 ## Home-solicitation lane for David and future D2D sales
 
-California Civil Code sections 1689.5–1689.7 can apply when a $25+ service agreement is made somewhere other than the seller's normal business premises. Counsel should confirm the exact lane for SqueegeeKing window-cleaning memberships.
+California Civil Code sections 1689.5–1689.7 may apply to qualifying service agreements made away from the seller's normal business premises. Counsel should confirm the exact lane and any exception for SqueegeeKing window-cleaning memberships before HomeAtlas sends the conditional insert.
 
 The HomeAtlas handoff therefore records where the sale was made:
 
@@ -51,6 +51,8 @@ For the home-solicitation lane, counsel should confirm:
 - the required detachable/duplicate Notice of Cancellation treatment in an electronic DocuSign envelope;
 - the oral explanation David must give at signing; and
 - whether giving every D2D buyer a longer voluntary cancellation period changes the statutory wording that must appear.
+
+The current working insert is in `docs/legal/drafts/CALIFORNIA_CUSTOMER_HOME_CANCELLATION_NOTICE_DRAFT.md`. It gives counsel concrete text and implementation questions instead of leaving this entire lane blank.
 
 ## DocuSign template contract
 
@@ -75,4 +77,6 @@ After counsel approves the exact PDFs/template:
 
 - California Civil Code §§ 1689.5–1689.7 (home solicitation definition, cancellation rights, contract/notice mechanics).
 - California Business and Professions Code § 17602 (automatic renewal and continuous-service consent, acknowledgments, cancellation, reminders, and fee/material-change notices).
+- California Civil Code § 1671 (consumer liquidated-damages review for any initial-term savings reimbursement).
+- California Civil Code § 1633.7 (legal effect of electronic records and signatures).
 - Existing HomeAtlas Jobber-scheduled-service billing disclosure and automatic-billing authorization hash.
