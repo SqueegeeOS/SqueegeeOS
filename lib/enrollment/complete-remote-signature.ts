@@ -124,7 +124,7 @@ async function loadAgreementVersions(input: {
   );
   if (!msa || !service) {
     throw new Error(
-      "The signed envelope is not bound to both currently approved legal document versions.",
+      "The signed envelope is not bound to both currently released legal document versions.",
     );
   }
   return { msa, service };

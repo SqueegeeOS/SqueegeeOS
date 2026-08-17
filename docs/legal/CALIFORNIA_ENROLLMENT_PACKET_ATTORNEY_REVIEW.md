@@ -1,10 +1,10 @@
-# California HomeAtlas enrollment packet — attorney review brief
+# California HomeAtlas enrollment packet — owner release and later counsel brief
 
-> **Status: attorney-review draft. Do not send this document to customers or mark either database version approved until California counsel has approved the exact DocuSign template.** This is a product and operations specification, not legal advice.
+> **Status: owner-release candidate. Do not send this brief to customers.** This is a product and operations specification, not legal advice or a claim of outside-counsel approval. The owner may release exact DocuSign files after the provider probe downloads and fingerprints them; later counsel review remains separately recorded and should create a new version.
 
 HomeAtlas uses one DocuSign envelope containing two visibly separate documents. The customer signs once through DocuSign, then receives a separate Stripe-hosted page to save a payment method. The signed envelope, completion certificate, quote snapshot, provider event history, and final portal link remain connected to one enrollment record.
 
-Complete proposed drafts for counsel are in `docs/legal/drafts/`. They now include the business terms, payment rails, service-concern process, responsibility framework, dispute process, renewal controls, add-on evidence, and a conditional customer-home cancellation insert. They are deliberately blocked from customer use and should be redlined by counsel before the matching database versions are approved.
+Complete working agreements are in `docs/legal/drafts/`. They include the business terms, payment rails, service-concern process, responsibility framework, dispute process, renewal controls, add-on evidence, and a conditional customer-home cancellation insert. These markdown sources are never sent directly; exact customer-facing DocuSign files remain blocked until the owner inspects and releases their SHA-256 fingerprints.
 
 ## Document 1 — California LLC Master Service Agreement
 
@@ -15,7 +15,7 @@ The MSA should hold durable relationship terms that do not need to be rewritten 
 3. General service standards, reasonable property access, customer responsibilities, weather and safety rescheduling, and re-service process.
 4. Payment-method authorization framework. Property-specific prices and cadence belong in the Service/Quote Agreement.
 5. Warranty or satisfaction process, permitted subcontracting, insurance language, and records/electronic signatures.
-6. A proposed responsibility framework, direct-loss treatment, good-faith dispute process, California governing law, assignment, severability, and complete-agreement terms for counsel to accept or redline.
+6. A proposed responsibility framework, direct-loss treatment, good-faith dispute process, California governing law, assignment, severability, and complete-agreement terms for owner acceptance now and possible later counsel revision.
 7. Order of precedence: the property-specific Service/Quote Agreement controls a conflict about scope, price, cadence, cancellation disclosure, or property terms; the MSA controls the remaining relationship terms.
 
 ## Document 2 — Property Service & Quote Agreement
@@ -32,18 +32,18 @@ This document is the customer-facing deal sheet and must stay plain-language and
 8. Annual renewal/continuous-service reminder language and delivery channel.
 9. The MSA version incorporated by reference and the order-of-precedence sentence.
 
-The live member portal includes a direct, token-authenticated **Request membership cancellation** action. It timestamps a private customer service case without requiring a reason and is not blocked by the ordinary open-case limit. Counsel should approve the effective-date language and whether a separate email acknowledgment is required.
+The live member portal includes a direct, token-authenticated **Request membership cancellation** action. It timestamps a private customer service case without requiring a reason and is not blocked by the ordinary open-case limit. The released agreement must state the effective-date and acknowledgment behavior; later counsel review may revise that wording.
 
 ## Home-solicitation lane for David and future D2D sales
 
-California Civil Code sections 1689.5–1689.7 may apply to qualifying service agreements made away from the seller's normal business premises. Counsel should confirm the exact lane and any exception for SqueegeeKing window-cleaning memberships before HomeAtlas sends the conditional insert.
+California Civil Code sections 1689.5–1689.7 may apply to qualifying service agreements made away from the seller's normal business premises. HomeAtlas treats the recorded customer-home lane conservatively and requires the current statutory insert before the owner can release that provider file.
 
 The HomeAtlas handoff therefore records where the sale was made:
 
-- `customer_home`: requires the owner to choose the attorney-approved 3-business-day or senior 5-business-day notice lane before sending.
-- `business_premises`, `remote`, or `other`: does not automatically insert the home-solicitation notice; counsel controls the final template logic.
+- `customer_home`: requires the owner to choose the current statutory 3-business-day or senior 5-business-day notice lane before sending.
+- `business_premises`, `remote`, or `other`: does not automatically insert the home-solicitation notice.
 
-For the home-solicitation lane, counsel should confirm:
+For the home-solicitation lane, the owner release check must verify:
 
 - same-language requirement as the oral presentation;
 - the conspicuous cancellation statement next to the signature;
@@ -52,7 +52,7 @@ For the home-solicitation lane, counsel should confirm:
 - the oral explanation David must give at signing; and
 - whether giving every D2D buyer a longer voluntary cancellation period changes the statutory wording that must appear.
 
-The current working insert is in `docs/legal/drafts/CALIFORNIA_CUSTOMER_HOME_CANCELLATION_NOTICE_DRAFT.md`. It gives counsel concrete text and implementation questions instead of leaving this entire lane blank.
+The current working insert is in `docs/legal/drafts/CALIFORNIA_CUSTOMER_HOME_CANCELLATION_NOTICE_DRAFT.md`. It provides a concrete release checklist and preserves later counsel questions instead of leaving the lane blank.
 
 ## DocuSign template contract
 
@@ -61,14 +61,14 @@ Create one DocuSign template containing both documents in this order:
 1. `California LLC Master Service Agreement`
 2. `Property Service & Quote Agreement` (including any required Notice of Cancellation pages)
 
-The template must have one remote signer role named `Customer` and locked text tabs with the labels documented in `lib/enrollment/docusign-tabs.ts`. HomeAtlas will refuse to send unless both database document versions are approved and the provider configuration is complete.
+The template must have one remote signer role named `Customer` and locked text tabs with the labels documented in `lib/enrollment/docusign-tabs.ts`. HomeAtlas will refuse to send unless both database document versions are owner-released and provider-file hashed, the recipient passes the rollout gate, and the provider configuration is complete.
 
 The private `/hq/enrollment` Activation Map now exposes the exact production Connect callback, Customer-role name, required tab-label manifest, missing environment-variable names, and ordered launch steps. Its DocuSign probe is read-only: it obtains an OAuth token and reads the configured template definition, documents, recipients, and recipient tabs. It does not create an envelope, send an email, approve a document version, or touch Stripe. A passing probe therefore proves the JWT/template contract only; the HMAC-signed Connect path still requires one business-owned end-to-end rehearsal.
 
-After counsel approves the exact PDFs/template:
+After the owner accepts the working terms and uploads the exact DocuSign files:
 
-1. Calculate a SHA-256 hash for each approved source document.
-2. Change each matching `agreement_document_versions` row to `approved` with `content_sha256`, `approved_at`, and `approved_by`.
+1. Run the read-only DocuSign probe; HomeAtlas downloads and calculates a SHA-256 hash for each exact provider file.
+2. Use the owner-release action to atomically bind both matching `agreement_document_versions` rows with `content_sha256`, release time, release actor, and `counsel_review_status=pending`.
 3. Configure the DocuSign, legal identity, Stripe, Resend, and public-origin environment variables in Vercel.
 4. Grant DocuSign JWT impersonation consent once for the integration user.
 5. Configure DocuSign Connect to post JSON envelope events to `/api/integrations/docusign/connect` with HMAC signing enabled.
@@ -76,7 +76,7 @@ After counsel approves the exact PDFs/template:
 7. Add `setup_intent.succeeded` to the existing Stripe webhook endpoint, then send a test packet to a business-controlled email, finish DocuSign, finish Stripe setup, and verify the portal.
 8. Only after that end-to-end test succeeds, set `STRIPE_ENROLLMENT_SETUP_WEBHOOK_CONFIRMED=true` and use the workflow with a real customer.
 
-## Sources counsel should review
+## Current primary sources and later counsel review
 
 - California Civil Code §§ 1689.5–1689.7 (home solicitation definition, cancellation rights, contract/notice mechanics).
 - California Business and Professions Code § 17602 (automatic renewal and continuous-service consent, acknowledgments, cancellation, reminders, and fee/material-change notices).

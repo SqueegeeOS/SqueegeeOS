@@ -20,6 +20,7 @@ function readiness(overrides: Partial<Record<string, boolean>> = {}): Enrollment
     "database",
     "legal_documents",
     "legal_identity",
+    "release_control",
     "docusign",
     "stripe",
     "email",
@@ -52,6 +53,19 @@ function readiness(overrides: Partial<Record<string, boolean>> = {}): Enrollment
     checks,
     approvedVersions: { msa: null, serviceQuote: null },
     legalIdentity: null,
+    releaseControl: {
+      mode: "rehearsal",
+      ready: overrides.release_control ?? false,
+      rehearsalRecipientConfigured: overrides.release_control ?? false,
+      rehearsalRecipientHint: overrides.release_control
+        ? "ow***@example.com"
+        : null,
+      rehearsalConfirmed: false,
+      detail: overrides.release_control ? "ready" : "not ready",
+      missing: overrides.release_control
+        ? []
+        : ["HOMEATLAS_ENROLLMENT_REHEARSAL_EMAIL"],
+    },
   };
 }
 
@@ -73,9 +87,12 @@ describe("enrollment provider launch plan", () => {
       "DOCUSIGN_PRIVATE_KEY_BASE64",
     );
     expect(plan.probeSafetyNote).toContain("never creates an envelope");
+    expect(plan.steps.find((step) => step.id === "release_control")?.status).toBe(
+      "action_needed",
+    );
   });
 
-  it("unlocks the read-only probe before Connect and counsel are complete", () => {
+  it("unlocks the read-only probe before Connect and owner release are complete", () => {
     const partial = readiness();
     const docusign = partial.checks.find((check) => check.id === "docusign")!;
     docusign.missing = ["DOCUSIGN_CONNECT_HMAC_SECRET"];

@@ -20,6 +20,7 @@ export interface EnrollmentLaunchStep {
   id:
     | "legal_identity"
     | "legal_documents"
+    | "release_control"
     | "docusign_jwt"
     | "docusign_template"
     | "docusign_connect"
@@ -88,6 +89,7 @@ export function getEnrollmentProviderLaunchPlan(
   const docusignConfig = input.docusignConfig ?? resolveDocuSignConfig();
   const identity = byId(readiness, "legal_identity");
   const documents = byId(readiness, "legal_documents");
+  const releaseControl = byId(readiness, "release_control");
   const docusign = byId(readiness, "docusign");
   const jwtMissing = missingFrom(docusign, DOCUSIGN_JWT_ENV);
   const templateMissing = missingFrom(docusign, DOCUSIGN_TEMPLATE_ENV);
@@ -108,7 +110,7 @@ export function getEnrollmentProviderLaunchPlan(
     ],
     canRunDocuSignProbe,
     probeSafetyNote:
-      "The probe requests an OAuth token and reads the configured template, recipients, documents, and tabs. It never creates an envelope, emails a customer, or touches Stripe.",
+      "The probe requests an OAuth token, reads the configured template, downloads the exact provider documents to calculate SHA-256 fingerprints, and inspects recipients and tabs. It never creates an envelope, emails a customer, or touches Stripe.",
     steps: [
       {
         id: "legal_identity",
@@ -121,12 +123,19 @@ export function getEnrollmentProviderLaunchPlan(
       },
       {
         id: "legal_documents",
-        label: "Release the exact legal text",
+        label: "Owner-release the exact legal text",
         status: documents.ready ? "complete" : "waiting",
         detail: documents.ready
           ? documents.detail
-          : "Keep both versions blocked until counsel returns the redline and the released files are content-hashed.",
+          : "Use the working agreements now if the owner accepts them, but release only the exact customer-facing DocuSign files and record both SHA-256 fingerprints. Counsel review remains a later revision, not a false label.",
         missing: documents.missing,
+      },
+      {
+        id: "release_control",
+        label: "Lock the first recipient",
+        status: releaseControl.ready ? "complete" : "action_needed",
+        detail: releaseControl.detail,
+        missing: releaseControl.missing,
       },
       {
         id: "docusign_jwt",
@@ -145,7 +154,7 @@ export function getEnrollmentProviderLaunchPlan(
         detail:
           templateMissing.length === 0
             ? "The configured template ID can be checked without sending an envelope."
-            : "Use one Customer role, both approved documents, signature tabs, and every locked HomeAtlas text-tab label listed below.",
+            : "Use one Customer role, both owner-released documents, signature tabs, and every locked HomeAtlas text-tab label listed below.",
         missing: templateMissing,
       },
       {
@@ -163,8 +172,8 @@ export function getEnrollmentProviderLaunchPlan(
         label: "Run one business-owned rehearsal",
         status: readiness.readyToSend ? "action_needed" : "waiting",
         detail: readiness.readyToSend
-          ? "All gates are green. Use only a business-controlled email for the first full DocuSign → Stripe → portal rehearsal."
-          : "This remains locked until legal text, identity, DocuSign, Stripe, Resend, and the private ledger are all green.",
+          ? "All global gates are green. The send path will still reject any recipient that does not match the configured rehearsal address."
+          : "This remains locked until released text, identity, rollout control, DocuSign, Stripe, Resend, and the private ledger are all green.",
         missing: readiness.checks
           .filter((check) => !check.ready)
           .map((check) => check.id),

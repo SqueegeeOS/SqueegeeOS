@@ -60,7 +60,7 @@ function presentation(): PresentationData {
   };
 }
 
-describe("attorney-controlled enrollment snapshot", () => {
+describe("owner-released enrollment snapshot", () => {
   it("freezes customer, property, first rate, recurring rate, and visit scope", () => {
     const snapshot = buildEnrollmentDocumentSnapshot({
       presentation: presentation(),

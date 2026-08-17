@@ -165,6 +165,12 @@ describe("DocuSign integration boundary", () => {
           ],
         });
       }
+      if (url.endsWith("/documents/1")) {
+        return new Response("exact msa bytes");
+      }
+      if (url.endsWith("/documents/2")) {
+        return new Response("exact service quote bytes");
+      }
       if (url.endsWith("/templates/template-id")) {
         return Response.json({
           envelopeTemplateDefinition: {
@@ -188,12 +194,27 @@ describe("DocuSign integration boundary", () => {
       customerRoleFound: true,
       templateName: "HomeAtlas enrollment",
       documentCount: 2,
+      documents: [
+        {
+          documentId: "1",
+          name: "Master Service Agreement",
+          documentKind: "master_service_agreement",
+        },
+        {
+          documentId: "2",
+          name: "Property Service Agreement",
+          documentKind: "service_quote_agreement",
+        },
+      ],
       signatureTabCount: 1,
       missingTabLabels: [],
       connectHmacConfigured: true,
       errorCode: null,
     });
-    expect(calls).toHaveLength(5);
+    expect(result.documents.every((document) => /^[0-9a-f]{64}$/.test(document.sha256))).toBe(
+      true,
+    );
+    expect(calls).toHaveLength(7);
     expect(calls[0]?.method).toBe("POST");
     expect(calls.slice(1).every((call) => call.method === "GET")).toBe(true);
     expect(calls.some((call) => call.url.includes("/envelopes"))).toBe(false);

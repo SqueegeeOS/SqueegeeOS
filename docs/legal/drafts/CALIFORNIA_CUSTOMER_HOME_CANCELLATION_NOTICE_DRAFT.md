@@ -1,6 +1,6 @@
 # California customer-home cancellation insert — conditional working draft
 
-> **INTERNAL REVIEW COPY — DO NOT SEND YET.** This insert is used only when California counsel confirms that the recorded sales context is a covered home-solicitation contract. Counsel must approve the exact text, font, placement, language, deadline calculation, copies, and DocuSign delivery mechanics before release.
+> **STATUTORY RELEASE CANDIDATE — DO NOT SEND THIS MARKDOWN FILE.** This insert is used only when the recorded sales context requires the California customer-home lane. The exact current statutory text, font, placement, language, deadline calculation, copies, and DocuSign delivery mechanics must be verified and owner-released. This is not legal advice; later counsel review should create a new version if changes are needed.
 
 ## Required packet data
 
@@ -15,7 +15,7 @@
 - Buyer lane: `{{standard_or_senior_lane}}`
 - Cancellation deadline: `{{statutory_cancellation_deadline}}`
 
-The released packet must calculate the deadline from the transaction date using the attorney-approved business-day rule. It must never ask a salesperson to type the deadline from memory.
+The released packet must calculate the deadline from the transaction date using the current statutory business-day rule. It must never ask a salesperson to type the deadline from memory.
 
 ## First-page seller and transaction block
 
@@ -33,9 +33,9 @@ The released DocuSign template must place the applicable statement immediately n
 
 ## Notice of Cancellation form
 
-The released packet should contain the attorney-approved statutory form twice, completed with the transaction date, seller name, seller business address, cancellation email, and exact deadline. Its customer-facing substance must state that the buyer may cancel without penalty or obligation within the applicable three- or five-business-day period; explain return of payments, instruments, property, and security interests; explain the handling of goods delivered to the residence when relevant; and allow cancellation by email, mail, delivery, or another legally permitted written notice.
+The released packet should contain the current statutory form twice, completed with the transaction date, seller name, seller business address, cancellation email, and exact deadline. Its customer-facing substance must state that the buyer may cancel without penalty or obligation within the applicable three- or five-business-day period; explain return of payments, instruments, property, and security interests; explain the handling of goods delivered to the residence when relevant; and allow cancellation by email, mail, delivery, or another legally permitted written notice.
 
-Each copy should provide fields for the cancellation date and buyer signature. The form should remain detachable or independently retainable in the electronic packet. Counsel must decide whether the statutory goods-return paragraphs remain verbatim for SqueegeeKing's service-only transaction and how DocuSign satisfies the duplicate-copy requirement.
+Each copy should provide fields for the cancellation date and buyer signature. The form should remain detachable or independently retainable in the electronic packet. The owner-release check must compare the exact statutory form and confirm how DocuSign provides the required retainable copies; later counsel may revise the interpretation in a new version.
 
 ## Same-language and oral-explanation controls
 
@@ -43,14 +43,14 @@ The contract and notice must be in the same language principally used in the ora
 
 ## Customer delivery and cancellation intake
 
-The customer receives the completed agreement and both notice copies through DocuSign in a retainable form. A cancellation may be sent to `{{legal_notice_email}}`, delivered or mailed to `{{legal_business_address}}`, or submitted through HomeAtlas's direct cancellation control when counsel confirms that method satisfies the transaction's requirements.
+The customer receives the completed agreement and both notice copies through DocuSign in a retainable form. A cancellation may be sent to `{{legal_notice_email}}`, delivered or mailed to `{{legal_business_address}}`, or submitted through HomeAtlas's direct cancellation control as an additional unobstructed intake method.
 
 HomeAtlas should timestamp the request, preserve the original message, immediately stop uninitiated future billing and scheduling automation, and create an owner-visible case. The workflow must not require a reason or retention conversation before recording the request.
 
 ## Release checklist
 
-1. Counsel confirms whether SqueegeeKing's D2D membership transaction is within Civil Code sections 1689.5–1689.7 and whether any exception applies.
-2. Counsel approves the exact standard and senior statements, statutory form, language treatment, and electronic duplicate-copy mechanics.
+1. The owner checks the current Civil Code sections 1689.5–1689.7 lane for SqueegeeKing's D2D membership transaction and records the selected sales context.
+2. The owner verifies the exact standard and senior statements, statutory form, language treatment, and electronic duplicate-copy mechanics against the current primary source.
 3. HomeAtlas calculates and tests the cancellation deadline around weekends and California holidays.
 4. DocuSign renders the statement at the required size and proximity to the signature on both mobile and desktop.
 5. David's field flow records location, language, senior lane when applicable, oral explanation, delivery, and customer signature.

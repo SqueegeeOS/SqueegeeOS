@@ -13,6 +13,10 @@ import {
 } from "@/lib/integrations/docusign";
 import type { ApprovedAgreementVersion } from "./types";
 import type { PaymentRail } from "@/lib/billing/payment-rail";
+import {
+  getEnrollmentReleaseControlState,
+  type EnrollmentReleaseControlState,
+} from "./release-control";
 
 export interface EnrollmentLegalIdentity {
   companyName: string;
@@ -22,7 +26,14 @@ export interface EnrollmentLegalIdentity {
 }
 
 export interface EnrollmentReadinessCheck {
-  id: "database" | "legal_documents" | "legal_identity" | "docusign" | "stripe" | "email";
+  id:
+    | "database"
+    | "legal_documents"
+    | "legal_identity"
+    | "release_control"
+    | "docusign"
+    | "stripe"
+    | "email";
   label: string;
   ready: boolean;
   detail: string;
@@ -37,6 +48,7 @@ export interface EnrollmentReadiness {
     serviceQuote: ApprovedAgreementVersion | null;
   };
   legalIdentity: EnrollmentLegalIdentity | null;
+  releaseControl: EnrollmentReleaseControlState;
 }
 
 export function enrollmentReadyForPaymentRail(
@@ -143,6 +155,7 @@ export async function getEnrollmentReadiness(): Promise<EnrollmentReadiness> {
   const documentsReady = Boolean(approved.msa && approved.serviceQuote);
   const identity = resolveEnrollmentLegalIdentity();
   const identityMissing = enrollmentLegalIdentityMissing();
+  const releaseControl = getEnrollmentReleaseControlState();
   const docusign = getDocuSignConfigState(resolveDocuSignConfig());
   const email = getResendEmailConfigState();
   const stripeMissing = [
@@ -168,11 +181,11 @@ export async function getEnrollmentReadiness(): Promise<EnrollmentReadiness> {
     },
     {
       id: "legal_documents",
-      label: "Attorney-approved documents",
+      label: "Owner-released documents",
       ready: documentsReady,
       detail: documentsReady
         ? `${approved.msa!.version} + ${approved.serviceQuote!.version}`
-        : "Both the California MSA and Service & Quote Agreement remain blocked until counsel approves their exact DocuSign versions.",
+        : "The owner has not yet released and content-hashed the exact MSA and Service & Quote documents used by DocuSign.",
       missing: [
         ...(approved.msa ? [] : ["approved_master_service_agreement"]),
         ...(approved.serviceQuote ? [] : ["approved_service_quote_agreement"]),
@@ -184,8 +197,15 @@ export async function getEnrollmentReadiness(): Promise<EnrollmentReadiness> {
       ready: Boolean(identity),
       detail: identity
         ? `${identity.companyName} · notices to ${identity.noticeEmail}`
-        : "Add the exact LLC name, business address, notice email, and phone from the approved agreement.",
+        : "Add the exact LLC name, business address, notice email, and phone that appear in the released agreement.",
       missing: identityMissing,
+    },
+    {
+      id: "release_control",
+      label: "Enrollment rollout control",
+      ready: releaseControl.ready,
+      detail: releaseControl.detail,
+      missing: releaseControl.missing,
     },
     {
       id: "docusign",
@@ -224,5 +244,6 @@ export async function getEnrollmentReadiness(): Promise<EnrollmentReadiness> {
       serviceQuote: approved.serviceQuote,
     },
     legalIdentity: identity,
+    releaseControl,
   };
 }

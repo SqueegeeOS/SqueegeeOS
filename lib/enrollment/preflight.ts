@@ -5,6 +5,7 @@ import type { PaymentRail } from "@/lib/billing/payment-rail";
 import type { EnrollmentReadiness } from "./readiness";
 import { enrollmentReadyForPaymentRail } from "./readiness";
 import type { EnrollmentDocumentSnapshot } from "./types";
+import type { EnrollmentRecipientGate } from "./release-control";
 
 export interface EnrollmentPreflightCheck {
   id: string;
@@ -79,6 +80,7 @@ export function buildEnrollmentPreflightReport(input: {
   actorKind: "admin" | "sales_rep";
   presentationCanEnroll: boolean;
   existingPacketStatus: string | null;
+  recipientGate: EnrollmentRecipientGate;
 }): EnrollmentPreflightReport {
   const paymentRail = input.snapshot.payment?.rail ?? "stripe_card";
   const operatorReady =
@@ -129,6 +131,12 @@ export function buildEnrollmentPreflightReport(input: {
           : "This handoff uses Stripe-hosted card setup after signature."
         : "A sales rep cannot approve a cash/check account; HomeAtlas HQ must send it.",
     },
+    {
+      id: "recipient_control",
+      label: "Rollout recipient",
+      ready: input.recipientGate.allowed,
+      detail: input.recipientGate.detail,
+    },
     ...providerChecks,
   ];
   const releaseBindingsReady = Boolean(
@@ -143,6 +151,7 @@ export function buildEnrollmentPreflightReport(input: {
       input.presentationCanEnroll &&
       packetReady &&
       operatorReady &&
+      input.recipientGate.allowed &&
       releaseBindingsReady &&
       enrollmentReadyForPaymentRail(input.readiness, paymentRail),
     snapshotSha256: snapshotDigest({

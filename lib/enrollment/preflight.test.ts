@@ -63,7 +63,7 @@ function readiness(input: {
       version: "ca-msa-v1",
       contentSha256: "a".repeat(64),
       approvedAt: "2026-08-17T03:00:00.000Z",
-      approvedBy: "California counsel",
+      approvedBy: "HomeAtlas owner",
     },
     serviceQuote: {
       id: "00000000-0000-4000-8000-000000000002",
@@ -71,13 +71,14 @@ function readiness(input: {
       version: "ca-service-quote-v1",
       contentSha256: "b".repeat(64),
       approvedAt: "2026-08-17T03:00:00.000Z",
-      approvedBy: "California counsel",
+      approvedBy: "HomeAtlas owner",
     },
   };
   const checks: EnrollmentReadiness["checks"] = [
     "database",
     "legal_documents",
     "legal_identity",
+    "release_control",
     "docusign",
     "email",
   ].map((id) => ({
@@ -106,8 +107,23 @@ function readiness(input: {
           phone: "5305550100",
         }
       : null,
+    releaseControl: {
+      mode: "rehearsal",
+      ready: allReady,
+      rehearsalRecipientConfigured: allReady,
+      rehearsalRecipientHint: allReady ? "ow***@example.com" : null,
+      rehearsalConfirmed: false,
+      detail: allReady ? "Ready" : "Waiting",
+      missing: allReady ? [] : ["HOMEATLAS_ENROLLMENT_REHEARSAL_EMAIL"],
+    },
   };
 }
+
+const allowedRecipient = {
+  allowed: true,
+  mode: "rehearsal" as const,
+  detail: "Business rehearsal recipient matches.",
+};
 
 describe("no-send enrollment preflight", () => {
   it("proves a ready deal without creating any side effect", () => {
@@ -117,6 +133,7 @@ describe("no-send enrollment preflight", () => {
       actorKind: "admin",
       presentationCanEnroll: true,
       existingPacketStatus: null,
+      recipientGate: allowedRecipient,
     });
 
     expect(report.mode).toBe("no_side_effects");
@@ -134,6 +151,7 @@ describe("no-send enrollment preflight", () => {
       actorKind: "admin",
       presentationCanEnroll: true,
       existingPacketStatus: null,
+      recipientGate: allowedRecipient,
     });
     const second = buildEnrollmentPreflightReport({
       snapshot: snapshot({ createdAt: "2026-08-17T04:15:00.000Z" }),
@@ -141,6 +159,7 @@ describe("no-send enrollment preflight", () => {
       actorKind: "admin",
       presentationCanEnroll: true,
       existingPacketStatus: null,
+      recipientGate: allowedRecipient,
     });
 
     expect(second.snapshotSha256).toBe(first.snapshotSha256);
@@ -153,6 +172,7 @@ describe("no-send enrollment preflight", () => {
       actorKind: "admin",
       presentationCanEnroll: true,
       existingPacketStatus: null,
+      recipientGate: allowedRecipient,
     });
     const repReport = buildEnrollmentPreflightReport({
       snapshot: snapshot({ paymentRail: "manual_cash_check" }),
@@ -160,6 +180,7 @@ describe("no-send enrollment preflight", () => {
       actorKind: "sales_rep",
       presentationCanEnroll: true,
       existingPacketStatus: null,
+      recipientGate: allowedRecipient,
     });
 
     expect(ownerReport.readyToSend).toBe(true);
@@ -179,6 +200,7 @@ describe("no-send enrollment preflight", () => {
       actorKind: "admin",
       presentationCanEnroll: true,
       existingPacketStatus: "signature_sent",
+      recipientGate: allowedRecipient,
     });
 
     expect(report.readyToSend).toBe(false);
@@ -197,6 +219,7 @@ describe("no-send enrollment preflight", () => {
       actorKind: "admin",
       presentationCanEnroll: true,
       existingPacketStatus: "draft",
+      recipientGate: allowedRecipient,
     });
     const completedReport = buildEnrollmentPreflightReport({
       snapshot: snapshot(),
@@ -204,9 +227,30 @@ describe("no-send enrollment preflight", () => {
       actorKind: "admin",
       presentationCanEnroll: true,
       existingPacketStatus: "signature_complete",
+      recipientGate: allowedRecipient,
     });
 
     expect(draftReport.readyToSend).toBe(true);
     expect(completedReport.readyToSend).toBe(false);
+  });
+
+  it("blocks a real customer while the system is locked to rehearsal", () => {
+    const report = buildEnrollmentPreflightReport({
+      snapshot: snapshot(),
+      readiness: readiness(),
+      actorKind: "admin",
+      presentationCanEnroll: true,
+      existingPacketStatus: null,
+      recipientGate: {
+        allowed: false,
+        mode: "rehearsal",
+        detail: "Use only the business-owned rehearsal address.",
+      },
+    });
+
+    expect(report.readyToSend).toBe(false);
+    expect(report.checks.find((check) => check.id === "recipient_control")).toMatchObject(
+      { ready: false },
+    );
   });
 });

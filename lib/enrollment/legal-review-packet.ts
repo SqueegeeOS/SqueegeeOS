@@ -15,7 +15,7 @@ export interface EnrollmentLegalReviewDocument {
   title: string;
   version: string;
   purpose: string;
-  status: "working_draft" | "lawyer_text_required";
+  status: "working_draft" | "statutory_text_required";
   sections: EnrollmentLegalReviewSection[];
   reviewFocus: string[];
   integrity: EnrollmentLegalReviewIntegrity;
@@ -134,11 +134,11 @@ function canonicalLegalReviewPacketCopy(input: {
  */
 export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
   const packet: EnrollmentLegalReviewPacketSource = {
-    packetLabel: "California HomeAtlas enrollment packet",
-    packetRevision: "2026-08-17.1",
+    packetLabel: "California HomeAtlas agreement release packet",
+    packetRevision: "2026-08-17.2",
     sourceCheckedAt: "2026-08-16",
     summary:
-      "One DocuSign envelope contains the durable Master Service Agreement and the property-specific Service & Quote Agreement. The complete proposed drafts now cover service standards, visit-by-visit scope, card or owner-approved cash/check, add-ons, renewal, cancellation, responsibility, and dispute handling. After signing, a separate Stripe-hosted page collects a card when that rail is selected. HomeAtlas retains the exact document snapshot, provider evidence, and portal handoff as one enrollment record.",
+      "One DocuSign envelope contains the durable Master Service Agreement and the property-specific Service & Quote Agreement. The working agreements cover service standards, visit-by-visit scope, card or owner-approved cash/check, add-ons, renewal, cancellation, responsibility, and dispute handling. The owner can release exact content-hashed provider files now; outside counsel review remains visible as a later versioning step rather than being falsely implied. After signing, a separate Stripe-hosted page collects a card when that rail is selected.",
     documents: [
       {
         id: "master_service_agreement",
@@ -313,7 +313,7 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
         version: "provider-template-text-pending",
         purpose:
           "A conditional notice for an agreement made at the customer's home. It is included only when the recorded sales context requires it.",
-        status: "lawyer_text_required",
+        status: "statutory_text_required",
         sections: [
           {
             heading: "When HomeAtlas uses this lane",
@@ -325,7 +325,7 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
             heading: "What the final DocuSign template must handle",
             paragraphs: [
               "The template needs the required signature-adjacent statement, transaction date, seller identity, cancellation address or method, same-language contract treatment, oral explanation, and required cancellation-form copies.",
-              "A concrete conditional insert now proposes the standard and senior lanes, deadline variables, first-page seller block, retainable copies, same-language control, oral-explanation evidence, and unobstructed cancellation intake. The lawyer must still confirm applicability and the exact released form; HomeAtlas never improvises it at send time.",
+              "A concrete conditional insert must implement the standard and senior lanes, deadline variables, first-page seller block, retainable copies, same-language control, oral-explanation evidence, and unobstructed cancellation intake. The owner must release the exact form against the current California statute; HomeAtlas never improvises it at send time. Outside counsel can later confirm or revise the released version.",
             ],
           },
         ],
@@ -370,7 +370,7 @@ export function getEnrollmentLegalReviewPacket(): EnrollmentLegalReviewPacket {
       },
     ],
     operatingRules: [
-      "Never send a packet whose two document versions are not approved and content-hashed.",
+      "Never send a packet whose two document versions are not owner-released and content-hashed.",
       "Never collect a card before the customer completes the agreement.",
       "Never silently replace a signed scope, price, cadence, or disclosure; use a signed amendment or new property agreement.",
       "Keep schedule visibility separate from billing authority.",

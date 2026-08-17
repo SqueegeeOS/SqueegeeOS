@@ -34,7 +34,7 @@ export function EnrollmentLegalReviewPage({
       <article className="counsel-packet-shell mx-auto max-w-4xl rounded-[2rem] bg-white p-6 shadow-[0_24px_80px_rgba(26,38,34,0.12)] sm:p-10 lg:p-14">
         <header className="border-b-2 border-[#173f35] pb-8">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#315c51]">
-            HomeAtlas counsel review packet
+            HomeAtlas agreement release packet
           </p>
           <h1 className="mt-4 font-serif text-4xl leading-tight text-[#102a24] sm:text-5xl">
             {packet.packetLabel}
@@ -45,13 +45,13 @@ export function EnrollmentLegalReviewPage({
 
           <div className="mt-7 rounded-2xl border-2 border-[#9d3b31] bg-[#fff4f1] p-5">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#8a2f27]">
-              Not approved for customer use
+              Not yet owner-released to customers
             </p>
             <p className="mt-2 text-sm leading-6 text-[#63342f]">
-              This is an internal working draft for California counsel to
-              redline. HomeAtlas must keep customer sends blocked until the
-              exact final documents and DocuSign template are approved,
-              versioned, and content-hashed.
+              This is an owner-release candidate, not a claim of legal advice
+              or outside-counsel approval. HomeAtlas keeps customer sends
+              blocked until the exact DocuSign files are inspected, versioned,
+              SHA-256 fingerprinted, and deliberately released by the owner.
             </p>
           </div>
 
@@ -92,26 +92,26 @@ export function EnrollmentLegalReviewPage({
 
           <p className="mt-4 text-[11px] leading-5 text-[#66716d]">
             The fingerprint identifies this exact internal review copy. It is
-            change-control evidence only—not the hash of an approved DocuSign
-            document and not legal approval.
+            change-control evidence only—not the hash of a released DocuSign
+            document and not a claim of legal approval.
           </p>
         </header>
 
         <section className="mt-9">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#315c51]">
-            Counsel decisions requested
+            Owner release decisions
           </p>
           <h2 className="mt-2 font-serif text-3xl text-[#102a24]">
-            Please resolve these before release
+            Resolve these before the first rehearsal
           </h2>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
-              "Confirm the exact LLC seller identity and legal notice channels.",
-              "Confirm whether David's at-home sales are covered home-solicitation contracts and the correct notice lane.",
-              "Approve the automatic-renewal disclosure, affirmative-consent block, reminders, and cancellation mechanics.",
-              "Approve or replace the proposed enrollment-savings reimbursement and liability language.",
-              "Approve the exact two-document DocuSign order, tabs, signature placement, and retainable copies.",
-              "Return final source documents so HomeAtlas can hash and version the exact released text.",
+              "Enter the exact LLC seller identity and legal notice channels shown in every agreement.",
+              "Select and release the correct current statutory notice lane for each customer-home sale.",
+              "Accept the automatic-renewal disclosure, affirmative-consent block, reminders, and direct cancellation mechanics.",
+              "Accept or revise the enrollment-savings reimbursement and liability language as a business decision.",
+              "Inspect the exact two-document DocuSign order, tabs, signature placement, and retainable copies.",
+              "Run the read-only provider probe, then bind the downloaded provider-file fingerprints before rehearsal.",
             ].map((item) => (
               <div
                 key={item}
@@ -138,8 +138,8 @@ export function EnrollmentLegalReviewPage({
                 </div>
                 <span className="w-fit rounded-full border border-[#b46945] bg-[#fff7ef] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[#8b4d2d]">
                   {document.status === "working_draft"
-                    ? "Working draft"
-                    : "Final text required"}
+                    ? "Owner-release candidate"
+                    : "Statutory text required"}
                 </span>
               </div>
               <p className="mt-4 text-sm leading-6 text-[#59635f]">
@@ -172,7 +172,7 @@ export function EnrollmentLegalReviewPage({
 
             <aside className="counsel-review-card mt-7 rounded-2xl border border-[#d7c7a4] bg-[#fffbef] p-5">
               <h3 className="text-xs font-bold uppercase tracking-[0.14em] text-[#775e29]">
-                Redline focus
+                Release focus
               </h3>
               <ul className="mt-3 space-y-2">
                 {document.reviewFocus.map((item) => (
@@ -191,7 +191,7 @@ export function EnrollmentLegalReviewPage({
             Operating architecture
           </p>
           <h2 className="mt-2 font-serif text-3xl text-[#102a24]">
-            What HomeAtlas does after approval
+            What HomeAtlas does after owner release
           </h2>
           <ol className="mt-6 space-y-4">
             {packet.customerJourney.map((step) => (
@@ -230,7 +230,7 @@ export function EnrollmentLegalReviewPage({
             Primary authorities
           </p>
           <h2 className="mt-2 font-serif text-3xl text-[#102a24]">
-            Live sources for counsel
+            Current primary sources
           </h2>
           <ul className="mt-5 space-y-3">
             {packet.sourceLinks.map((source) => (
@@ -253,19 +253,19 @@ export function EnrollmentLegalReviewPage({
           <div className="mt-10 grid gap-7 border-t border-[#cfd5d1] pt-8 sm:grid-cols-2">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#59635f]">
-                Reviewing attorney / firm
+                Owner release record
               </p>
               <div className="mt-8 border-b border-[#89928f]" />
             </div>
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#59635f]">
-                Review date
+                Release date
               </p>
               <div className="mt-8 border-b border-[#89928f]" />
             </div>
             <div className="sm:col-span-2">
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#59635f]">
-                Final disposition / required changes
+                Later counsel notes / required changes
               </p>
               <div className="mt-12 border-b border-[#89928f]" />
               <div className="mt-12 border-b border-[#89928f]" />
@@ -274,9 +274,9 @@ export function EnrollmentLegalReviewPage({
         </section>
 
         <footer className="mt-12 border-t border-[#cfd5d1] pt-5 text-[11px] leading-5 text-[#717a77]">
-          Internal HomeAtlas review artifact. Printing or exporting this packet
-          does not approve a legal version, configure DocuSign, or authorize a
-          customer send.
+          Internal HomeAtlas release artifact. Printing or exporting this packet
+          does not release a legal version, configure DocuSign, or authorize a
+          customer send. Outside counsel can review this exact revision later.
         </footer>
       </article>
     </main>

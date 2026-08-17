@@ -75,7 +75,7 @@ export function buildEnrollmentDocumentSnapshot(input: {
     input.homeSolicitationNoticeDays !== 5
   ) {
     throw new Error(
-      "Choose the attorney-approved 3-day or senior 5-day home-solicitation notice.",
+      "Choose the owner-released 3-day or senior 5-day home-solicitation notice sourced from the current California statute.",
     );
   }
   if (

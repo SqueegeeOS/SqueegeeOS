@@ -1,6 +1,6 @@
 # California Master Service Agreement — complete working draft
 
-> **INTERNAL REVIEW COPY — DO NOT SEND YET.** This is HomeAtlas's complete proposed business draft for California counsel to redline. It is not legal advice, is not marked `approved` in HomeAtlas, and must not be used with a customer until the exact final version has been reviewed, content-hashed, and released through the enrollment controls.
+> **OWNER-RELEASE CANDIDATE — DO NOT SEND THIS MARKDOWN FILE.** This is HomeAtlas's working business agreement, not legal advice or a claim of outside-counsel approval. The owner may use it as the source for the exact DocuSign file, but HomeAtlas will still block customer sends until that provider file is inspected, content-hashed, and deliberately owner-released. Later counsel review should create a new version rather than rewriting prior signed records.
 
 - **MSA version:** `ca-msa-v1-draft`
 - **Effective date:** `{{agreement_date}}`
@@ -79,13 +79,13 @@ SqueegeeKing will provide required renewal reminders, annual reminders, and mate
 
 Each party is responsible for direct harm to the extent caused by that party's negligence, willful misconduct, fraud, or material breach. To the fullest extent California law permits in a consumer agreement, neither party is liable for remote, speculative, or consequential loss that was not reasonably foreseeable when the Property Agreement was accepted.
 
-Any proposed monetary limitation in the final template must be conspicuous and approved by California counsel. Nothing in this MSA excludes liability or a consumer remedy that cannot lawfully be excluded, including liability arising from fraud, willful misconduct, gross negligence, or a statutory right that cannot be waived.
+Any proposed monetary limitation in the released template must be conspicuous and affirmatively accepted by the owner as a business term. Nothing in this MSA excludes liability or a consumer remedy that cannot lawfully be excluded, including liability arising from fraud, willful misconduct, gross negligence, or a statutory right that cannot be waived. Later California counsel review may revise this clause in a new version.
 
 ## 12. Dispute process and governing law
 
 Before filing a lawsuit other than a time-sensitive request for relief or a qualifying small-claims matter, the parties will send a short written description of the dispute and allow at least 15 days for a good-faith effort to resolve it. Customer may send notice through the portal or to `{{legal_notice_email}}`; SqueegeeKing may send notice to Customer's latest supplied email and mailing address.
 
-California law governs without regard to conflict-of-law rules. This draft does not require private arbitration and does not waive a party's right to use a court or small-claims process. California counsel should confirm the final venue and any fee-shifting language.
+California law governs without regard to conflict-of-law rules. This draft does not require private arbitration and does not waive a party's right to use a court or small-claims process. The owner-release candidate intentionally omits a mandatory venue and prevailing-party fee clause; later counsel may recommend them in a new version.
 
 ## 13. General terms
 
@@ -100,11 +100,11 @@ Customer acknowledges receiving this MSA together with the separate Property Ser
 - **Customer signature and date:** supplied by DocuSign
 - **Service Provider acceptance:** supplied by the released DocuSign template
 
-## Lawyer redline checklist before release
+## Owner release checklist and later counsel review
 
-1. Confirm the exact LLC identity, notices, venue, insurance representations, and service-partner language.
-2. Confirm the three-day service-concern process and first-remedy language.
-3. Confirm the responsibility, consequential-loss, assignment, and dispute clauses.
-4. Confirm the automatic-renewal, fee-change, reminder, and online-cancellation workflow against current California law.
-5. Confirm the Property Agreement's initial-term savings treatment is not an unlawful consumer liquidated-damages term.
-6. Confirm which D2D transactions are home-solicitation contracts and approve the exact notice package and operational script.
+1. Enter the exact LLC identity and notice details that will appear in the released file.
+2. Accept or revise the three-day service-concern process and first-remedy language.
+3. Accept or revise the responsibility, consequential-loss, assignment, and dispute clauses as business terms.
+4. Verify the automatic-renewal, fee-change, reminder, and online-cancellation workflow against the linked current California sources.
+5. Remove any initial-term savings reimbursement unless its calculation is explicit, proportional to disclosed savings, and intentionally accepted for release.
+6. Use the current statutory notice lane and required form for applicable D2D transactions; later counsel review may revise the released version and field script.

@@ -17,6 +17,10 @@ const docusignProbeRoute = read(
 const connectRoute = read("../../app/api/integrations/docusign/connect/route.ts");
 const stripeHandoff = read("./stripe-handoff.ts");
 const docusignProcessor = read("./process-docusign-connect.ts");
+const sendPacket = read("./send-packet.ts");
+const legalReleaseRoute = read(
+  "../../app/api/admin/enrollment/legal-release/route.ts",
+);
 
 describe("enrollment route security contract", () => {
   it("keeps packet creation behind presentation ownership and readiness behind HQ auth", () => {
@@ -77,6 +81,37 @@ describe("enrollment route security contract", () => {
     );
     expect(preflightRoute).not.toMatch(
       /\.(insert|update|delete)\(/,
+    );
+  });
+
+  it("blocks the wrong rehearsal recipient before any packet read or write", () => {
+    const sendStart = sendPacket.indexOf("export async function sendEnrollmentPacket");
+    const recipientGate = sendPacket.indexOf(
+      "getEnrollmentRecipientGate(email)",
+      sendStart,
+    );
+    const packetClient = sendPacket.indexOf(
+      "const supabase = createServiceRoleSupabaseClient()",
+      sendStart,
+    );
+
+    expect(recipientGate).toBeGreaterThan(sendStart);
+    expect(packetClient).toBeGreaterThan(recipientGate);
+  });
+
+  it("keeps owner release behind HQ auth and re-verifies provider bytes without sending", () => {
+    const auth = legalReleaseRoute.indexOf("authorizeAdminRequest(request.headers)");
+    const probe = legalReleaseRoute.indexOf("probeDocuSignEnrollmentTemplate()", auth);
+    const release = legalReleaseRoute.indexOf(
+      'supabase.rpc("release_enrollment_agreement_pair"',
+      probe,
+    );
+
+    expect(auth).toBeGreaterThan(-1);
+    expect(probe).toBeGreaterThan(auth);
+    expect(release).toBeGreaterThan(probe);
+    expect(legalReleaseRoute).not.toMatch(
+      /createDocuSignEnrollmentEnvelope|sendCreatedDocuSignEnvelope|createEnrollmentStripeHandoff/,
     );
   });
 
