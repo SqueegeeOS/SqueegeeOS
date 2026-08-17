@@ -34,6 +34,29 @@ describe("enrollment legal review packet", () => {
     );
   });
 
+  it("exposes a complete business draft without turning it into an approved document", () => {
+    const packet = getEnrollmentLegalReviewPacket();
+    const msa = packet.documents.find(
+      (document) => document.id === "master_service_agreement",
+    );
+    const propertyAgreement = packet.documents.find(
+      (document) => document.id === "service_quote_agreement",
+    );
+    const allMsaCopy = msa?.sections.flatMap((section) => section.paragraphs).join(" ");
+    const allPropertyCopy = propertyAgreement?.sections
+      .flatMap((section) => section.paragraphs)
+      .join(" ");
+
+    expect(msa?.status).toBe("working_draft");
+    expect(propertyAgreement?.status).toBe("working_draft");
+    expect(allMsaCopy).toContain("does not require private arbitration");
+    expect(allPropertyCopy).toContain("cash/check account");
+    expect(allPropertyCopy).toContain("does not silently become part of future visits");
+    expect(packet.sourceLinks.some((source) => source.label.includes("§ 1671"))).toBe(
+      true,
+    );
+  });
+
   it("does not present the statutory customer-home insert as finished text", () => {
     const packet = getEnrollmentLegalReviewPacket();
     const notice = packet.documents.find(
