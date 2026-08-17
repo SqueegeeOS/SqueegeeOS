@@ -148,7 +148,11 @@ describe("field lead presentation two-tab race", () => {
       phone: "+15305550123",
       email: "website@example.com",
       serviceAddress: "1420 Davis Street",
-      servicesInterested: ["Window Cleaning"],
+      servicesInterested: [
+        "Window Cleaning",
+        "Solar Panel Cleaning",
+        "Pressure Washing",
+      ],
       preferredContactMethod: "Phone",
       smsConsentStatus: "unknown",
       smsConsentRecordedAt: null,
@@ -220,6 +224,11 @@ describe("field lead presentation two-tab race", () => {
         salesRepId: REP_ID,
         salesRepLeadId: null,
         leadIntakeId: INTAKE_ID,
+        serviceInterests: [
+          "exterior_windows",
+          "solar_panels",
+          "pressure_washing",
+        ],
       }),
     );
     expect(mocks.markSalesLeadPresentationCreated).toHaveBeenCalledWith({

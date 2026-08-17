@@ -16,6 +16,7 @@ import {
 import {
   isSalesServiceInterest,
   normalizeSalesServiceInterests,
+  SALES_SERVICE_INTERESTS,
   type SalesServiceInterest,
 } from "./service-interests";
 
@@ -47,7 +48,10 @@ function validateServiceInterests(
     return { ok: false, error: "Choose valid services for this homeowner." };
   }
   const raw = Array.isArray(value) ? value : [];
-  if (raw.length > 5 || raw.some((interest) => !isSalesServiceInterest(interest))) {
+  if (
+    raw.length > SALES_SERVICE_INTERESTS.length ||
+    raw.some((interest) => !isSalesServiceInterest(interest))
+  ) {
     return { ok: false, error: "Choose valid services for this homeowner." };
   }
   return { ok: true, value: normalizeSalesServiceInterests(raw) };

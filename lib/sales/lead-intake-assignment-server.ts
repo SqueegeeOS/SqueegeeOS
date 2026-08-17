@@ -8,6 +8,7 @@ import {
   isSupabaseConfigured,
 } from "@/lib/persistence/supabase/client";
 import { buildStandardRepProfile, DAVID_REP_PROFILE } from "./rep-config";
+import { salesServiceInterestsFromLeadIntake } from "./service-interests";
 import { normalizeNorthAmericanPhone } from "./workspace-validation";
 import type {
   LeadIntakeSalesAssignment,
@@ -39,6 +40,7 @@ interface LeadIntakeSourceRow {
   phone: string;
   email: string;
   service_address: string;
+  services_interested: string[] | null;
   notes: string | null;
   membership_tier: keyof typeof SQUEEGEEKING_TIERS | null;
   estimated_visit_price: number | string | null;
@@ -273,7 +275,7 @@ export async function assignLeadIntakeToSalesRep(input: {
     supabase
       .from("lead_intakes")
       .select(
-        "id, name, phone, email, service_address, notes, membership_tier, estimated_visit_price, status, source, sms_consent_status, sms_consent_recorded_at, sms_consent_disclosure_version, sms_consent_source_path",
+        "id, name, phone, email, service_address, services_interested, notes, membership_tier, estimated_visit_price, status, source, sms_consent_status, sms_consent_recorded_at, sms_consent_disclosure_version, sms_consent_source_path",
       )
       .eq("id", input.leadIntakeId)
       .maybeSingle(),
@@ -346,6 +348,9 @@ export async function assignLeadIntakeToSalesRep(input: {
       email_normalized: email,
       status: "follow_up",
       source: intake.source,
+      service_interests: salesServiceInterestsFromLeadIntake(
+        intake.services_interested,
+      ),
       estimated_arr_cents: estimatedArrCents(intake),
       next_follow_up_at: input.nextFollowUpAt,
       notes: intake.notes?.trim() || null,

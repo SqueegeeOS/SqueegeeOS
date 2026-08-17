@@ -53,14 +53,42 @@ describe("sales service interest presentation seed", () => {
     );
   });
 
-  it("does not manufacture structured scope for an unspecified other service", () => {
+  it("keeps an unspecified other service visible without manufacturing scope", () => {
     const seed = createSalesServiceInterestPresentationSeed({
       tier: "biannual",
       serviceInterests: ["exterior_windows", "other"],
     });
 
-    expect(seed.planMode).toBe("simple");
+    expect(seed.planMode).toBe("custom");
     expect(seed.carePlan.visits[0]?.screens).toBe("not_included");
+    expect(seed.carePlan.summary).toContain("another service");
+  });
+
+  it("carries solar and pressure washing into the builder at zero added price", () => {
+    const seed = createSalesServiceInterestPresentationSeed({
+      tier: "quarterly",
+      serviceInterests: [
+        "exterior_windows",
+        "solar_panels",
+        "pressure_washing",
+        "gutter_cleaning",
+      ],
+    });
+    const pricing = calculateCarePlanPricing({
+      plan: seed.carePlan,
+      baseVisitPrice: 225,
+    });
+
+    expect(seed.planMode).toBe("custom");
+    expect(
+      seed.carePlan.visits.every(
+        (visit) =>
+          visit.solarPanels === "optional" &&
+          visit.pressureWashing === "optional",
+      ),
+    ).toBe(true);
+    expect(seed.carePlan.summary).toContain("gutters");
+    expect(pricing.annualTotal).toBe(900);
   });
 
   it("wires a field lead's interest seed into the actual new presentation", () => {

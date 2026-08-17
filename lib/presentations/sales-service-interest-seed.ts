@@ -18,6 +18,8 @@ const CARE_PLAN_SERVICE_BY_INTEREST: Partial<
   interior_windows: "interiorWindows",
   screens: "screens",
   cobweb_removal: "cobwebRemoval",
+  solar_panels: "solarPanels",
+  pressure_washing: "pressureWashing",
 };
 
 export interface SalesServiceInterestPresentationSeed {
@@ -34,6 +36,9 @@ export function createSalesServiceInterestPresentationSeed(input: {
   serviceInterests?: SalesServiceInterest[];
 }): SalesServiceInterestPresentationSeed {
   const interests = normalizeSalesServiceInterests(input.serviceInterests);
+  const discussedExtras = interests.filter(
+    (interest) => interest !== "exterior_windows",
+  );
   const structuredExtras = interests.flatMap((interest) => {
     const serviceId = CARE_PLAN_SERVICE_BY_INTEREST[interest];
     return serviceId ? [{ interest, serviceId }] : [];
@@ -48,18 +53,20 @@ export function createSalesServiceInterestPresentationSeed(input: {
     );
   }
 
-  if (structuredExtras.length === 0) {
+  if (discussedExtras.length === 0) {
     return { planMode: "simple", carePlan };
   }
 
-  const labels = structuredExtras.map(({ interest }) =>
-    salesServiceInterestLabel(interest).toLocaleLowerCase("en-US"),
+  const labels = discussedExtras.map((interest) =>
+    interest === "other"
+      ? "another service"
+      : salesServiceInterestLabel(interest).toLocaleLowerCase("en-US"),
   );
   carePlan = {
     ...carePlan,
-    summary: `Exterior window care every visit, with ${labels.join(
+    summary: `Exterior window care every visit. The customer also asked about ${labels.join(
       ", ",
-    )} available to tailor from the doorstep conversation.`,
+    )}; those items stay optional until exact visits and pricing are confirmed below.`,
     customerChoiceNote:
       "Doorstep interests are a starting point. Included services and pricing are confirmed in this plan before signing.",
   };

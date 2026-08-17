@@ -37,6 +37,8 @@ describe("lead intake presentation lineage contract", () => {
     expect(createRoute).toContain("leadIntake?.phone");
     expect(createRoute).toContain("leadIntake?.email");
     expect(createRoute).toContain("leadIntakeId: leadIntake?.id ?? null");
+    expect(createRoute).toContain("salesServiceInterestsFromLeadIntake");
+    expect(createRoute).toContain("leadIntake.servicesInterested");
 
     const durableSave = createRoute.indexOf(
       "presentation = await createPresentation",
