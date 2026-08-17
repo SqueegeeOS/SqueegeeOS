@@ -55,6 +55,10 @@ interface EnrollmentDeskData {
     content_sha256: string | null;
     approved_at: string | null;
     approved_by: string | null;
+    release_authority: "owner" | "counsel" | "legacy" | null;
+    counsel_review_status: "pending" | "reviewed" | "revisions_requested";
+    counsel_reviewed_at: string | null;
+    counsel_reviewed_by: string | null;
     review_notes: string | null;
     updated_at: string;
   }>;
@@ -86,6 +90,15 @@ interface DocuSignProbeResult {
   customerRoleFound: boolean;
   templateName: string | null;
   documentCount: number;
+  documents: Array<{
+    documentId: string;
+    name: string;
+    sha256: string;
+    documentKind:
+      | "master_service_agreement"
+      | "service_quote_agreement"
+      | null;
+  }>;
   signatureTabCount: number;
   missingTabLabels: string[];
   connectHmacConfigured: boolean;
@@ -106,6 +119,8 @@ function EnrollmentDeskContent() {
   const [docusignProbe, setDocusignProbe] =
     useState<DocuSignProbeResult | null>(null);
   const [probingDocusign, setProbingDocusign] = useState(false);
+  const [releasingDocuments, setReleasingDocuments] = useState(false);
+  const [releaseMessage, setReleaseMessage] = useState<string | null>(null);
   const [copiedCallback, setCopiedCallback] = useState(false);
 
   const load = useCallback(async () => {
@@ -142,6 +157,7 @@ function EnrollmentDeskContent() {
   const runDocusignProbe = useCallback(async () => {
     setProbingDocusign(true);
     setDocusignProbe(null);
+    setReleaseMessage(null);
     try {
       const response = await fetch("/api/admin/enrollment/docusign/probe", {
         method: "POST",
@@ -163,6 +179,7 @@ function EnrollmentDeskContent() {
         customerRoleFound: false,
         templateName: null,
         documentCount: 0,
+        documents: [],
         signatureTabCount: 0,
         missingTabLabels: [],
         connectHmacConfigured: false,
@@ -176,6 +193,50 @@ function EnrollmentDeskContent() {
       setProbingDocusign(false);
     }
   }, []);
+
+  const releaseDocusignDocuments = useCallback(async () => {
+    setReleasingDocuments(true);
+    setReleaseMessage(null);
+    try {
+      const msaFile = docusignProbe?.documents.find(
+        (document) => document.documentKind === "master_service_agreement",
+      );
+      const serviceFile = docusignProbe?.documents.find(
+        (document) => document.documentKind === "service_quote_agreement",
+      );
+      if (!docusignProbe?.ok || !msaFile || !serviceFile) {
+        throw new Error("Run and review a passing DocuSign check first.");
+      }
+      const response = await fetch("/api/admin/enrollment/legal-release", {
+        method: "POST",
+        headers: {
+          ...getAdminRequestHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          msaSha256: msaFile.sha256,
+          serviceSha256: serviceFile.sha256,
+        }),
+        cache: "no-store",
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+      if (!response.ok || !body) {
+        throw new Error(body?.error ?? "The exact files could not be released.");
+      }
+      setReleaseMessage(body.message ?? "The exact files are owner-released.");
+      await load();
+    } catch (releaseError) {
+      setReleaseMessage(
+        releaseError instanceof Error
+          ? releaseError.message
+          : "The exact files could not be released.",
+      );
+    } finally {
+      setReleasingDocuments(false);
+    }
+  }, [docusignProbe, load]);
 
   const activeLegalDocument = data?.legalReviewPacket.documents.find(
     (document) => document.id === selectedLegalDocument,
@@ -195,8 +256,8 @@ function EnrollmentDeskContent() {
               <p className="mt-4 max-w-3xl text-sm leading-[1.7] text-muted">
                 One packet, three trusted surfaces: DocuSign for the agreement,
                 Stripe for the card, and HomeAtlas for the life of the home.
-                Nothing sends until every legal and provider gate is genuinely
-                ready.
+                Nothing sends until the owner-released document, rollout, and
+                provider gates are genuinely ready.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -206,7 +267,7 @@ function EnrollmentDeskContent() {
                 rel="noreferrer"
                 className="inline-flex min-h-11 items-center justify-center rounded-full bg-accent px-5 text-xs font-semibold text-on-accent hover:brightness-105"
               >
-                Print lawyer packet
+                Open agreement packet
               </Link>
               <Link
                 href="/presentations"
@@ -291,9 +352,10 @@ function EnrollmentDeskContent() {
               {!data.readiness.readyToSend ? (
                 <p className="mt-6 rounded-xl border border-accent/15 bg-accent/[0.05] px-4 py-3 text-xs leading-relaxed text-muted">
                   The app side is built to fail closed. Use the review room below
-                  to inspect the working packet now. After your lawyer reviews the
-                  exact customer-facing versions, HomeAtlas records both content
-                  hashes and unlocks the controlled provider test.
+                  to inspect the working packet now. The owner may release the
+                  exact customer-facing versions for operation; outside counsel
+                  can review a later revision without changing what prior
+                  customers signed.
                 </p>
               ) : null}
             </GlassCard>
@@ -306,8 +368,8 @@ function EnrollmentDeskContent() {
                     Turn the handoff on without guesswork
                   </h2>
                   <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
-                    HomeAtlas now separates every owner action from every legal
-                    or provider dependency. Secrets stay server-only; this page
+                    HomeAtlas now separates every owner action from every
+                    provider dependency and rollout control. Secrets stay server-only; this page
                     exposes only safe URLs, required labels, and missing setting
                     names.
                   </p>
@@ -485,7 +547,41 @@ function EnrollmentDeskContent() {
                           {docusignProbe.documentCount} documents · {docusignProbe.signatureTabCount} signature tabs · {docusignProbe.missingTabLabels.length} missing locked fields
                         </p>
                       ) : null}
+                      {docusignProbe.documents.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {docusignProbe.documents.map((document) => (
+                            <div
+                              key={document.documentId}
+                              className="rounded-lg border border-current/10 bg-black/10 px-3 py-2"
+                            >
+                              <p className="text-[10px] font-medium">
+                                {document.name}
+                              </p>
+                              <p className="mt-1 break-all font-mono text-[8px] opacity-70">
+                                SHA-256 {document.sha256}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
+                  ) : null}
+                  {docusignProbe?.ok ? (
+                    <button
+                      type="button"
+                      disabled={releasingDocuments}
+                      onClick={() => void releaseDocusignDocuments()}
+                      className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-emerald-300/25 bg-emerald-300/[0.07] px-5 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-300/[0.11] disabled:cursor-not-allowed disabled:opacity-45"
+                    >
+                      {releasingDocuments
+                        ? "Verifying exact files again…"
+                        : "Owner-release these exact files"}
+                    </button>
+                  ) : null}
+                  {releaseMessage ? (
+                    <p className="mt-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-[10px] leading-relaxed text-muted">
+                      {releaseMessage}
+                    </p>
                   ) : null}
                 </div>
               </div>
@@ -536,8 +632,8 @@ function EnrollmentDeskContent() {
                           }`}
                         >
                           {document.status === "working_draft"
-                            ? "Review candidate"
-                            : "Exact lawyer text required"}
+                            ? "Owner-release candidate"
+                            : "Exact statutory text required"}
                         </span>
                       </button>
                     );
@@ -775,6 +871,11 @@ function EnrollmentDeskContent() {
                               ? `SHA-256 ${version.content_sha256}`
                               : "Not bound yet — customer sending remains blocked."}
                           </p>
+                          {version.release_authority ? (
+                            <p className="mt-2 text-[10px] leading-relaxed text-muted">
+                              Released by {prettyStatus(version.release_authority)} · counsel review {prettyStatus(version.counsel_review_status)}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     );

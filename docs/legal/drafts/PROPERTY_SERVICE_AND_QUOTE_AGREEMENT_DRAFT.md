@@ -1,6 +1,6 @@
 # Property Service & Quote Agreement — complete working draft
 
-> **INTERNAL REVIEW COPY — DO NOT SEND YET.** This is HomeAtlas's complete proposed customer deal sheet for California counsel to redline. It is not marked `approved` and HomeAtlas must not send it until the exact final DocuSign version has been reviewed, content-hashed, and released.
+> **OWNER-RELEASE CANDIDATE — DO NOT SEND THIS MARKDOWN FILE.** This is HomeAtlas's working customer deal sheet, not legal advice or a claim of outside-counsel approval. HomeAtlas blocks customer sends until the exact DocuSign file is inspected, content-hashed, and deliberately owner-released. Later counsel review should create a new version.
 
 - **Agreement version:** `ca-service-quote-v1-draft`
 - **Agreement date:** `{{agreement_date}}`
@@ -99,7 +99,7 @@ Customer should report a reasonably discoverable concern within three calendar d
 
 Customer may request cancellation through the private HomeAtlas portal under **Member care → Request membership cancellation**, by emailing `{{legal_notice_email}}`, or through another stated cancellation channel. HomeAtlas timestamps the request without requiring a reason. Any applicable statutory cancellation right controls during its statutory period.
 
-If this plan includes an introductory or enrollment discount conditioned on completing the initial term, the exact calculation and maximum amount due on early cancellation must appear here: `{{enrollment_savings_terms}}`. It may reflect only the specifically disclosed savings and is not intended as a penalty. California counsel must approve this term before release.
+If this plan includes an introductory or enrollment discount conditioned on completing the initial term, the exact calculation and maximum amount due on early cancellation must appear here: `{{enrollment_savings_terms}}`. It may reflect only the specifically disclosed savings and is not intended as a penalty. The owner must remove this term unless the calculation is explicit and intentionally accepted for the released version; later counsel may revise it.
 
 Cancellation does not erase an undisputed amount for accepted work already completed. The effective date, effect on scheduled future visits, any refund, and any amount still due will be confirmed in a retainable acknowledgment.
 
@@ -148,7 +148,7 @@ Immediately before signing, Customer confirms that:
 - **Customer signature and date:** supplied by DocuSign
 - **Service Provider acceptance:** supplied by the released DocuSign template
 
-## Lawyer redline checklist before release
+## Owner release checklist and later counsel review
 
 1. Confirm the exact initial term, renewal behavior, cancellation effective date, and reminder schedule.
 2. Confirm the charge amount/range and first-of-service-month standing authorization against card-network and California requirements.

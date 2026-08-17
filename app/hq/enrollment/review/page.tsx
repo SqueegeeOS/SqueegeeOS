@@ -3,7 +3,7 @@ import { EnrollmentLegalReviewPage } from "@/components/admin/enrollment-legal-r
 import { getEnrollmentLegalReviewPacket } from "@/lib/enrollment/legal-review-packet";
 
 export const metadata: Metadata = {
-  title: "Counsel Review Packet | HomeAtlas HQ",
+  title: "Agreement Release Packet | HomeAtlas HQ",
   description:
     "Private print-ready review packet for the HomeAtlas California enrollment documents.",
 };

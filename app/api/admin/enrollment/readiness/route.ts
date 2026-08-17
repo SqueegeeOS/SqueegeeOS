@@ -30,7 +30,7 @@ export async function GET(request: Request) {
     supabase
       .from("agreement_document_versions")
       .select(
-        "id, document_kind, version, status, review_copy_sha256, content_sha256, approved_at, approved_by, review_notes, updated_at",
+        "id, document_kind, version, status, review_copy_sha256, content_sha256, approved_at, approved_by, release_authority, counsel_review_status, counsel_reviewed_at, counsel_reviewed_by, review_notes, updated_at",
       )
       .order("document_kind")
       .order("created_at", { ascending: false }),

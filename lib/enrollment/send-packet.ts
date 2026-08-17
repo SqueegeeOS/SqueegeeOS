@@ -22,6 +22,7 @@ import type {
   EnrollmentSalesContext,
 } from "./types";
 import type { PaymentRail } from "@/lib/billing/payment-rail";
+import { getEnrollmentRecipientGate } from "./release-control";
 
 export class EnrollmentNotReadyError extends Error {
   constructor(
@@ -125,6 +126,10 @@ export async function sendEnrollmentPacket(input: {
     paymentRail: input.paymentRail,
   });
   const email = normalizeEnrollmentEmail(input.presentation.clientEmail)!;
+  const recipientGate = getEnrollmentRecipientGate(email);
+  if (!recipientGate.allowed) {
+    throw new EnrollmentNotReadyError(recipientGate.detail, readiness);
+  }
   const supabase = createServiceRoleSupabaseClient();
   const existingResult = await supabase
     .from("enrollment_packets")

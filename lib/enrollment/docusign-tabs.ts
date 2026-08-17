@@ -41,7 +41,7 @@ export function buildDocuSignEnrollmentTabs(input: {
 }): Array<{ tabLabel: string; value: string; locked: "true" }> {
   const noticeDays = input.snapshot.disclosures.homeSolicitationNoticeDays;
   const homeSolicitationNotice = noticeDays
-    ? `California customer-home sale: use the attorney-approved ${noticeDays}-business-day cancellation notice and required Notice of Cancellation pages.`
+    ? `California customer-home sale: use the owner-released ${noticeDays}-business-day cancellation notice and required Notice of Cancellation pages sourced from the current statute.`
     : "Not designated as a customer-home solicitation in HomeAtlas.";
   const values: Record<string, string> = {
     [DOCUSIGN_ENROLLMENT_TAB_LABELS.legalCompanyName]: input.legalCompanyName,

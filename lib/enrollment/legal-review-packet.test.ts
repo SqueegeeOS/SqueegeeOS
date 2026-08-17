@@ -62,19 +62,19 @@ describe("enrollment legal review packet", () => {
     const notice = packet.documents.find(
       (document) => document.id === "customer_home_cancellation_notice",
     );
-    expect(notice?.status).toBe("lawyer_text_required");
+    expect(notice?.status).toBe("statutory_text_required");
     expect(notice?.reviewFocus.join(" ")).toContain("Exact notice wording");
   });
 
   it("pins deterministic fingerprints to the exact internal review copy", () => {
     const packet = getEnrollmentLegalReviewPacket();
 
-    expect(packet.packetRevision).toBe("2026-08-17.1");
+    expect(packet.packetRevision).toBe("2026-08-17.2");
     expect(packet.integrity).toMatchObject({
       algorithm: "sha256",
       schema: "homeatlas-legal-review-v1",
       scope: "internal_review_copy",
-      sha256: "359f31c42bacb00a14581c3b0b9242878033a3688ad719b0c48876cf45f9fd74",
+      sha256: "a41ed9a87e456641100998f97e814198521ff3f031bf87d3036413e82d1e9bd3",
     });
     expect(
       Object.fromEntries(
@@ -89,7 +89,7 @@ describe("enrollment legal review packet", () => {
       "ca-service-quote-v1-draft":
         "bb473f0977b215b24bbb4fc2970fc2afc0ccf54b9f80a59cc568767751d5dba9",
       "provider-template-text-pending":
-        "0fc15d1c0e60f8a0c5d4dcab441c5d48bb478f36df7a4bd81a49290c0c71db6c",
+        "7683146c2761b1cd4c77adec90a2ead91fdb03af370d1d70b804c6051883ef1c",
     });
   });
 });

@@ -1,5 +1,6 @@
 import {
   createHmac,
+  createHash,
   createSign,
   timingSafeEqual,
 } from "node:crypto";
@@ -33,6 +34,7 @@ export interface DocuSignEnrollmentTemplateProbe {
   customerRoleFound: boolean;
   templateName: string | null;
   documentCount: number;
+  documents: DocuSignTemplateDocumentEvidence[];
   signatureTabCount: number;
   missingTabLabels: string[];
   connectHmacConfigured: boolean;
@@ -43,6 +45,16 @@ export interface DocuSignEnrollmentTemplateProbe {
     | "template_lookup_failed"
     | "template_mismatch";
   message: string;
+}
+
+export interface DocuSignTemplateDocumentEvidence {
+  documentId: string;
+  name: string;
+  sha256: string;
+  documentKind:
+    | "master_service_agreement"
+    | "service_quote_agreement"
+    | null;
 }
 
 export interface DocuSignEnvelopeEvent {
@@ -216,6 +228,23 @@ function providerFailureMessage(body: unknown, status: number): string {
   );
 }
 
+function classifyEnrollmentDocument(
+  name: string,
+): DocuSignTemplateDocumentEvidence["documentKind"] {
+  const normalized = name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (/(^| )msa( |$)/.test(normalized) || normalized.includes("master service")) {
+    return "master_service_agreement";
+  }
+  if (
+    normalized.includes("service quote") ||
+    normalized.includes("quote agreement") ||
+    normalized.includes("property service agreement")
+  ) {
+    return "service_quote_agreement";
+  }
+  return null;
+}
+
 export async function probeDocuSignEnrollmentTemplate(input: {
   config?: DocuSignConfig;
   fetch?: typeof fetch;
@@ -239,6 +268,7 @@ export async function probeDocuSignEnrollmentTemplate(input: {
     customerRoleFound: false,
     templateName: null,
     documentCount: 0,
+    documents: [],
     signatureTabCount: 0,
     missingTabLabels: Object.values(DOCUSIGN_ENROLLMENT_TAB_LABELS),
     connectHmacConfigured: Boolean(config.connectHmacSecret),
@@ -283,6 +313,19 @@ export async function probeDocuSignEnrollmentTemplate(input: {
     }
     return body;
   };
+  const readBytes = async (url: string, label: string): Promise<Uint8Array> => {
+    const response = await request(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new Error(
+        `${label} failed: ${body.trim() || `HTTP ${response.status}`}`,
+      );
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  };
 
   try {
     const template = record(await readJson(templatePath, "Template lookup"));
@@ -317,6 +360,44 @@ export async function probeDocuSignEnrollmentTemplate(input: {
       documents?.documents,
     ].find(Array.isArray);
     const documentCount = Array.isArray(documentRows) ? documentRows.length : 0;
+    const documentDescriptors = Array.isArray(documentRows)
+      ? documentRows
+          .map(record)
+          .filter((row): row is Record<string, unknown> => Boolean(row))
+          .map((row) => ({
+            documentId: firstString(row.documentId),
+            name: firstString(row.name) ?? "Unnamed document",
+          }))
+          .filter(
+            (row): row is { documentId: string; name: string } =>
+              Boolean(row.documentId),
+          )
+      : [];
+    const documentEvidence = await Promise.all(
+      documentDescriptors.map(async (document) => {
+        const bytes = await readBytes(
+          `${templatePath}/documents/${encodeURIComponent(document.documentId)}`,
+          `Template document ${document.documentId} download`,
+        );
+        return {
+          ...document,
+          sha256: createHash("sha256").update(bytes).digest("hex"),
+          documentKind: classifyEnrollmentDocument(document.name),
+        } satisfies DocuSignTemplateDocumentEvidence;
+      }),
+    );
+    const coreDocumentKinds = new Set(
+      documentEvidence
+        .map((document) => document.documentKind)
+        .filter(
+          (
+            kind,
+          ): kind is Exclude<
+            DocuSignTemplateDocumentEvidence["documentKind"],
+            null
+          > => kind !== null,
+        ),
+    );
     const signatureTabCount = Array.isArray(tabs?.signHereTabs)
       ? tabs.signHereTabs.length
       : 0;
@@ -329,7 +410,9 @@ export async function probeDocuSignEnrollmentTemplate(input: {
       customerRoleFound &&
       documentCount >= 2 &&
       signatureTabCount >= 1 &&
-      missingTabLabels.length === 0;
+      missingTabLabels.length === 0 &&
+      coreDocumentKinds.has("master_service_agreement") &&
+      coreDocumentKinds.has("service_quote_agreement");
 
     return {
       ...base,
@@ -339,12 +422,13 @@ export async function probeDocuSignEnrollmentTemplate(input: {
       customerRoleFound,
       templateName: firstString(template?.name, templateDefinition?.name),
       documentCount,
+      documents: documentEvidence,
       signatureTabCount,
       missingTabLabels,
       errorCode: ok ? null : "template_mismatch",
       message: ok
         ? "DocuSign OAuth and the two-document HomeAtlas template passed the read-only check. Connect still requires one signed webhook rehearsal."
-        : "DocuSign authorized, but the configured template does not yet match the HomeAtlas document, role, signature, and locked-tab contract.",
+        : "DocuSign authorized, but the configured template does not yet match the HomeAtlas MSA, Service & Quote, role, signature, and locked-tab contract.",
     };
   } catch (error) {
     return {

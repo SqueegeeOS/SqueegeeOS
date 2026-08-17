@@ -6,6 +6,7 @@ import { loadEnrollmentPacketStatus } from "@/lib/enrollment/packet-status-serve
 import { buildEnrollmentPreflightReport } from "@/lib/enrollment/preflight";
 import { getEnrollmentReadiness } from "@/lib/enrollment/readiness";
 import { parseEnrollmentSubmission } from "@/lib/enrollment/submission";
+import { getEnrollmentRecipientGate } from "@/lib/enrollment/release-control";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,6 +63,7 @@ export async function POST(request: Request) {
       presentationCanEnroll:
         presentation.status !== "signed" && !presentation.agreementId,
       existingPacketStatus: existingPacket?.status ?? null,
+      recipientGate: getEnrollmentRecipientGate(snapshot.customer.email),
     });
 
     return NextResponse.json(

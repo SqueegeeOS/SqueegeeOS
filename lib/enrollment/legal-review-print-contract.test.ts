@@ -16,7 +16,7 @@ const enrollmentDesk = read("../../components/admin/enrollment-desk-page.tsx");
 const packet = read("./legal-review-packet.ts");
 const proxy = read("../../proxy.ts");
 
-describe("printable enrollment counsel packet", () => {
+describe("printable enrollment release packet", () => {
   it("renders the same packet source behind the server-enforced HQ boundary", () => {
     expect(page).toContain("getEnrollmentLegalReviewPacket");
     expect(page).toContain("EnrollmentLegalReviewPage");
@@ -25,12 +25,12 @@ describe("printable enrollment counsel packet", () => {
     expect(enrollmentDesk).toContain('/hq/enrollment/review');
   });
 
-  it("stays visibly non-approved and exports through the browser print dialog", () => {
-    expect(reviewComponent).toContain("Not approved for customer use");
+  it("stays visibly unreleased and exports through the browser print dialog", () => {
+    expect(reviewComponent).toContain("Not yet owner-released to customers");
     expect(reviewComponent).toContain("Statutory source check");
     expect(reviewComponent).toContain("Packet fingerprint");
     expect(reviewComponent).toContain("Review-copy SHA-256");
-    expect(reviewComponent).toContain("does not approve a legal version");
+    expect(reviewComponent).toContain("does not release a legal version");
     expect(printButton).toContain("window.print()");
     expect(printButton).toContain("Print / Save PDF");
   });
