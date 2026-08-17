@@ -65,4 +65,31 @@ describe("enrollment legal review packet", () => {
     expect(notice?.status).toBe("lawyer_text_required");
     expect(notice?.reviewFocus.join(" ")).toContain("Exact notice wording");
   });
+
+  it("pins deterministic fingerprints to the exact internal review copy", () => {
+    const packet = getEnrollmentLegalReviewPacket();
+
+    expect(packet.packetRevision).toBe("2026-08-17.1");
+    expect(packet.integrity).toMatchObject({
+      algorithm: "sha256",
+      schema: "homeatlas-legal-review-v1",
+      scope: "internal_review_copy",
+      sha256: "359f31c42bacb00a14581c3b0b9242878033a3688ad719b0c48876cf45f9fd74",
+    });
+    expect(
+      Object.fromEntries(
+        packet.documents.map((document) => [
+          document.version,
+          document.integrity.sha256,
+        ]),
+      ),
+    ).toEqual({
+      "ca-msa-v1-draft":
+        "2319bee07339c2a2b834847550329ed5f79980c594785b6c0f75c01152430d1d",
+      "ca-service-quote-v1-draft":
+        "bb473f0977b215b24bbb4fc2970fc2afc0ccf54b9f80a59cc568767751d5dba9",
+      "provider-template-text-pending":
+        "0fc15d1c0e60f8a0c5d4dcab441c5d48bb478f36df7a4bd81a49290c0c71db6c",
+    });
+  });
 });

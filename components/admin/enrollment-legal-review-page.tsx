@@ -2,8 +2,6 @@ import Link from "next/link";
 import { EnrollmentReviewPrintButton } from "@/components/admin/enrollment-review-print-button";
 import type { EnrollmentLegalReviewPacket } from "@/lib/enrollment/legal-review-packet";
 
-const SOURCE_CHECKED_AT = "2026-08-16";
-
 export function EnrollmentLegalReviewPage({
   packet,
 }: {
@@ -63,7 +61,7 @@ export function EnrollmentLegalReviewPage({
                 Statutory source check
               </dt>
               <dd className="mt-1 text-[#1c211f]">
-                <time dateTime={SOURCE_CHECKED_AT}>August 16, 2026</time>
+                <time dateTime={packet.sourceCheckedAt}>August 16, 2026</time>
               </dd>
             </div>
             <div>
@@ -74,7 +72,29 @@ export function EnrollmentLegalReviewPage({
                 California residential recurring property services
               </dd>
             </div>
+            <div>
+              <dt className="font-bold uppercase tracking-[0.12em] text-[#66716d]">
+                Review packet revision
+              </dt>
+              <dd className="mt-1 text-[#1c211f]">
+                {packet.packetRevision}
+              </dd>
+            </div>
+            <div>
+              <dt className="font-bold uppercase tracking-[0.12em] text-[#66716d]">
+                Packet fingerprint
+              </dt>
+              <dd className="mt-1 break-all font-mono text-[10px] leading-5 text-[#1c211f]">
+                SHA-256 {packet.integrity.sha256}
+              </dd>
+            </div>
           </dl>
+
+          <p className="mt-4 text-[11px] leading-5 text-[#66716d]">
+            The fingerprint identifies this exact internal review copy. It is
+            change-control evidence only—not the hash of an approved DocuSign
+            document and not legal approval.
+          </p>
         </header>
 
         <section className="mt-9">
@@ -124,6 +144,9 @@ export function EnrollmentLegalReviewPage({
               </div>
               <p className="mt-4 text-sm leading-6 text-[#59635f]">
                 {document.purpose}
+              </p>
+              <p className="mt-3 break-all font-mono text-[10px] leading-5 text-[#6d7773]">
+                Review-copy SHA-256 {document.integrity.sha256}
               </p>
             </div>
 

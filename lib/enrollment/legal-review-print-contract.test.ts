@@ -28,6 +28,8 @@ describe("printable enrollment counsel packet", () => {
   it("stays visibly non-approved and exports through the browser print dialog", () => {
     expect(reviewComponent).toContain("Not approved for customer use");
     expect(reviewComponent).toContain("Statutory source check");
+    expect(reviewComponent).toContain("Packet fingerprint");
+    expect(reviewComponent).toContain("Review-copy SHA-256");
     expect(reviewComponent).toContain("does not approve a legal version");
     expect(printButton).toContain("window.print()");
     expect(printButton).toContain("Print / Save PDF");
@@ -40,5 +42,14 @@ describe("printable enrollment counsel packet", () => {
     expect(reviewComponent).not.toMatch(
       /sendCommunication|createCheckoutSession|createDocuSignEnvelope|fetch\(/,
     );
+  });
+
+  it("keeps the review-copy and released-document hashes visibly separate", () => {
+    expect(enrollmentDesk).toContain("Review-copy fingerprint");
+    expect(enrollmentDesk).toContain("Released-document hash");
+    expect(enrollmentDesk).toContain(
+      "does not approve the document or claim that DocuSign has",
+    );
+    expect(enrollmentDesk).toContain("the same bytes.");
   });
 });

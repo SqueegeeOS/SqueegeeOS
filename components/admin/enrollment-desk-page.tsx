@@ -51,6 +51,8 @@ interface EnrollmentDeskData {
     document_kind: string;
     version: string;
     status: string;
+    review_copy_sha256: string | null;
+    content_sha256: string | null;
     approved_at: string | null;
     approved_by: string | null;
     review_notes: string | null;
@@ -603,8 +605,32 @@ function EnrollmentDeskContent() {
                         ))}
                       </ul>
                     </div>
+
+                    <div className="mt-4 rounded-2xl border border-white/[0.08] bg-black/10 p-4">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted">
+                        Review-copy fingerprint
+                      </p>
+                      <p className="mt-2 break-all font-mono text-[10px] leading-relaxed text-foreground">
+                        SHA-256 {activeLegalDocument.integrity.sha256}
+                      </p>
+                      <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                        This proves which internal wording is under review. It
+                        does not approve the document or claim that DocuSign has
+                        the same bytes.
+                      </p>
+                    </div>
                   </article>
                 ) : null}
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-white/[0.08] bg-black/10 px-4 py-3">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">
+                  Review packet identity · revision{" "}
+                  {data.legalReviewPacket.packetRevision}
+                </p>
+                <p className="mt-1 break-all font-mono text-[9px] leading-relaxed text-foreground">
+                  SHA-256 {data.legalReviewPacket.integrity.sha256}
+                </p>
               </div>
 
               <div className="mt-8 border-t border-white/[0.08] pt-7">
@@ -672,40 +698,87 @@ function EnrollmentDeskContent() {
                   Two documents, one envelope
                 </h2>
                 <div className="mt-6 space-y-3">
-                  {data.documentVersions.map((version) => (
-                    <div
-                      key={version.id}
-                      className="rounded-2xl border border-white/[0.08] bg-black/10 p-4"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">
-                            {version.document_kind ===
-                            "master_service_agreement"
-                              ? "California LLC MSA"
-                              : "Property Service & Quote"}
+                  {data.documentVersions.map((version) => {
+                    const reviewDocument =
+                      data.legalReviewPacket.documents.find(
+                        (document) => document.id === version.document_kind,
+                      );
+                    const comparesToReviewCopy =
+                      reviewDocument?.version === version.version &&
+                      Boolean(version.review_copy_sha256);
+                    const matchesReviewCopy =
+                      comparesToReviewCopy &&
+                      version.review_copy_sha256 ===
+                        reviewDocument?.integrity.sha256;
+
+                    return (
+                      <div
+                        key={version.id}
+                        className="rounded-2xl border border-white/[0.08] bg-black/10 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">
+                              {version.document_kind ===
+                              "master_service_agreement"
+                                ? "California LLC MSA"
+                                : "Property Service & Quote"}
+                            </p>
+                            <p className="mt-1 text-xs text-muted">
+                              {version.version}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-[9px] uppercase tracking-[0.12em] ${
+                              version.status === "approved"
+                                ? "bg-emerald-300/10 text-emerald-200"
+                                : "bg-amber-300/10 text-amber-100"
+                            }`}
+                          >
+                            {prettyStatus(version.status)}
+                          </span>
+                        </div>
+                        {version.review_notes ? (
+                          <p className="mt-3 text-xs leading-relaxed text-muted">
+                            {version.review_notes}
                           </p>
-                          <p className="mt-1 text-xs text-muted">
-                            {version.version}
+                        ) : null}
+                        <div className="mt-3 rounded-xl border border-white/[0.07] bg-black/15 px-3 py-2.5">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">
+                            Recorded review-copy hash
+                          </p>
+                          <p className="mt-1 break-all font-mono text-[9px] leading-relaxed text-foreground">
+                            {version.review_copy_sha256
+                              ? `SHA-256 ${version.review_copy_sha256}`
+                              : "No internal review copy has been bound to this version."}
+                          </p>
+                          {comparesToReviewCopy ? (
+                            <p
+                              className={`mt-2 text-[10px] font-medium ${
+                                matchesReviewCopy
+                                  ? "text-emerald-200"
+                                  : "text-amber-100"
+                              }`}
+                            >
+                              {matchesReviewCopy
+                                ? "Matches the exact review copy shown above."
+                                : "Mismatch — stop review and create a new version."}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="mt-3 rounded-xl border border-white/[0.07] bg-black/15 px-3 py-2.5">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-muted">
+                            Released-document hash
+                          </p>
+                          <p className="mt-1 break-all font-mono text-[9px] leading-relaxed text-foreground">
+                            {version.content_sha256
+                              ? `SHA-256 ${version.content_sha256}`
+                              : "Not bound yet — customer sending remains blocked."}
                           </p>
                         </div>
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[9px] uppercase tracking-[0.12em] ${
-                            version.status === "approved"
-                              ? "bg-emerald-300/10 text-emerald-200"
-                              : "bg-amber-300/10 text-amber-100"
-                          }`}
-                        >
-                          {prettyStatus(version.status)}
-                        </span>
                       </div>
-                      {version.review_notes ? (
-                        <p className="mt-3 text-xs leading-relaxed text-muted">
-                          {version.review_notes}
-                        </p>
-                      ) : null}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </GlassCard>
 
