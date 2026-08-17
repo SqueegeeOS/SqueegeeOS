@@ -34,6 +34,15 @@ interface StoredTokenRow extends StoredConnectionRow {
   token_generation: number;
 }
 
+const JOBBER_ACCESS_TOKEN_REFRESH_BUFFER_MS = 5 * 60_000;
+const JOBBER_REFRESH_LEASE_SECONDS = 30;
+const JOBBER_REFRESH_WAIT_ATTEMPTS = 32;
+const JOBBER_REFRESH_WAIT_MS = 750;
+
+function waitForRefreshLease(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, JOBBER_REFRESH_WAIT_MS));
+}
+
 export interface JobberConnectionStatus {
   connected: boolean;
   status: StoredConnectionRow["status"] | "not_connected";
@@ -145,95 +154,109 @@ export async function readJobberConnectionStatus(): Promise<JobberConnectionStat
  */
 export async function getFreshJobberAccessToken(): Promise<string> {
   const supabase = createServiceRoleSupabaseClient();
-  const { data, error } = await supabase
-    .from("jobber_connections")
-    .select(
-      "id, status, account_id, account_name, access_token_ciphertext, refresh_token_ciphertext, access_token_expires_at, token_generation, graphql_version, connected_at, last_verified_at, last_refreshed_at, last_error_code",
-    )
-    .eq("id", JOBBER_CONNECTION_ID)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  const row = data as StoredTokenRow | null;
-  if (!row || row.status !== "connected") {
-    throw new Error("Jobber is not connected");
-  }
-  if (new Date(row.access_token_expires_at).getTime() > Date.now() + 5 * 60_000) {
-    return decryptJobberToken(row.access_token_ciphertext);
-  }
-
-  const leaseId = crypto.randomUUID();
-  const { data: acquired, error: leaseError } = await supabase.rpc(
-    "acquire_jobber_refresh_lease",
-    { requested_lease_id: leaseId, lease_seconds: 30 },
-  );
-  if (leaseError) throw new Error(leaseError.message);
-  if (!acquired) {
-    throw new Error("Jobber token refresh is already in progress");
-  }
-
-  try {
-    const tokens = await refreshJobberTokens(
-      decryptJobberToken(row.refresh_token_ciphertext),
-    );
-    const refreshedAt = new Date().toISOString();
-    const { data: updated, error: updateError } = await supabase
+  for (let attempt = 0; attempt < JOBBER_REFRESH_WAIT_ATTEMPTS; attempt += 1) {
+    // Reload on every pass. Jobber rotates refresh tokens, so a worker that
+    // waited behind another refresh must never redeem its stale in-memory copy.
+    const { data, error } = await supabase
       .from("jobber_connections")
-      .update({
-        access_token_ciphertext: encryptJobberToken(tokens.accessToken),
-        refresh_token_ciphertext: encryptJobberToken(tokens.refreshToken),
-        access_token_expires_at: tokens.accessTokenExpiresAt,
-        token_generation: row.token_generation + 1,
-        last_refreshed_at: refreshedAt,
-        last_error_code: null,
-        refresh_lease_id: null,
-        refresh_lease_expires_at: null,
-      })
+      .select(
+        "id, status, account_id, account_name, access_token_ciphertext, refresh_token_ciphertext, access_token_expires_at, token_generation, graphql_version, connected_at, last_verified_at, last_refreshed_at, last_error_code",
+      )
       .eq("id", JOBBER_CONNECTION_ID)
-      .eq("refresh_lease_id", leaseId)
-      .eq("token_generation", row.token_generation)
-      .select("id")
       .maybeSingle();
-    if (updateError) throw new Error(updateError.message);
-    if (!updated) throw new Error("Jobber token refresh lost its lease");
-
-    const { error: eventError } = await supabase
-      .from("jobber_connection_events")
-      .insert({
-        connection_id: JOBBER_CONNECTION_ID,
-        event_type: "refreshed",
-        actor: "homeatlas_token_manager",
-        safe_details: { token_generation: row.token_generation + 1 },
-      });
-    if (eventError) {
-      console.error("[jobber-oauth] refresh event write failed");
+    if (error) throw new Error(error.message);
+    const row = data as StoredTokenRow | null;
+    if (!row || row.status !== "connected") {
+      throw new Error("Jobber is not connected");
     }
-    return tokens.accessToken;
-  } catch (refreshError) {
-    const invalidRefreshToken =
-      refreshError instanceof JobberApiError &&
-      (refreshError.status === 400 || refreshError.status === 401);
-    await supabase
-      .from("jobber_connections")
-      .update({
-        status: invalidRefreshToken ? "refresh_required" : "connected",
-        last_error_code: invalidRefreshToken
-          ? "jobber_reauthorization_required"
-          : "jobber_refresh_failed",
-        refresh_lease_id: null,
-        refresh_lease_expires_at: null,
-      })
-      .eq("id", JOBBER_CONNECTION_ID)
-      .eq("refresh_lease_id", leaseId);
-    await supabase.from("jobber_connection_events").insert({
-      connection_id: JOBBER_CONNECTION_ID,
-      event_type: "refresh_failed",
-      actor: "homeatlas_token_manager",
-      safe_details: {
-        reason: invalidRefreshToken
-          ? "reauthorization_required"
-          : "transient_refresh_failure",
+    if (
+      new Date(row.access_token_expires_at).getTime() >
+      Date.now() + JOBBER_ACCESS_TOKEN_REFRESH_BUFFER_MS
+    ) {
+      return decryptJobberToken(row.access_token_ciphertext);
+    }
+
+    const leaseId = crypto.randomUUID();
+    const { data: acquired, error: leaseError } = await supabase.rpc(
+      "acquire_jobber_refresh_lease_v2",
+      {
+        requested_lease_id: leaseId,
+        expected_token_generation: row.token_generation,
+        lease_seconds: JOBBER_REFRESH_LEASE_SECONDS,
       },
-    });
-    throw refreshError;
+    );
+    if (leaseError) throw new Error(leaseError.message);
+    if (!acquired) {
+      await waitForRefreshLease();
+      continue;
+    }
+
+    try {
+      const tokens = await refreshJobberTokens(
+        decryptJobberToken(row.refresh_token_ciphertext),
+      );
+      const refreshedAt = new Date().toISOString();
+      const { data: updated, error: updateError } = await supabase
+        .from("jobber_connections")
+        .update({
+          access_token_ciphertext: encryptJobberToken(tokens.accessToken),
+          refresh_token_ciphertext: encryptJobberToken(tokens.refreshToken),
+          access_token_expires_at: tokens.accessTokenExpiresAt,
+          token_generation: row.token_generation + 1,
+          last_refreshed_at: refreshedAt,
+          last_error_code: null,
+          refresh_lease_id: null,
+          refresh_lease_expires_at: null,
+        })
+        .eq("id", JOBBER_CONNECTION_ID)
+        .eq("refresh_lease_id", leaseId)
+        .eq("token_generation", row.token_generation)
+        .select("id")
+        .maybeSingle();
+      if (updateError) throw new Error(updateError.message);
+      if (!updated) throw new Error("Jobber token refresh lost its lease");
+
+      const { error: eventError } = await supabase
+        .from("jobber_connection_events")
+        .insert({
+          connection_id: JOBBER_CONNECTION_ID,
+          event_type: "refreshed",
+          actor: "homeatlas_token_manager",
+          safe_details: { token_generation: row.token_generation + 1 },
+        });
+      if (eventError) {
+        console.error("[jobber-oauth] refresh event write failed");
+      }
+      return tokens.accessToken;
+    } catch (refreshError) {
+      const invalidRefreshToken =
+        refreshError instanceof JobberApiError &&
+        (refreshError.status === 400 || refreshError.status === 401);
+      await supabase
+        .from("jobber_connections")
+        .update({
+          status: invalidRefreshToken ? "refresh_required" : "connected",
+          last_error_code: invalidRefreshToken
+            ? "jobber_reauthorization_required"
+            : "jobber_refresh_failed",
+          refresh_lease_id: null,
+          refresh_lease_expires_at: null,
+        })
+        .eq("id", JOBBER_CONNECTION_ID)
+        .eq("refresh_lease_id", leaseId);
+      await supabase.from("jobber_connection_events").insert({
+        connection_id: JOBBER_CONNECTION_ID,
+        event_type: "refresh_failed",
+        actor: "homeatlas_token_manager",
+        safe_details: {
+          reason: invalidRefreshToken
+            ? "reauthorization_required"
+            : "transient_refresh_failure",
+        },
+      });
+      throw refreshError;
+    }
   }
+
+  throw new Error("Jobber token refresh did not finish before the wait limit");
 }

@@ -14,7 +14,10 @@ import { MotionReveal } from "@/components/craft/motion-reveal";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import { craftEyebrow, craftHeading } from "@/lib/craft/tokens";
-import type { HqMembershipRow } from "@/app/api/admin/memberships/route";
+import type {
+  HqJobberConnectionSummary,
+  HqMembershipRow,
+} from "@/app/api/admin/memberships/route";
 
 const STATUS_TONE: Record<HqMembershipRow["status"], string> = {
   active: "text-emerald-300/90",
@@ -38,9 +41,12 @@ function formatNextService(row: HqMembershipRow): string {
       "en-US",
       { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" },
     );
-    return row.nextServiceTimeWindow
+    const serviceLabel = row.nextServiceTimeWindow
       ? `${dateLabel} · ${row.nextServiceTimeWindow}`
       : dateLabel;
+    return row.nextServiceSource === "paired_jobber_projection"
+      ? `${serviceLabel} · live Jobber link`
+      : serviceLabel;
   }
   if (row.nextServiceMonth) {
     const [year, month] = row.nextServiceMonth.split("-");
@@ -80,6 +86,8 @@ function HqMembershipsContent() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [totalAddonRevenue, setTotalAddonRevenue] = useState(0);
+  const [jobberConnection, setJobberConnection] =
+    useState<HqJobberConnectionSummary | null>(null);
 
   const loadMemberships = useCallback(async () => {
     setLoading(true);
@@ -92,6 +100,7 @@ function HqMembershipsContent() {
       const body = (await response.json().catch(() => null)) as {
         rows?: HqMembershipRow[];
         totalAddonRevenue?: number;
+        jobberConnection?: HqJobberConnectionSummary | null;
         error?: string;
       } | null;
       if (!response.ok) {
@@ -100,6 +109,7 @@ function HqMembershipsContent() {
       }
       setRows(body?.rows ?? []);
       setTotalAddonRevenue(body?.totalAddonRevenue ?? 0);
+      setJobberConnection(body?.jobberConnection ?? null);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load");
     } finally {
@@ -147,6 +157,21 @@ function HqMembershipsContent() {
         {notice ? (
           <div className="mb-6 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
             {notice}
+          </div>
+        ) : null}
+
+        {jobberConnection?.status === "refresh_required" ? (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/25 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            <span>
+              Jobber needs one fresh authorization. Dates below remain last-known
+              until the live sync reconnects.
+            </span>
+            <Link
+              href="/hq/jobber?returnTo=%2Fhq%2Fmemberships"
+              className="font-medium text-amber-50 underline underline-offset-4"
+            >
+              Reconnect Jobber
+            </Link>
           </div>
         ) : null}
 
