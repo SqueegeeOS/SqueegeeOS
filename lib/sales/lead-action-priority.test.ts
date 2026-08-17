@@ -3,6 +3,7 @@ import type { SalesRepLead } from "./workspace-types";
 import {
   buildSalesLeadActionQueue,
   classifySalesLeadAction,
+  selectFieldNextMove,
   summarizeSalesLeadActionQueue,
 } from "./lead-action-priority";
 
@@ -104,5 +105,23 @@ describe("David field next-action priority", () => {
       reference,
     );
     expect(queue.map((item) => item.lead.id)).toEqual(["open"]);
+  });
+
+  it("interrupts field work only for overdue, due, or unscheduled people", () => {
+    const upcomingOnly = buildSalesLeadActionQueue(
+      [lead("future", "2026-08-16T18:00:00.000Z")],
+      reference,
+    );
+    expect(selectFieldNextMove(upcomingOnly)).toBeNull();
+
+    const needsAttention = buildSalesLeadActionQueue(
+      [
+        lead("future", "2026-08-16T18:00:00.000Z"),
+        lead("missing", null),
+        lead("overdue", "2026-08-14T22:00:00.000Z"),
+      ],
+      reference,
+    );
+    expect(selectFieldNextMove(needsAttention)?.lead.id).toBe("overdue");
   });
 });

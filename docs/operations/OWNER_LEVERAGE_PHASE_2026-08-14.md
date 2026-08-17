@@ -220,7 +220,11 @@ must not label the member unscheduled from stale evidence.
 2. Noah and Dasan start a Growth Session under the actual channel being worked.
 3. They create presentations through their own operator link so future signed
    ARR retains stable attribution.
-4. HomeAtlas stays quiet unless an exception needs owner judgment.
+4. A visible, online sales phone refreshes its owned queue every 90 seconds and
+   on focus or reconnect. Overdue, due-today, and unscheduled relationships rise
+   as one next-move card; future follow-ups stay in the full queue. This read
+   never calls, texts, emails, schedules, enrolls, invoices, or charges.
+5. HomeAtlas stays quiet unless an exception needs owner judgment.
 
 ### After production
 

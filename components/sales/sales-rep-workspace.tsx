@@ -13,6 +13,7 @@ import {
   type DoorMemoryDraft,
 } from "@/components/sales/door-memory";
 import { FirstFieldMission } from "@/components/sales/first-field-mission";
+import { FieldNextMove } from "@/components/sales/field-next-move";
 import { LeadInteractionControl } from "@/components/sales/lead-interaction-control";
 import {
   ServiceInterestChips,
@@ -56,9 +57,15 @@ import {
 } from "@/lib/craft/tokens";
 import {
   buildSalesLeadActionQueue,
+  selectFieldNextMove,
   summarizeSalesLeadActionQueue,
   type SalesLeadActionMoment,
 } from "@/lib/sales/lead-action-priority";
+import {
+  FIELD_WORKSPACE_REFRESH_INTERVAL_MS,
+  fieldWorkspaceSyncLabel,
+  shouldAutoRefreshFieldWorkspace,
+} from "@/lib/sales/field-workspace-refresh";
 import {
   filterSalesLeadActionQueue,
   type SalesLeadQueueFilter,
@@ -507,6 +514,7 @@ export function SalesRepWorkspace({
   const router = useRouter();
   const [workspace, setWorkspace] = useState<SalesWorkspacePayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [workspaceRefreshing, setWorkspaceRefreshing] = useState(false);
   const [workspaceLoadError, setWorkspaceLoadError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
@@ -545,6 +553,8 @@ export function SalesRepWorkspace({
   const [isOnline, setIsOnline] = useState(true);
   const offlineSyncingRef = useRef(false);
   const offlineQueueRef = useRef<OfflinePulseEntry[]>([]);
+  const workspaceRefreshPromiseRef = useRef<Promise<void> | null>(null);
+  const workspaceRefreshRequestRef = useRef(0);
   const revealedLeadAnchorRef = useRef<string | null>(null);
   const [fixedDoorFeedback, setFixedDoorFeedback] =
     useState<FixedDoorFeedback | null>(null);
@@ -594,19 +604,39 @@ export function SalesRepWorkspace({
     [offlineQueue],
   );
 
-  const loadWorkspace = useCallback(async () => {
-    try {
-      setWorkspace(await fetchSalesWorkspace(repSlug));
-      setWorkspaceLoadError(null);
-    } catch (loadError) {
-      setWorkspaceLoadError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Could not load the private field desk.",
-      );
-    } finally {
-      setLoading(false);
+  const loadWorkspace = useCallback(() => {
+    workspaceRefreshRequestRef.current += 1;
+    if (workspaceRefreshPromiseRef.current) {
+      return workspaceRefreshPromiseRef.current;
     }
+
+    setWorkspaceRefreshing(true);
+    const request = (async () => {
+      let completedRequest = 0;
+      do {
+        const targetRequest = workspaceRefreshRequestRef.current;
+        try {
+          setWorkspace(await fetchSalesWorkspace(repSlug));
+          setWorkspaceLoadError(null);
+        } catch (loadError) {
+          setWorkspaceLoadError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Could not load the private field desk.",
+          );
+        }
+        completedRequest = targetRequest;
+      } while (completedRequest < workspaceRefreshRequestRef.current);
+    })()
+      .finally(() => {
+        setLoading(false);
+        setWorkspaceRefreshing(false);
+        if (workspaceRefreshPromiseRef.current === request) {
+          workspaceRefreshPromiseRef.current = null;
+        }
+      });
+    workspaceRefreshPromiseRef.current = request;
+    return request;
   }, [repSlug]);
 
   const refreshFirstFieldMission = useCallback(async () => {
@@ -637,30 +667,33 @@ export function SalesRepWorkspace({
   });
 
   useEffect(() => {
-    let cancelled = false;
-    fetchSalesWorkspace(repSlug)
-      .then((payload) => {
-        if (!cancelled) {
-          setWorkspace(payload);
-          setWorkspaceLoadError(null);
-        }
-      })
-      .catch((loadError: unknown) => {
-        if (!cancelled) {
-          setWorkspaceLoadError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Could not load the private field desk.",
-          );
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
+    void loadWorkspace();
+  }, [loadWorkspace]);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (
+        shouldAutoRefreshFieldWorkspace({
+          isOnline: navigator.onLine,
+          visibilityState: document.visibilityState,
+        })
+      ) {
+        void loadWorkspace();
+      }
     };
-  }, [repSlug]);
+
+    const interval = window.setInterval(
+      refreshWhenVisible,
+      FIELD_WORKSPACE_REFRESH_INTERVAL_MS,
+    );
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [loadWorkspace]);
 
   useEffect(() => {
     const updateLeadLocationHash = () => setLeadLocationHash(window.location.hash);
@@ -1263,7 +1296,11 @@ export function SalesRepWorkspace({
 
     const handleOnline = () => {
       setIsOnline(true);
-      void syncOfflineQueue();
+      if (offlineQueueRef.current.length > 0) {
+        void syncOfflineQueue();
+      } else {
+        void loadWorkspace();
+      }
     };
     const handleOffline = () => setIsOnline(false);
     window.addEventListener("online", handleOnline);
@@ -1274,7 +1311,7 @@ export function SalesRepWorkspace({
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, [repSlug, syncOfflineQueue]);
+  }, [loadWorkspace, repSlug, syncOfflineQueue]);
 
   const undoLastActivity = async (
     activity: SalesActivityReceipt | null = undoableActivity,
@@ -1584,6 +1621,22 @@ export function SalesRepWorkspace({
     () => summarizeSalesLeadActionQueue(leadActionQueue),
     [leadActionQueue],
   );
+  const fieldNextMove = useMemo(
+    () => selectFieldNextMove(leadActionQueue),
+    [leadActionQueue],
+  );
+  const fieldAttentionCount =
+    leadActionCounts.overdue +
+    leadActionCounts.due_today +
+    leadActionCounts.unscheduled;
+  const workspaceSyncStatus = fieldWorkspaceSyncLabel(
+    workspaceGeneratedAt,
+    actionClock > 0
+      ? new Date(actionClock)
+      : workspaceGeneratedAt
+        ? new Date(workspaceGeneratedAt)
+        : new Date(),
+  );
   const filteredLeadActionQueue = useMemo(
     () =>
       filterSalesLeadActionQueue(leadActionQueue, {
@@ -1697,6 +1750,25 @@ export function SalesRepWorkspace({
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={() => void loadWorkspace()}
+              disabled={workspaceRefreshing}
+              title={workspaceSyncStatus}
+              aria-label={
+                workspaceRefreshing
+                  ? "Refreshing the field desk"
+                  : `Refresh the field desk. ${workspaceSyncStatus}`
+              }
+              className="inline-flex min-h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground disabled:cursor-wait disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              <span aria-hidden="true" className={workspaceRefreshing ? "animate-spin motion-reduce:animate-none" : ""}>
+                ↻
+              </span>
+              <span className="hidden lg:inline">
+                {workspaceRefreshing ? "Syncing" : workspaceSyncStatus}
+              </span>
+            </button>
+            <button
+              type="button"
               onClick={toggleSunlightMode}
               aria-pressed={sunlightMode}
               className={`min-h-11 rounded-full border px-3 text-[10px] font-semibold uppercase tracking-[0.14em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:px-4 ${
@@ -1732,6 +1804,15 @@ export function SalesRepWorkspace({
             onAddHomeowner={openLeadCapture}
             onRefresh={() => void refreshFirstFieldMission()}
             refreshing={missionRefreshing}
+          />
+        ) : null}
+        {fieldNextMove ? (
+          <FieldNextMove
+            item={fieldNextMove}
+            followUpLabel={followUpLabel(fieldNextMove.lead.nextFollowUpAt)}
+            remainingAttentionCount={Math.max(0, fieldAttentionCount - 1)}
+            openingPlan={presentationOpeningLeadId === fieldNextMove.lead.id}
+            onOpenPlan={() => void openLeadPresentation(fieldNextMove.lead.id)}
           />
         ) : null}
         <section id="pulse" aria-labelledby="field-pulse-title">

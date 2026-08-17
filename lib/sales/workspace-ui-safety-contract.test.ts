@@ -20,6 +20,10 @@ const leadInteractionControl = readFileSync(
   ),
   "utf8",
 );
+const fieldNextMove = readFileSync(
+  new URL("../../components/sales/field-next-move.tsx", import.meta.url),
+  "utf8",
+);
 
 describe("sales representative workspace activity safety", () => {
   it("never exposes a manual signed-membership counter", () => {
@@ -202,6 +206,35 @@ describe("sales representative workspace activity safety", () => {
     expect(workspace).toContain("salesRepLeadAnchorId(lead.id)");
     expect(workspace).toContain("target.scrollIntoView");
     expect(workspace).toContain("linkedLeadAction");
+  });
+
+  it("pulls newly assigned work onto an open field phone without background churn", () => {
+    expect(workspace).toContain("workspaceRefreshPromiseRef");
+    expect(workspace).toContain("workspaceRefreshRequestRef");
+    expect(workspace).toContain(
+      "completedRequest < workspaceRefreshRequestRef.current",
+    );
+    expect(workspace).toContain("shouldAutoRefreshFieldWorkspace");
+    expect(workspace).toContain("FIELD_WORKSPACE_REFRESH_INTERVAL_MS");
+    expect(workspace).toContain('window.addEventListener("focus", refreshWhenVisible)');
+    expect(workspace).toContain(
+      'document.addEventListener("visibilitychange", refreshWhenVisible)',
+    );
+    expect(workspace).toContain("offlineQueueRef.current.length > 0");
+    expect(workspace).toContain("workspaceSyncStatus");
+    expect(workspace).toContain("Refresh the field desk");
+  });
+
+  it("surfaces one urgent next move without sending on the rep's behalf", () => {
+    expect(workspace).toContain("selectFieldNextMove");
+    expect(workspace).toContain("<FieldNextMove");
+    expect(fieldNextMove).toContain("Do this first · overdue");
+    expect(fieldNextMove).toContain("Choose the next move");
+    expect(fieldNextMove).toContain('href={`tel:${phone}`}');
+    expect(fieldNextMove).toContain('href={`sms:${phone}`}');
+    expect(fieldNextMove).toContain("never sends by itself");
+    expect(fieldNextMove.toLowerCase()).not.toContain("twilio");
+    expect(fieldNextMove.toLowerCase()).not.toContain("resend");
   });
 
   it("shows signed-to-scheduled handoff proof without exposing payment identifiers", () => {

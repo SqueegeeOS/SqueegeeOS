@@ -83,3 +83,14 @@ export function summarizeSalesLeadActionQueue(
   for (const item of queue) counts[item.moment] += 1;
   return counts;
 }
+
+/**
+ * The field desk should interrupt the rep only for work that needs attention
+ * now. Future follow-ups remain in the complete queue without displacing the
+ * next real door.
+ */
+export function selectFieldNextMove(
+  queue: SalesLeadActionQueueItem[],
+): SalesLeadActionQueueItem | null {
+  return queue.find((item) => item.moment !== "upcoming") ?? null;
+}
