@@ -1,0 +1,25 @@
+{
+  "name": "the-home-that-remembers",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SqueegeeKing x HomeAtlas — THE HOME THAT REMEMBERS campaign render project (Remotion).",
+  "scripts": {
+    "studio": "remotion studio",
+    "render:master": "remotion render master-9x16 out/the-home-that-remembers-9x16.mp4 --codec h264",
+    "render:feed": "remotion render feed-4x5 out/the-home-that-remembers-4x5.mp4 --codec h264",
+    "poster:master": "remotion still poster-9x16 out/poster-9x16.png",
+    "poster:feed": "remotion still poster-4x5 out/poster-4x5.png",
+    "render:all": "npm run render:master && npm run render:feed && npm run poster:master && npm run poster:feed"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.507",
+    "@remotion/google-fonts": "4.0.507",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "remotion": "4.0.507"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "typescript": "^5"
+  }
+}

@@ -391,8 +391,8 @@ export function ConceptB() {
               </Link>
               <a
                 href="#legend"
-                className="border-b-2 border-dotted pb-0.5 text-sm transition-colors hover:border-solid"
-                style={{ borderColor: "rgba(143,95,55,0.55)", color: BRONZE_TEXT }}
+                className="rounded-sm border-b-2 border-dotted pb-0.5 text-sm transition-colors hover:border-solid focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4"
+                style={{ borderColor: "rgba(143,95,55,0.55)", color: BRONZE_TEXT, outlineColor: BRONZE }}
               >
                 How the atlas works
               </a>
@@ -482,8 +482,8 @@ export function ConceptB() {
               <Link
                 key={n}
                 href="/services"
-                className="cb-ink group block p-6 transition-colors sm:p-7"
-                style={{ background: PAPER, transitionDelay: `${i * 0.08}s` }}
+                className="cb-ink group block p-6 transition-colors focus-visible:outline focus-visible:-outline-offset-2 focus-visible:outline-2 sm:p-7"
+                style={{ background: PAPER, transitionDelay: `${i * 0.08}s`, outlineColor: BRONZE }}
               >
                 <p className="font-mono text-[10px] tracking-[0.2em]" style={{ color: "rgba(23,63,50,0.45)" }}>
                   {n}
@@ -860,10 +860,13 @@ function FieldNote({ wp }: { wp: Waypoint }) {
         <div className="mt-4 flex gap-2.5">
           {wp.photos.map((p) => (
             <figure key={p.label} className="relative m-0 h-20 flex-1 overflow-hidden rounded-lg border" style={{ borderColor: "rgba(23,63,50,0.12)" }}>
+              {/* Eager: these swap in on selection and are the proof the
+                  hero is making — deferring them shows empty frames. */}
               <Image
                 src={p.src}
                 alt={p.label}
                 fill
+                loading="eager"
                 sizes="180px"
                 className="object-cover"
                 style={{ objectPosition: p.pos }}
