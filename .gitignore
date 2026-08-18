@@ -2,6 +2,8 @@
 
 # dependencies
 /node_modules
+**/node_modules/
+/.pnpm-store/
 /.pnp
 .pnp.*
 .yarn/*
@@ -26,6 +28,11 @@
 # misc
 .DS_Store
 *.pem
+/.claude/
+
+# generated campaign renders and review exports
+/campaigns/**/out/
+/campaigns/**/review/
 
 # debug
 npm-debug.log*
