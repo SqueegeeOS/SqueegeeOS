@@ -34,6 +34,26 @@ describe("hosted payment handoff boundaries", () => {
     expect(webhook).toContain('setupIntent.metadata?.homeatlas_operation === "membership_hosted_setup"');
   });
 
+  it("reconciles the exact completed Checkout session on the Stripe return path", () => {
+    const service = projectFile("lib/membership/hosted-payment-handoff.ts");
+    const page = projectFile("app/payment/setup/complete/page.tsx");
+    const fallback = projectFile(
+      "lib/membership/reconcile-hosted-payment-checkout.ts",
+    );
+
+    expect(service).toContain(
+      "/payment/setup/complete?session_id={CHECKOUT_SESSION_ID}",
+    );
+    expect(page).toContain("reconcileHostedMembershipCheckoutSession");
+    expect(page).toContain('===\n        "processed"');
+    expect(fallback).toContain('session.mode !== "setup"');
+    expect(fallback).toContain('session.status !== "complete"');
+    expect(fallback).toContain('intent.status !== "succeeded"');
+    expect(fallback).toContain("session.client_reference_id !== sessionMetadata.homeatlas_handoff_id");
+    expect(fallback).toContain("reconcileHostedMembershipSetupIntent(intent)");
+    expect(fallback).not.toContain("paymentIntents.create");
+  });
+
   it("surfaces the email action in the live HQ member cards", () => {
     const page = projectFile("components/admin/hq-memberships-page.tsx");
     expect(page).toContain("PaymentSetupEmailButton");

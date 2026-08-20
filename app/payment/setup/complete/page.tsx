@@ -1,6 +1,26 @@
 import Link from "next/link";
+import { reconcileHostedMembershipCheckoutSession } from "@/lib/membership/reconcile-hosted-payment-checkout";
 
-export default function PaymentSetupCompletePage() {
+export default async function PaymentSetupCompletePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ session_id?: string | string[] }>;
+}) {
+  const requestedSessionId = (await searchParams).session_id;
+  const sessionId =
+    typeof requestedSessionId === "string" ? requestedSessionId : null;
+  let confirmed = false;
+
+  if (sessionId) {
+    try {
+      confirmed =
+        (await reconcileHostedMembershipCheckoutSession(sessionId)) ===
+        "processed";
+    } catch (error) {
+      console.error("[hosted-payment-setup] return reconciliation failed", error);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-[#f4f0e7] px-5 py-16 text-[#183126]">
       <section className="mx-auto max-w-xl rounded-[2rem] border border-[#183126]/10 bg-white/75 p-8 shadow-[0_24px_80px_rgba(24,49,38,0.12)] backdrop-blur sm:p-12">
@@ -11,11 +31,14 @@ export default function PaymentSetupCompletePage() {
           ✓
         </div>
         <h1 className="mt-7 font-serif text-4xl font-light tracking-tight">
-          Your card is securely saved.
+          {confirmed
+            ? "Your card is securely saved."
+            : "Your secure setup was received."}
         </h1>
         <p className="mt-5 text-base leading-7 text-[#557164]">
-          Stripe has confirmed your setup. HomeAtlas is preparing your private
-          home portal and will email your access link automatically.
+          {confirmed
+            ? "HomeAtlas confirmed your Stripe setup and is preparing your private home portal."
+            : "HomeAtlas is verifying the completed Stripe setup. You do not need to enter your card again."}
         </p>
         <p className="mt-4 text-sm leading-6 text-[#6b7e74]">
           No payment was collected during this setup step. Future charges follow
