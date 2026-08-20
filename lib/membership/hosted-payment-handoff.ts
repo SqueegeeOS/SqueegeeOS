@@ -374,7 +374,7 @@ async function createOrReuseCheckoutSession(
             "No charge is collected during this step. Future charges follow the service agreement you already signed.",
         },
       },
-      success_url: `${origin}/payment/setup/complete`,
+      success_url: `${origin}/payment/setup/complete?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/payment/setup/cancelled`,
       expires_at: expiresAtSeconds,
     },
