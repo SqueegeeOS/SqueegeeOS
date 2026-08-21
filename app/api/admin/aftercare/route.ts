@@ -5,6 +5,7 @@ import {
   recordCustomerAftercareOutcome,
 } from "@/lib/aftercare/customer-aftercare-actions-server";
 import { loadCustomerAftercareSnapshot } from "@/lib/aftercare/customer-aftercare-server";
+import { loadReviewRequestAutomationStatus } from "@/lib/aftercare/review-request-automation-server";
 import type { CustomerAftercareOutcome } from "@/lib/aftercare/customer-aftercare";
 import {
   CustomerServiceCaseActionError,
@@ -29,8 +30,14 @@ function unauthorized() {
 export async function GET(request: Request) {
   if (!authorizeAdminRequest(request.headers)) return unauthorized();
   try {
-    const snapshot = await loadCustomerAftercareSnapshot();
-    return NextResponse.json(snapshot, { headers: PRIVATE_HEADERS });
+    const [snapshot, reviewAutomation] = await Promise.all([
+      loadCustomerAftercareSnapshot(),
+      loadReviewRequestAutomationStatus(),
+    ]);
+    return NextResponse.json(
+      { ...snapshot, reviewAutomation },
+      { headers: PRIVATE_HEADERS },
+    );
   } catch (error) {
     console.error("[aftercare] snapshot failed", {
       reason: error instanceof Error ? error.message : "unknown",

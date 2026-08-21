@@ -90,7 +90,8 @@ type AutomationRuleId =
   | "lead_acknowledgement_email"
   | "lead_acknowledgement_sms"
   | "visit_reminder_24h_email"
-  | "visit_reminder_24h_sms";
+  | "visit_reminder_24h_sms"
+  | "review_request_after_visit_sms";
 
 interface AutomationRulePresentation {
   id: AutomationRuleId;
@@ -144,6 +145,14 @@ const AUTOMATION_RULES: AutomationRulePresentation[] = [
       "Text a concise visit reminder when the destination is verified and active consent is on file.",
     channel: "sms",
     timing: "Target: 24 hours before",
+  },
+  {
+    id: "review_request_after_visit_sms",
+    title: "Completed-visit review request",
+    description:
+      "Ask for one honest Google review after a verified completed visit with saved proof and no open service issue.",
+    channel: "sms",
+    timing: "At least 24 hours after",
   },
 ];
 

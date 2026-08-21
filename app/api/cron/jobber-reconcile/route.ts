@@ -1,5 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import { processEligibleReviewRequests } from "@/lib/aftercare/review-request-automation-server";
 import { syncAllJobberData } from "@/lib/care-operations/jobber-full-sync";
 import { processVerifiedAppointmentReminders } from "@/lib/communications/reminders";
 import { processDueScheduledCommunications } from "@/lib/communications/service";
@@ -88,6 +89,16 @@ export async function GET(request: Request) {
       };
     });
     const reminders = await processVerifiedAppointmentReminders();
+    const reviewRequests = await processEligibleReviewRequests().catch((error) => {
+      console.error("[jobber-reconcile-cron] review request automation failed", {
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+      return {
+        status: "failed" as const,
+        error:
+          "Review requests failed; Jobber reconciliation and other customer safeguards still completed.",
+      };
+    });
     return NextResponse.json(
       {
         ok: true,
@@ -98,6 +109,7 @@ export async function GET(request: Request) {
         retentionQualifications,
         billing,
         reminders,
+        reviewRequests,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

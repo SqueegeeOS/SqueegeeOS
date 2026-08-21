@@ -40,7 +40,8 @@ export const DEFAULT_QUIET_HOURS: QuietHours = {
 export type CommunicationAutomationKind =
   | "lead_acknowledgement"
   | "lead_first_touch"
-  | "appointment_reminder_24h";
+  | "appointment_reminder_24h"
+  | "review_request_after_visit";
 
 /**
  * A deterministic plan only. This module never contacts a provider and never
@@ -92,6 +93,18 @@ export interface AppointmentReminderInput {
   email?: string | null;
   phone?: string | null;
   smsConsent?: SmsConsent | null;
+  quietHours?: QuietHours;
+}
+
+export interface ReviewRequestSmsInput {
+  appointmentId: string;
+  customerName: string;
+  phone: string;
+  serviceLabel: string;
+  completedAt: string | Date;
+  now: string | Date;
+  reviewUrl: string;
+  smsConsent: SmsConsent;
   quietHours?: QuietHours;
 }
 
@@ -270,6 +283,13 @@ export function buildAppointmentReminderIdempotencyKey(input: {
   )}:reminder-24h:${input.channel}:v1`;
 }
 
+export function buildReviewRequestIdempotencyKey(
+  appointmentId: string,
+): string | null {
+  const id = keySegment(appointmentId);
+  return id ? `appointment:${id}:review-request:sms:v1` : null;
+}
+
 export function buildLeadAcknowledgementEmailPlan(
   input: LeadAcknowledgementInput,
 ): PlannedCommunication | null {
@@ -429,5 +449,63 @@ export function buildVerifiedAppointmentReminderPlan(
             address ? ` Service address: ${escapeHtml(address)}.` : ""
           }</p>`
         : null,
+  };
+}
+
+/**
+ * Plans a single post-visit customer-care text. The caller still has to prove
+ * that the visit is verified, that no service issue is open, and that Twilio
+ * is approved before this plan can be delivered.
+ */
+export function buildReviewRequestSmsPlan(
+  input: ReviewRequestSmsInput,
+): PlannedCommunication | null {
+  const recipient = input.phone.trim();
+  const completedAt = validDate(input.completedAt);
+  const now = validDate(input.now);
+  const idempotencyKey = buildReviewRequestIdempotencyKey(input.appointmentId);
+  let reviewUrl: URL;
+  try {
+    reviewUrl = new URL(input.reviewUrl);
+  } catch {
+    return null;
+  }
+  const host = reviewUrl.hostname.toLowerCase();
+  const isGoogleDestination =
+    reviewUrl.protocol === "https:" &&
+    (host === "google.com" ||
+      host.endsWith(".google.com") ||
+      host === "g.page" ||
+      host === "maps.app.goo.gl");
+  if (
+    !recipient ||
+    !completedAt ||
+    !now ||
+    !idempotencyKey ||
+    !hasActiveSmsConsent(input.smsConsent) ||
+    !isGoogleDestination
+  ) {
+    return null;
+  }
+
+  const readyAt = new Date(
+    Math.max(completedAt.getTime() + 24 * 60 * 60 * 1_000, now.getTime()),
+  );
+  const notBefore = calculateQuietHoursDeliveryAt(readyAt, input.quietHours);
+  if (!notBefore) return null;
+
+  const name = firstName(input.customerName);
+  const service = cleanText(input.serviceLabel) || "recent service";
+  const text = `Hi ${name}, this is SqueegeeKing. Thanks for trusting us with your ${service}. If you have a moment, we'd appreciate an honest Google review: ${reviewUrl.toString()} If anything needs attention, reply here and we'll make it right. Reply STOP to opt out.`;
+  return {
+    mode: "plan_only",
+    kind: "review_request_after_visit",
+    channel: "sms",
+    recipient,
+    idempotencyKey,
+    notBefore,
+    subject: null,
+    text,
+    html: null,
   };
 }
