@@ -13,12 +13,14 @@ import {
   type BusinessPulseJobRow,
   type BusinessPulseLeadRow,
   type BusinessPulseMembershipRow,
+  type BusinessPulseMonthlyJobRow,
   type BusinessPulsePeriod,
   type BusinessPulsePropertyLinkRow,
   type BusinessPulseSnapshot,
 } from "./business-pulse";
 
 const JOB_LIMIT = 5_000;
+const HISTORICAL_JOB_LIMIT = 10_000;
 const ROW_LIMIT = 2_000;
 
 function unavailableSnapshot(
@@ -26,6 +28,9 @@ function unavailableSnapshot(
   warning: string,
 ): BusinessPulseSnapshot {
   const range = resolveBusinessPulseRange(preset);
+  const currentYear = Number(
+    resolveBusinessPulseRange("year").startCalendarDate.slice(0, 4),
+  );
   const emptySource = {
     label: "Unavailable",
     status: "attention" as const,
@@ -53,6 +58,12 @@ function unavailableSnapshot(
       jobsMarkedPaid: 0,
       classifiedJobs: 0,
       unclassifiedJobs: 0,
+    },
+    monthlyRevenue: {
+      currentYear,
+      years: [currentYear],
+      points: [],
+      earliestRecordedMonth: null,
     },
     leadMix: [],
     recentJobs: [],
@@ -92,6 +103,7 @@ export async function loadBusinessPulseSnapshot(
   const supabase = createServerSupabaseClient();
   const [
     jobsResult,
+    historicalJobsResult,
     membershipsResult,
     agreementsResult,
     propertyLinksResult,
@@ -111,6 +123,14 @@ export async function loadBusinessPulseSnapshot(
       .lt("scheduled_start", range.endUtc)
       .order("scheduled_start", { ascending: false })
       .limit(JOB_LIMIT),
+    supabase
+      .from("jobber_visit_projections")
+      .select(
+        "external_job_id, scheduled_start, job_total_cents, visit_invoice_status",
+      )
+      .not("scheduled_start", "is", null)
+      .order("scheduled_start", { ascending: true })
+      .limit(HISTORICAL_JOB_LIMIT),
     supabase
       .from("memberships")
       .select(
@@ -168,6 +188,7 @@ export async function loadBusinessPulseSnapshot(
 
   const warningEntries: Array<[string, string | undefined]> = [
     ["Jobber jobs", jobsResult.error?.message],
+    ["Jobber historical revenue", historicalJobsResult.error?.message],
     ["memberships", membershipsResult.error?.message],
     ["signed agreements", agreementsResult.error?.message],
     ["Jobber property links", propertyLinksResult.error?.message],
@@ -184,6 +205,11 @@ export async function loadBusinessPulseSnapshot(
   if ((jobsResult.data?.length ?? 0) >= JOB_LIMIT) {
     warnings.push(
       `Jobber reached the ${JOB_LIMIT.toLocaleString()}-row safety limit for this period; narrow the date filter before treating totals as complete.`,
+    );
+  }
+  if ((historicalJobsResult.data?.length ?? 0) >= HISTORICAL_JOB_LIMIT) {
+    warnings.push(
+      `Jobber historical revenue reached the ${HISTORICAL_JOB_LIMIT.toLocaleString()}-row safety limit; older monthly totals may be partial.`,
     );
   }
   if (
@@ -220,6 +246,7 @@ export async function loadBusinessPulseSnapshot(
   return buildBusinessPulseSnapshot({
     range,
     jobs: (jobsResult.data ?? []) as BusinessPulseJobRow[],
+    historicalJobs: (historicalJobsResult.data ?? []) as BusinessPulseMonthlyJobRow[],
     memberships: (membershipsResult.data ?? []) as BusinessPulseMembershipRow[],
     agreements: (agreementsResult.data ?? []) as BusinessPulseAgreementRow[],
     propertyLinks: (propertyLinksResult.data ?? []) as BusinessPulsePropertyLinkRow[],

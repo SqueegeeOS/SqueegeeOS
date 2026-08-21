@@ -87,11 +87,143 @@ function MetricCard({
   );
 }
 
+function monthYearLabel(monthKey: string | null): string {
+  if (!monthKey) return "the first available Jobber month";
+  const instant = new Date(`${monthKey}-15T12:00:00.000Z`);
+  if (Number.isNaN(instant.getTime())) return monthKey;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+    timeZone: "America/Los_Angeles",
+  }).format(instant);
+}
+
+function MonthlyRevenueSection({
+  snapshot,
+  selectedYear,
+  onSelectYear,
+  loading,
+}: {
+  snapshot: BusinessPulseSnapshot | null;
+  selectedYear: number | null;
+  onSelectYear: (year: number) => void;
+  loading: boolean;
+}) {
+  const revenue = snapshot?.monthlyRevenue;
+  const years = revenue?.years ?? [];
+  const effectiveYear =
+    selectedYear && years.includes(selectedYear)
+      ? selectedYear
+      : (revenue?.currentYear ?? years.at(-1) ?? new Date().getFullYear());
+  const months = (revenue?.points ?? []).filter(
+    (point) => point.year === effectiveYear,
+  );
+  const yearTotal = months.reduce(
+    (sum, month) => sum + month.paidRevenueCents,
+    0,
+  );
+  const paidJobs = months.reduce((sum, month) => sum + month.paidJobs, 0);
+  const maxRevenue = Math.max(
+    1,
+    ...months.map((month) => month.paidRevenueCents),
+  );
+
+  return (
+    <section className="mt-12 overflow-hidden rounded-[2rem] border border-white/[0.08] bg-[#0d0c0a]/85 p-5 sm:p-7">
+      <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-accent/65">
+            Revenue by month
+          </p>
+          <h2 className="mt-2 font-serif text-3xl text-[#f5f2eb] sm:text-4xl">
+            The year, month by month.
+          </h2>
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/42">
+            Paid Jobber revenue grouped by service month. History begins with
+            {" "}
+            {monthYearLabel(revenue?.earliestRecordedMonth ?? null)}; zero months
+            stay visible so growth reads honestly.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2" aria-label="Revenue year">
+          {years.map((year) => (
+            <button
+              key={year}
+              type="button"
+              onClick={() => onSelectYear(year)}
+              aria-pressed={effectiveYear === year}
+              className={`min-h-10 rounded-full border px-4 py-2 text-[10px] uppercase tracking-[0.15em] transition ${effectiveYear === year ? "border-accent/40 bg-accent/[0.1] text-accent" : "border-white/10 text-white/42 hover:text-white"}`}
+            >
+              {year}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-7 flex flex-wrap items-baseline justify-between gap-3 border-y border-white/[0.07] py-4">
+        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
+          {effectiveYear} paid revenue
+        </p>
+        <div className="text-right">
+          <p className="font-serif text-3xl tabular-nums text-accent">
+            {loading && !snapshot ? "…" : money(yearTotal)}
+          </p>
+          <p className="mt-1 text-[10px] text-white/30">
+            {paidJobs} unique paid Jobber jobs
+          </p>
+        </div>
+      </div>
+
+      {months.length > 0 ? (
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          {months.map((month) => {
+            const barWidth = (month.paidRevenueCents / maxRevenue) * 100;
+            return (
+              <article
+                key={month.monthKey}
+                className="rounded-2xl border border-white/[0.07] bg-black/20 p-4"
+              >
+                <p className="text-[10px] uppercase tracking-[0.16em] text-white/38">
+                  {month.monthLabel}
+                </p>
+                <p className="mt-3 font-serif text-2xl tabular-nums text-[#f5f2eb]">
+                  {month.hasSourceCoverage
+                    ? money(month.paidRevenueCents)
+                    : "No data"}
+                </p>
+                <div
+                  className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"
+                  aria-hidden
+                >
+                  <div
+                    className="h-full rounded-full bg-accent/75 transition-[width] duration-700"
+                    style={{ width: `${barWidth}%` }}
+                  />
+                </div>
+                <p className="mt-3 text-[10px] text-white/28">
+                  {month.hasSourceCoverage
+                    ? `${month.paidJobs} paid ${month.paidJobs === 1 ? "job" : "jobs"}`
+                    : "Before Jobber history"}
+                </p>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-6 rounded-2xl border border-dashed border-white/10 p-5 text-sm text-white/35">
+          {loading ? "Loading monthly revenue…" : "No monthly Jobber revenue is available yet."}
+        </p>
+      )}
+    </section>
+  );
+}
+
 function PulseContent() {
   const [period, setPeriod] = useState<BusinessPulsePeriod>("current_month");
   const [snapshot, setSnapshot] = useState<BusinessPulseSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [revenueYear, setRevenueYear] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
@@ -259,6 +391,13 @@ function PulseContent() {
             accent
           />
         </section>
+
+        <MonthlyRevenueSection
+          snapshot={snapshot}
+          selectedYear={revenueYear}
+          onSelectYear={setRevenueYear}
+          loading={loading}
+        />
 
         <section className="mt-12 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
           <article className="rounded-[2rem] border border-white/[0.08] bg-[#0d0c0a]/85 p-5 sm:p-7">

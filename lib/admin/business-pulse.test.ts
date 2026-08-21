@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildBusinessPulseSnapshot,
+  buildMonthlyPaidRevenue,
   resolveBusinessPulseRange,
   type BusinessPulseMembershipRow,
 } from "./business-pulse";
@@ -129,5 +130,71 @@ describe("Business Pulse", () => {
     expect(snapshot.metrics.membershipsSold).toBe(1);
     expect(snapshot.metrics.leads).toBe(2);
     expect(snapshot.warnings[0]).toContain("not linked");
+  });
+
+  it("fills every month across all available revenue years and deduplicates jobs", () => {
+    const monthly = buildMonthlyPaidRevenue(
+      [
+        {
+          external_job_id: "historical-job",
+          scheduled_start: "2024-06-24T17:00:00.000Z",
+          job_total_cents: 20_000,
+          visit_invoice_status: "paid",
+        },
+        {
+          external_job_id: "historical-job",
+          scheduled_start: "2024-06-25T17:00:00.000Z",
+          job_total_cents: 20_000,
+          visit_invoice_status: "paid",
+        },
+        {
+          external_job_id: "unpaid-job",
+          scheduled_start: "2025-01-10T18:00:00.000Z",
+          job_total_cents: 30_000,
+          visit_invoice_status: "draft",
+        },
+        {
+          external_job_id: "current-job",
+          scheduled_start: "2026-08-12T17:00:00.000Z",
+          job_total_cents: 40_000,
+          visit_invoice_status: "paid",
+        },
+        {
+          external_job_id: "future-job",
+          scheduled_start: "2026-10-12T17:00:00.000Z",
+          job_total_cents: 50_000,
+          visit_invoice_status: "paid",
+        },
+      ],
+      new Date("2026-08-20T18:00:00.000Z"),
+    );
+
+    expect(monthly.years).toEqual([2024, 2025, 2026]);
+    expect(monthly.points).toHaveLength(36);
+    expect(monthly.earliestRecordedMonth).toBe("2024-06");
+    expect(monthly.points.find((point) => point.monthKey === "2024-01")).toMatchObject({
+      hasSourceCoverage: false,
+    });
+    expect(monthly.points.find((point) => point.monthKey === "2024-06")).toMatchObject({
+      paidRevenueCents: 20_000,
+      paidJobs: 1,
+      hasSourceCoverage: true,
+    });
+    expect(monthly.points.find((point) => point.monthKey === "2024-07")).toMatchObject({
+      paidRevenueCents: 0,
+      paidJobs: 0,
+    });
+    expect(monthly.points.find((point) => point.monthKey === "2025-01")).toMatchObject({
+      paidRevenueCents: 0,
+      paidJobs: 0,
+    });
+    expect(monthly.points.find((point) => point.monthKey === "2026-08")).toMatchObject({
+      paidRevenueCents: 40_000,
+      paidJobs: 1,
+    });
+    expect(monthly.points.find((point) => point.monthKey === "2026-10")).toMatchObject({
+      paidRevenueCents: 0,
+      paidJobs: 0,
+    });
   });
 });
