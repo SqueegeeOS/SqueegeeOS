@@ -22,6 +22,8 @@ describe("member portal loading screen contract", () => {
 
   it("uses the supplied HomeAtlas artwork and native animated mark", () => {
     expect(loader).toContain("/brand/homeatlas-member-loader-v1.webp");
+    expect(loader).toContain("ARTWORK_BLUR_DATA_URL");
+    expect(loader).toContain('placeholder="blur"');
     expect(loader).toContain("AtlasMark");
     expect(loader).toContain("Preparing your HomeAtlas portal");
   });
