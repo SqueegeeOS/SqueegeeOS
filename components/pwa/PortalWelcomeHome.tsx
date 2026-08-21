@@ -17,6 +17,7 @@ import {
   markInstallWelcomeSeen,
 } from "@/lib/pwa/install-welcome";
 import { storePortalAccessToken } from "@/lib/pwa/portal-session";
+import { PortalLoadingScreen } from "@/components/portal/portal-loading-screen";
 
 const easeLuxury = [0.16, 1, 0.3, 1] as const;
 
@@ -85,11 +86,7 @@ export function PortalWelcomeHome({ token }: PortalWelcomeHomeProps) {
   }, [deferredPrompt, enterPortal]);
 
   if (!ready) {
-    return (
-      <div className="flex min-h-[100svh] items-center justify-center bg-[#060606]">
-        <div className="h-px w-12 animate-pulse bg-accent/40" aria-hidden />
-      </div>
-    );
+    return <PortalLoadingScreen />;
   }
 
   return (
