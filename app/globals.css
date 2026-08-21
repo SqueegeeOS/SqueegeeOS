@@ -852,11 +852,42 @@ body {
   animation: atlas-hearth-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 1.3s both;
 }
 
+@keyframes portal-loading-dot-fill {
+  to {
+    background-color: #f0c85b;
+    box-shadow:
+      0 0 0 5px rgba(224, 182, 70, 0.18),
+      0 0 18px rgba(240, 200, 91, 0.9);
+    scale: 1;
+  }
+}
+
+.portal-loading-dot {
+  background-color: rgba(12, 13, 11, 0.9);
+  scale: 0.9;
+}
+
+.portal-loading-dot-filled {
+  background-color: #f0c85b;
+  box-shadow:
+    0 0 0 5px rgba(224, 182, 70, 0.18),
+    0 0 18px rgba(240, 200, 91, 0.9);
+  scale: 1;
+}
+
+.portal-loading-dot-pending {
+  animation: portal-loading-dot-fill 500ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .atlas-mark-ring-a, .atlas-mark-ring-b, .atlas-mark-roof, .atlas-mark-hearth {
     animation: none;
   }
   .atlas-mark-roof { stroke-dashoffset: 0; }
+  .portal-loading-dot-pending {
+    animation-delay: 0ms !important;
+    animation-duration: 1ms;
+  }
 }
 
 /* ——— starry homepage: gilded shimmer text ——— */
