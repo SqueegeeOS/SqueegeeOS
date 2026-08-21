@@ -87,6 +87,25 @@ create unique index if not exists memberships_one_current_per_property_idx
 create index if not exists memberships_property_history_idx
   on memberships(property_id, created_at desc);
 
+-- Membership visit preferences (service scope + planning month; not a booking)
+create table if not exists membership_visit_preferences (
+  id uuid primary key default gen_random_uuid(),
+  membership_id uuid not null references memberships(id) on delete cascade,
+  visit_sequence smallint not null check (visit_sequence between 1 and 12),
+  preferred_month smallint check (preferred_month between 1 and 12),
+  timing_note text,
+  service_summary text,
+  visit_price numeric(10, 2) check (visit_price is null or visit_price >= 0),
+  customer_editable_month boolean not null default true,
+  updated_by text not null default 'hq',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (membership_id, visit_sequence)
+);
+
+create index if not exists membership_visit_preferences_membership_idx
+  on membership_visit_preferences(membership_id, visit_sequence);
+
 -- Signed agreements
 create table if not exists signed_agreements (
   id uuid primary key default gen_random_uuid(),
@@ -240,6 +259,8 @@ create trigger home_care_plans_updated_at before update on home_care_plans
   for each row execute function set_updated_at();
 create trigger memberships_updated_at before update on memberships
   for each row execute function set_updated_at();
+create trigger membership_visit_preferences_updated_at before update on membership_visit_preferences
+  for each row execute function set_updated_at();
 create trigger signed_agreements_updated_at before update on signed_agreements
   for each row execute function set_updated_at();
 create trigger property_assets_updated_at before update on property_assets
@@ -252,6 +273,7 @@ alter table homeowners enable row level security;
 alter table properties enable row level security;
 alter table home_care_plans enable row level security;
 alter table memberships enable row level security;
+alter table membership_visit_preferences enable row level security;
 alter table signed_agreements enable row level security;
 alter table property_assets enable row level security;
 
@@ -261,6 +283,7 @@ revoke all privileges on table homeowners from public, anon, authenticated;
 revoke all privileges on table properties from public, anon, authenticated;
 revoke all privileges on table home_care_plans from public, anon, authenticated;
 revoke all privileges on table memberships from public, anon, authenticated;
+revoke all privileges on table membership_visit_preferences from public, anon, authenticated;
 revoke all privileges on table signed_agreements from public, anon, authenticated;
 revoke all privileges on table property_assets from public, anon, authenticated;
 
@@ -268,6 +291,7 @@ grant select, insert, update, delete on table homeowners to service_role;
 grant select, insert, update, delete on table properties to service_role;
 grant select, insert, update, delete on table home_care_plans to service_role;
 grant select, insert, update, delete on table memberships to service_role;
+grant select, insert, update, delete on table membership_visit_preferences to service_role;
 grant select, insert, update, delete on table signed_agreements to service_role;
 grant select, insert, update, delete on table property_assets to service_role;
 

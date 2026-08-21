@@ -37,6 +37,7 @@ import { PortalPropertySwitcher } from "@/components/portal/portal-property-swit
 import type { PortalHouseholdSnapshot } from "@/lib/membership/portal-household";
 import { craftPrimaryButton, craftSecondaryButton } from "@/lib/craft/tokens";
 import { materialize } from "@/lib/motion/system";
+import { PreferredVisitMonths } from "@/components/membership/preferred-visit-months";
 
 interface MemberPortalExperienceProps {
   data: HomeCarePlanData;
@@ -477,6 +478,22 @@ export function MemberPortalExperience({
                 appointments={portalData.appointments}
               />
             </div>
+          ) : null}
+
+          {view.membershipActive && portalData?.visitsPerYear ? (
+            <PortalSection
+              id="visit-preferences"
+              index={5}
+              eyebrow="Care rhythm"
+              headline="Your preferred months."
+              support="Choose the months that usually work best for your household."
+            >
+              <PreferredVisitMonths
+                preferences={portalData.visitPreferences ?? []}
+                visitsPerYear={portalData.visitsPerYear}
+                portalToken={resolvedPortalToken}
+              />
+            </PortalSection>
           ) : null}
 
           {/* §6 — Care Record */}

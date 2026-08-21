@@ -33,6 +33,7 @@ import {
 } from "@/lib/membership/tier-config";
 import { normalizeUsPostalCodeInput } from "@/lib/address/postal-code";
 import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
+import { VISIT_MONTHS } from "@/lib/membership/visit-preferences";
 
 function paymentSetupGuidance(
   state: PaymentSetupEmailState,
@@ -166,6 +167,8 @@ export function CustomerWorkspacePage({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentNotice, setPaymentNotice] = useState<string | null>(null);
+  const [preferredMonths, setPreferredMonths] = useState<number[]>([]);
+  const [monthsMessage, setMonthsMessage] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     name: "",
     email: "",
@@ -192,6 +195,18 @@ export function CustomerWorkspacePage({
       }
       const data = (await response.json()) as { workspace: CustomerWorkspace };
       setWorkspace(data.workspace);
+      setPreferredMonths(
+        data.workspace.membership
+          ? data.workspace.membership.visitPreferences.length
+            ? data.workspace.membership.visitPreferences.map(
+                (preference) => preference.preferredMonth ?? 0,
+              )
+            : Array.from(
+                { length: data.workspace.membership.visitsPerYear ?? 0 },
+                () => 0,
+              )
+          : [],
+      );
       setDraft({
         name: data.workspace.contact.name,
         email: data.workspace.contact.email ?? "",
@@ -291,6 +306,38 @@ export function CustomerWorkspacePage({
       await loadWorkspace();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const savePreferredMonths = async () => {
+    if (!workspace?.membership) return;
+    setSaving(true);
+    setError(null);
+    setMonthsMessage(null);
+    try {
+      const response = await fetch(
+        `/api/admin/customer-workspace/${workspace.ref.type}/${workspace.ref.id}`,
+        {
+          method: "PATCH",
+          headers: getAdminRequestHeaders(),
+          body: JSON.stringify({ preferredVisitMonths: preferredMonths }),
+        },
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        workspace?: CustomerWorkspace;
+      };
+      if (!response.ok || !payload.workspace) {
+        throw new Error(payload.error ?? "Failed to save preferred months");
+      }
+      setWorkspace(payload.workspace);
+      setMonthsMessage("Preferred months saved.");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to save preferred months",
+      );
     } finally {
       setSaving(false);
     }
@@ -600,6 +647,75 @@ export function CustomerWorkspacePage({
                       email={workspace.membership.paymentSetupEmailRecipient}
                       onAccepted={setPaymentNotice}
                     />
+                    {workspace.membership.visitsPerYear ? (
+                      <div className="border-t border-border/30 pt-4">
+                        <p className={craftFieldLabel}>Preferred service months</p>
+                        <p className="mt-1 text-xs leading-relaxed text-muted">
+                          Planning preference only. Confirmed Jobber dates stay
+                          authoritative.
+                        </p>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                          {Array.from(
+                            { length: workspace.membership.visitsPerYear },
+                            (_, index) => {
+                              const preference =
+                                workspace.membership!.visitPreferences[index];
+                              return (
+                                <label key={preference?.id ?? `visit-${index + 1}`}>
+                                  <span className={craftFieldLabel}>
+                                    Visit {index + 1}
+                                  </span>
+                                  <select
+                                    value={preferredMonths[index] ?? 0}
+                                    onChange={(event) =>
+                                      setPreferredMonths((current) =>
+                                        Array.from(
+                                          {
+                                            length:
+                                              workspace.membership!.visitsPerYear ??
+                                              0,
+                                          },
+                                          (_, monthIndex) =>
+                                            monthIndex === index
+                                              ? Number(event.target.value)
+                                              : (current[monthIndex] ?? 0),
+                                        ),
+                                      )
+                                    }
+                                    className={`mt-1.5 ${craftInput}`}
+                                  >
+                                    <option value={0}>Choose month</option>
+                                    {VISIT_MONTHS.map((label, monthIndex) => (
+                                      <option key={label} value={monthIndex + 1}>
+                                        {label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {preference?.serviceSummary ? (
+                                    <span className="mt-2 block text-xs leading-relaxed text-muted">
+                                      {preference.serviceSummary}
+                                    </span>
+                                  ) : null}
+                                </label>
+                              );
+                            },
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => void savePreferredMonths()}
+                          className="mt-4 rounded-full border border-accent/35 bg-accent/10 px-4 py-2 text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/55 disabled:opacity-40"
+                        >
+                          {saving ? "Saving…" : "Save preferred months"}
+                        </button>
+                        {monthsMessage ? (
+                          <p className="mt-2 text-xs text-accent">
+                            {monthsMessage}
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </>
                 ) : workspace.lead ? (
                   <>

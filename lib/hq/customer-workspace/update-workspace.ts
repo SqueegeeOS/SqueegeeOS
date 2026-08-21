@@ -4,6 +4,7 @@ import { isCloudPersistenceConnected } from "@/lib/persistence/config";
 import { createServerSupabaseClient } from "@/lib/persistence/supabase/client";
 import { patchPresentation } from "@/lib/presentations/repository";
 import { normalizeUsPostalCodeInput } from "@/lib/address/postal-code";
+export { saveMembershipPreferredMonths } from "@/lib/membership/visit-preferences-server";
 
 export async function updateLeadIntakeFields(
   id: string,
