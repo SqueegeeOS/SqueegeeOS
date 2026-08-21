@@ -229,11 +229,25 @@ function TechnicianVisitCard({
     visit.homeAtlasFieldStage === "departed";
   const ownerCheckoutReady = Boolean(
     ownerSession &&
-      visit.homeAtlasFieldStage === "departed" &&
+      (visit.homeAtlasFieldStage === "service_completed" ||
+        visit.homeAtlasFieldStage === "departed") &&
       visit.isComplete &&
       visit.homeAtlasFieldRecordCount > 0 &&
       visit.homeAtlasCustomerVisibleRecordCount > 0,
   );
+  const billingReviewHref =
+    ownerSession && visit.homeAtlasMembershipId && appointmentId
+      ? billingTodayReviewHref({
+          membershipId: visit.homeAtlasMembershipId,
+          appointmentId,
+          projectionId: visit.projectionId,
+        })
+      : null;
+  const completionIntent =
+    visit.homeAtlasFieldRecordCount === 0 ||
+    readiness === "portal_update_required"
+      ? "finish_visit"
+      : "visit_update";
   const moment = classifyJobberTodayVisit(visit);
   const actionLabel = hasDraft
     ? "Resume saved closeout"
@@ -559,13 +573,9 @@ function TechnicianVisitCard({
                   Verify customer portal
                 </Link>
               ) : null}
-              {visit.homeAtlasMembershipId && appointmentId ? (
+              {billingReviewHref ? (
                 <Link
-                  href={billingTodayReviewHref({
-                    membershipId: visit.homeAtlasMembershipId,
-                    appointmentId,
-                    projectionId: visit.projectionId,
-                  })}
+                  href={billingReviewHref}
                   className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.09] px-3 text-center text-sm text-[#d5f8e4] active:scale-[0.99]"
                   title="Opens the exact appointment in Billing. No charge happens from this link."
                 >
@@ -643,6 +653,11 @@ function TechnicianVisitCard({
                   scopeReadState={visit.scopeReadState}
                   apiRoutePrefix="/api/field"
                   lockedTechnicianName={fieldActorName ?? undefined}
+                  completionIntent={completionIntent}
+                  portalPath={ownerSession ? visit.homeAtlasPortalPath : null}
+                  billingReviewHref={billingReviewHref}
+                  aftercareHref={ownerSession ? "/hq/aftercare" : null}
+                  jobberComplete={visit.isComplete}
                   onSaved={handleCloseoutSaved}
                   onDraftStateChange={setHasDraft}
                 />

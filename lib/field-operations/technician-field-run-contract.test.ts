@@ -89,5 +89,14 @@ describe("technician field run contract", () => {
     expect(fieldRun).toContain("Review payment readiness");
     expect(fieldRun).toContain("not email, invoice, or charge the customer");
     expect(fieldRun).toContain("billingTodayReviewHref");
+    expect(fieldRun).toContain("completionIntent={completionIntent}");
+    expect(fieldCapture).toContain('completionIntent === "finish_visit"');
+    expect(fieldCapture).toContain("Finish Visit");
+    expect(fieldCapture).toContain("Property history updated");
+    expect(fieldCapture).toContain("Customer portal update published");
+    expect(fieldCapture).toContain("Ready for owner payment review");
+    expect(fieldCapture).toContain(
+      "No email, invoice, text, or card charge was submitted.",
+    );
   });
 });

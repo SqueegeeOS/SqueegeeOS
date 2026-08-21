@@ -32,30 +32,28 @@ export async function POST(request: Request) {
     const result = await commitVisitFieldRecord(input);
     let routeEventRecorded: boolean | null = null;
     let routeEventWarning: string | null = null;
-    if (actor.kind === "technician") {
-      try {
-        await recordTechnicianVisitEvent({
-          request: {
-            eventId: input.fieldRecordId,
-            propertyId: input.propertyId,
-            appointmentId: input.appointmentId,
-            eventType: "service_completed",
-          },
-          actor,
-          source: "closeout",
-        });
-        routeEventRecorded = true;
-      } catch (routeEventError) {
-        routeEventRecorded = false;
-        routeEventWarning =
-          "Closeout saved, but route status needs a retry. Refresh and tap Mark service complete.";
-        console.warn(
-          "[field-records] closeout saved without route event:",
-          routeEventError instanceof Error
-            ? routeEventError.message
-            : "unknown route event error",
-        );
-      }
+    try {
+      await recordTechnicianVisitEvent({
+        request: {
+          eventId: input.fieldRecordId,
+          propertyId: input.propertyId,
+          appointmentId: input.appointmentId,
+          eventType: "service_completed",
+        },
+        actor,
+        source: "closeout",
+      });
+      routeEventRecorded = true;
+    } catch (routeEventError) {
+      routeEventRecorded = false;
+      routeEventWarning =
+        "Closeout saved, but route status needs a retry. Refresh, advance any missing route steps, and save again.";
+      console.warn(
+        "[field-records] closeout saved without route event:",
+        routeEventError instanceof Error
+          ? routeEventError.message
+          : "unknown route event error",
+      );
     }
     return NextResponse.json(
       { ...result, routeEventRecorded, routeEventWarning },

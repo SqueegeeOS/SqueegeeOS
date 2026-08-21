@@ -99,4 +99,18 @@ describe("HQ automatic-billing UI safety contract", () => {
     );
     expect(table).not.toContain("CompleteChargeVisitModal");
   });
+
+  it("keeps a proven completed visit attached to current-month owner review", () => {
+    const server = read("./billing-workspace-server.ts");
+    const selection = read("./billing-visit-selection.ts");
+
+    expect(server).toContain("selectBillingWorkspaceVisit");
+    expect(server).toContain("completedEvidenceByAppointmentId");
+    expect(server).toContain('customer_note_visible');
+    expect(server).toContain('.eq("customer_visible", true)');
+    expect(selection).toContain('appointment.status !== "completed"');
+    expect(selection).toContain("evidence?.hasFieldRecord");
+    expect(selection).toContain("evidence.hasCustomerVisibleUpdate");
+    expect(selection).toContain("!evidence.hasOpenFollowUp");
+  });
 });
