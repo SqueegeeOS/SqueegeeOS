@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { GlassCard } from "@/components/craft/glass-card";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
+import { PortalLoadingScreen } from "@/components/portal/portal-loading-screen";
 import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-button";
 import { LeadAssignmentControl } from "@/components/admin/lead-assignment-control";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
@@ -343,6 +344,10 @@ export function CustomerWorkspacePage({
     }
   };
 
+  if (loading) {
+    return <PortalLoadingScreen />;
+  }
+
   return (
     <div className="craft-stage relative min-h-screen px-4 py-10 text-foreground sm:px-6">
       <div className="craft-stage-warmth pointer-events-none absolute inset-0" aria-hidden />
@@ -356,9 +361,7 @@ export function CustomerWorkspacePage({
           ← Headquarters
         </Link>
 
-        {loading ? (
-          <p className="mt-8 text-sm text-muted">Loading workspace…</p>
-        ) : error && !workspace ? (
+        {error && !workspace ? (
           <p className="mt-8 text-sm text-red-500">{error}</p>
         ) : workspace ? (
           <>
