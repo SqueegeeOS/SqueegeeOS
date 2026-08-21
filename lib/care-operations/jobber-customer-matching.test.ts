@@ -9,6 +9,8 @@ import {
 } from "./jobber-api";
 import {
   hashJobberClientPayload,
+  jobberCustomerQueueIncludesDecision,
+  summarizeJobberCustomerQueues,
   toJobberClientProjectionRow,
 } from "./jobber-customer-matching";
 
@@ -46,6 +48,27 @@ afterEach(() => {
 });
 
 describe("Jobber customer synchronization", () => {
+  it("prioritizes ambiguous and conflicting identities in the safe inbox", () => {
+    const decisions = [
+      { outcome: "manual_review" as const },
+      { outcome: "conflict" as const },
+      { outcome: "insufficient_evidence" as const },
+      { outcome: "already_linked" as const },
+      { outcome: "archived" as const },
+    ];
+    expect(summarizeJobberCustomerQueues(decisions)).toEqual({
+      review: 2,
+      unpaired: 3,
+      paired: 1,
+      all: 5,
+    });
+    expect(
+      jobberCustomerQueueIncludesDecision("review", {
+        outcome: "insufficient_evidence",
+      }),
+    ).toBe(false);
+  });
+
   it("uses a read-only cursor query with searchable customer fields", () => {
     expect(JOBBER_CLIENTS_QUERY).toContain("query HomeAtlasClients");
     expect(JOBBER_CLIENTS_QUERY).toContain("clients(first: $first, after: $after)");
@@ -219,6 +242,33 @@ describe("Jobber customer synchronization", () => {
     expect(sql).toContain(
       "alter table public.jobber_customer_links enable row level security",
     );
+  });
+
+  it("requires current Jobber evidence before a supervised pairing", () => {
+    const service = readFileSync(
+      new URL("./jobber-customer-matching.ts", import.meta.url),
+      "utf8",
+    );
+    const route = readFileSync(
+      new URL(
+        "../../app/api/admin/care-operations/jobber/customers/route.ts",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    const panel = readFileSync(
+      new URL(
+        "../../components/admin/jobber-customer-pairing-panel.tsx",
+        import.meta.url,
+      ),
+      "utf8",
+    );
+    expect(service).toContain("expectedSourcePayloadHash");
+    expect(service).toContain("source_payload_hash !== expectedSourcePayloadHash");
+    expect(route).toContain("!body.expectedSourcePayloadHash");
+    expect(panel).toContain('useState<CustomerQueue>("review")');
+    expect(panel).toContain("EvidenceRow");
+    expect(panel).toContain("cannot enable billing");
   });
 
   it("keeps raw customer-link writes separate from appointments and billing", () => {

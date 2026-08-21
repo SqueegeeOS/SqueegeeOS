@@ -5,6 +5,7 @@ import {
   linkJobberCustomer,
   loadJobberCustomerMatchingWorkspace,
   revokeJobberCustomerLink,
+  type JobberCustomerQueue,
 } from "@/lib/care-operations/jobber-customer-matching";
 
 export const runtime = "nodejs";
@@ -13,11 +14,24 @@ function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
-function listOptions(url: URL) {
+function listOptions(url: URL): {
+  search: string;
+  page: number;
+  pageSize: number;
+  queue: JobberCustomerQueue;
+} {
+  const queue = url.searchParams.get("queue");
   return {
     search: url.searchParams.get("search") ?? "",
     page: Number.parseInt(url.searchParams.get("page") ?? "1", 10),
     pageSize: Number.parseInt(url.searchParams.get("pageSize") ?? "20", 10),
+    queue:
+      queue === "review" ||
+      queue === "unpaired" ||
+      queue === "paired" ||
+      queue === "all"
+        ? queue
+        : "all",
   };
 }
 
@@ -48,9 +62,11 @@ export async function POST(request: Request) {
     externalClientId?: string;
     homeownerId?: string;
     sameCustomerConfirmed?: boolean;
+    expectedSourcePayloadHash?: string;
     expectedLinkUpdatedAt?: string | null;
     search?: string;
     page?: number;
+    queue?: "review" | "unpaired" | "paired" | "all";
   };
   try {
     body = (await request.json()) as typeof body;
@@ -60,9 +76,13 @@ export async function POST(request: Request) {
 
   try {
     if (body.action === "link") {
-      if (!body.externalClientId || !body.homeownerId) {
+      if (
+        !body.externalClientId ||
+        !body.homeownerId ||
+        !body.expectedSourcePayloadHash
+      ) {
         throw new JobberCustomerMatchError(
-          "Select both a Jobber customer and a HomeAtlas customer.",
+          "Select both customers and refresh the Jobber evidence before pairing.",
           400,
         );
       }
@@ -70,6 +90,7 @@ export async function POST(request: Request) {
         externalClientId: body.externalClientId,
         homeownerId: body.homeownerId,
         sameCustomerConfirmed: body.sameCustomerConfirmed === true,
+        expectedSourcePayloadHash: body.expectedSourcePayloadHash,
         expectedLinkUpdatedAt: body.expectedLinkUpdatedAt,
       });
       return NextResponse.json({
@@ -78,6 +99,7 @@ export async function POST(request: Request) {
         workspace: await loadJobberCustomerMatchingWorkspace({
           search: body.search,
           page: body.page,
+          queue: body.queue,
         }),
       });
     }
@@ -98,6 +120,7 @@ export async function POST(request: Request) {
         workspace: await loadJobberCustomerMatchingWorkspace({
           search: body.search,
           page: body.page,
+          queue: body.queue,
         }),
       });
     }
