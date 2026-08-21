@@ -103,6 +103,12 @@ export interface JobberPaginatedResult<T> {
   pageCount: number;
 }
 
+export interface JobberClientPaginatedResult
+  extends JobberPaginatedResult<JobberClientNode> {
+  addressReadState: "available" | "unavailable";
+  addressFields: string[];
+}
+
 // Rich visit pages include nested crew and line-item connections. At 50 visits,
 // the requested GraphQL cost can exceed Jobber's fixed 10,000-point ceiling and
 // can never succeed, regardless of retry time. Ten keeps the worst-case request
@@ -271,9 +277,21 @@ export const JOBBER_CLIENTS_QUERY = `
   }
 `;
 
+export const JOBBER_PROPERTY_ADDRESS_TYPE_QUERY = `
+  query HomeAtlasPropertyAddressType {
+    clients(first: 25) {
+      nodes {
+        clientProperties(first: 1) {
+          nodes { address { __typename } }
+        }
+      }
+    }
+  }
+`;
+
 export const JOBBER_PROPERTY_ADDRESS_SCHEMA_QUERY = `
-  query HomeAtlasPropertyAddressSchema {
-    __type(name: "PropertyAddress") {
+  query HomeAtlasPropertyAddressSchema($typeName: String!) {
+    __type(name: $typeName) {
       fields {
         name
         type {
@@ -307,6 +325,32 @@ const JOBBER_PROPERTY_ADDRESS_FIELD_ALLOWLIST = [
   "country",
   "countryCode",
 ] as const;
+
+const JOBBER_PROPERTY_STREET_FIELDS = [
+  "street",
+  "streetAddress",
+  "street1",
+  "streetOne",
+  "address1",
+  "line1",
+] as const;
+const JOBBER_PROPERTY_REGION_FIELDS = [
+  "province",
+  "provinceCode",
+  "state",
+  "stateCode",
+] as const;
+const JOBBER_PROPERTY_POSTAL_FIELDS = ["postalCode", "zipCode"] as const;
+
+export function supportsExactJobberPropertyAddress(fields: string[]): boolean {
+  const available = new Set(fields);
+  return (
+    JOBBER_PROPERTY_STREET_FIELDS.some((field) => available.has(field)) &&
+    available.has("city") &&
+    JOBBER_PROPERTY_REGION_FIELDS.some((field) => available.has(field)) &&
+    JOBBER_PROPERTY_POSTAL_FIELDS.some((field) => available.has(field))
+  );
+}
 
 export function buildJobberClientsQuery(addressFields: string[]): string {
   const safeFields = JOBBER_PROPERTY_ADDRESS_FIELD_ALLOWLIST.filter((field) =>
@@ -816,16 +860,41 @@ export async function fetchJobberPropertyAddressFields(
       ofType: { kind: string; name: string | null } | null;
     };
   };
+  const typeData = await fetchJobberGraphql<{
+    clients?: {
+      nodes?: Array<{
+        clientProperties?: {
+          nodes?: Array<{ address?: { __typename?: string } | null }>;
+        };
+      }>;
+    };
+  }>(
+    accessToken,
+    JOBBER_PROPERTY_ADDRESS_TYPE_QUERY,
+    {},
+    "property address type",
+  );
+  const typeNames = new Set(
+    (typeData.clients?.nodes ?? []).flatMap((client) =>
+      (client.clientProperties?.nodes ?? [])
+        .map((property) => property.address?.__typename?.trim())
+        .filter((name): name is string => Boolean(name)),
+    ),
+  );
+  if (typeNames.size !== 1) return [];
+  const typeName = typeNames.values().next().value;
+  if (!typeName) return [];
+
   const data = await fetchJobberGraphql<{
     __type?: { fields?: IntrospectionField[] } | null;
   }>(
     accessToken,
     JOBBER_PROPERTY_ADDRESS_SCHEMA_QUERY,
-    {},
+    { typeName },
     "property address schema",
   );
   const allowlist = new Set<string>(JOBBER_PROPERTY_ADDRESS_FIELD_ALLOWLIST);
-  return (data.__type?.fields ?? [])
+  const fields = (data.__type?.fields ?? [])
     .filter((field) => {
       const kind =
         field.type.kind === "NON_NULL"
@@ -834,6 +903,7 @@ export async function fetchJobberPropertyAddressFields(
       return allowlist.has(field.name) && (kind === "SCALAR" || kind === "ENUM");
     })
     .map((field) => field.name);
+  return supportsExactJobberPropertyAddress(fields) ? fields : [];
 }
 
 async function fetchAllJobberPages<T>(
@@ -877,7 +947,7 @@ export function fetchAllJobberVisits(
 
 export async function fetchAllJobberClients(
   accessToken: string,
-): Promise<JobberPaginatedResult<JobberClientNode>> {
+): Promise<JobberClientPaginatedResult> {
   let addressFields: string[] = [];
   try {
     addressFields = await fetchJobberPropertyAddressFields(accessToken);
@@ -889,17 +959,27 @@ export async function fetchAllJobberClients(
   }
 
   try {
-    return await fetchAllJobberPages((after) =>
+    const result = await fetchAllJobberPages((after) =>
       fetchJobberClientPage(accessToken, { after, addressFields }),
     );
+    return {
+      ...result,
+      addressReadState: addressFields.length > 0 ? "available" : "unavailable",
+      addressFields,
+    };
   } catch (error) {
     if (addressFields.length === 0) throw error;
     console.warn(
       "[jobber-sync] address-enriched customer query failed; retrying safely",
       { reason: error instanceof Error ? error.message : "unknown" },
     );
-    return fetchAllJobberPages((after) =>
+    const result = await fetchAllJobberPages((after) =>
       fetchJobberClientPage(accessToken, { after, addressFields: [] }),
     );
+    return {
+      ...result,
+      addressReadState: "unavailable",
+      addressFields: [],
+    };
   }
 }

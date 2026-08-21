@@ -36,6 +36,8 @@ interface JobberSyncSection {
   inserted: number;
   changed: number;
   unchanged: number;
+  addressReadState?: "available" | "unavailable";
+  addressFields?: string[];
 }
 
 interface JobberSyncResponse {
@@ -376,6 +378,17 @@ export function JobberConnectionPanel({
             {syncSummary.autoLinking.manualReview.toLocaleString()} needing review,{" "}
             {syncSummary.autoLinking.insufficientEvidence.toLocaleString()} without
             enough exact evidence.
+          </p>
+          <p
+            className={`mt-1 ${
+              syncSummary.clients.addressReadState === "available"
+                ? "text-emerald-300"
+                : "text-amber-300"
+            }`}
+          >
+            Exact address evidence: {syncSummary.clients.addressReadState === "available"
+              ? "available for safe matching"
+              : "unavailable - no automatic links attempted"}.
           </p>
           {syncSummary.autoLinking.conflictsBlocked > 0 ||
           syncSummary.autoLinking.revocationsRespected > 0 ||

@@ -136,6 +136,8 @@ export interface JobberClientSyncResult {
   inserted: number;
   changed: number;
   unchanged: number;
+  addressReadState: "available" | "unavailable";
+  addressFields: string[];
 }
 
 export interface JobberCustomerLinkResult {
@@ -297,6 +299,8 @@ export async function syncAllJobberClients(
   return {
     observed: rows.length,
     pagesRead: source.pageCount,
+    addressReadState: source.addressReadState,
+    addressFields: source.addressFields,
     ...changes,
   };
 }
