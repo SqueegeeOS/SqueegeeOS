@@ -43,10 +43,13 @@ export function PortalLoadingScreen() {
         />
 
         <div
-          className="absolute left-1/2 top-[46.9%] flex aspect-square w-[27%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-[#0a0b08]/75 shadow-[0_0_42px_rgba(5,6,5,0.72)] backdrop-blur-[2px] [--accent:#e4b94f] [--foreground:#f4eddf]"
+          className="absolute left-1/2 top-[46.9%] flex aspect-square w-[32%] -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-[radial-gradient(circle,rgba(5,6,5,0.94)_0%,rgba(5,6,5,0.88)_46%,rgba(5,6,5,0.62)_61%,rgba(5,6,5,0.18)_73%,transparent_82%)] [--accent:#e4b94f] [--foreground:#f4eddf]"
           aria-hidden
         >
-          <AtlasMark size={180} className="h-[88%] w-[88%] text-[#f4eddf]" />
+          <AtlasMark
+            size={180}
+            className="h-[72%] w-[72%] text-[#f4eddf] drop-shadow-[0_4px_18px_rgba(0,0,0,0.72)]"
+          />
         </div>
 
         <div className="absolute inset-0" aria-hidden>

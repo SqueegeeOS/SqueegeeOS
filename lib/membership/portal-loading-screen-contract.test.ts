@@ -37,6 +37,12 @@ describe("member portal loading screen contract", () => {
     );
   });
 
+  it("blends the animated Atlas mark into the artwork without a hard disc", () => {
+    expect(loader).toContain("bg-[radial-gradient(circle");
+    expect(loader).not.toContain("rounded-full bg-[#0a0b08]/75");
+    expect(loader).not.toContain("backdrop-blur-[2px]");
+  });
+
   it("preloads one publicly cacheable artwork asset before member navigation", () => {
     expect(preloader).toContain("ReactDOM.preload");
     expect(preloader).toContain("/brand/homeatlas-member-loader-v1.webp");
