@@ -23,7 +23,6 @@ export interface MembershipVisitPreference {
   visitPrice: number | null;
   customerEditableMonth: boolean;
 }
-
 export function monthName(month: number | null): string {
   if (month == null || month < 1 || month > 12) return "Not chosen";
   return VISIT_MONTHS[month - 1];

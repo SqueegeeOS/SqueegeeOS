@@ -6,7 +6,6 @@ interface VisitPreferenceRequestBody {
   token?: string;
   months?: unknown;
 }
-
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as VisitPreferenceRequestBody;

@@ -36,4 +36,3 @@ revoke all privileges on table public.membership_visit_preferences
   from public, anon, authenticated;
 grant select, insert, update, delete on table public.membership_visit_preferences
   to service_role;
-
