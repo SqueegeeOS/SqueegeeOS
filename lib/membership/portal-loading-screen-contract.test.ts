@@ -22,7 +22,7 @@ describe("member portal loading screen contract", () => {
   const nextConfig = read("next.config.ts");
 
   it("uses the supplied HomeAtlas artwork and native animated mark", () => {
-    expect(loader).toContain("/brand/homeatlas-member-loader-v2.webp");
+    expect(loader).toContain("/brand/homeatlas-member-loader-v3.webp");
     expect(loader).toContain("ARTWORK_PREVIEW_DATA_URL");
     expect(loader).toContain('backgroundImage: "var(--portal-loader-preview)"');
     expect(loader).toContain("AtlasMark");
@@ -67,7 +67,7 @@ describe("member portal loading screen contract", () => {
   it("preloads one publicly cacheable artwork asset before member navigation", () => {
     expect(preloader).toContain("ReactDOM.preload");
     expect(preloader).not.toContain('"use client"');
-    expect(preloader).toContain("/brand/homeatlas-member-loader-v2.webp");
+    expect(preloader).toContain("/brand/homeatlas-member-loader-v3.webp");
     expect(hqLayout).toContain("<PreloadPortalLoadingArtwork />");
     expect(portalLayout).toContain("<PreloadPortalLoadingArtwork />");
     expect(nextConfig).toContain("public, max-age=31536000, immutable");
