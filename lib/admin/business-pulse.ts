@@ -46,6 +46,23 @@ export interface BusinessPulseJobRow {
   updated_at: string;
 }
 
+export interface BusinessPulseMonthlyJobRow {
+  external_job_id: string;
+  scheduled_start: string;
+  job_total_cents: number | null;
+  visit_invoice_status: string | null;
+}
+
+export interface BusinessPulseMonthlyRevenuePoint {
+  year: number;
+  month: number;
+  monthKey: string;
+  monthLabel: string;
+  paidRevenueCents: number;
+  paidJobs: number;
+  hasSourceCoverage: boolean;
+}
+
 export interface BusinessPulseMembershipRow {
   id: string;
   property_id: string;
@@ -142,6 +159,12 @@ export interface BusinessPulseSnapshot {
     classifiedJobs: number;
     unclassifiedJobs: number;
   };
+  monthlyRevenue: {
+    currentYear: number;
+    years: number[];
+    points: BusinessPulseMonthlyRevenuePoint[];
+    earliestRecordedMonth: string | null;
+  };
   leadMix: Array<{ source: string; count: number }>;
   recentJobs: BusinessPulseRecentJob[];
   recentMembershipSales: BusinessPulseMembershipSale[];
@@ -154,6 +177,21 @@ export interface BusinessPulseSnapshot {
   warnings: string[];
   definitions: Array<{ label: string; definition: string }>;
 }
+
+const MONTH_LABELS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
 
 function addCalendarDays(calendarDate: string, days: number): string {
   const [year, month, day] = calendarDate.split("-").map(Number);
@@ -290,10 +328,94 @@ function collapseJobberJobs(
   );
 }
 
+export function buildMonthlyPaidRevenue(
+  rows: BusinessPulseMonthlyJobRow[],
+  reference: Date = new Date(),
+): BusinessPulseSnapshot["monthlyRevenue"] {
+  const currentMonthKey = formatBusinessCalendarDate(reference).slice(0, 7);
+  const currentYear = Number(currentMonthKey.slice(0, 4));
+  const jobs = new Map<
+    string,
+    { serviceAt: string; amountCents: number; paid: boolean }
+  >();
+
+  for (const row of rows) {
+    if (!row.scheduled_start) continue;
+    const amountCents = Math.max(0, Number(row.job_total_cents ?? 0));
+    const paid = normalizeInvoiceStatus(row.visit_invoice_status) === "paid";
+    const existing = jobs.get(row.external_job_id);
+    if (!existing) {
+      jobs.set(row.external_job_id, {
+        serviceAt: row.scheduled_start,
+        amountCents,
+        paid,
+      });
+      continue;
+    }
+    existing.amountCents = Math.max(existing.amountCents, amountCents);
+    existing.paid ||= paid;
+    if (row.scheduled_start < existing.serviceAt) {
+      existing.serviceAt = row.scheduled_start;
+    }
+  }
+
+  const historicalJobs = [...jobs.values()].flatMap((job) => {
+    const instant = new Date(job.serviceAt);
+    if (Number.isNaN(instant.getTime())) return [];
+    const monthKey = formatBusinessCalendarDate(instant).slice(0, 7);
+    const year = Number(monthKey.slice(0, 4));
+    if (!Number.isFinite(year) || monthKey > currentMonthKey) return [];
+    return [{ ...job, monthKey, year }];
+  });
+  const paidJobs = historicalJobs.filter((job) => job.paid);
+  const earliestRecordedMonth =
+    historicalJobs
+      .map((job) => job.monthKey)
+      .sort((a, b) => a.localeCompare(b))[0] ?? null;
+  const earliestYear = historicalJobs.reduce(
+    (earliest, job) => Math.min(earliest, job.year),
+    currentYear,
+  );
+  const years = Array.from(
+    { length: currentYear - earliestYear + 1 },
+    (_, index) => earliestYear + index,
+  );
+  const points = years.flatMap((year) =>
+    MONTH_LABELS.map((monthLabel, index) => ({
+      year,
+      month: index + 1,
+      monthKey: `${year}-${String(index + 1).padStart(2, "0")}`,
+      monthLabel,
+      paidRevenueCents: 0,
+      paidJobs: 0,
+      hasSourceCoverage: Boolean(
+        earliestRecordedMonth &&
+          `${year}-${String(index + 1).padStart(2, "0")}` >=
+            earliestRecordedMonth,
+      ),
+    })),
+  );
+  const pointsByKey = new Map(points.map((point) => [point.monthKey, point]));
+  for (const job of paidJobs) {
+    const point = pointsByKey.get(job.monthKey);
+    if (!point) continue;
+    point.paidRevenueCents += job.amountCents;
+    point.paidJobs += 1;
+  }
+
+  return {
+    currentYear,
+    years,
+    points,
+    earliestRecordedMonth,
+  };
+}
+
 export function buildBusinessPulseSnapshot(input: {
   range: BusinessPulseRange;
   now?: Date;
   jobs: BusinessPulseJobRow[];
+  historicalJobs?: BusinessPulseMonthlyJobRow[];
   memberships: BusinessPulseMembershipRow[];
   agreements: BusinessPulseAgreementRow[];
   propertyLinks: BusinessPulsePropertyLinkRow[];
@@ -308,6 +430,7 @@ export function buildBusinessPulseSnapshot(input: {
   goHighLevelConfigured: boolean;
   warnings?: string[];
 }): BusinessPulseSnapshot {
+  const now = input.now ?? new Date();
   const onBookMemberships = input.memberships.filter(
     (row) => Boolean(row.agreement_id) && !isCancelled(row.status),
   );
@@ -371,7 +494,7 @@ export function buildBusinessPulseSnapshot(input: {
   const leadMix = [...leadCounts.entries()]
     .map(([source, count]) => ({ source, count }))
     .sort((a, b) => b.count - a.count || a.source.localeCompare(b.source));
-  const nowIso = (input.now ?? new Date()).toISOString();
+  const nowIso = now.toISOString();
   const warnings = [...(input.warnings ?? [])];
   if (unclassifiedJobs > 0) {
     warnings.push(
@@ -417,6 +540,7 @@ export function buildBusinessPulseSnapshot(input: {
       classifiedJobs,
       unclassifiedJobs,
     },
+    monthlyRevenue: buildMonthlyPaidRevenue(input.historicalJobs ?? input.jobs, now),
     leadMix,
     recentJobs: jobs.slice(0, 20),
     recentMembershipSales: recentMembershipSales.slice(0, 20),
@@ -468,6 +592,11 @@ export function buildBusinessPulseSnapshot(input: {
         label: "Paid work value",
         definition:
           "Unique Jobber jobs scheduled in the selected service period whose invoice is marked paid. It is not added to HomeAtlas collections.",
+      },
+      {
+        label: "Monthly paid revenue",
+        definition:
+          "Unique Jobber jobs whose invoice is marked paid, grouped by the month the service was scheduled in Pacific business time. Zero months remain visible after source coverage begins; earlier months are labeled no data.",
       },
       {
         label: "Completed work",
