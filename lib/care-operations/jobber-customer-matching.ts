@@ -78,6 +78,7 @@ export interface JobberClientPropertyPreview {
   id: string;
   name: string | null;
   jobberWebUri: string;
+  address: Record<string, string | null> | null;
 }
 
 export interface HomeAtlasCustomerCandidate {
@@ -113,7 +114,7 @@ export interface JobberClientPreview {
 
 export interface JobberCustomerMatchingWorkspace {
   executionMode: "supervised_customer_pairing";
-  automaticMatching: false;
+  automaticMatching: "strict_exact_only";
   billingEnabled: false;
   clients: JobberClientPreview[];
   total: number;
@@ -215,6 +216,7 @@ export function toJobberClientProjectionRow(
     id: property.id,
     name: property.name,
     jobberWebUri: property.jobberWebUri,
+    address: property.address ?? null,
   }));
   return {
     connection_id: JOBBER_CONNECTION_ID,
@@ -239,6 +241,11 @@ export function toJobberClientProjectionRow(
       client.email,
       client.phone,
       ...properties.map((property) => property.name),
+      ...properties.flatMap((property) =>
+        Object.values(property.address ?? {}).filter(
+          (value): value is string => typeof value === "string",
+        ),
+      ),
     ]),
     raw_payload: client,
     source_payload_hash: hashJobberClientPayload(client),
@@ -477,7 +484,7 @@ export async function loadJobberCustomerMatchingWorkspace(options: {
 
   return {
     executionMode: "supervised_customer_pairing",
-    automaticMatching: false,
+    automaticMatching: "strict_exact_only",
     billingEnabled: false,
     clients: clientRows.map((row) => {
       const link = linkByClientId.get(row.external_client_id) ?? null;

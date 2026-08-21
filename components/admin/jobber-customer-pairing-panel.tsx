@@ -40,6 +40,7 @@ interface JobberClientPreview {
     id: string;
     name: string | null;
     jobberWebUri: string;
+    address: Record<string, string | null> | null;
   }>;
   propertyCount: number;
   propertiesComplete: boolean;
@@ -48,7 +49,7 @@ interface JobberClientPreview {
 
 interface CustomerWorkspace {
   executionMode: "supervised_customer_pairing";
-  automaticMatching: false;
+  automaticMatching: "strict_exact_only";
   billingEnabled: false;
   clients: JobberClientPreview[];
   total: number;
@@ -277,11 +278,23 @@ export function JobberCustomerPairingPanel() {
           Pair Jobber customers with HomeAtlas
         </h3>
         <p className="mt-2 max-w-2xl text-xs leading-relaxed text-muted">
-          Search the complete synchronized Jobber customer list, then search
-          HomeAtlas and confirm the same household. Pairing connects identity
-          only; it does not change Jobber, create a membership, or enable
-          billing.
+          HomeAtlas safely pairs only a unique exact property address plus an
+          exact, non-conflicting email or phone. Anything incomplete,
+          ambiguous, previously revoked, or conflicting stays here for human
+          review. Pairing connects identity only; it never changes Jobber,
+          creates a membership, or enables billing.
         </p>
+        <div className="mt-4 grid gap-2 text-[11px] leading-relaxed text-muted sm:grid-cols-3">
+          <p className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] p-3">
+            Exact evidence only
+          </p>
+          <p className="rounded-xl border border-border/70 bg-foreground/[0.025] p-3">
+            Conflicts require you
+          </p>
+          <p className="rounded-xl border border-border/70 bg-foreground/[0.025] p-3">
+            Audited and reversible
+          </p>
+        </div>
       </div>
 
       <form

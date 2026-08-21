@@ -41,6 +41,19 @@ interface JobberSyncSection {
 interface JobberSyncResponse {
   clients: JobberSyncSection;
   visits: JobberSyncSection;
+  autoLinking: {
+    executionMode: "strict_exact_only";
+    billingEnabled: false;
+    evaluated: number;
+    linked: number;
+    alreadyLinked: number;
+    manualReview: number;
+    insufficientEvidence: number;
+    conflictsBlocked: number;
+    revocationsRespected: number;
+    archivedSkipped: number;
+    portalRepairsNeeded: number;
+  };
   completedAt: string;
   error?: string;
 }
@@ -357,6 +370,22 @@ export function JobberConnectionPanel({
               syncSummary.clients.unchanged + syncSummary.visits.unchanged
             ).toLocaleString()}
           </p>
+          <p className="mt-2 border-t border-border/60 pt-2">
+            Safe customer pairing: {syncSummary.autoLinking.linked.toLocaleString()} new,{" "}
+            {syncSummary.autoLinking.alreadyLinked.toLocaleString()} already paired,{" "}
+            {syncSummary.autoLinking.manualReview.toLocaleString()} needing review,{" "}
+            {syncSummary.autoLinking.insufficientEvidence.toLocaleString()} without
+            enough exact evidence.
+          </p>
+          {syncSummary.autoLinking.conflictsBlocked > 0 ||
+          syncSummary.autoLinking.revocationsRespected > 0 ||
+          syncSummary.autoLinking.portalRepairsNeeded > 0 ? (
+            <p className="mt-1 text-amber-300">
+              Safety held {syncSummary.autoLinking.conflictsBlocked.toLocaleString()} conflict(s),
+              respected {syncSummary.autoLinking.revocationsRespected.toLocaleString()} revocation(s),
+              and flagged {syncSummary.autoLinking.portalRepairsNeeded.toLocaleString()} portal repair(s).
+            </p>
+          ) : null}
         </div>
       ) : null}
 

@@ -269,6 +269,7 @@ async function ensureMemberProfileId(homeownerId: string): Promise<string> {
 async function ensureAutomaticPropertyLink(input: {
   externalPropertyId: string;
   member: MemberTarget;
+  evidence?: { actor: string; reason: string };
 }): Promise<PropertyLinkRow | null> {
   const supabase = createServiceRoleSupabaseClient();
   const existingResult = await supabase
@@ -315,8 +316,8 @@ async function ensureAutomaticPropertyLink(input: {
         property_id: input.member.property.id,
         membership_id: input.member.membership.id,
         link_state: "active",
-        linked_by: AUTOMATIC_PROPERTY_LINK_ACTOR,
-        link_reason: AUTOMATIC_PROPERTY_LINK_REASON,
+        linked_by: input.evidence?.actor ?? AUTOMATIC_PROPERTY_LINK_ACTOR,
+        link_reason: input.evidence?.reason ?? AUTOMATIC_PROPERTY_LINK_REASON,
         linked_at: now,
       })
       .select("id, external_property_id, property_id, membership_id, link_state")
@@ -335,6 +336,7 @@ async function resolveProjectionTargets(input: {
   externalClientId: string;
   homeownerId: string;
   members: MemberTarget[];
+  automaticPropertyLinkEvidence?: { actor: string; reason: string };
 }): Promise<ProjectionTarget[]> {
   const supabase = createServiceRoleSupabaseClient();
   const [clientResult, visitPropertiesResult] = await Promise.all([
@@ -398,6 +400,7 @@ async function resolveProjectionTargets(input: {
   const link = await ensureAutomaticPropertyLink({
     externalPropertyId: clientProperties[0].id,
     member: input.members[0],
+    evidence: input.automaticPropertyLinkEvidence,
   });
   return link
     ? [{ link, member: input.members[0], propertyLinkCreated: true }]
@@ -606,6 +609,7 @@ export async function reconcilePairedCustomerPortalVisit(input: {
   externalClientId: string;
   homeownerId: string;
   referenceDate?: Date;
+  automaticPropertyLinkEvidence?: { actor: string; reason: string };
 }): Promise<JobberPortalProjectionResult> {
   const members = await loadMemberTargets(input.homeownerId);
   if (members.length === 0) {
