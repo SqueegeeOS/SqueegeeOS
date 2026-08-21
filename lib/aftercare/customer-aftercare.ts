@@ -61,6 +61,20 @@ export interface CustomerAftercareSnapshot {
   serviceCases: CustomerServiceCaseAdminView[];
   tasks: CustomerAftercareTask[];
   truncated: boolean;
+  reviewAutomation?: {
+    state:
+      | "active"
+      | "off"
+      | "waiting_for_twilio"
+      | "waiting_for_review_link"
+      | "not_installed";
+    installed: boolean;
+    enabled: boolean;
+    twilioConfigured: boolean;
+    twilioReady: boolean;
+    reviewLinkReady: boolean;
+    detail: string;
+  };
 }
 
 export interface AnnualCareCheckinOpportunity {

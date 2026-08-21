@@ -5,6 +5,8 @@ import {
   buildLeadAcknowledgementIdempotencyKey,
   buildLeadFirstTouchSmsIdempotencyKey,
   buildLeadFirstTouchSmsPlan,
+  buildReviewRequestIdempotencyKey,
+  buildReviewRequestSmsPlan,
   buildVerifiedAppointmentReminderPlan,
   calculateQuietHoursDeliveryAt,
   hasActiveSmsConsent,
@@ -81,6 +83,13 @@ describe("communications automation", () => {
           channel: "sms",
         }),
       ).not.toBe(original);
+    });
+
+    it("builds one stable review-request key per completed appointment", () => {
+      expect(buildReviewRequestIdempotencyKey("visit/42")).toBe(
+        "appointment:visit%2F42:review-request:sms:v1",
+      );
+      expect(buildReviewRequestIdempotencyKey(" ")).toBeNull();
     });
   });
 
@@ -360,6 +369,65 @@ describe("lead first-touch SMS", () => {
           }),
         ),
       ).toBeNull();
+    });
+  });
+
+  describe("completed-visit review requests", () => {
+    const base = {
+      appointmentId: "visit-42",
+      customerName: "Morgan Example",
+      phone: "+15555550123",
+      serviceLabel: "Exterior window cleaning",
+      completedAt: "2026-07-10T17:00:00.000Z",
+      now: "2026-07-12T18:00:00.000Z",
+      reviewUrl:
+        "https://search.google.com/local/writereview?placeid=ChIJexample",
+      smsConsent: CONSENT,
+    };
+
+    it("creates a single honest-feedback plan with customer-care and opt-out copy", () => {
+      const plan = buildReviewRequestSmsPlan(base);
+      expect(plan).toMatchObject({
+        mode: "plan_only",
+        kind: "review_request_after_visit",
+        channel: "sms",
+        idempotencyKey: "appointment:visit-42:review-request:sms:v1",
+      });
+      expect(plan?.text).toContain("honest Google review");
+      expect(plan?.text).toContain("If anything needs attention, reply here");
+      expect(plan?.text).toContain("Reply STOP to opt out.");
+      expect(plan?.text.toLowerCase()).not.toContain("five-star");
+    });
+
+    it("fails closed without active consent or a safe Google destination", () => {
+      expect(
+        buildReviewRequestSmsPlan({
+          ...base,
+          smsConsent: { consented: false, consentedAt: null },
+        }),
+      ).toBeNull();
+      expect(
+        buildReviewRequestSmsPlan({
+          ...base,
+          reviewUrl: "https://example.com/not-google",
+        }),
+      ).toBeNull();
+    });
+
+    it("waits at least 24 hours and respects quiet hours", () => {
+      const early = buildReviewRequestSmsPlan({
+        ...base,
+        completedAt: "2026-07-12T17:00:00.000Z",
+        now: "2026-07-12T18:00:00.000Z",
+      });
+      expect(early?.notBefore).toBe("2026-07-13T17:00:00.000Z");
+
+      const evening = buildReviewRequestSmsPlan({
+        ...base,
+        completedAt: "2026-07-09T17:00:00.000Z",
+        now: "2026-07-13T04:00:00.000Z",
+      });
+      expect(evening?.notBefore).toBe("2026-07-13T15:00:00.000Z");
     });
   });
 });

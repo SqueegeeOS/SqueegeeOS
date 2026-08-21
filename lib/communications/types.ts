@@ -31,7 +31,8 @@ export type CustomerMessageDeliveryStatus =
 
 export type CustomerCommunicationAutomationEvent =
   | "lead_acknowledgement"
-  | "visit_reminder_24h";
+  | "visit_reminder_24h"
+  | "review_request_after_visit";
 
 export type CustomerWebhookProcessingStatus =
   | "received"

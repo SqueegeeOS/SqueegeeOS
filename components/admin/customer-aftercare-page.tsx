@@ -349,7 +349,9 @@ export function CustomerAftercarePage() {
               }
             : current,
         );
-        setFeedback(`${OUTCOME_LABELS[outcome]} for ${task.homeownerName}. No message was sent.`);
+        setFeedback(
+          `${OUTCOME_LABELS[outcome]} for ${task.homeownerName}. This manual outcome did not send a message.`,
+        );
       } catch (saveError) {
         setFeedback(saveError instanceof Error ? saveError.message : "Aftercare could not be saved.");
       } finally {
@@ -439,10 +441,40 @@ export function CustomerAftercarePage() {
           <p className="mt-4 max-w-3xl text-sm leading-[1.7] text-muted">
             Customer-reported concerns come first. HomeAtlas also finds the quiet
             moments that deserve a human touch: a documented visit that may earn a
-            review, or an annual member check-in. Recording an outcome never sends a
-            text or email.
+            review, or an annual member check-in. Automatic review texts stay behind
+            verified completion, explicit consent, provider readiness, and one-send
+            deduplication.
           </p>
         </MotionReveal>
+
+        {snapshot?.reviewAutomation ? (
+          <GlassCard
+            tone="subtle"
+            className={`mb-6 px-5 py-4 ${
+              snapshot.reviewAutomation.state === "active"
+                ? "border-emerald-300/20"
+                : "border-amber-300/15"
+            }`}
+          >
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.17em] text-accent">
+                  Review request automation ·{" "}
+                  {snapshot.reviewAutomation.state.replaceAll("_", " ")}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  {snapshot.reviewAutomation.detail}
+                </p>
+              </div>
+              <Link
+                href={ROUTES.hqCommunications}
+                className={craftSecondaryButton}
+              >
+                Open controls
+              </Link>
+            </div>
+          </GlassCard>
+        ) : null}
 
         <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <GlassCard tone="subtle" className="border-amber-300/15 px-5 py-4">

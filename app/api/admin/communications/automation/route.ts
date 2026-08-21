@@ -9,6 +9,7 @@ const ALLOWED_RULE_IDS = new Set([
   "lead_acknowledgement_sms",
   "visit_reminder_24h_email",
   "visit_reminder_24h_sms",
+  "review_request_after_visit_sms",
 ]);
 
 export async function GET(request: Request) {

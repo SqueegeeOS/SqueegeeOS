@@ -37,6 +37,7 @@ export interface RecordCustomerAftercareOutcomeInput {
   taskKey: string;
   outcome: CustomerAftercareOutcome;
   note?: string | null;
+  recordedBy?: string | null;
 }
 
 export class CustomerAftercareActionError extends Error {
@@ -69,6 +70,7 @@ export async function recordCustomerAftercareOutcome(
 ): Promise<{ record: CustomerAftercareResolutionRecord; duplicate: boolean }> {
   const taskKey = input.taskKey?.trim();
   const note = input.note?.trim() || null;
+  const recordedBy = input.recordedBy?.trim() || "HQ owner";
   if (!taskKey || taskKey.length > 220) {
     throw new CustomerAftercareActionError(
       "Choose a valid aftercare task.",
@@ -88,6 +90,13 @@ export async function recordCustomerAftercareOutcome(
       "Keep the aftercare note to 1,000 characters or fewer.",
       400,
       "note_too_long",
+    );
+  }
+  if (recordedBy.length > 80) {
+    throw new CustomerAftercareActionError(
+      "The aftercare actor is too long.",
+      400,
+      "invalid_actor",
     );
   }
 
@@ -157,7 +166,7 @@ export async function recordCustomerAftercareOutcome(
         outcome: input.outcome,
         note,
         evidence,
-        recorded_by: "HQ owner",
+        recorded_by: recordedBy,
         recorded_at: recordedAt,
       },
       { onConflict: "task_key", ignoreDuplicates: true },
