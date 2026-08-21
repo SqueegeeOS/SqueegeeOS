@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchAllJobberVisits,
   fetchJobberVisitPage,
+  JOBBER_PAGE_SIZE,
   JOBBER_VISITS_SCHEDULING_ONLY_QUERY,
   JOBBER_VISITS_QUERY,
   JOBBER_VISITS_WITHOUT_ASSIGNMENTS_QUERY,
@@ -457,9 +458,15 @@ describe("complete read-only Jobber visit synchronization", () => {
     const result = await fetchAllJobberVisits("access-token");
     expect(result.nodes.map((node) => node.id)).toEqual(["visit-1", "visit-2"]);
     expect(result.pageCount).toBe(2);
+    const firstBody = JSON.parse(
+      String((fetchMock.mock.calls[0] as [string, RequestInit])[1].body),
+    ) as { variables: { first: number } };
     const secondBody = JSON.parse(
       String((fetchMock.mock.calls[1] as [string, RequestInit])[1].body),
-    ) as { variables: { after: string | null } };
+    ) as { variables: { first: number; after: string | null } };
+    expect(JOBBER_PAGE_SIZE).toBe(10);
+    expect(firstBody.variables.first).toBe(10);
+    expect(secondBody.variables.first).toBe(10);
     expect(secondBody.variables.after).toBe("cursor-1");
   });
 

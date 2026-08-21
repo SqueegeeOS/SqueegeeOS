@@ -133,6 +133,86 @@ describe("Business Pulse", () => {
     expect(snapshot.warnings[0]).toContain("not linked");
   });
 
+  it("counts ARR only after contract and payment qualification and excludes cancellations", () => {
+    const range = resolveBusinessPulseRange(
+      "current_month",
+      new Date("2026-08-20T18:00:00.000Z"),
+    );
+    const qualifiedPending: BusinessPulseMembershipRow = {
+      ...ACTIVE_MEMBERSHIP,
+      id: "qualified-pending",
+      property_id: "property-qualified",
+      agreement_id: "agreement-qualified",
+      status: "pending_payment",
+      annual_rate: 500,
+    };
+    const signedWithoutPayment: BusinessPulseMembershipRow = {
+      ...ACTIVE_MEMBERSHIP,
+      id: "signed-without-payment",
+      property_id: "property-no-payment",
+      agreement_id: "agreement-no-payment",
+      status: "pending_payment",
+      annual_rate: 700,
+      payment_setup_completed_at: null,
+      stripe_payment_method_id: null,
+      stripe_customer_id: null,
+    };
+    const cancelledWithCard: BusinessPulseMembershipRow = {
+      ...ACTIVE_MEMBERSHIP,
+      id: "cancelled-with-card",
+      property_id: "property-cancelled",
+      agreement_id: "agreement-cancelled",
+      status: "cancelled",
+      annual_rate: 900,
+    };
+    const agreements = [
+      {
+        id: "agreement-qualified",
+        membership_id: "qualified-pending",
+        homeowner_name: "Qualified member",
+        signed_at: "2026-08-05T17:00:00.000Z",
+      },
+      {
+        id: "agreement-no-payment",
+        membership_id: "signed-without-payment",
+        homeowner_name: "Signed only",
+        signed_at: "2026-08-06T17:00:00.000Z",
+      },
+      {
+        id: "agreement-cancelled",
+        membership_id: "cancelled-with-card",
+        homeowner_name: "Cancelled member",
+        signed_at: "2026-08-07T17:00:00.000Z",
+      },
+    ];
+
+    const snapshot = buildBusinessPulseSnapshot({
+      range,
+      now: new Date("2026-08-20T18:00:00.000Z"),
+      jobs: [],
+      memberships: [qualifiedPending, signedWithoutPayment, cancelledWithCard],
+      agreements,
+      propertyLinks: [],
+      billingCharges: [],
+      addons: [],
+      leads: [],
+      jobberConnectionStatus: "connected",
+      jobberLastSyncedAt: "2026-08-20T17:00:00.000Z",
+      stripeConfigured: true,
+      stripeLastEventAt: null,
+      stripeProcessingErrors: 0,
+      goHighLevelConfigured: false,
+    });
+
+    expect(snapshot.metrics.activeArrCents).toBe(50_000);
+    expect(snapshot.metrics.arrAddedCents).toBe(50_000);
+    expect(snapshot.metrics.activeMembers).toBe(1);
+    expect(snapshot.metrics.membershipsSold).toBe(1);
+    expect(
+      snapshot.monthlyRevenue.points.find((point) => point.monthKey === "2026-08"),
+    ).toMatchObject({ arrAddedCents: 50_000, membershipsSold: 1 });
+  });
+
   it("fills every month across all available revenue years and deduplicates jobs", () => {
     const monthly = buildMonthlyPaidRevenue(
       [
