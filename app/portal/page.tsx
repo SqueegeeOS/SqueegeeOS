@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { PLATFORM_BRAND } from "@/lib/brand/platform";
 import { buildPortalAccessPath } from "@/lib/membership/portal-access";
 import { readStoredPortalToken } from "@/lib/pwa/portal-session";
+import { PortalLoadingScreen } from "@/components/portal/portal-loading-screen";
 
 /**
  * PWA start_url — resolves stored portal token to the member's private portal.
@@ -24,11 +25,7 @@ export default function PortalEntryPage() {
   }, [router]);
 
   if (!resolved) {
-    return (
-      <div className="portal-safe-area flex min-h-[100svh] items-center justify-center bg-background px-6">
-        <p className="text-sm text-muted">Opening your home…</p>
-      </div>
-    );
+    return <PortalLoadingScreen />;
   }
 
   return (
