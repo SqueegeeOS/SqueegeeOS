@@ -47,6 +47,8 @@ import {
   portalLiveServiceAppointmentIds,
   type PortalLiveServiceStatus,
 } from "@/lib/membership/portal-live-service";
+import { loadMembershipVisitPreferences } from "@/lib/membership/visit-preferences-server";
+import type { MembershipVisitPreference } from "@/lib/membership/visit-preferences";
 
 export interface ServiceObservationView {
   id: string;
@@ -94,6 +96,7 @@ export interface MemberPortalData {
   salesTier: string | null;
   visitPrice: number | null;
   visitsPerYear: number | null;
+  visitPreferences?: MembershipVisitPreference[];
   membershipStatus: string;
   paymentSetupCompletedAt: string | null;
   membershipEnrollmentSavings: number | null;
@@ -550,6 +553,10 @@ export async function getMemberPortalDataBySlugs(
           )
         : null;
 
+  const visitPreferences = membershipRow?.id
+    ? await loadMembershipVisitPreferences(membershipRow.id)
+    : [];
+
   const { data: agreementRow } = await supabase
     .from("signed_agreements")
     .select("plan_name, signed_at, agreement_pdf_url, status")
@@ -869,6 +876,7 @@ export async function getMemberPortalDataBySlugs(
     salesTier: membershipRow?.sales_tier ?? null,
     visitPrice: membershipRow?.visit_price ?? null,
     visitsPerYear: membershipRow?.visits_per_year ?? null,
+    visitPreferences,
     membershipStatus: membershipRow
       ? resolvePortalMembershipStatus({
           status: membershipRow.status,

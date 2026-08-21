@@ -6,6 +6,7 @@ import {
   updateLeadIntakeFields,
   updatePresentationNotes,
   updatePropertyFields,
+  saveMembershipPreferredMonths,
 } from "@/lib/hq/customer-workspace/update-workspace";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 
@@ -114,6 +115,21 @@ export async function PATCH(
 
     if (type === "presentation" && typeof body.customNotes === "string") {
       await updatePresentationNotes(id, body.customNotes);
+    }
+
+    if (body.preferredVisitMonths !== undefined) {
+      const current = await loadCustomerWorkspace(type, id);
+      if (!current?.membership) {
+        return NextResponse.json(
+          { error: "Active membership not found" },
+          { status: 404 },
+        );
+      }
+      await saveMembershipPreferredMonths({
+        membershipId: current.membership.id,
+        months: body.preferredVisitMonths,
+        updatedBy: "hq",
+      });
     }
 
     const workspace = await loadCustomerWorkspace(type, id);

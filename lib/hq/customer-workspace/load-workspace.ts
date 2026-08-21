@@ -31,6 +31,7 @@ import {
   AUTHORITATIVE_APPOINTMENT_PROVIDER,
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
 } from "@/lib/care-operations/model";
+import { loadMembershipVisitPreferences } from "@/lib/membership/visit-preferences-server";
 
 function stageLabel(stage: CustomerWorkspaceStage): string {
   switch (stage) {
@@ -340,6 +341,10 @@ async function loadPropertyWorkspace(
       })
     : null;
 
+  const visitPreferences = membership?.id
+    ? await loadMembershipVisitPreferences(membership.id as string)
+    : [];
+
   let stage: CustomerWorkspaceStage = "unknown";
   if (membership) {
     const lifecycle = resolveMembershipLifecycle({
@@ -555,6 +560,7 @@ async function loadPropertyWorkspace(
           paymentSetupEmailRecipient,
           startedAt: (membership.started_at as string | null) ?? null,
           foundingMember: Boolean(membership.founding_member),
+          visitPreferences,
         }
       : null,
     agreement: agreement
