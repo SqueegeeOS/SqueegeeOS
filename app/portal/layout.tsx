@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import { PreloadPortalLoadingArtwork } from "@/components/portal/preload-portal-loading-artwork";
 
 export const metadata: Metadata = {
   // Generic portal manifest; /portal/[token] overrides with its own.
@@ -8,5 +9,10 @@ export const metadata: Metadata = {
 };
 
 export default function PortalRootLayout({ children }: { children: ReactNode }) {
-  return <div className="portal-safe-area min-h-[100svh]">{children}</div>;
+  return (
+    <>
+      <PreloadPortalLoadingArtwork />
+      <div className="portal-safe-area min-h-[100svh]">{children}</div>
+    </>
+  );
 }

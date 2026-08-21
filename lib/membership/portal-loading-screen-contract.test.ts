@@ -13,17 +13,37 @@ describe("member portal loading screen contract", () => {
   );
   const portalEntry = read("app/portal/page.tsx");
   const welcome = read("components/pwa/PortalWelcomeHome.tsx");
+  const hqLayout = read("app/hq/layout.tsx");
+  const portalLayout = read("app/portal/layout.tsx");
+  const preloader = read(
+    "components/portal/preload-portal-loading-artwork.tsx",
+  );
+  const nextConfig = read("next.config.ts");
 
   it("uses the supplied HomeAtlas artwork and native animated mark", () => {
-    expect(loader).toContain("/portal/atlas-loading-screen.webp");
+    expect(loader).toContain("/brand/homeatlas-member-loader-v1.webp");
     expect(loader).toContain("AtlasMark");
     expect(loader).toContain("Preparing your HomeAtlas portal");
   });
 
-  it("advances three dots only while the real portal suspense is pending", () => {
-    expect(loader).toContain("PROGRESS_DELAYS");
-    expect(loader).toContain("step >= index + 1");
-    expect(loader).toContain("step ${step} of 3");
+  it("renders its progress animation without waiting for client hydration", () => {
+    expect(loader).not.toContain('"use client"');
+    expect(loader).not.toContain("useEffect");
+    expect(loader).toContain("portal-loading-dot-pending");
+    expect(loader).toContain(
+      'animationDelay: index === 1 ? "650ms" : "1500ms"',
+    );
+  });
+
+  it("preloads one publicly cacheable artwork asset before member navigation", () => {
+    expect(preloader).toContain("ReactDOM.preload");
+    expect(preloader).toContain("/brand/homeatlas-member-loader-v1.webp");
+    expect(hqLayout).toContain("<PreloadPortalLoadingArtwork />");
+    expect(portalLayout).toContain("<PreloadPortalLoadingArtwork />");
+    expect(nextConfig).toContain("public, max-age=31536000, immutable");
+    expect(nextConfig).not.toContain(
+      'source: "/portal/atlas-loading-screen.webp"',
+    );
   });
 
   it("covers private token, legacy slug, PWA entry, and welcome redirects", () => {

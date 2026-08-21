@@ -52,6 +52,15 @@ const nextConfig: NextConfig = {
         source,
         headers: privateRouteHeaders,
       })),
+      {
+        source: "/brand/homeatlas-member-loader-v1.webp",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
     ];
   },
   async redirects() {
