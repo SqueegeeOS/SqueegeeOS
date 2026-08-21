@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   fetchAllJobberClients,
+  buildJobberClientsQuery,
   JOBBER_CLIENTS_QUERY,
   type JobberClientNode,
 } from "./jobber-api";
@@ -26,6 +27,12 @@ const client: JobberClientNode = {
         id: "property-1",
         name: "Canyon House",
         jobberWebUri: "https://secure.getjobber.com/properties/property-1",
+        address: {
+          street: "123 Canyon Street",
+          city: "Chico",
+          province: "CA",
+          postalCode: "95928",
+        },
       },
     ],
     pageInfo: { endCursor: "property-cursor", hasNextPage: false },
@@ -43,11 +50,31 @@ describe("Jobber customer synchronization", () => {
     expect(JOBBER_CLIENTS_QUERY).toContain("clients(first: $first, after: $after)");
     expect(JOBBER_CLIENTS_QUERY).toContain("clientProperties(first: 25)");
     expect(JOBBER_CLIENTS_QUERY).not.toMatch(/\bmutation\b/i);
+    expect(buildJobberClientsQuery(["street", "city", "province", "postalCode"]))
+      .toContain("address { street city province postalCode }");
+    expect(buildJobberClientsQuery(["unsafeField"])).toBe(JOBBER_CLIENTS_QUERY);
   });
 
   it("loads every client page", async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              __type: {
+                fields: [
+                  { name: "street", type: { kind: "SCALAR", name: "String", ofType: null } },
+                  { name: "city", type: { kind: "SCALAR", name: "String", ofType: null } },
+                  { name: "province", type: { kind: "SCALAR", name: "String", ofType: null } },
+                  { name: "postalCode", type: { kind: "SCALAR", name: "String", ofType: null } },
+                ],
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({

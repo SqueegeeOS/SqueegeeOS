@@ -72,6 +72,7 @@ export interface JobberClientPropertyNode {
   id: string;
   name: string | null;
   jobberWebUri: string;
+  address?: Record<string, string | null> | null;
 }
 
 export interface JobberClientNode {
@@ -269,6 +270,54 @@ export const JOBBER_CLIENTS_QUERY = `
     }
   }
 `;
+
+export const JOBBER_PROPERTY_ADDRESS_SCHEMA_QUERY = `
+  query HomeAtlasPropertyAddressSchema {
+    __type(name: "PropertyAddress") {
+      fields {
+        name
+        type {
+          kind
+          name
+          ofType { kind name }
+        }
+      }
+    }
+  }
+`;
+
+const JOBBER_PROPERTY_ADDRESS_FIELD_ALLOWLIST = [
+  "street",
+  "streetAddress",
+  "street1",
+  "street2",
+  "streetOne",
+  "streetTwo",
+  "address1",
+  "address2",
+  "line1",
+  "line2",
+  "city",
+  "province",
+  "provinceCode",
+  "state",
+  "stateCode",
+  "postalCode",
+  "zipCode",
+  "country",
+  "countryCode",
+] as const;
+
+export function buildJobberClientsQuery(addressFields: string[]): string {
+  const safeFields = JOBBER_PROPERTY_ADDRESS_FIELD_ALLOWLIST.filter((field) =>
+    addressFields.includes(field),
+  );
+  if (safeFields.length === 0) return JOBBER_CLIENTS_QUERY;
+  return JOBBER_CLIENTS_QUERY.replace(
+    "nodes { id name jobberWebUri }",
+    `nodes { id name jobberWebUri address { ${safeFields.join(" ")} } }`,
+  );
+}
 
 export class JobberApiError extends Error {
   constructor(
@@ -736,13 +785,17 @@ export async function fetchJobberVisitPage(
 
 export async function fetchJobberClientPage(
   accessToken: string,
-  options: { first?: number; after?: string | null } = {},
+  options: {
+    first?: number;
+    after?: string | null;
+    addressFields?: string[];
+  } = {},
 ): Promise<JobberClientPage> {
   const first = options.first ?? JOBBER_CLIENT_PAGE_SIZE;
   validatePageSize(first);
   const data = await fetchJobberGraphql<{ clients?: JobberClientPage }>(
     accessToken,
-    JOBBER_CLIENTS_QUERY,
+    buildJobberClientsQuery(options.addressFields ?? []),
     { first, after: options.after ?? null },
     "client",
   );
@@ -750,6 +803,37 @@ export async function fetchJobberClientPage(
     throw new Error("Jobber client query returned no client connection");
   }
   return data.clients;
+}
+
+export async function fetchJobberPropertyAddressFields(
+  accessToken: string,
+): Promise<string[]> {
+  type IntrospectionField = {
+    name: string;
+    type: {
+      kind: string;
+      name: string | null;
+      ofType: { kind: string; name: string | null } | null;
+    };
+  };
+  const data = await fetchJobberGraphql<{
+    __type?: { fields?: IntrospectionField[] } | null;
+  }>(
+    accessToken,
+    JOBBER_PROPERTY_ADDRESS_SCHEMA_QUERY,
+    {},
+    "property address schema",
+  );
+  const allowlist = new Set<string>(JOBBER_PROPERTY_ADDRESS_FIELD_ALLOWLIST);
+  return (data.__type?.fields ?? [])
+    .filter((field) => {
+      const kind =
+        field.type.kind === "NON_NULL"
+          ? field.type.ofType?.kind
+          : field.type.kind;
+      return allowlist.has(field.name) && (kind === "SCALAR" || kind === "ENUM");
+    })
+    .map((field) => field.name);
 }
 
 async function fetchAllJobberPages<T>(
@@ -791,10 +875,31 @@ export function fetchAllJobberVisits(
   );
 }
 
-export function fetchAllJobberClients(
+export async function fetchAllJobberClients(
   accessToken: string,
 ): Promise<JobberPaginatedResult<JobberClientNode>> {
-  return fetchAllJobberPages((after) =>
-    fetchJobberClientPage(accessToken, { after }),
-  );
+  let addressFields: string[] = [];
+  try {
+    addressFields = await fetchJobberPropertyAddressFields(accessToken);
+  } catch (error) {
+    console.warn(
+      "[jobber-sync] property addresses unavailable; exact auto-linking disabled",
+      { reason: error instanceof Error ? error.message : "unknown" },
+    );
+  }
+
+  try {
+    return await fetchAllJobberPages((after) =>
+      fetchJobberClientPage(accessToken, { after, addressFields }),
+    );
+  } catch (error) {
+    if (addressFields.length === 0) throw error;
+    console.warn(
+      "[jobber-sync] address-enriched customer query failed; retrying safely",
+      { reason: error instanceof Error ? error.message : "unknown" },
+    );
+    return fetchAllJobberPages((after) =>
+      fetchJobberClientPage(accessToken, { after, addressFields: [] }),
+    );
+  }
 }
