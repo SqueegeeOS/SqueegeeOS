@@ -9,7 +9,14 @@ interface HomeAtlasCustomerCandidate {
   fullName: string;
   email: string | null;
   phone: string | null;
-  properties: Array<{ propertyId: string; label: string }>;
+  properties: Array<{
+    propertyId: string;
+    label: string;
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+  }>;
 }
 
 interface HomeAtlasSearchResponse {
@@ -44,8 +51,21 @@ interface JobberClientPreview {
   }>;
   propertyCount: number;
   propertiesComplete: boolean;
+  sourcePayloadHash: string;
+  reviewOutcome:
+    | "link"
+    | "already_linked"
+    | "manual_review"
+    | "insufficient_evidence"
+    | "conflict"
+    | "revocation_respected"
+    | "archived";
+  reviewReason: string;
+  suggestedCustomer: HomeAtlasCustomerCandidate | null;
   customerLink: CustomerLinkPreview | null;
 }
+
+type CustomerQueue = "review" | "unpaired" | "paired" | "all";
 
 interface CustomerWorkspace {
   executionMode: "supervised_customer_pairing";
@@ -57,6 +77,8 @@ interface CustomerWorkspace {
   pageSize: number;
   totalPages: number;
   search: string;
+  queue: CustomerQueue;
+  queueCounts: Record<CustomerQueue, number>;
 }
 
 interface MatchResponse {
@@ -68,11 +90,13 @@ interface MatchResponse {
 async function requestCustomerWorkspace(
   search: string,
   page: number,
+  queue: CustomerQueue,
 ): Promise<CustomerWorkspace> {
   const params = new URLSearchParams({
     search,
     page: String(page),
     pageSize: "20",
+    queue,
   });
   const response = await fetch(
     `/api/admin/care-operations/jobber/customers?${params.toString()}`,
@@ -85,6 +109,156 @@ async function requestCustomerWorkspace(
     throw new Error(body?.error ?? "Could not load Jobber customers");
   }
   return body;
+}
+
+function normalizeEvidence(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function normalizePhoneEvidence(value: string | null | undefined): string {
+  const digits = (value ?? "").replace(/\D/g, "");
+  return digits.length === 11 && digits.startsWith("1")
+    ? digits.slice(1)
+    : digits;
+}
+
+const STREET_SUFFIXES: Record<string, string> = {
+  avenue: "ave",
+  boulevard: "blvd",
+  circle: "cir",
+  court: "ct",
+  drive: "dr",
+  highway: "hwy",
+  lane: "ln",
+  parkway: "pkwy",
+  place: "pl",
+  road: "rd",
+  street: "st",
+  terrace: "ter",
+  trail: "trl",
+  way: "way",
+};
+
+function normalizeStreetEvidence(value: string): string {
+  return value
+    .normalize("NFKD")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => STREET_SUFFIXES[word] ?? word)
+    .join(" ");
+}
+
+function jobberAddressEvidenceKey(
+  address: Record<string, string | null> | null,
+): string | null {
+  if (!address) return null;
+  const first = (...keys: string[]) =>
+    keys.map((key) => address[key]).find((value) => value?.trim())?.trim() ?? "";
+  const street1 = first(
+    "street",
+    "streetAddress",
+    "street1",
+    "streetOne",
+    "address1",
+    "line1",
+  );
+  const street2 =
+    street1 === address.street
+      ? ""
+      : first("street2", "streetTwo", "address2", "line2");
+  const city = normalizeEvidence(first("city"));
+  const state = normalizeEvidence(
+    first("province", "provinceCode", "state", "stateCode"),
+  ).replace("california", "ca");
+  const zip = first("postalCode", "zipCode").replace(/\D/g, "").slice(0, 5);
+  const street = normalizeStreetEvidence([street1, street2].filter(Boolean).join(" "));
+  return street && city && state && zip
+    ? `${street}|${city}|${state}|${zip}`
+    : null;
+}
+
+function homeAtlasAddressEvidenceKey(
+  property: HomeAtlasCustomerCandidate["properties"][number],
+): string | null {
+  const street = normalizeStreetEvidence(property.address);
+  const city = normalizeEvidence(property.city);
+  const state = normalizeEvidence(property.state).replace("california", "ca");
+  const zip = property.zip.replace(/\D/g, "").slice(0, 5);
+  return street && city && state && zip
+    ? `${street}|${city}|${state}|${zip}`
+    : null;
+}
+
+function jobberAddressLabel(
+  address: Record<string, string | null> | null,
+): string {
+  if (!address) return "Not available";
+  const first = (...keys: string[]) =>
+    keys.map((key) => address[key]).find((value) => value?.trim())?.trim() ?? "";
+  return [
+    first("street", "streetAddress", "street1", "streetOne", "address1", "line1"),
+    first("street2", "streetTwo", "address2", "line2"),
+    first("city"),
+    first("province", "provinceCode", "state", "stateCode"),
+    first("postalCode", "zipCode"),
+  ]
+    .filter(Boolean)
+    .join(", ") || "Not available";
+}
+
+function evidenceState(
+  source: string | null | undefined,
+  targets: Array<string | null | undefined>,
+  normalizer = normalizeEvidence,
+): "exact" | "different" | "missing" {
+  const normalizedSource = normalizer(source);
+  const normalizedTargets = targets.map(normalizer).filter(Boolean);
+  if (!normalizedSource || normalizedTargets.length === 0) return "missing";
+  return normalizedTargets.includes(normalizedSource) ? "exact" : "different";
+}
+
+function EvidenceRow({
+  label,
+  jobber,
+  homeAtlas,
+  state,
+}: {
+  label: string;
+  jobber: string;
+  homeAtlas: string;
+  state: "exact" | "different" | "missing";
+}) {
+  const badge =
+    state === "exact"
+      ? "Exact"
+      : state === "different"
+        ? "Different"
+        : "Missing";
+  return (
+    <div className="grid gap-2 border-t border-border/60 py-3 first:border-t-0 sm:grid-cols-[6rem_1fr_1fr_auto] sm:items-center">
+      <p className="text-[10px] uppercase tracking-[0.14em] text-muted">{label}</p>
+      <p className="break-words text-xs text-foreground">{jobber}</p>
+      <p className="break-words text-xs text-foreground">{homeAtlas}</p>
+      <span
+        className={`w-fit rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${
+          state === "exact"
+            ? "border-emerald-500/30 text-emerald-300"
+            : state === "different"
+              ? "border-amber-500/30 text-amber-300"
+              : "border-border text-muted"
+        }`}
+      >
+        {badge}
+      </span>
+    </div>
+  );
 }
 
 async function requestHomeAtlasCustomers(
@@ -107,6 +281,7 @@ async function requestHomeAtlasCustomers(
 export function JobberCustomerPairingPanel() {
   const [workspace, setWorkspace] = useState<CustomerWorkspace | null>(null);
   const [query, setQuery] = useState("");
+  const [queue, setQueue] = useState<CustomerQueue>("review");
   const [homeAtlasQueries, setHomeAtlasQueries] = useState<
     Record<string, string>
   >({});
@@ -126,11 +301,15 @@ export function JobberCustomerPairingPanel() {
   const [savingClientId, setSavingClientId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(async (search: string, page: number) => {
+  const load = useCallback(async (
+    search: string,
+    page: number,
+    nextQueue: CustomerQueue,
+  ) => {
     setLoading(true);
     setError(null);
     try {
-      setWorkspace(await requestCustomerWorkspace(search, page));
+      setWorkspace(await requestCustomerWorkspace(search, page, nextQueue));
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -144,7 +323,7 @@ export function JobberCustomerPairingPanel() {
 
   useEffect(() => {
     let cancelled = false;
-    requestCustomerWorkspace("", 1)
+    requestCustomerWorkspace("", 1, "review")
       .then((result) => {
         if (!cancelled) setWorkspace(result);
       })
@@ -168,7 +347,12 @@ export function JobberCustomerPairingPanel() {
   const submitSearch = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const nextQuery = query.trim();
-    void load(nextQuery, 1);
+    void load(nextQuery, 1, queue);
+  };
+
+  const changeQueue = (nextQueue: CustomerQueue) => {
+    setQueue(nextQueue);
+    void load(query.trim(), 1, nextQueue);
   };
 
   const searchHomeAtlas = async (
@@ -211,6 +395,22 @@ export function JobberCustomerPairingPanel() {
   ) => {
     const homeownerId = selectedHomeowners[client.externalClientId];
     if (action === "link" && !homeownerId) return;
+    const selectedCandidate =
+      homeAtlasResults[client.externalClientId]?.customers.find(
+        (candidate) => candidate.homeownerId === homeownerId,
+      ) ??
+      (client.suggestedCustomer?.homeownerId === homeownerId
+        ? client.suggestedCustomer
+        : null);
+    if (
+      action === "link" &&
+      (!selectedCandidate ||
+        !window.confirm(
+          `Pair Jobber ${client.name} with HomeAtlas ${selectedCandidate.fullName}? This links identity only and cannot enable billing.`,
+        ))
+    ) {
+      return;
+    }
     if (
       action === "revoke" &&
       !window.confirm(
@@ -236,9 +436,12 @@ export function JobberCustomerPairingPanel() {
               action === "link"
                 ? confirmations[client.externalClientId] === true
                 : undefined,
+            expectedSourcePayloadHash:
+              action === "link" ? client.sourcePayloadHash : undefined,
             expectedLinkUpdatedAt: client.customerLink?.updatedAt ?? null,
             search: workspace?.search ?? "",
             page: workspace?.page ?? 1,
+            queue: workspace?.queue ?? queue,
           }),
         },
       );
@@ -297,6 +500,36 @@ export function JobberCustomerPairingPanel() {
         </div>
       </div>
 
+      <div
+        className="mt-5 flex flex-wrap gap-2"
+        role="group"
+        aria-label="Customer pairing queues"
+      >
+        {(
+          [
+            ["review", "Needs review"],
+            ["unpaired", "Needs info"],
+            ["paired", "Paired"],
+            ["all", "All"],
+          ] as Array<[CustomerQueue, string]>
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => changeQueue(value)}
+            disabled={loading}
+            aria-pressed={queue === value}
+            className={`rounded-full border px-4 py-2 text-xs transition disabled:opacity-50 ${
+              queue === value
+                ? "border-accent/40 bg-accent/10 text-accent"
+                : "border-border text-muted hover:text-foreground"
+            }`}
+          >
+            {label} {workspace?.queueCounts[value]?.toLocaleString() ?? "-"}
+          </button>
+        ))}
+      </div>
+
       <form
         onSubmit={submitSearch}
         className="mt-5 flex flex-col gap-2 sm:flex-row"
@@ -338,7 +571,17 @@ export function JobberCustomerPairingPanel() {
             const saving = savingClientId === client.externalClientId;
             const searchingHomeAtlas =
               searchingHomeAtlasClientId === client.externalClientId;
-            const searchResult = homeAtlasResults[client.externalClientId];
+            const searchedResult = homeAtlasResults[client.externalClientId];
+            const suggestedCustomer = client.suggestedCustomer;
+            const searchResult =
+              searchedResult ??
+              (suggestedCustomer
+                ? {
+                    customers: [suggestedCustomer],
+                    search: "",
+                    limitReached: false,
+                  }
+                : undefined);
             const selected =
               selectedHomeowners[client.externalClientId] ?? "";
             const selectedCustomer = searchResult?.customers.find(
@@ -346,6 +589,28 @@ export function JobberCustomerPairingPanel() {
             );
             const confirmed =
               confirmations[client.externalClientId] === true;
+            const jobberAddress = jobberAddressLabel(
+              client.properties[0]?.address ?? null,
+            );
+            const homeAtlasAddresses =
+              selectedCustomer?.properties.map((property) =>
+                [property.address, property.city, property.state, property.zip]
+                  .filter(Boolean)
+                  .join(", "),
+              ) ?? [];
+            const emailState = evidenceState(
+              client.email,
+              [selectedCustomer?.email],
+            );
+            const phoneState = evidenceState(
+              client.phone,
+              [selectedCustomer?.phone],
+              normalizePhoneEvidence,
+            );
+            const addressState = evidenceState(
+              jobberAddressEvidenceKey(client.properties[0]?.address ?? null),
+              selectedCustomer?.properties.map(homeAtlasAddressEvidenceKey) ?? [],
+            );
 
             return (
               <article
@@ -356,6 +621,19 @@ export function JobberCustomerPairingPanel() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="text-sm text-foreground">{client.name}</p>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-[10px] uppercase tracking-wide ${
+                          client.reviewOutcome === "conflict"
+                            ? "border-red-500/30 text-red-300"
+                            : client.reviewOutcome === "manual_review"
+                              ? "border-amber-500/30 text-amber-300"
+                              : client.reviewOutcome === "already_linked"
+                                ? "border-emerald-500/30 text-emerald-300"
+                                : "border-border text-muted"
+                        }`}
+                      >
+                        {client.reviewOutcome.replaceAll("_", " ")}
+                      </span>
                       {client.isArchived ? (
                         <span className="rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted">
                           Archived
@@ -375,6 +653,9 @@ export function JobberCustomerPairingPanel() {
                       {client.propertyCount} propert
                       {client.propertyCount === 1 ? "y" : "ies"}
                       {!client.propertiesComplete ? " - first 25 shown" : ""}
+                    </p>
+                    <p className="mt-2 max-w-xl text-xs leading-relaxed text-amber-200/80">
+                      {client.reviewReason}
                     </p>
                     {client.properties.length ? (
                       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
@@ -423,6 +704,32 @@ export function JobberCustomerPairingPanel() {
                   </div>
                 ) : (
                   <div className="mt-4 space-y-3 rounded-xl border border-border/70 p-4">
+                    {suggestedCustomer && !searchedResult ? (
+                      <div className="flex flex-col gap-3 rounded-xl border border-accent/25 bg-accent/[0.05] p-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.14em] text-accent">
+                            Evidence-based suggestion
+                          </p>
+                          <p className="mt-1 text-sm text-foreground">
+                            {suggestedCustomer.fullName}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSelectedHomeowners((current) => ({
+                              ...current,
+                              [client.externalClientId]:
+                                suggestedCustomer.homeownerId,
+                            }))
+                          }
+                          disabled={savingClientId !== null}
+                          className="rounded-full border border-accent/40 px-4 py-2 text-xs text-accent disabled:opacity-50"
+                        >
+                          Compare records
+                        </button>
+                      </div>
+                    ) : null}
                     <form
                       onSubmit={(event) => void searchHomeAtlas(event, client)}
                       className="flex flex-col gap-2 sm:flex-row"
@@ -498,18 +805,57 @@ export function JobberCustomerPairingPanel() {
                             </p>
                           ) : null}
                           {selectedCustomer ? (
-                            <div className="rounded-xl bg-foreground/[0.035] p-3 text-xs leading-relaxed text-muted">
-                              <p className="text-foreground">
-                                {selectedCustomer.fullName}
-                              </p>
-                              <p>
-                                {[selectedCustomer.email, selectedCustomer.phone]
-                                  .filter(Boolean)
-                                  .join(" - ") || "No email or phone"}
-                              </p>
-                              {selectedCustomer.properties.map((property) => (
-                                <p key={property.propertyId}>{property.label}</p>
-                              ))}
+                            <div className="rounded-xl border border-border/70 bg-foreground/[0.035] p-3 text-xs leading-relaxed text-muted">
+                              <div className="grid gap-1 pb-2 sm:grid-cols-[6rem_1fr_1fr_auto]">
+                                <span />
+                                <p className="text-[10px] uppercase tracking-[0.14em] text-muted">
+                                  Jobber
+                                </p>
+                                <p className="text-[10px] uppercase tracking-[0.14em] text-muted">
+                                  HomeAtlas
+                                </p>
+                                <span />
+                              </div>
+                              <EvidenceRow
+                                label="Customer"
+                                jobber={client.name}
+                                homeAtlas={selectedCustomer.fullName}
+                                state={evidenceState(client.name, [selectedCustomer.fullName])}
+                              />
+                              <EvidenceRow
+                                label="Email"
+                                jobber={client.email || "Not available"}
+                                homeAtlas={selectedCustomer.email || "Not available"}
+                                state={emailState}
+                              />
+                              <EvidenceRow
+                                label="Phone"
+                                jobber={client.phone || "Not available"}
+                                homeAtlas={selectedCustomer.phone || "Not available"}
+                                state={phoneState}
+                              />
+                              <EvidenceRow
+                                label="Property"
+                                jobber={jobberAddress}
+                                homeAtlas={homeAtlasAddresses.join(" / ") || "Not available"}
+                                state={addressState}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSelectedHomeowners((current) => ({
+                                    ...current,
+                                    [client.externalClientId]: "",
+                                  }));
+                                  setConfirmations((current) => ({
+                                    ...current,
+                                    [client.externalClientId]: false,
+                                  }));
+                                }}
+                                className="mt-2 text-xs text-muted underline decoration-border underline-offset-4 hover:text-foreground"
+                              >
+                                Not the same customer - clear selection
+                              </button>
                             </div>
                           ) : null}
                           <label className="flex items-start gap-3 text-xs leading-relaxed text-muted">
@@ -575,7 +921,9 @@ export function JobberCustomerPairingPanel() {
         >
           <button
             type="button"
-            onClick={() => void load(workspace.search, workspace.page - 1)}
+            onClick={() =>
+              void load(workspace.search, workspace.page - 1, workspace.queue)
+            }
             disabled={loading || workspace.page <= 1}
             className="rounded-full border border-border px-4 py-2 text-xs text-muted disabled:opacity-40"
           >
@@ -586,7 +934,9 @@ export function JobberCustomerPairingPanel() {
           </span>
           <button
             type="button"
-            onClick={() => void load(workspace.search, workspace.page + 1)}
+            onClick={() =>
+              void load(workspace.search, workspace.page + 1, workspace.queue)
+            }
             disabled={loading || workspace.page >= workspace.totalPages}
             className="rounded-full border border-border px-4 py-2 text-xs text-muted disabled:opacity-40"
           >

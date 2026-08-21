@@ -109,6 +109,45 @@ export interface JobberAutoLinkSummary {
   portalRepairsNeeded: number;
 }
 
+export async function loadStrictExactCustomerLinkDecisions(): Promise<
+  StrictAutoLinkDecision[]
+> {
+  const supabase = createServiceRoleSupabaseClient();
+  const [clients, homeowners, properties, memberships, customerLinks, propertyLinks] =
+    await Promise.all([
+      supabase
+        .from("jobber_client_projections")
+        .select("external_client_id, email, phone, is_archived, properties, property_count, properties_complete")
+        .eq("connection_id", JOBBER_CONNECTION_ID),
+      supabase.from("homeowners").select("id, email, phone"),
+      supabase.from("properties").select("id, homeowner_id, address, city, state, zip"),
+      supabase
+        .from("memberships")
+        .select(
+          "id, homeowner_id, property_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, agreement_id, sales_tier, visit_price",
+        ),
+      supabase
+        .from("jobber_customer_links")
+        .select("external_client_id, homeowner_id, link_state")
+        .eq("connection_id", JOBBER_CONNECTION_ID),
+      supabase
+        .from("jobber_property_links")
+        .select("external_property_id, property_id, membership_id, link_state")
+        .eq("connection_id", JOBBER_CONNECTION_ID),
+    ]);
+  for (const result of [clients, homeowners, properties, memberships, customerLinks, propertyLinks]) {
+    if (result.error) throw new Error(result.error.message);
+  }
+  return evaluateStrictExactCustomerLinks({
+    clients: (clients.data ?? []) as StrictJobberClient[],
+    homeowners: (homeowners.data ?? []) as StrictHomeowner[],
+    properties: (properties.data ?? []) as StrictProperty[],
+    memberships: (memberships.data ?? []) as StrictMembership[],
+    customerLinks: (customerLinks.data ?? []) as StrictCustomerLink[],
+    propertyLinks: (propertyLinks.data ?? []) as StrictPropertyLink[],
+  });
+}
+
 const STREET_SUFFIXES: Record<string, string> = {
   avenue: "ave",
   boulevard: "blvd",
@@ -457,39 +496,7 @@ export function evaluateStrictExactCustomerLinks(
 
 export async function reconcileStrictExactJobberCustomerLinks(): Promise<JobberAutoLinkSummary> {
   const supabase = createServiceRoleSupabaseClient();
-  const [clients, homeowners, properties, memberships, customerLinks, propertyLinks] =
-    await Promise.all([
-      supabase
-        .from("jobber_client_projections")
-        .select("external_client_id, email, phone, is_archived, properties, property_count, properties_complete")
-        .eq("connection_id", JOBBER_CONNECTION_ID),
-      supabase.from("homeowners").select("id, email, phone"),
-      supabase.from("properties").select("id, homeowner_id, address, city, state, zip"),
-      supabase
-        .from("memberships")
-        .select(
-          "id, homeowner_id, property_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, agreement_id, sales_tier, visit_price",
-        ),
-      supabase
-        .from("jobber_customer_links")
-        .select("external_client_id, homeowner_id, link_state")
-        .eq("connection_id", JOBBER_CONNECTION_ID),
-      supabase
-        .from("jobber_property_links")
-        .select("external_property_id, property_id, membership_id, link_state")
-        .eq("connection_id", JOBBER_CONNECTION_ID),
-    ]);
-  for (const result of [clients, homeowners, properties, memberships, customerLinks, propertyLinks]) {
-    if (result.error) throw new Error(result.error.message);
-  }
-  const decisions = evaluateStrictExactCustomerLinks({
-    clients: (clients.data ?? []) as StrictJobberClient[],
-    homeowners: (homeowners.data ?? []) as StrictHomeowner[],
-    properties: (properties.data ?? []) as StrictProperty[],
-    memberships: (memberships.data ?? []) as StrictMembership[],
-    customerLinks: (customerLinks.data ?? []) as StrictCustomerLink[],
-    propertyLinks: (propertyLinks.data ?? []) as StrictPropertyLink[],
-  });
+  const decisions = await loadStrictExactCustomerLinkDecisions();
   const summary: JobberAutoLinkSummary = {
     executionMode: "strict_exact_only",
     billingEnabled: false,
