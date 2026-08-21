@@ -1,5 +1,3 @@
-"use client";
-
 import ReactDOM from "react-dom";
 
 const ARTWORK_PATH = "/brand/homeatlas-member-loader-v2.webp";

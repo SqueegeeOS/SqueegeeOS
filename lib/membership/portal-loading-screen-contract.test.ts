@@ -23,8 +23,8 @@ describe("member portal loading screen contract", () => {
 
   it("uses the supplied HomeAtlas artwork and native animated mark", () => {
     expect(loader).toContain("/brand/homeatlas-member-loader-v2.webp");
-    expect(loader).toContain("ARTWORK_BLUR_DATA_URL");
-    expect(loader).toContain('placeholder="blur"');
+    expect(loader).toContain("ARTWORK_PREVIEW_DATA_URL");
+    expect(loader).toContain('backgroundImage: "var(--portal-loader-preview)"');
     expect(loader).toContain("AtlasMark");
     expect(loader).toContain("Preparing your HomeAtlas portal");
   });
@@ -41,6 +41,22 @@ describe("member portal loading screen contract", () => {
     expect(globalStyles).not.toContain("@keyframes portal-loading-dot-fill");
   });
 
+  it("spins only the contour rings around the stationary house mark", () => {
+    expect(loader).toContain("portal-loading-atlas");
+    expect(globalStyles).toContain("@keyframes portal-atlas-ring-clockwise");
+    expect(globalStyles).toContain("@keyframes portal-atlas-ring-counterclockwise");
+    expect(globalStyles).toContain(
+      ".portal-loading-atlas .atlas-mark-ring-a",
+    );
+    expect(globalStyles).toContain(
+      ".portal-loading-atlas .atlas-mark-ring-b",
+    );
+    expect(globalStyles).toContain(
+      ".portal-loading-atlas .atlas-mark-roof",
+    );
+    expect(globalStyles).toContain("stroke-dashoffset: 0");
+  });
+
   it("places one animated Atlas mark directly on the clean artwork", () => {
     expect(loader).toContain('className="h-full w-full');
     expect(loader).not.toContain("bg-[radial-gradient(circle");
@@ -50,6 +66,7 @@ describe("member portal loading screen contract", () => {
 
   it("preloads one publicly cacheable artwork asset before member navigation", () => {
     expect(preloader).toContain("ReactDOM.preload");
+    expect(preloader).not.toContain('"use client"');
     expect(preloader).toContain("/brand/homeatlas-member-loader-v2.webp");
     expect(hqLayout).toContain("<PreloadPortalLoadingArtwork />");
     expect(portalLayout).toContain("<PreloadPortalLoadingArtwork />");

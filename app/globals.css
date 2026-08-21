@@ -852,6 +852,39 @@ body {
   animation: atlas-hearth-in 0.7s cubic-bezier(0.16, 1, 0.3, 1) 1.3s both;
 }
 
+@keyframes portal-atlas-ring-clockwise {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes portal-atlas-ring-counterclockwise {
+  to { transform: rotate(-360deg); }
+}
+
+.portal-loading-atlas .atlas-mark-ring-a {
+  animation: portal-atlas-ring-clockwise 2.8s linear infinite;
+  will-change: transform;
+}
+
+.portal-loading-atlas .atlas-mark-ring-b {
+  animation: portal-atlas-ring-counterclockwise 2s linear infinite;
+  will-change: transform;
+}
+
+.portal-loading-atlas .atlas-mark-roof,
+.portal-loading-atlas .atlas-mark-hearth {
+  animation: none;
+}
+
+.portal-loading-atlas .atlas-mark-roof {
+  stroke-dashoffset: 0;
+}
+
+.portal-loading-atlas .atlas-mark-ring-a circle,
+.portal-loading-atlas .atlas-mark-ring-b circle {
+  stroke-opacity: 0.68;
+  stroke-width: 1.25;
+}
+
 @keyframes portal-loading-dot-sequence {
   0%, 28% {
     background-color: #f0c85b;
@@ -877,7 +910,12 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .atlas-mark-ring-a, .atlas-mark-ring-b, .atlas-mark-roof, .atlas-mark-hearth {
+  .atlas-mark-ring-a,
+  .atlas-mark-ring-b,
+  .atlas-mark-roof,
+  .atlas-mark-hearth,
+  .portal-loading-atlas .atlas-mark-ring-a,
+  .portal-loading-atlas .atlas-mark-ring-b {
     animation: none;
   }
   .atlas-mark-roof { stroke-dashoffset: 0; }
