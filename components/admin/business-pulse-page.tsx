@@ -10,6 +10,7 @@ import {
   type BusinessPulsePeriod,
   type BusinessPulseSnapshot,
   type BusinessPulseSourceHealth,
+  type BusinessPulseYearOverYearComparison,
 } from "@/lib/admin/business-pulse";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 
@@ -88,7 +89,7 @@ function MetricCard({
 }
 
 function monthYearLabel(monthKey: string | null): string {
-  if (!monthKey) return "the first available Jobber month";
+  if (!monthKey) return "the first available month";
   const instant = new Date(`${monthKey}-15T12:00:00.000Z`);
   if (Number.isNaN(instant.getTime())) return monthKey;
   return new Intl.DateTimeFormat("en-US", {
@@ -96,6 +97,108 @@ function monthYearLabel(monthKey: string | null): string {
     year: "numeric",
     timeZone: "America/Los_Angeles",
   }).format(instant);
+}
+
+function signedPercentage(value: number): string {
+  const formatted = new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: 1,
+    minimumFractionDigits: 1,
+  }).format(Math.abs(value));
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${formatted}%`;
+}
+
+function comparisonText(
+  comparison: BusinessPulseYearOverYearComparison,
+  compact = false,
+): string {
+  const timing = comparison.comparisonKind === "month_to_date" ? " MTD" : "";
+  if (comparison.status === "unavailable") {
+    return compact
+      ? `No ${comparison.priorYear} baseline`
+      : `No complete ${comparison.priorYear} baseline`;
+  }
+  if (comparison.status === "new") return `New${timing} vs ${comparison.priorYear}`;
+  return `${signedPercentage(comparison.percentChange ?? 0)}${timing} vs ${comparison.priorYear}`;
+}
+
+function ComparisonBadge({
+  comparison,
+  compact = false,
+}: {
+  comparison: BusinessPulseYearOverYearComparison;
+  compact?: boolean;
+}) {
+  const emphasis = comparison.status === "up" || comparison.status === "new";
+  return (
+    <span
+      className={`inline-flex rounded-full border px-2.5 py-1 text-[9px] font-medium tabular-nums ${emphasis ? "border-accent/25 bg-accent/[0.08] text-accent" : "border-white/[0.08] bg-white/[0.025] text-white/42"}`}
+    >
+      {comparisonText(comparison, compact)}
+    </span>
+  );
+}
+
+function summarizeYearComparison(
+  points: BusinessPulseSnapshot["monthlyRevenue"]["points"],
+  metric: "revenue" | "arr",
+): BusinessPulseYearOverYearComparison {
+  const tracked = points.filter((point) => {
+    if (point.isFutureMonth) return false;
+    return metric === "revenue" ? point.hasSourceCoverage : point.hasArrCoverage;
+  });
+  const comparisons = tracked.map((point) =>
+    metric === "revenue" ? point.revenueYearOverYear : point.arrYearOverYear,
+  );
+  const priorYear = points[0]?.year ? points[0].year - 1 : new Date().getFullYear() - 1;
+  const comparisonKind = comparisons.some(
+    (comparison) => comparison.comparisonKind === "month_to_date",
+  )
+    ? "month_to_date"
+    : "full_month";
+  const throughDay =
+    comparisons.find((comparison) => comparison.throughDay)?.throughDay ?? null;
+  if (
+    tracked.length === 0 ||
+    comparisons.some((comparison) => comparison.priorValueCents === null)
+  ) {
+    return {
+      priorYear,
+      priorValueCents: null,
+      percentChange: null,
+      status: "unavailable",
+      comparisonKind,
+      throughDay,
+    };
+  }
+  const currentValueCents = tracked.reduce(
+    (sum, point) =>
+      sum + (metric === "revenue" ? point.paidRevenueCents : point.arrAddedCents),
+    0,
+  );
+  const priorValueCents = comparisons.reduce(
+    (sum, comparison) => sum + (comparison.priorValueCents ?? 0),
+    0,
+  );
+  if (priorValueCents === 0) {
+    return {
+      priorYear,
+      priorValueCents,
+      percentChange: currentValueCents === 0 ? 0 : null,
+      status: currentValueCents === 0 ? "flat" : "new",
+      comparisonKind,
+      throughDay,
+    };
+  }
+  const percentChange =
+    ((currentValueCents - priorValueCents) / priorValueCents) * 100;
+  return {
+    priorYear,
+    priorValueCents,
+    percentChange: Math.round(percentChange * 10) / 10,
+    status: percentChange > 0 ? "up" : percentChange < 0 ? "down" : "flat",
+    comparisonKind,
+    throughDay,
+  };
 }
 
 function MonthlyRevenueSection({
@@ -119,33 +222,49 @@ function MonthlyRevenueSection({
     (point) => point.year === effectiveYear,
   );
   const yearTotal = months.reduce(
-    (sum, month) => sum + month.paidRevenueCents,
+    (sum, month) => sum + (month.isFutureMonth ? 0 : month.paidRevenueCents),
     0,
   );
-  const paidJobs = months.reduce((sum, month) => sum + month.paidJobs, 0);
+  const arrAdded = months.reduce(
+    (sum, month) => sum + (month.isFutureMonth ? 0 : month.arrAddedCents),
+    0,
+  );
+  const membershipsSold = months.reduce(
+    (sum, month) => sum + (month.isFutureMonth ? 0 : month.membershipsSold),
+    0,
+  );
+  const arrTrackedInYear = months.some(
+    (month) => !month.isFutureMonth && month.hasArrCoverage,
+  );
+  const paidJobs = months.reduce(
+    (sum, month) => sum + (month.isFutureMonth ? 0 : month.paidJobs),
+    0,
+  );
   const maxRevenue = Math.max(
     1,
-    ...months.map((month) => month.paidRevenueCents),
+    ...months.map((month) => (month.isFutureMonth ? 0 : month.paidRevenueCents)),
   );
+  const revenueYearOverYear = summarizeYearComparison(months, "revenue");
+  const arrYearOverYear = summarizeYearComparison(months, "arr");
 
   return (
     <section className="mt-12 overflow-hidden rounded-[2rem] border border-white/[0.08] bg-[#0d0c0a]/85 p-5 sm:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-accent/65">
-            Revenue by month
+            Revenue + ARR momentum
           </p>
           <h2 className="mt-2 font-serif text-3xl text-[#f5f2eb] sm:text-4xl">
-            The year, month by month.
+            Growth, month by month.
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/42">
-            Paid Jobber revenue grouped by service month. History begins with
-            {" "}
-            {monthYearLabel(revenue?.earliestRecordedMonth ?? null)}; zero months
-            stay visible so growth reads honestly.
+            Paid Jobber revenue follows the service month; HomeAtlas ARR follows
+            the contract-signing month. Revenue history begins with {" "}
+            {monthYearLabel(revenue?.earliestRecordedMonth ?? null)}, and ARR
+            tracking begins with {monthYearLabel(revenue?.earliestArrMonth ?? null)}.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2" aria-label="Revenue year">
+        <div className="flex flex-wrap gap-2" aria-label="Performance year">
           {years.map((year) => (
             <button
               key={year}
@@ -160,18 +279,60 @@ function MonthlyRevenueSection({
         </div>
       </div>
 
-      <div className="mt-7 flex flex-wrap items-baseline justify-between gap-3 border-y border-white/[0.07] py-4">
-        <p className="text-xs uppercase tracking-[0.16em] text-white/35">
-          {effectiveYear} paid revenue
-        </p>
-        <div className="text-right">
-          <p className="font-serif text-3xl tabular-nums text-accent">
+      <div className="mt-7 grid gap-3 border-y border-white/[0.07] py-5 sm:grid-cols-3">
+        <article className="rounded-2xl border border-white/[0.07] bg-black/20 p-4">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">
+            {effectiveYear} paid revenue
+          </p>
+          <p className="mt-2 font-serif text-3xl tabular-nums text-accent">
             {loading && !snapshot ? "…" : money(yearTotal)}
           </p>
-          <p className="mt-1 text-[10px] text-white/30">
+          <div className="mt-3">
+            <ComparisonBadge comparison={revenueYearOverYear} />
+          </div>
+          <p className="mt-3 text-[10px] text-white/30">
             {paidJobs} unique paid Jobber jobs
           </p>
-        </div>
+        </article>
+        <article className="rounded-2xl border border-white/[0.07] bg-black/20 p-4">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">
+            {effectiveYear} ARR added
+          </p>
+          <p className="mt-2 font-serif text-3xl tabular-nums text-[#f5f2eb]">
+            {loading && !snapshot
+              ? "…"
+              : arrTrackedInYear
+                ? money(arrAdded)
+                : "Not tracked"}
+          </p>
+          <div className="mt-3">
+            {arrTrackedInYear && arrYearOverYear.status !== "unavailable" ? (
+              <ComparisonBadge comparison={arrYearOverYear} />
+            ) : (
+              <span className="inline-flex rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1 text-[9px] text-white/42">
+                {arrTrackedInYear
+                  ? "First tracked ARR year"
+                  : `ARR history starts ${monthYearLabel(revenue?.earliestArrMonth ?? null)}`}
+              </span>
+            )}
+          </div>
+          <p className="mt-3 text-[10px] text-white/30">
+            Gross annualized value signed in HomeAtlas
+          </p>
+        </article>
+        <article className="rounded-2xl border border-white/[0.07] bg-black/20 p-4">
+          <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">
+            Memberships signed
+          </p>
+          <p className="mt-2 font-serif text-3xl tabular-nums text-[#f5f2eb]">
+            {membershipsSold}
+          </p>
+          <p className="mt-3 text-xs leading-relaxed text-white/38">
+            {arrTrackedInYear
+              ? `Contracted plans adding ${money(arrAdded)} in annualized value.`
+              : "No HomeAtlas ARR history exists in this year."}
+          </p>
+        </article>
       </div>
 
       {months.length > 0 ? (
@@ -183,13 +344,26 @@ function MonthlyRevenueSection({
                 key={month.monthKey}
                 className="rounded-2xl border border-white/[0.07] bg-black/20 p-4"
               >
-                <p className="text-[10px] uppercase tracking-[0.16em] text-white/38">
-                  {month.monthLabel}
-                </p>
+                <div className="flex min-h-10 flex-wrap items-start justify-between gap-2">
+                  <p className="text-[10px] uppercase tracking-[0.16em] text-white/38">
+                    {month.monthLabel}
+                  </p>
+                  {!month.isFutureMonth && month.hasSourceCoverage ? (
+                    <ComparisonBadge
+                      comparison={month.revenueYearOverYear}
+                      compact
+                    />
+                  ) : null}
+                </div>
                 <p className="mt-3 font-serif text-2xl tabular-nums text-[#f5f2eb]">
-                  {month.hasSourceCoverage
+                  {month.isFutureMonth
+                    ? "Upcoming"
+                    : month.hasSourceCoverage
                     ? money(month.paidRevenueCents)
                     : "No data"}
+                </p>
+                <p className="mt-1 text-[9px] uppercase tracking-[0.12em] text-white/25">
+                  Paid revenue
                 </p>
                 <div
                   className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.06]"
@@ -197,14 +371,44 @@ function MonthlyRevenueSection({
                 >
                   <div
                     className="h-full rounded-full bg-accent/75 transition-[width] duration-700"
-                    style={{ width: `${barWidth}%` }}
+                    style={{ width: `${month.isFutureMonth ? 0 : barWidth}%` }}
                   />
                 </div>
                 <p className="mt-3 text-[10px] text-white/28">
-                  {month.hasSourceCoverage
+                  {month.isFutureMonth
+                    ? "Not included in totals"
+                    : month.hasSourceCoverage
                     ? `${month.paidJobs} paid ${month.paidJobs === 1 ? "job" : "jobs"}`
                     : "Before Jobber history"}
                 </p>
+                <div className="mt-4 border-t border-white/[0.06] pt-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <p className="text-[9px] uppercase tracking-[0.12em] text-white/28">
+                      ARR added
+                    </p>
+                    <p className="font-serif text-lg tabular-nums text-accent/90">
+                      {month.isFutureMonth
+                        ? "—"
+                        : month.hasArrCoverage
+                          ? money(month.arrAddedCents)
+                          : "Not tracked"}
+                    </p>
+                  </div>
+                  <p className="mt-1 text-right text-[9px] text-white/25">
+                    {month.isFutureMonth
+                      ? "Upcoming"
+                      : month.hasArrCoverage
+                        ? `${month.membershipsSold} signed ${month.membershipsSold === 1 ? "membership" : "memberships"}`
+                        : "Before HomeAtlas ARR history"}
+                  </p>
+                  {!month.isFutureMonth &&
+                  month.hasArrCoverage &&
+                  month.arrYearOverYear.status !== "unavailable" ? (
+                    <div className="mt-2 flex justify-end">
+                      <ComparisonBadge comparison={month.arrYearOverYear} compact />
+                    </div>
+                  ) : null}
+                </div>
               </article>
             );
           })}

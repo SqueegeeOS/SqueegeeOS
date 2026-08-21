@@ -60,7 +60,22 @@ export interface BusinessPulseMonthlyRevenuePoint {
   monthLabel: string;
   paidRevenueCents: number;
   paidJobs: number;
+  arrAddedCents: number;
+  membershipsSold: number;
   hasSourceCoverage: boolean;
+  hasArrCoverage: boolean;
+  isFutureMonth: boolean;
+  revenueYearOverYear: BusinessPulseYearOverYearComparison;
+  arrYearOverYear: BusinessPulseYearOverYearComparison;
+}
+
+export interface BusinessPulseYearOverYearComparison {
+  priorYear: number;
+  priorValueCents: number | null;
+  percentChange: number | null;
+  status: "up" | "down" | "flat" | "new" | "unavailable";
+  comparisonKind: "full_month" | "month_to_date";
+  throughDay: number | null;
 }
 
 export interface BusinessPulseMembershipRow {
@@ -164,6 +179,7 @@ export interface BusinessPulseSnapshot {
     years: number[];
     points: BusinessPulseMonthlyRevenuePoint[];
     earliestRecordedMonth: string | null;
+    earliestArrMonth: string | null;
   };
   leadMix: Array<{ source: string; count: number }>;
   recentJobs: BusinessPulseRecentJob[];
@@ -328,27 +344,76 @@ function collapseJobberJobs(
   );
 }
 
-export function buildMonthlyPaidRevenue(
-  rows: BusinessPulseMonthlyJobRow[],
-  reference: Date = new Date(),
-): BusinessPulseSnapshot["monthlyRevenue"] {
+function yearOverYearComparison(input: {
+  currentValueCents: number;
+  priorValueCents: number | null;
+  priorYear: number;
+  comparisonKind: "full_month" | "month_to_date";
+  throughDay: number | null;
+}): BusinessPulseYearOverYearComparison {
+  if (input.priorValueCents === null) {
+    return {
+      priorYear: input.priorYear,
+      priorValueCents: null,
+      percentChange: null,
+      status: "unavailable",
+      comparisonKind: input.comparisonKind,
+      throughDay: input.throughDay,
+    };
+  }
+  if (input.priorValueCents === 0) {
+    return {
+      priorYear: input.priorYear,
+      priorValueCents: 0,
+      percentChange: input.currentValueCents === 0 ? 0 : null,
+      status: input.currentValueCents === 0 ? "flat" : "new",
+      comparisonKind: input.comparisonKind,
+      throughDay: input.throughDay,
+    };
+  }
+  const percentChange =
+    ((input.currentValueCents - input.priorValueCents) /
+      input.priorValueCents) *
+    100;
+  return {
+    priorYear: input.priorYear,
+    priorValueCents: input.priorValueCents,
+    percentChange: Math.round(percentChange * 10) / 10,
+    status: percentChange > 0 ? "up" : percentChange < 0 ? "down" : "flat",
+    comparisonKind: input.comparisonKind,
+    throughDay: input.throughDay,
+  };
+}
+
+export function buildMonthlyBusinessPerformance(input: {
+  jobs: BusinessPulseMonthlyJobRow[];
+  memberships: BusinessPulseMembershipRow[];
+  agreements: BusinessPulseAgreementRow[];
+  reference?: Date;
+}): BusinessPulseSnapshot["monthlyRevenue"] {
+  const reference = input.reference ?? new Date();
   const currentMonthKey = formatBusinessCalendarDate(reference).slice(0, 7);
   const currentYear = Number(currentMonthKey.slice(0, 4));
+  const currentDay = Number(formatBusinessCalendarDate(reference).slice(8, 10));
   const jobs = new Map<
     string,
-    { serviceAt: string; amountCents: number; paid: boolean }
+    { serviceAt: string; amountCents: number; paid: boolean; day: number }
   >();
 
-  for (const row of rows) {
+  for (const row of input.jobs) {
     if (!row.scheduled_start) continue;
     const amountCents = Math.max(0, Number(row.job_total_cents ?? 0));
     const paid = normalizeInvoiceStatus(row.visit_invoice_status) === "paid";
+    const instant = new Date(row.scheduled_start);
+    if (Number.isNaN(instant.getTime())) continue;
+    const day = Number(formatBusinessCalendarDate(instant).slice(8, 10));
     const existing = jobs.get(row.external_job_id);
     if (!existing) {
       jobs.set(row.external_job_id, {
         serviceAt: row.scheduled_start,
         amountCents,
         paid,
+        day,
       });
       continue;
     }
@@ -356,6 +421,7 @@ export function buildMonthlyPaidRevenue(
     existing.paid ||= paid;
     if (row.scheduled_start < existing.serviceAt) {
       existing.serviceAt = row.scheduled_start;
+      existing.day = day;
     }
   }
 
@@ -364,7 +430,13 @@ export function buildMonthlyPaidRevenue(
     if (Number.isNaN(instant.getTime())) return [];
     const monthKey = formatBusinessCalendarDate(instant).slice(0, 7);
     const year = Number(monthKey.slice(0, 4));
-    if (!Number.isFinite(year) || monthKey > currentMonthKey) return [];
+    if (
+      !Number.isFinite(year) ||
+      monthKey > currentMonthKey ||
+      (monthKey === currentMonthKey && job.day > currentDay)
+    ) {
+      return [];
+    }
     return [{ ...job, monthKey, year }];
   });
   const paidJobs = historicalJobs.filter((job) => job.paid);
@@ -372,8 +444,44 @@ export function buildMonthlyPaidRevenue(
     historicalJobs
       .map((job) => job.monthKey)
       .sort((a, b) => a.localeCompare(b))[0] ?? null;
-  const earliestYear = historicalJobs.reduce(
-    (earliest, job) => Math.min(earliest, job.year),
+  const membershipsById = new Map(
+    input.memberships.map((membership) => [membership.id, membership]),
+  );
+  const recordedMemberships = new Set<string>();
+  const signedMemberships = input.agreements.flatMap((agreement) => {
+    if (!agreement.membership_id || recordedMemberships.has(agreement.membership_id)) {
+      return [];
+    }
+    const membership = membershipsById.get(agreement.membership_id);
+    if (!membership || membership.agreement_id !== agreement.id) return [];
+    const instant = new Date(agreement.signed_at);
+    if (Number.isNaN(instant.getTime())) return [];
+    const calendarDate = formatBusinessCalendarDate(instant);
+    const monthKey = calendarDate.slice(0, 7);
+    if (
+      monthKey > currentMonthKey ||
+      (monthKey === currentMonthKey &&
+        Number(calendarDate.slice(8, 10)) > currentDay)
+    ) {
+      return [];
+    }
+    recordedMemberships.add(agreement.membership_id);
+    return [
+      {
+        membershipId: agreement.membership_id,
+        monthKey,
+        year: Number(monthKey.slice(0, 4)),
+        day: Number(calendarDate.slice(8, 10)),
+        arrAddedCents: yearlyValueCents(membership),
+      },
+    ];
+  });
+  const earliestArrMonth =
+    signedMemberships
+      .map((membership) => membership.monthKey)
+      .sort((a, b) => a.localeCompare(b))[0] ?? null;
+  const earliestYear = [...historicalJobs, ...signedMemberships].reduce(
+    (earliest, record) => Math.min(earliest, record.year),
     currentYear,
   );
   const years = Array.from(
@@ -388,11 +496,33 @@ export function buildMonthlyPaidRevenue(
       monthLabel,
       paidRevenueCents: 0,
       paidJobs: 0,
+      arrAddedCents: 0,
+      membershipsSold: 0,
       hasSourceCoverage: Boolean(
         earliestRecordedMonth &&
           `${year}-${String(index + 1).padStart(2, "0")}` >=
             earliestRecordedMonth,
       ),
+      hasArrCoverage: Boolean(
+        earliestArrMonth &&
+          `${year}-${String(index + 1).padStart(2, "0")}` >= earliestArrMonth,
+      ),
+      isFutureMonth:
+        `${year}-${String(index + 1).padStart(2, "0")}` > currentMonthKey,
+      revenueYearOverYear: yearOverYearComparison({
+        currentValueCents: 0,
+        priorValueCents: null,
+        priorYear: year - 1,
+        comparisonKind: "full_month",
+        throughDay: null,
+      }),
+      arrYearOverYear: yearOverYearComparison({
+        currentValueCents: 0,
+        priorValueCents: null,
+        priorYear: year - 1,
+        comparisonKind: "full_month",
+        throughDay: null,
+      }),
     })),
   );
   const pointsByKey = new Map(points.map((point) => [point.monthKey, point]));
@@ -402,13 +532,73 @@ export function buildMonthlyPaidRevenue(
     point.paidRevenueCents += job.amountCents;
     point.paidJobs += 1;
   }
+  for (const membership of signedMemberships) {
+    const point = pointsByKey.get(membership.monthKey);
+    if (!point) continue;
+    point.arrAddedCents += membership.arrAddedCents;
+    point.membershipsSold += 1;
+  }
+
+  for (const point of points) {
+    if (point.isFutureMonth) continue;
+    const priorMonthKey = `${point.year - 1}-${String(point.month).padStart(2, "0")}`;
+    const priorPoint = pointsByKey.get(priorMonthKey);
+    const isCurrentMonth = point.monthKey === currentMonthKey;
+    const comparisonKind = isCurrentMonth ? "month_to_date" : "full_month";
+    const throughDay = isCurrentMonth ? currentDay : null;
+    const comparablePriorRevenue = priorPoint?.hasSourceCoverage
+      ? paidJobs
+          .filter(
+            (job) =>
+              job.monthKey === priorMonthKey &&
+              (!isCurrentMonth || job.day <= currentDay),
+          )
+          .reduce((sum, job) => sum + job.amountCents, 0)
+      : null;
+    const comparablePriorArr = priorPoint?.hasArrCoverage
+      ? signedMemberships
+          .filter(
+            (membership) =>
+              membership.monthKey === priorMonthKey &&
+              (!isCurrentMonth || membership.day <= currentDay),
+          )
+          .reduce((sum, membership) => sum + membership.arrAddedCents, 0)
+      : null;
+    point.revenueYearOverYear = yearOverYearComparison({
+      currentValueCents: point.paidRevenueCents,
+      priorValueCents: comparablePriorRevenue,
+      priorYear: point.year - 1,
+      comparisonKind,
+      throughDay,
+    });
+    point.arrYearOverYear = yearOverYearComparison({
+      currentValueCents: point.arrAddedCents,
+      priorValueCents: comparablePriorArr,
+      priorYear: point.year - 1,
+      comparisonKind,
+      throughDay,
+    });
+  }
 
   return {
     currentYear,
     years,
     points,
     earliestRecordedMonth,
+    earliestArrMonth,
   };
+}
+
+export function buildMonthlyPaidRevenue(
+  rows: BusinessPulseMonthlyJobRow[],
+  reference: Date = new Date(),
+): BusinessPulseSnapshot["monthlyRevenue"] {
+  return buildMonthlyBusinessPerformance({
+    jobs: rows,
+    memberships: [],
+    agreements: [],
+    reference,
+  });
 }
 
 export function buildBusinessPulseSnapshot(input: {
@@ -449,15 +639,18 @@ export function buildBusinessPulseSnapshot(input: {
   const completedJobs = jobs.filter((job) => job.completed);
   const classifiedJobs = jobs.filter((job) => job.membershipAssociated).length;
   const unclassifiedJobs = jobs.length - classifiedJobs;
-  const agreementMembershipIds = new Map(
-    input.agreements
-      .filter((agreement) => agreement.membership_id)
-      .map((agreement) => [agreement.membership_id as string, agreement]),
+  const membershipsById = new Map(
+    input.memberships.map((membership) => [membership.id, membership]),
   );
-  const recentMembershipSales = onBookMemberships
-    .flatMap((membership) => {
-      const agreement = agreementMembershipIds.get(membership.id);
-      if (!agreement) return [];
+  const recordedMembershipIds = new Set<string>();
+  const allMembershipSales = input.agreements
+    .flatMap((agreement) => {
+      if (!agreement.membership_id || recordedMembershipIds.has(agreement.membership_id)) {
+        return [];
+      }
+      const membership = membershipsById.get(agreement.membership_id);
+      if (!membership || membership.agreement_id !== agreement.id) return [];
+      recordedMembershipIds.add(agreement.membership_id);
       return [
         {
           membershipId: membership.id,
@@ -468,6 +661,10 @@ export function buildBusinessPulseSnapshot(input: {
       ];
     })
     .sort((a, b) => b.signedAt.localeCompare(a.signedAt));
+  const recentMembershipSales = allMembershipSales.filter(
+    (sale) =>
+      sale.signedAt >= input.range.startUtc && sale.signedAt < input.range.endUtc,
+  );
 
   const paidWorkValueCents = paidJobs.reduce(
     (sum, job) => sum + job.amountCents,
@@ -540,7 +737,12 @@ export function buildBusinessPulseSnapshot(input: {
       classifiedJobs,
       unclassifiedJobs,
     },
-    monthlyRevenue: buildMonthlyPaidRevenue(input.historicalJobs ?? input.jobs, now),
+    monthlyRevenue: buildMonthlyBusinessPerformance({
+      jobs: input.historicalJobs ?? input.jobs,
+      memberships: input.memberships,
+      agreements: input.agreements,
+      reference: now,
+    }),
     leadMix,
     recentJobs: jobs.slice(0, 20),
     recentMembershipSales: recentMembershipSales.slice(0, 20),
@@ -596,7 +798,7 @@ export function buildBusinessPulseSnapshot(input: {
       {
         label: "Monthly paid revenue",
         definition:
-          "Unique Jobber jobs whose invoice is marked paid, grouped by the month the service was scheduled in Pacific business time. Zero months remain visible after source coverage begins; earlier months are labeled no data.",
+          "Unique Jobber jobs whose invoice is marked paid, grouped by the month the service was scheduled in Pacific business time. Current-month year-over-year compares month-to-date through the same calendar day; closed months compare the full month.",
       },
       {
         label: "Completed work",
@@ -616,7 +818,7 @@ export function buildBusinessPulseSnapshot(input: {
       {
         label: "ARR added",
         definition:
-          "Annualized contract value of memberships signed during the selected period.",
+          "Gross annualized contract value credited once to the Pacific month its canonical membership agreement was signed. Later cancellation does not rewrite the historical sale; active ARR shows the current book.",
       },
     ],
   };

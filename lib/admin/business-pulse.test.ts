@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildBusinessPulseSnapshot,
+  buildMonthlyBusinessPerformance,
   buildMonthlyPaidRevenue,
   resolveBusinessPulseRange,
   type BusinessPulseMembershipRow,
@@ -195,6 +196,106 @@ describe("Business Pulse", () => {
     expect(monthly.points.find((point) => point.monthKey === "2026-10")).toMatchObject({
       paidRevenueCents: 0,
       paidJobs: 0,
+      isFutureMonth: true,
+    });
+  });
+
+  it("adds signed ARR by month and calculates honest year-over-year movement", () => {
+    const secondMembership: BusinessPulseMembershipRow = {
+      ...ACTIVE_MEMBERSHIP,
+      id: "membership-2",
+      property_id: "property-2",
+      agreement_id: "agreement-2",
+      annual_rate: 1_350,
+    };
+    const monthly = buildMonthlyBusinessPerformance({
+      jobs: [
+        {
+          external_job_id: "july-prior",
+          scheduled_start: "2025-07-10T17:00:00.000Z",
+          job_total_cents: 10_000,
+          visit_invoice_status: "paid",
+        },
+        {
+          external_job_id: "july-current",
+          scheduled_start: "2026-07-10T17:00:00.000Z",
+          job_total_cents: 15_000,
+          visit_invoice_status: "paid",
+        },
+        {
+          external_job_id: "august-prior-comparable",
+          scheduled_start: "2025-08-10T17:00:00.000Z",
+          job_total_cents: 10_000,
+          visit_invoice_status: "paid",
+        },
+        {
+          external_job_id: "august-prior-after-cutoff",
+          scheduled_start: "2025-08-25T17:00:00.000Z",
+          job_total_cents: 90_000,
+          visit_invoice_status: "paid",
+        },
+        {
+          external_job_id: "august-current",
+          scheduled_start: "2026-08-10T17:00:00.000Z",
+          job_total_cents: 20_000,
+          visit_invoice_status: "paid",
+        },
+        {
+          external_job_id: "august-current-future-day",
+          scheduled_start: "2026-08-25T17:00:00.000Z",
+          job_total_cents: 99_000,
+          visit_invoice_status: "paid",
+        },
+      ],
+      memberships: [ACTIVE_MEMBERSHIP, secondMembership],
+      agreements: [
+        {
+          id: "agreement-1",
+          membership_id: "membership-1",
+          homeowner_name: "July member",
+          signed_at: "2026-07-08T17:00:00.000Z",
+        },
+        {
+          id: "agreement-2",
+          membership_id: "membership-2",
+          homeowner_name: "August member",
+          signed_at: "2026-08-12T17:00:00.000Z",
+        },
+        {
+          id: "superseded-agreement",
+          membership_id: "membership-2",
+          homeowner_name: "August member",
+          signed_at: "2026-08-13T17:00:00.000Z",
+        },
+      ],
+      reference: new Date("2026-08-20T18:00:00.000Z"),
+    });
+
+    expect(monthly.earliestRecordedMonth).toBe("2025-07");
+    expect(monthly.earliestArrMonth).toBe("2026-07");
+    expect(monthly.points.find((point) => point.monthKey === "2026-07")).toMatchObject({
+      paidRevenueCents: 15_000,
+      arrAddedCents: 80_000,
+      membershipsSold: 1,
+      revenueYearOverYear: {
+        priorValueCents: 10_000,
+        percentChange: 50,
+        status: "up",
+        comparisonKind: "full_month",
+      },
+      arrYearOverYear: { status: "unavailable" },
+    });
+    expect(monthly.points.find((point) => point.monthKey === "2026-08")).toMatchObject({
+      paidRevenueCents: 20_000,
+      arrAddedCents: 135_000,
+      membershipsSold: 1,
+      revenueYearOverYear: {
+        priorValueCents: 10_000,
+        percentChange: 100,
+        status: "up",
+        comparisonKind: "month_to_date",
+        throughDay: 20,
+      },
     });
   });
 });

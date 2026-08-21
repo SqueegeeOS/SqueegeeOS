@@ -64,6 +64,7 @@ function unavailableSnapshot(
       years: [currentYear],
       points: [],
       earliestRecordedMonth: null,
+      earliestArrMonth: null,
     },
     leadMix: [],
     recentJobs: [],
@@ -140,8 +141,6 @@ export async function loadBusinessPulseSnapshot(
     supabase
       .from("signed_agreements")
       .select("id, membership_id, homeowner_name, signed_at")
-      .gte("signed_at", range.startUtc)
-      .lt("signed_at", range.endUtc)
       .order("signed_at", { ascending: false })
       .limit(ROW_LIMIT),
     supabase
