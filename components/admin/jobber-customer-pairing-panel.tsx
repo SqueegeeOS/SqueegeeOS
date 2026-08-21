@@ -87,6 +87,11 @@ interface MatchResponse {
   error?: string;
 }
 
+interface PairingStatus {
+  tone: "pending" | "success" | "error";
+  message: string;
+}
+
 async function requestCustomerWorkspace(
   search: string,
   page: number,
@@ -299,6 +304,9 @@ export function JobberCustomerPairingPanel() {
     string | null
   >(null);
   const [savingClientId, setSavingClientId] = useState<string | null>(null);
+  const [pairingStatuses, setPairingStatuses] = useState<
+    Record<string, PairingStatus>
+  >({});
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async (
@@ -394,7 +402,16 @@ export function JobberCustomerPairingPanel() {
     action: "link" | "revoke",
   ) => {
     const homeownerId = selectedHomeowners[client.externalClientId];
-    if (action === "link" && !homeownerId) return;
+    if (action === "link" && !homeownerId) {
+      setPairingStatuses((current) => ({
+        ...current,
+        [client.externalClientId]: {
+          tone: "error",
+          message: "Choose the matching HomeAtlas customer before pairing.",
+        },
+      }));
+      return;
+    }
     const selectedCandidate =
       homeAtlasResults[client.externalClientId]?.customers.find(
         (candidate) => candidate.homeownerId === homeownerId,
@@ -402,13 +419,15 @@ export function JobberCustomerPairingPanel() {
       (client.suggestedCustomer?.homeownerId === homeownerId
         ? client.suggestedCustomer
         : null);
-    if (
-      action === "link" &&
-      (!selectedCandidate ||
-        !window.confirm(
-          `Pair Jobber ${client.name} with HomeAtlas ${selectedCandidate.fullName}? This links identity only and cannot enable billing.`,
-        ))
-    ) {
+    if (action === "link" && !selectedCandidate) {
+      setPairingStatuses((current) => ({
+        ...current,
+        [client.externalClientId]: {
+          tone: "error",
+          message:
+            "That HomeAtlas selection is no longer available. Search and select it again.",
+        },
+      }));
       return;
     }
     if (
@@ -421,6 +440,16 @@ export function JobberCustomerPairingPanel() {
     }
 
     setSavingClientId(client.externalClientId);
+    setPairingStatuses((current) => ({
+      ...current,
+      [client.externalClientId]: {
+        tone: "pending",
+        message:
+          action === "link"
+            ? `Pairing ${client.name} with ${selectedCandidate?.fullName ?? "the selected HomeAtlas customer"}...`
+            : `Removing ${client.name}'s customer pairing...`,
+      },
+    }));
     setError(null);
     try {
       const response = await fetch(
@@ -460,12 +489,27 @@ export function JobberCustomerPairingPanel() {
         ...current,
         [client.externalClientId]: false,
       }));
+      setPairingStatuses((current) => ({
+        ...current,
+        [client.externalClientId]: {
+          tone: "success",
+          message:
+            action === "link"
+              ? `${client.name} is now paired with ${selectedCandidate?.fullName ?? "the selected HomeAtlas customer"}.`
+              : `${client.name}'s customer pairing was removed.`,
+        },
+      }));
     } catch (writeError) {
-      setError(
-        writeError instanceof Error
-          ? writeError.message
-          : "The customer pairing was not changed",
-      );
+      setPairingStatuses((current) => ({
+        ...current,
+        [client.externalClientId]: {
+          tone: "error",
+          message:
+            writeError instanceof Error
+              ? writeError.message
+              : "The customer pairing was not changed",
+        },
+      }));
     } finally {
       setSavingClientId(null);
     }
@@ -589,6 +633,7 @@ export function JobberCustomerPairingPanel() {
             );
             const confirmed =
               confirmations[client.externalClientId] === true;
+            const pairingStatus = pairingStatuses[client.externalClientId];
             const jobberAddress = jobberAddressLabel(
               client.properties[0]?.address ?? null,
             );
@@ -872,7 +917,8 @@ export function JobberCustomerPairingPanel() {
                               className="mt-0.5 size-4 accent-[var(--accent)]"
                             />
                             I verified this is the same customer or household
-                            in Jobber and HomeAtlas.
+                            in Jobber and HomeAtlas. Pairing links identity only
+                            and cannot enable billing.
                           </label>
                           <button
                             type="button"
@@ -900,6 +946,21 @@ export function JobberCustomerPairingPanel() {
                     )}
                   </div>
                 )}
+                {pairingStatus ? (
+                  <p
+                    className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-relaxed ${
+                      pairingStatus.tone === "success"
+                        ? "border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-200"
+                        : pairingStatus.tone === "error"
+                          ? "border-red-500/25 bg-red-500/[0.07] text-red-300"
+                          : "border-accent/25 bg-accent/[0.06] text-accent"
+                    }`}
+                    role={pairingStatus.tone === "error" ? "alert" : "status"}
+                    aria-live="polite"
+                  >
+                    {pairingStatus.message}
+                  </p>
+                ) : null}
               </article>
             );
           })}
