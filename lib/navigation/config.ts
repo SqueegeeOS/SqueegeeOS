@@ -32,6 +32,7 @@ export const ROUTES = {
   hqTechnicians: "/hq/technicians",
   hqAftercare: "/hq/aftercare",
   hqBilling: "/hq/billing",
+  hqBusinessPulse: "/hq/business-pulse",
   hqGrowth: "/hq/growth",
   hqMembership: "/hq/memberships",
   hqCustomerWorkspace: (type: string, id: string) =>
