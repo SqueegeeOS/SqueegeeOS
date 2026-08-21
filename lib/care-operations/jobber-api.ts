@@ -102,7 +102,11 @@ export interface JobberPaginatedResult<T> {
   pageCount: number;
 }
 
-export const JOBBER_PAGE_SIZE = 50;
+// Rich visit pages include nested crew and line-item connections. At 50 visits,
+// the requested GraphQL cost can exceed Jobber's fixed 10,000-point ceiling and
+// can never succeed, regardless of retry time. Ten keeps the worst-case request
+// bounded while cursor pagination still retrieves the complete visit history.
+export const JOBBER_PAGE_SIZE = 10;
 export const JOBBER_CLIENT_PAGE_SIZE = 25;
 export const JOBBER_MAX_PAGES = 200;
 

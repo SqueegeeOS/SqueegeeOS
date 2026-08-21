@@ -3,7 +3,7 @@ import {
   zonedDateTimeToUtc,
 } from "./company-business-timezone";
 import {
-  isMembershipActive as isCanonicalMembershipActive,
+  hasPaymentArrangement,
   isMembershipCancelled,
 } from "@/lib/membership/membership-status";
 
@@ -285,11 +285,9 @@ function isCancelled(status: string): boolean {
   return status.toLowerCase() === "archived" || isMembershipCancelled({ status });
 }
 
-function isActiveMembership(row: BusinessPulseMembershipRow): boolean {
-  return isCanonicalMembershipActive({
+function isArrQualifiedMembership(row: BusinessPulseMembershipRow): boolean {
+  return Boolean(row.agreement_id) && !isCancelled(row.status) && hasPaymentArrangement({
     status: row.status,
-    agreement_id: row.agreement_id,
-    visit_price: row.visit_price,
     payment_setup_completed_at: row.payment_setup_completed_at,
     stripe_payment_method_id: row.stripe_payment_method_id,
     stripe_customer_id: row.stripe_customer_id,
@@ -453,7 +451,13 @@ export function buildMonthlyBusinessPerformance(input: {
       return [];
     }
     const membership = membershipsById.get(agreement.membership_id);
-    if (!membership || membership.agreement_id !== agreement.id) return [];
+    if (
+      !membership ||
+      membership.agreement_id !== agreement.id ||
+      !isArrQualifiedMembership(membership)
+    ) {
+      return [];
+    }
     const instant = new Date(agreement.signed_at);
     if (Number.isNaN(instant.getTime())) return [];
     const calendarDate = formatBusinessCalendarDate(instant);
@@ -624,7 +628,9 @@ export function buildBusinessPulseSnapshot(input: {
   const onBookMemberships = input.memberships.filter(
     (row) => Boolean(row.agreement_id) && !isCancelled(row.status),
   );
-  const activeMemberships = input.memberships.filter(isActiveMembership);
+  const arrQualifiedMemberships = input.memberships.filter(
+    isArrQualifiedMembership,
+  );
   const onBookMembershipIds = new Set(onBookMemberships.map((row) => row.id));
   const linkedExternalPropertyIds = new Set(
     input.propertyLinks
@@ -649,7 +655,13 @@ export function buildBusinessPulseSnapshot(input: {
         return [];
       }
       const membership = membershipsById.get(agreement.membership_id);
-      if (!membership || membership.agreement_id !== agreement.id) return [];
+      if (
+        !membership ||
+        membership.agreement_id !== agreement.id ||
+        !isArrQualifiedMembership(membership)
+      ) {
+        return [];
+      }
       recordedMembershipIds.add(agreement.membership_id);
       return [
         {
@@ -720,7 +732,7 @@ export function buildBusinessPulseSnapshot(input: {
         paidWorkValueCents - membershipPaidWorkValueCents,
       homeAtlasMembershipCollectedCents:
         billingCollectedCents + addonCollectedCents,
-      activeArrCents: activeMemberships.reduce(
+      activeArrCents: arrQualifiedMemberships.reduce(
         (sum, membership) => sum + yearlyValueCents(membership),
         0,
       ),
@@ -728,7 +740,7 @@ export function buildBusinessPulseSnapshot(input: {
         (sum, sale) => sum + sale.annualizedValueCents,
         0,
       ),
-      activeMembers: activeMemberships.length,
+      activeMembers: arrQualifiedMemberships.length,
       membershipsSold: recentMembershipSales.length,
       leads: input.leads.length,
       jobsBooked: jobs.length,
@@ -818,7 +830,7 @@ export function buildBusinessPulseSnapshot(input: {
       {
         label: "ARR added",
         definition:
-          "Gross annualized contract value credited once to the Pacific month its canonical membership agreement was signed. Later cancellation does not rewrite the historical sale; active ARR shows the current book.",
+          "Annualized value credited to the Pacific month its canonical contract was signed only while that membership has a verified card-on-file or owner-approved cash/check arrangement and is not cancelled.",
       },
     ],
   };

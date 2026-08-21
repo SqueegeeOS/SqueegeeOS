@@ -252,14 +252,15 @@ function MonthlyRevenueSection({
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[10px] uppercase tracking-[0.2em] text-accent/65">
-            Revenue + ARR momentum
+            Revenue + qualified ARR momentum
           </p>
           <h2 className="mt-2 font-serif text-3xl text-[#f5f2eb] sm:text-4xl">
             Growth, month by month.
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/42">
-            Paid Jobber revenue follows the service month; HomeAtlas ARR follows
-            the contract-signing month. Revenue history begins with {" "}
+            Paid Jobber revenue follows the service month. HomeAtlas ARR follows
+            the contract-signing month only after payment is verified, and cancelled
+            plans are excluded. Revenue history begins with {" "}
             {monthYearLabel(revenue?.earliestRecordedMonth ?? null)}, and ARR
             tracking begins with {monthYearLabel(revenue?.earliestArrMonth ?? null)}.
           </p>
@@ -296,7 +297,7 @@ function MonthlyRevenueSection({
         </article>
         <article className="rounded-2xl border border-white/[0.07] bg-black/20 p-4">
           <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">
-            {effectiveYear} ARR added
+            {effectiveYear} qualified ARR added
           </p>
           <p className="mt-2 font-serif text-3xl tabular-nums text-[#f5f2eb]">
             {loading && !snapshot
@@ -317,19 +318,19 @@ function MonthlyRevenueSection({
             )}
           </div>
           <p className="mt-3 text-[10px] text-white/30">
-            Gross annualized value signed in HomeAtlas
+            Signed contract + verified payment arrangement; cancelled plans excluded
           </p>
         </article>
         <article className="rounded-2xl border border-white/[0.07] bg-black/20 p-4">
           <p className="text-[10px] uppercase tracking-[0.16em] text-white/35">
-            Memberships signed
+            ARR-qualified members
           </p>
           <p className="mt-2 font-serif text-3xl tabular-nums text-[#f5f2eb]">
             {membershipsSold}
           </p>
           <p className="mt-3 text-xs leading-relaxed text-white/38">
             {arrTrackedInYear
-              ? `Contracted plans adding ${money(arrAdded)} in annualized value.`
+              ? `Qualified plans adding ${money(arrAdded)} in current annualized value.`
               : "No HomeAtlas ARR history exists in this year."}
           </p>
         </article>
@@ -384,7 +385,7 @@ function MonthlyRevenueSection({
                 <div className="mt-4 border-t border-white/[0.06] pt-3">
                   <div className="flex items-baseline justify-between gap-2">
                     <p className="text-[9px] uppercase tracking-[0.12em] text-white/28">
-                      ARR added
+                      Qualified ARR
                     </p>
                     <p className="font-serif text-lg tabular-nums text-accent/90">
                       {month.isFutureMonth
@@ -398,7 +399,7 @@ function MonthlyRevenueSection({
                     {month.isFutureMonth
                       ? "Upcoming"
                       : month.hasArrCoverage
-                        ? `${month.membershipsSold} signed ${month.membershipsSold === 1 ? "membership" : "memberships"}`
+                        ? `${month.membershipsSold} qualified ${month.membershipsSold === 1 ? "membership" : "memberships"}`
                         : "Before HomeAtlas ARR history"}
                   </p>
                   {!month.isFutureMonth &&
@@ -583,15 +584,15 @@ function PulseContent() {
             detail={`${metrics?.jobsBooked ?? 0} unique jobs scheduled in the selected period.`}
           />
           <MetricCard
-            label="Active membership ARR"
+            label="Qualified membership ARR"
             value={loading ? "…" : money(metrics?.activeArrCents ?? 0)}
-            detail={`${metrics?.activeMembers ?? 0} strictly active HomeAtlas members.`}
+            detail={`${metrics?.activeMembers ?? 0} members with a signed contract and verified card or approved cash/check account.`}
             accent
           />
           <MetricCard
-            label="ARR sold"
+            label="Qualified ARR added"
             value={loading ? "…" : money(metrics?.arrAddedCents ?? 0)}
-            detail={`${metrics?.membershipsSold ?? 0} memberships signed during this period.`}
+            detail={`${metrics?.membershipsSold ?? 0} qualified memberships signed during this period; cancelled plans are excluded.`}
             accent
           />
         </section>
