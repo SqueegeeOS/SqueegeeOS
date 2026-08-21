@@ -12,6 +12,7 @@ import {
 } from "@/lib/care-operations/jobber-today-types";
 import { readVisitFieldDraft } from "@/lib/field-records/visit-field-draft";
 import type { VisitFieldSaveResult } from "@/components/visit/visit-field-capture";
+import { billingTodayReviewHref } from "@/lib/admin/billing-workspace-links";
 import {
   resolveTechnicianVisitNextAction,
   technicianVisitStageLabel,
@@ -182,6 +183,7 @@ function TechnicianVisitCard({
   fieldRecordStatusAvailable,
   fieldEventStatusAvailable,
   fieldActorName,
+  ownerSession,
   onSaved,
 }: {
   visit: JobberTodayVisit;
@@ -189,6 +191,7 @@ function TechnicianVisitCard({
   fieldRecordStatusAvailable: boolean;
   fieldEventStatusAvailable: boolean;
   fieldActorName: string | null;
+  ownerSession: boolean;
   onSaved: () => void;
 }) {
   const [captureOpen, setCaptureOpen] = useState(false);
@@ -224,6 +227,13 @@ function TechnicianVisitCard({
     (hasDraft && routeAction?.kind !== "closeout") ||
     visit.homeAtlasFieldStage === "service_completed" ||
     visit.homeAtlasFieldStage === "departed";
+  const ownerCheckoutReady = Boolean(
+    ownerSession &&
+      visit.homeAtlasFieldStage === "departed" &&
+      visit.isComplete &&
+      visit.homeAtlasFieldRecordCount > 0 &&
+      visit.homeAtlasCustomerVisibleRecordCount > 0,
+  );
   const moment = classifyJobberTodayVisit(visit);
   const actionLabel = hasDraft
     ? "Resume saved closeout"
@@ -526,6 +536,46 @@ function TechnicianVisitCard({
           </div>
         ) : null}
 
+        {ownerCheckoutReady ? (
+          <section className="mt-3 rounded-2xl border border-emerald-300/30 bg-emerald-300/[0.08] p-4">
+            <p className="text-[10px] uppercase tracking-[0.17em] text-emerald-200/70">
+              Owner checkout
+            </p>
+            <p className="mt-1 text-sm font-medium text-emerald-100">
+              Visit proof and the customer update are complete.
+            </p>
+            <p className="mt-1 text-xs leading-relaxed text-emerald-100/65">
+              Verify the portal, then review payment readiness. These links do
+              not email, invoice, or charge the customer.
+            </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              {visit.homeAtlasPortalPath ? (
+                <Link
+                  href={visit.homeAtlasPortalPath}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-emerald-200/25 bg-emerald-200/[0.06] px-3 text-center text-sm text-emerald-100 active:scale-[0.99]"
+                >
+                  Verify customer portal
+                </Link>
+              ) : null}
+              {visit.homeAtlasMembershipId && appointmentId ? (
+                <Link
+                  href={billingTodayReviewHref({
+                    membershipId: visit.homeAtlasMembershipId,
+                    appointmentId,
+                    projectionId: visit.projectionId,
+                  })}
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.09] px-3 text-center text-sm text-[#d5f8e4] active:scale-[0.99]"
+                  title="Opens the exact appointment in Billing. No charge happens from this link."
+                >
+                  Review payment readiness
+                </Link>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
         <div className="mt-5 grid grid-cols-2 gap-2">
           {propertyId ? (
             <Link
@@ -608,9 +658,13 @@ function TechnicianVisitCard({
 export function TechnicianTodayWorkspace({
   actorKind,
   actorDisplayName,
+  embeddedInHq = false,
+  onExitHqMode,
 }: {
   actorKind: "admin" | "technician";
   actorDisplayName: string;
+  embeddedInHq?: boolean;
+  onExitHqMode?: () => void;
 }) {
   const technicianSession = actorKind === "technician";
   const [data, setData] = useState<JobberTodayData | null>(null);
@@ -748,6 +802,14 @@ export function TechnicianTodayWorkspace({
                   Sign out
                 </button>
               </form>
+            ) : embeddedInHq && onExitHqMode ? (
+              <button
+                type="button"
+                onClick={onExitHqMode}
+                className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
+              >
+                HQ board
+              </button>
             ) : (
               <Link
                 href="/hq/today"
@@ -761,14 +823,15 @@ export function TechnicianTodayWorkspace({
 
         <header className="pb-7 pt-10">
           <p className="text-[10px] uppercase tracking-[0.24em] text-[#9be2bd]">
-            Technician command
+            {technicianSession ? "Technician command" : "Owner field mode"}
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
-            Field Run
+            {technicianSession ? "Field Run" : "Run Today"}
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
-            The real Jobber route, property memory, and required customer proof
-            in one phone-first workspace.
+            {technicianSession
+              ? "The real Jobber route, property memory, and required customer proof in one phone-first workspace."
+              : "Work each Jobber stop from arrival through customer proof, portal verification, and owner-approved payment review."}
           </p>
           {technicianSession ? (
             <p className="mt-4 inline-flex min-h-10 items-center rounded-full border border-[#9be2bd]/25 bg-[#9be2bd]/[0.07] px-4 text-xs text-[#c9f3dc]">
@@ -940,6 +1003,7 @@ export function TechnicianTodayWorkspace({
                     fieldActorName={
                       technicianSession ? actorDisplayName : null
                     }
+                    ownerSession={!technicianSession}
                     onSaved={() => void load()}
                   />
                 ))
