@@ -49,6 +49,21 @@ const VisitFieldCapture = dynamic(
   },
 );
 
+const OwnerFieldWorkspace = dynamic(
+  () =>
+    import("@/components/field/technician-today-workspace").then(
+      (module) => module.TechnicianTodayWorkspace,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex min-h-[100svh] items-center justify-center bg-[#080b0a] px-6 text-center text-sm text-white/55">
+        Building your owner field run…
+      </div>
+    ),
+  },
+);
+
 const MOMENT_STYLES: Record<
   JobberTodayVisitMoment,
   { label: string; className: string; dotClassName: string }
@@ -700,7 +715,11 @@ async function requestTodayData(): Promise<JobberTodayData> {
   return body;
 }
 
-function TodayWorkspaceContent() {
+function TodayWorkspaceContent({
+  onOpenOwnerFieldMode,
+}: {
+  onOpenOwnerFieldMode: () => void;
+}) {
   const [data, setData] = useState<JobberTodayData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -840,6 +859,13 @@ function TodayWorkspaceContent() {
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={onOpenOwnerFieldMode}
+                className="rounded-full border border-emerald-400/40 bg-emerald-400/10 px-5 py-3 text-sm text-emerald-200 transition hover:bg-emerald-400/15"
+              >
+                Open owner field mode
+              </button>
               <button
                 type="button"
                 onClick={() => void load()}
@@ -1162,6 +1188,23 @@ function TodayWorkspaceContent() {
 
 export function TodayWorkspacePage() {
   const [unlocked, setUnlocked] = useAdminUnlockedState();
+  const [workspaceMode, setWorkspaceMode] = useState<"board" | "field">(
+    "board",
+  );
   if (!unlocked) return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
-  return <TodayWorkspaceContent />;
+  if (workspaceMode === "field") {
+    return (
+      <OwnerFieldWorkspace
+        actorKind="admin"
+        actorDisplayName="HomeAtlas HQ"
+        embeddedInHq
+        onExitHqMode={() => setWorkspaceMode("board")}
+      />
+    );
+  }
+  return (
+    <TodayWorkspaceContent
+      onOpenOwnerFieldMode={() => setWorkspaceMode("field")}
+    />
+  );
 }

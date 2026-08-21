@@ -9,6 +9,7 @@ const proxy = read("../../proxy.ts");
 const fieldRun = read(
   "../../components/field/technician-today-workspace.tsx",
 );
+const hqToday = read("../../components/admin/today-workspace-page.tsx");
 const technicianHome = read("../../app/tech/page.tsx");
 const propertyDirectory = read("../../app/tech/properties/page.tsx");
 const todayRoute = read(
@@ -71,5 +72,22 @@ describe("technician field run contract", () => {
     );
     expect(fieldCapture).toContain("automatedScopeFollowUp");
     expect(fieldCapture).toContain("Build customer update from completed work");
+  });
+
+  it("makes the phone-first field run an intentional owner mode inside Today", () => {
+    expect(hqToday).toContain("OwnerFieldWorkspace");
+    expect(hqToday).toContain("Open owner field mode");
+    expect(hqToday).toContain("embeddedInHq");
+    expect(fieldRun).toContain("Owner field mode");
+    expect(fieldRun).toContain("HQ board");
+  });
+
+  it("hands a completed owner visit to portal and payment review without charging", () => {
+    expect(fieldRun).toContain("ownerCheckoutReady");
+    expect(fieldRun).toContain("Owner checkout");
+    expect(fieldRun).toContain("Verify customer portal");
+    expect(fieldRun).toContain("Review payment readiness");
+    expect(fieldRun).toContain("not email, invoice, or charge the customer");
+    expect(fieldRun).toContain("billingTodayReviewHref");
   });
 });
