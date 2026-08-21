@@ -2,6 +2,8 @@ import Image from "next/image";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 
 const ARTWORK_PATH = "/brand/homeatlas-member-loader-v1.webp";
+const ARTWORK_BLUR_DATA_URL =
+  "data:image/webp;base64,UklGRsIAAABXRUJQVlA4ILYAAACQBQCdASogADkAP0WMwVkwKKclKBgMAgAoiWUAAKf3Gy3FClfrqmu/fNl2BZClsgFaE9oNAAD+8NF58FIX+KDiJ9OOGTGjji6oFKfnnXB+4nQnWcMGiBoxNut/jqZ5a6e2Qp7BvKes98srVBJrG8YGH+zhQxkPsI9+CmFYsL4mkctXgCZMaf6KMCAFE/bIxU+VYN+C+1uDdbiQZzV1Ek0oDtyv/0R4zuO7ejUm5bpfQFQXSAAAAA==";
 
 export function PortalLoadingScreen() {
   return (
@@ -18,6 +20,8 @@ export function PortalLoadingScreen() {
         unoptimized
         loading="eager"
         fetchPriority="high"
+        placeholder="blur"
+        blurDataURL={ARTWORK_BLUR_DATA_URL}
         sizes="100vw"
         className="scale-110 object-cover opacity-35 blur-2xl"
         aria-hidden
@@ -31,6 +35,8 @@ export function PortalLoadingScreen() {
           unoptimized
           loading="eager"
           fetchPriority="high"
+          placeholder="blur"
+          blurDataURL={ARTWORK_BLUR_DATA_URL}
           sizes="(max-aspect-ratio:941/1672) 100vw, 56.28svh"
           className="object-contain"
           aria-hidden
