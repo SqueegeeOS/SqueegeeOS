@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
@@ -111,6 +112,11 @@ export function VisitFieldCapture({
   scopeReadState,
   apiRoutePrefix = "/api/admin",
   lockedTechnicianName,
+  completionIntent = "visit_update",
+  portalPath,
+  billingReviewHref,
+  aftercareHref,
+  jobberComplete = false,
   onSaved,
   onDraftStateChange,
 }: {
@@ -122,6 +128,11 @@ export function VisitFieldCapture({
   scopeReadState: VisitServiceScopeReadState;
   apiRoutePrefix?: "/api/admin" | "/api/field";
   lockedTechnicianName?: string;
+  completionIntent?: "visit_update" | "finish_visit";
+  portalPath?: string | null;
+  billingReviewHref?: string | null;
+  aftercareHref?: string | null;
+  jobberComplete?: boolean;
   onSaved?: (result: VisitFieldSaveResult) => void;
   onDraftStateChange?: (hasDraft: boolean) => void;
 }) {
@@ -174,6 +185,8 @@ export function VisitFieldCapture({
     scopeTotal: number;
     routeEventRecorded: boolean | null;
     routeEventWarning: string | null;
+    customerSummaryVisible: boolean;
+    followUpOpened: boolean;
   } | null>(null);
   const previewUrls = useRef(new Set<string>());
   const completedUploads = useRef(new Map<string, UploadedVisitPhoto>());
@@ -348,6 +361,16 @@ export function VisitFieldCapture({
       return;
     }
     if (
+      completionIntent === "finish_visit" &&
+      !customerSummary.trim() &&
+      !photos.some((photo) => photo.customerVisible)
+    ) {
+      setError(
+        "Finish the visit with a customer update or at least one portal-visible photo.",
+      );
+      return;
+    }
+    if (
       !customerSummary.trim() &&
       !internalNote.trim() &&
       !serviceScope.some((item) => item.completed) &&
@@ -361,7 +384,13 @@ export function VisitFieldCapture({
     setSaving(true);
     setSaved(null);
     setError(null);
-    setProgress(photos.length ? "Preparing private uploads…" : "Saving visit memory…");
+    setProgress(
+      photos.length
+        ? "Preparing private uploads…"
+        : completionIntent === "finish_visit"
+          ? "Finishing the connected visit…"
+          : "Saving visit memory…",
+    );
 
     try {
       const pendingPhotos = photos.filter(
@@ -472,6 +501,8 @@ export function VisitFieldCapture({
         scopeTotal: serviceScope.length,
         routeEventRecorded: commitBody.routeEventRecorded ?? null,
         routeEventWarning: commitBody.routeEventWarning ?? null,
+        customerSummaryVisible: customerSummary.trim().length > 0,
+        followUpOpened: followUpNeeded || automatedScopeFollowUp,
       });
       setProgress(null);
       onSaved?.({
@@ -517,13 +548,32 @@ export function VisitFieldCapture({
   }
 
   if (saved) {
+    const visitFinished = completionIntent === "finish_visit";
+    const portalPublished =
+      saved.customerSummaryVisible || saved.customerVisibleCount > 0;
+    const readyForBillingReview = Boolean(
+      visitFinished &&
+        portalPublished &&
+        !saved.followUpOpened &&
+        jobberComplete &&
+        billingReviewHref,
+    );
+    const aftercareWillQueue = Boolean(
+      visitFinished &&
+        portalPublished &&
+        !saved.followUpOpened &&
+        jobberComplete,
+    );
     return (
       <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] p-5">
-        <p className="text-sm font-medium text-emerald-200">Visit record saved.</p>
+        <p className="text-sm font-medium text-emerald-200">
+          {visitFinished ? "Visit finished." : "Visit record saved."}
+        </p>
         <p className="mt-2 text-xs leading-relaxed text-emerald-100/70">
           {saved.photoCount} photo{saved.photoCount === 1 ? "" : "s"} stored
-          privately. {saved.customerVisibleCount} will appear in the customer&apos;s
-          HomeAtlas portal with the customer update.
+          privately. {saved.customerVisibleCount} portal-visible photo
+          {saved.customerVisibleCount === 1 ? " is" : "s are"} attached to this
+          exact visit.
         </p>
         {saved.scopeTotal > 0 ? (
           <p className="mt-2 text-xs leading-relaxed text-emerald-100/70">
@@ -539,6 +589,60 @@ export function VisitFieldCapture({
           <p className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] p-3 text-xs leading-relaxed text-amber-100">
             {saved.routeEventWarning}
           </p>
+        ) : null}
+        {visitFinished ? (
+          <div className="mt-4 space-y-2 border-t border-emerald-300/20 pt-4 text-xs leading-relaxed">
+            <p className="text-emerald-100">✓ Property history updated</p>
+            <p className={portalPublished ? "text-emerald-100" : "text-amber-100"}>
+              {portalPublished
+                ? "✓ Customer portal update published"
+                : "Customer portal still needs a visible update"}
+            </p>
+            <p className={readyForBillingReview ? "text-emerald-100" : "text-amber-100"}>
+              {readyForBillingReview
+                ? "✓ Ready for owner payment review"
+                : saved.followUpOpened
+                  ? "Billing review waits for the service exception to be resolved"
+                  : jobberComplete
+                    ? "Payment review needs the final membership checks in Billing"
+                    : "Complete the source visit in Jobber before payment review"}
+            </p>
+            <p className={aftercareWillQueue ? "text-emerald-100" : "text-emerald-100/65"}>
+              {aftercareWillQueue
+                ? "✓ Human review opportunity will queue in Aftercare after 24 hours"
+                : "Aftercare stays paused until Jobber completion and open follow-ups are clear"}
+            </p>
+            <p className="rounded-xl border border-white/10 bg-black/10 px-3 py-2 text-emerald-100/65">
+              No email, invoice, text, or card charge was submitted.
+            </p>
+            <div className="grid gap-2 pt-1 sm:grid-cols-2">
+              {portalPath ? (
+                <Link
+                  href={portalPath}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-emerald-300/30 px-4 text-center text-xs text-emerald-100"
+                >
+                  Verify customer portal
+                </Link>
+              ) : null}
+              {readyForBillingReview && billingReviewHref ? (
+                <Link
+                  href={billingReviewHref}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-accent/40 bg-accent/10 px-4 text-center text-xs text-accent"
+                >
+                  Review payment readiness
+                </Link>
+              ) : aftercareHref && aftercareWillQueue ? (
+                <Link
+                  href={aftercareHref}
+                  className="inline-flex min-h-11 items-center justify-center rounded-xl border border-emerald-300/25 px-4 text-center text-xs text-emerald-100"
+                >
+                  Open Aftercare
+                </Link>
+              ) : null}
+            </div>
+          </div>
         ) : null}
         <button
           type="button"
@@ -559,7 +663,9 @@ export function VisitFieldCapture({
         </p>
         <p className="mt-2 text-sm text-foreground/75">{serviceLabel}</p>
         <p className="mt-1 text-xs text-muted">
-          One save connects the visit, team memory, and customer portal.
+          {completionIntent === "finish_visit"
+            ? "One finish action connects proof, property memory, the customer portal, and the owner review queue."
+            : "One save connects the visit, team memory, and customer portal."}
         </p>
       </div>
 
@@ -904,7 +1010,13 @@ export function VisitFieldCapture({
         disabled={saving}
         className="min-h-14 w-full rounded-xl border border-accent/50 bg-accent px-5 text-sm font-medium text-black shadow-[0_14px_36px_rgba(197,164,99,0.16)] transition active:scale-[0.99] disabled:opacity-50"
       >
-        {saving ? "Saving one connected record…" : "Save visit record"}
+        {saving
+          ? completionIntent === "finish_visit"
+            ? "Finishing visit…"
+            : "Saving one connected record…"
+          : completionIntent === "finish_visit"
+            ? "Finish Visit"
+            : "Save visit record"}
       </button>
     </form>
   );

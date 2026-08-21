@@ -318,6 +318,18 @@ function JobberVisitCard({
     fieldEventStatusAvailable &&
     visit.homeAtlasFieldStage === "departed" &&
     !visit.isComplete;
+  const billingReviewHref =
+    visit.homeAtlasMembershipId && appointmentId
+      ? billingTodayReviewHref({
+          membershipId: visit.homeAtlasMembershipId,
+          appointmentId,
+          projectionId: visit.projectionId,
+        })
+      : null;
+  const completionIntent =
+    visit.homeAtlasFieldRecordCount === 0 || needsCustomerPortalUpdate
+      ? "finish_visit"
+      : "visit_update";
   const fieldActionLabel = fieldCaptureOpen
     ? "Close field record"
     : hasFieldDraft
@@ -469,13 +481,9 @@ function JobberVisitCard({
             {formatTimeRange(visit, timezone)} Pacific
           </p>
           <div className="flex flex-wrap gap-2">
-            {visit.homeAtlasMembershipId && appointmentId ? (
+            {billingReviewHref ? (
               <Link
-                href={billingTodayReviewHref({
-                  membershipId: visit.homeAtlasMembershipId,
-                  appointmentId,
-                  projectionId: visit.projectionId,
-                })}
+                href={billingReviewHref}
                 className="inline-flex min-h-10 items-center justify-center rounded-full border border-accent/40 bg-accent/10 px-4 text-xs font-medium text-accent transition hover:bg-accent/15"
                 title="Opens this exact appointment in Billing. No email or charge happens from this link."
               >
@@ -637,6 +645,11 @@ function JobberVisitCard({
                     serviceLabel={service}
                     scopeItems={visit.scopeItems}
                     scopeReadState={visit.scopeReadState}
+                    completionIntent={completionIntent}
+                    portalPath={visit.homeAtlasPortalPath}
+                    billingReviewHref={billingReviewHref}
+                    aftercareHref="/hq/aftercare"
+                    jobberComplete={visit.isComplete}
                     onSaved={onFieldRecordSaved}
                     onDraftStateChange={setHasFieldDraft}
                   />

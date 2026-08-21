@@ -37,10 +37,15 @@ import {
 } from "@/lib/care-operations/model";
 import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
 import {
+  automaticBillingMonthBounds,
   automaticBillingServiceMonth,
   dollarsToBillingCents,
 } from "@/lib/billing/automatic-billing-rules";
 import { isMembershipBillingAuthorized } from "@/lib/billing/membership-billing-authorization";
+import {
+  selectBillingWorkspaceVisit,
+  type CompletedVisitBillingEvidence,
+} from "@/lib/admin/billing-visit-selection";
 
 interface MembershipBillingRow {
   id: string;
@@ -112,6 +117,19 @@ interface AppointmentBillingRow {
   property_id: string;
   external_id: string;
   scheduled_at: string;
+  status: string;
+  completed_at: string | null;
+}
+
+interface VisitFieldEvidenceRow {
+  visit_id: string;
+  field_record_id: string | null;
+  follow_up_status: string | null;
+  customer_note_visible: boolean;
+}
+
+interface VisitVisibleAssetRow {
+  visit_id: string;
 }
 
 interface JobberVisitProjectionBillingRow {
@@ -204,6 +222,10 @@ function buildOverview(
 export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   const loadedAt = new Date().toISOString();
   const stripeDashboardLive = isStripeLiveMode();
+  const referenceDate = new Date();
+  const completedVisitLookback = new Date(
+    referenceDate.getTime() - 62 * 24 * 60 * 60 * 1_000,
+  ).toISOString();
 
   if (!isSupabaseConfigured()) {
     return {
@@ -297,13 +319,16 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("member_appointments")
-      .select("id, property_id, external_id, scheduled_at")
+      .select(
+        "id, property_id, external_id, scheduled_at, status, completed_at",
+      )
       .in("property_id", propertyIds)
       .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
       .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
       .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
       .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
-      .eq("status", "scheduled")
+      .in("status", ["scheduled", "completed"])
+      .gte("scheduled_at", completedVisitLookback)
       .order("scheduled_at", { ascending: true }),
     supabase
       .from("billing_orders")
@@ -345,18 +370,40 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
   const appointmentExternalIds = [
     ...new Set(appointmentRows.map((appointment) => appointment.external_id)),
   ];
-  const visitProjectionsRes = appointmentExternalIds.length
-    ? await supabase
-        .from("jobber_visit_projections")
-        .select(
-          "external_visit_id, external_job_id, external_property_id, match_state, matched_property_id, job_total_cents, job_will_auto_charge, visit_invoice_id, visit_invoice_status",
-        )
-        .eq("connection_id", JOBBER_CONNECTION_ID)
-        .in("external_visit_id", appointmentExternalIds)
-    : { data: [], error: null };
+  const appointmentIds = appointmentRows.map((appointment) => appointment.id);
+  const [visitProjectionsRes, fieldEvidenceRes, visibleAssetsRes] =
+    await Promise.all([
+      appointmentExternalIds.length
+        ? supabase
+            .from("jobber_visit_projections")
+            .select(
+              "external_visit_id, external_job_id, external_property_id, match_state, matched_property_id, job_total_cents, job_will_auto_charge, visit_invoice_id, visit_invoice_status",
+            )
+            .eq("connection_id", JOBBER_CONNECTION_ID)
+            .in("external_visit_id", appointmentExternalIds)
+        : Promise.resolve({ data: [], error: null }),
+      appointmentIds.length
+        ? supabase
+            .from("property_assessments")
+            .select(
+              "visit_id, field_record_id, follow_up_status, customer_note_visible",
+            )
+            .in("visit_id", appointmentIds)
+        : Promise.resolve({ data: [], error: null }),
+      appointmentIds.length
+        ? supabase
+            .from("property_assets")
+            .select("visit_id")
+            .in("visit_id", appointmentIds)
+            .eq("kind", "photo")
+            .eq("customer_visible", true)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
   if (visitProjectionsRes.error) {
     throw new Error(visitProjectionsRes.error.message);
   }
+  if (fieldEvidenceRes.error) throw new Error(fieldEvidenceRes.error.message);
+  if (visibleAssetsRes.error) throw new Error(visibleAssetsRes.error.message);
 
   const homeownerById = new Map(
     ((homeownersRes.data ?? []) as HomeownerBillingRow[]).map((row) => [
@@ -407,6 +454,35 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       (projection) => [projection.external_visit_id, projection],
     ),
   );
+  const completedEvidenceByAppointmentId = new Map<
+    string,
+    CompletedVisitBillingEvidence
+  >();
+  for (const row of (fieldEvidenceRes.data ?? []) as VisitFieldEvidenceRow[]) {
+    const current = completedEvidenceByAppointmentId.get(row.visit_id) ?? {
+      hasFieldRecord: false,
+      hasCustomerVisibleUpdate: false,
+      hasOpenFollowUp: false,
+    };
+    completedEvidenceByAppointmentId.set(row.visit_id, {
+      hasFieldRecord: current.hasFieldRecord || Boolean(row.field_record_id),
+      hasCustomerVisibleUpdate:
+        current.hasCustomerVisibleUpdate || row.customer_note_visible,
+      hasOpenFollowUp:
+        current.hasOpenFollowUp || row.follow_up_status === "open",
+    });
+  }
+  for (const row of (visibleAssetsRes.data ?? []) as VisitVisibleAssetRow[]) {
+    const current = completedEvidenceByAppointmentId.get(row.visit_id) ?? {
+      hasFieldRecord: false,
+      hasCustomerVisibleUpdate: false,
+      hasOpenFollowUp: false,
+    };
+    completedEvidenceByAppointmentId.set(row.visit_id, {
+      ...current,
+      hasCustomerVisibleUpdate: true,
+    });
+  }
   const activePropertyLinkKeys = new Set(
     ((propertyLinksRes.data ?? []) as JobberPropertyLinkBillingRow[]).map(
       (link) =>
@@ -424,8 +500,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
     ? ((chargesRes.data ?? []) as ChargeBillingRow[])
     : [];
 
-  const referenceDate = new Date();
   const referenceYm = referenceDate.toISOString().slice(0, 7);
+  const currentServiceMonth =
+    automaticBillingMonthBounds(referenceDate).serviceMonth;
 
   const rows: BillingRegisterRow[] = [];
 
@@ -448,9 +525,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       status: row.status as "paid" | "charged" | "failed" | "pending",
       chargedAt: row.charged_at,
     }));
-    const nextAppointment = (
+    const billingVisitCandidates = (
       appointmentsByProperty.get(membership.property_id) ?? []
-    ).find((appointment) => {
+    ).filter((appointment) => {
       const projection = projectionByExternalVisitId.get(
         appointment.external_id,
       );
@@ -468,11 +545,25 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
           ),
       );
     });
-    const appointmentBillingPeriod = nextAppointment
-      ? automaticBillingServiceMonth(nextAppointment.scheduled_at)
+    const nextAppointment = selectBillingWorkspaceVisit({
+      candidates: billingVisitCandidates.map((appointment) => ({
+        id: appointment.id,
+        scheduledAt: appointment.scheduled_at,
+        status: appointment.status,
+      })),
+      completedEvidenceByAppointmentId,
+      currentServiceMonth,
+    });
+    const nextAppointmentRow = nextAppointment
+      ? billingVisitCandidates.find(
+          (appointment) => appointment.id === nextAppointment.id,
+        ) ?? null
       : null;
-    const nextProjection = nextAppointment
-      ? projectionByExternalVisitId.get(nextAppointment.external_id) ?? null
+    const appointmentBillingPeriod = nextAppointment
+      ? automaticBillingServiceMonth(nextAppointment.scheduledAt)
+      : null;
+    const nextProjection = nextAppointmentRow
+      ? projectionByExternalVisitId.get(nextAppointmentRow.external_id) ?? null
       : null;
     const membershipBillingOrders =
       billingOrdersByMembership.get(membership.id) ?? [];
@@ -632,7 +723,9 @@ export async function loadBillingWorkspace(): Promise<BillingWorkspaceData> {
       nextAppointmentId:
         nextAppointment?.id ?? null,
       nextAppointmentDate:
-        nextAppointment?.scheduled_at ?? null,
+        nextAppointmentRow?.completed_at ??
+        nextAppointment?.scheduledAt ??
+        null,
       stripePaymentStatus: resolveStripePaymentStatus(membership),
       paymentSetupEmailState,
       paymentSetupEmailRecipient,

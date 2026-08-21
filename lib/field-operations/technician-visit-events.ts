@@ -132,8 +132,9 @@ export function resolveTechnicianVisitNextAction(input: {
             }
           : {
               kind: "closeout",
-              label: "Finish required closeout",
-              detail: "Jobber is complete; save HomeAtlas proof before leaving.",
+              label: "Finish Visit",
+              detail:
+                "Jobber is complete; publish HomeAtlas proof before leaving.",
             };
       }
       return {
@@ -166,8 +167,9 @@ export function resolveTechnicianVisitNextAction(input: {
           }
         : {
             kind: "closeout",
-            label: "Finish service & close out",
-            detail: "Save notes, work completed, and customer-approved proof.",
+            label: "Finish Visit",
+            detail:
+              "Save completed work, notes, and customer-visible proof in one action.",
           };
     case "service_completed":
       return {

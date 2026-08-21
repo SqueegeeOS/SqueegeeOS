@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
+import { recordTechnicianVisitEvent } from "@/lib/field-operations/technician-visit-event-server";
 import { commitVisitFieldRecord } from "@/lib/field-records/visit-field-record-server";
 import type { VisitFieldRecordCommitInput } from "@/lib/field-records/visit-field-record";
 
@@ -13,7 +14,37 @@ export async function POST(request: Request) {
   try {
     const input = (await request.json()) as VisitFieldRecordCommitInput;
     const result = await commitVisitFieldRecord(input);
-    return NextResponse.json(result, {
+    let routeEventRecorded: boolean | null = null;
+    let routeEventWarning: string | null = null;
+    try {
+      await recordTechnicianVisitEvent({
+        request: {
+          eventId: input.fieldRecordId,
+          propertyId: input.propertyId,
+          appointmentId: input.appointmentId,
+          eventType: "service_completed",
+        },
+        actor: {
+          kind: "admin",
+          displayName: "HomeAtlas HQ",
+          grantId: null,
+          jobberUserId: null,
+        },
+        source: "closeout",
+      });
+      routeEventRecorded = true;
+    } catch (routeEventError) {
+      routeEventRecorded = false;
+      routeEventWarning =
+        "Closeout saved, but route status needs a retry. Refresh, advance any missing route steps, and save again.";
+      console.warn(
+        "[admin-field-records] closeout saved without route event:",
+        routeEventError instanceof Error
+          ? routeEventError.message
+          : "unknown route event error",
+      );
+    }
+    return NextResponse.json({ ...result, routeEventRecorded, routeEventWarning }, {
       status: 201,
       headers: { "Cache-Control": "private, no-store" },
     });

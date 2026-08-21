@@ -14,6 +14,9 @@ const fieldEventRoute = read(
 const fieldRecordRoute = read(
   "../../app/api/field/field-records/route.ts",
 );
+const adminFieldRecordRoute = read(
+  "../../app/api/admin/field-records/route.ts",
+);
 const eventServer = read("./technician-visit-event-server.ts");
 const eventModel = read("./technician-visit-events.ts");
 const todayLoader = read("../care-operations/jobber-today.ts");
@@ -77,14 +80,20 @@ describe("technician visit automation contract", () => {
   });
 
   it("never rolls back a saved closeout when route advancement needs retry", () => {
-    expect(fieldRecordRoute).toContain(
-      "const result = await commitVisitFieldRecord(input)",
+    for (const source of [fieldRecordRoute, adminFieldRecordRoute]) {
+      expect(source).toContain(
+        "const result = await commitVisitFieldRecord(input)",
+      );
+      expect(source).toContain("routeEventRecorded = false");
+      expect(source).toContain(
+        "Closeout saved, but route status needs a retry",
+      );
+      expect(source).toContain('eventType: "service_completed"');
+      expect(source).toContain("return NextResponse.json(");
+    }
+    expect(fieldRecordRoute).not.toContain(
+      'if (actor.kind === "technician")',
     );
-    expect(fieldRecordRoute).toContain("routeEventRecorded = false");
-    expect(fieldRecordRoute).toContain(
-      "Closeout saved, but route status needs a retry",
-    );
-    expect(fieldRecordRoute).toContain("return NextResponse.json(");
   });
 
   it("shows safe lifecycle state in Today without exposing alert drafts", () => {
