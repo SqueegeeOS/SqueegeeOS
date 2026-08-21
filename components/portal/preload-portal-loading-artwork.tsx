@@ -2,7 +2,7 @@
 
 import ReactDOM from "react-dom";
 
-const ARTWORK_PATH = "/brand/homeatlas-member-loader-v1.webp";
+const ARTWORK_PATH = "/brand/homeatlas-member-loader-v2.webp";
 
 export function PreloadPortalLoadingArtwork() {
   ReactDOM.preload(ARTWORK_PATH, {

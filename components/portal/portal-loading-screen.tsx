@@ -1,9 +1,9 @@
 import Image from "next/image";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 
-const ARTWORK_PATH = "/brand/homeatlas-member-loader-v1.webp";
+const ARTWORK_PATH = "/brand/homeatlas-member-loader-v2.webp";
 const ARTWORK_BLUR_DATA_URL =
-  "data:image/webp;base64,UklGRsIAAABXRUJQVlA4ILYAAACQBQCdASogADkAP0WMwVkwKKclKBgMAgAoiWUAAKf3Gy3FClfrqmu/fNl2BZClsgFaE9oNAAD+8NF58FIX+KDiJ9OOGTGjji6oFKfnnXB+4nQnWcMGiBoxNut/jqZ5a6e2Qp7BvKes98srVBJrG8YGH+zhQxkPsI9+CmFYsL4mkctXgCZMaf6KMCAFE/bIxU+VYN+C+1uDdbiQZzV1Ek0oDtyv/0R4zuO7ejUm5bpfQFQXSAAAAA==";
+  "data:image/webp;base64,UklGRkoAAABXRUJQVlA4ID4AAAAQAwCdASoKABIAPzmGuVOvKSWisAgB4CcJZwAASQcvsgAA/tHdxhowQYpqnn2Ga/2u2Uo+yAb/fO7q2hAAAA==";
 
 export function PortalLoadingScreen() {
   return (
@@ -43,12 +43,12 @@ export function PortalLoadingScreen() {
         />
 
         <div
-          className="absolute left-1/2 top-[46.9%] flex aspect-square w-[32%] -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-[radial-gradient(circle,rgba(5,6,5,0.94)_0%,rgba(5,6,5,0.88)_46%,rgba(5,6,5,0.62)_61%,rgba(5,6,5,0.18)_73%,transparent_82%)] [--accent:#e4b94f] [--foreground:#f4eddf]"
+          className="absolute left-1/2 top-[46.9%] flex aspect-square w-[24%] -translate-x-1/2 -translate-y-1/2 items-center justify-center [--accent:#e4b94f] [--foreground:#f4eddf]"
           aria-hidden
         >
           <AtlasMark
             size={180}
-            className="h-[72%] w-[72%] text-[#f4eddf] drop-shadow-[0_4px_18px_rgba(0,0,0,0.72)]"
+            className="h-full w-full text-[#f4eddf] drop-shadow-[0_4px_18px_rgba(0,0,0,0.72)]"
           />
         </div>
 
@@ -57,14 +57,10 @@ export function PortalLoadingScreen() {
             return (
               <span
                 key={left}
-                className={`portal-loading-dot absolute top-[88.37%] aspect-square w-[3.55%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#e0b646] ${
-                  index === 0
-                    ? "portal-loading-dot-filled"
-                    : "portal-loading-dot-pending"
-                }`}
+                className="portal-loading-dot portal-loading-dot-sequence absolute top-[88.37%] aspect-square w-[3.55%] -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#e0b646]"
                 style={{
                   left: `${left}%`,
-                  animationDelay: index === 1 ? "650ms" : "1500ms",
+                  animationDelay: `${index}s`,
                 }}
               />
             );

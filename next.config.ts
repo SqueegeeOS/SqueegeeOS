@@ -53,7 +53,7 @@ const nextConfig: NextConfig = {
         headers: privateRouteHeaders,
       })),
       {
-        source: "/brand/homeatlas-member-loader-v1.webp",
+        source: "/brand/homeatlas-member-loader-v2.webp",
         headers: [
           {
             key: "Cache-Control",

@@ -13,6 +13,7 @@ describe("member portal loading screen contract", () => {
   );
   const portalEntry = read("app/portal/page.tsx");
   const welcome = read("components/pwa/PortalWelcomeHome.tsx");
+  const globalStyles = read("app/globals.css");
   const hqLayout = read("app/hq/layout.tsx");
   const portalLayout = read("app/portal/layout.tsx");
   const preloader = read(
@@ -21,7 +22,7 @@ describe("member portal loading screen contract", () => {
   const nextConfig = read("next.config.ts");
 
   it("uses the supplied HomeAtlas artwork and native animated mark", () => {
-    expect(loader).toContain("/brand/homeatlas-member-loader-v1.webp");
+    expect(loader).toContain("/brand/homeatlas-member-loader-v2.webp");
     expect(loader).toContain("ARTWORK_BLUR_DATA_URL");
     expect(loader).toContain('placeholder="blur"');
     expect(loader).toContain("AtlasMark");
@@ -31,21 +32,25 @@ describe("member portal loading screen contract", () => {
   it("renders its progress animation without waiting for client hydration", () => {
     expect(loader).not.toContain('"use client"');
     expect(loader).not.toContain("useEffect");
-    expect(loader).toContain("portal-loading-dot-pending");
-    expect(loader).toContain(
-      'animationDelay: index === 1 ? "650ms" : "1500ms"',
-    );
+    expect(loader).toContain("portal-loading-dot-sequence");
+    expect(loader).toContain('animationDelay: `${index}s`');
+    expect(loader).not.toContain("portal-loading-dot-filled");
+    expect(loader).not.toContain("portal-loading-dot-pending");
+    expect(globalStyles).toContain("@keyframes portal-loading-dot-sequence");
+    expect(globalStyles).toContain("portal-loading-dot-sequence 3s");
+    expect(globalStyles).not.toContain("@keyframes portal-loading-dot-fill");
   });
 
-  it("blends the animated Atlas mark into the artwork without a hard disc", () => {
-    expect(loader).toContain("bg-[radial-gradient(circle");
+  it("places one animated Atlas mark directly on the clean artwork", () => {
+    expect(loader).toContain('className="h-full w-full');
+    expect(loader).not.toContain("bg-[radial-gradient(circle");
     expect(loader).not.toContain("rounded-full bg-[#0a0b08]/75");
     expect(loader).not.toContain("backdrop-blur-[2px]");
   });
 
   it("preloads one publicly cacheable artwork asset before member navigation", () => {
     expect(preloader).toContain("ReactDOM.preload");
-    expect(preloader).toContain("/brand/homeatlas-member-loader-v1.webp");
+    expect(preloader).toContain("/brand/homeatlas-member-loader-v2.webp");
     expect(hqLayout).toContain("<PreloadPortalLoadingArtwork />");
     expect(portalLayout).toContain("<PreloadPortalLoadingArtwork />");
     expect(nextConfig).toContain("public, max-age=31536000, immutable");
