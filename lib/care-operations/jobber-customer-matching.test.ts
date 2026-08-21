@@ -269,6 +269,9 @@ describe("Jobber customer synchronization", () => {
     expect(panel).toContain('useState<CustomerQueue>("review")');
     expect(panel).toContain("EvidenceRow");
     expect(panel).toContain("cannot enable billing");
+    expect(panel).not.toContain("Pair Jobber ${client.name}");
+    expect(panel).toContain("pairingStatuses");
+    expect(panel).toContain('aria-live="polite"');
   });
 
   it("keeps raw customer-link writes separate from appointments and billing", () => {

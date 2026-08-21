@@ -10,5 +10,9 @@ export default function HeadquartersLayout({
 }: {
   children: ReactNode;
 }) {
-  return children;
+  return (
+    <div className="hq-mobile-shell min-w-0 max-w-full overflow-x-clip">
+      {children}
+    </div>
+  );
 }
