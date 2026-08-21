@@ -4,6 +4,7 @@ import {
   fetchAllJobberClients,
   buildJobberClientsQuery,
   JOBBER_CLIENTS_QUERY,
+  supportsExactJobberPropertyAddress,
   type JobberClientNode,
 } from "./jobber-api";
 import {
@@ -53,11 +54,40 @@ describe("Jobber customer synchronization", () => {
     expect(buildJobberClientsQuery(["street", "city", "province", "postalCode"]))
       .toContain("address { street city province postalCode }");
     expect(buildJobberClientsQuery(["unsafeField"])).toBe(JOBBER_CLIENTS_QUERY);
+    expect(
+      supportsExactJobberPropertyAddress([
+        "street",
+        "city",
+        "province",
+        "postalCode",
+      ]),
+    ).toBe(true);
+    expect(
+      supportsExactJobberPropertyAddress(["city", "province", "postalCode"]),
+    ).toBe(false);
   });
 
   it("loads every client page", async () => {
     const fetchMock = vi
       .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              clients: {
+                nodes: [
+                  {
+                    clientProperties: {
+                      nodes: [{ address: { __typename: "ServiceAddress" } }],
+                    },
+                  },
+                ],
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
@@ -106,6 +136,52 @@ describe("Jobber customer synchronization", () => {
     const result = await fetchAllJobberClients("access-token");
     expect(result.nodes.map((node) => node.id)).toEqual(["client-1", "client-2"]);
     expect(result.pageCount).toBe(2);
+    expect(result.addressReadState).toBe("available");
+    expect(result.addressFields).toEqual([
+      "street",
+      "city",
+      "province",
+      "postalCode",
+    ]);
+    expect(fetchMock.mock.calls[1]?.[1]?.body).toContain(
+      '"typeName":"ServiceAddress"',
+    );
+  });
+
+  it("fails closed when Jobber exposes no property address type", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              clients: {
+                nodes: [{ clientProperties: { nodes: [] } }],
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            data: {
+              clients: {
+                nodes: [client],
+                pageInfo: { endCursor: null, hasNextPage: false },
+              },
+            },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await fetchAllJobberClients("access-token");
+    expect(result.addressReadState).toBe("unavailable");
+    expect(result.addressFields).toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("stores a searchable read-only projection", () => {
