@@ -244,7 +244,7 @@ describe("lead first-touch SMS", () => {
       expect(plan?.text).not.toContain("\n");
     });
 
-    it("uses the richer two-way HomeAtlas welcome for an opted-in Facebook lead", () => {
+    it("uses Donovan's personal two-way welcome for an opted-in Facebook lead", () => {
       const plan = buildLeadFirstTouchSmsPlan({
         leadId: "facebook-lead-123",
         customerName: "Morgan Lee",
@@ -256,9 +256,9 @@ describe("lead first-touch SMS", () => {
         source: "facebook_lead_ad",
       });
 
-      expect(plan?.text).toContain("bi-annual and quarterly");
-      expect(plan?.text).toContain("HomeAtlas portal");
-      expect(plan?.text).toContain("reply here with questions");
+      expect(plan?.text).toContain("SqueegeeKing LLC:");
+      expect(plan?.text).toContain("I’m Donovan, the owner");
+      expect(plan?.text).toContain("What is the service address?");
       expect(plan?.text).toContain("Reply STOP to opt out.");
     });
 

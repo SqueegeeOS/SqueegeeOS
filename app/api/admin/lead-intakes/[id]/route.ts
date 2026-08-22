@@ -10,6 +10,7 @@ const STATUSES: LeadIntakeStatus[] = [
   "new",
   "contacted",
   "scheduled",
+  "booked",
   "archived",
 ];
 

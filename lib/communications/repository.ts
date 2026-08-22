@@ -14,6 +14,7 @@ import type {
   CustomerMessage,
   CustomerMessageDeliveryStatus,
 } from "@/lib/communications/types";
+import type { LeadIntakeStatus } from "@/lib/acquisition/lead-record";
 
 interface ConversationRow {
   id: string;
@@ -88,6 +89,7 @@ interface LeadRow {
   email: string;
   phone: string;
   service_address: string;
+  status: LeadIntakeStatus;
   sms_consent_status: CustomerConsentStatus | null;
   sms_consent_recorded_at: string | null;
   email_delivery_status: "active" | "bounced" | "complained" | null;
@@ -114,6 +116,7 @@ export interface CommunicationConversationContext {
   conversation: CustomerConversation;
   customerName: string;
   propertyLabel: string | null;
+  leadStatus: LeadIntakeStatus | null;
   email: CommunicationDestination | null;
   sms: CommunicationDestination | null;
 }
@@ -461,7 +464,7 @@ export async function loadCommunicationConversationContexts(
       leadIds.length
         ? supabase
             .from("lead_intakes")
-            .select("id, name, email, phone, service_address, sms_consent_status, sms_consent_recorded_at, email_delivery_status, email_delivery_status_recorded_at")
+            .select("id, name, email, phone, service_address, status, sms_consent_status, sms_consent_recorded_at, email_delivery_status, email_delivery_status_recorded_at")
             .in("id", leadIds)
         : Promise.resolve({ data: [], error: null }),
       propertyIds.length
@@ -551,6 +554,7 @@ export async function loadCommunicationConversationContexts(
         propertyLabel(
           conversation.propertyId ? properties.get(conversation.propertyId) : undefined,
         ) ?? (lead?.service_address?.trim() || null),
+      leadStatus: lead?.status ?? null,
       email,
       sms,
     });

@@ -257,7 +257,10 @@ export async function POST(req: NextRequest) {
     }
 
     let leadStatusSynced = true;
-    if (leadIntake && leadIntake.status !== "scheduled") {
+    if (
+      leadIntake &&
+      (leadIntake.status === "new" || leadIntake.status === "contacted")
+    ) {
       try {
         const updatedLead = await updateLeadIntakeStatus(
           leadIntake.id,

@@ -144,9 +144,25 @@ export function PendingRequestDetail({ id }: { id: string }) {
                   }
                   className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 disabled:opacity-40"
                 >
-                  {lead.status === "scheduled"
+                  {lead.status === "scheduled" || lead.status === "booked"
                     ? "Open Presentation"
                     : "Schedule Presentation"}
+                </button>
+              ) : null}
+              {lead.status === "scheduled" ? (
+                <button
+                  type="button"
+                  disabled={acting}
+                  onClick={() =>
+                    void runAction(() =>
+                      updateLeadIntakeStatusClient(lead.id, "booked").then(
+                        () => undefined,
+                      ),
+                    )
+                  }
+                  className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 disabled:opacity-40"
+                >
+                  Mark Booked
                 </button>
               ) : null}
               {lead.status !== "archived" ? (
@@ -162,7 +178,7 @@ export function PendingRequestDetail({ id }: { id: string }) {
                   }
                   className="rounded-full border border-border/50 px-4 py-2 text-xs uppercase tracking-[0.14em] text-muted transition hover:border-border hover:text-foreground disabled:opacity-40"
                 >
-                  Archive
+                  Mark Lost
                 </button>
               ) : null}
             </div>

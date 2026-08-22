@@ -10,6 +10,8 @@ import { MotionReveal } from "@/components/craft/motion-reveal";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
+import type { LeadIntakeStatus } from "@/lib/acquisition/lead-record";
+import { formatLeadIntakeStatus } from "@/lib/acquisition/leads/inbox";
 import {
   manualSendFingerprint,
   resolveManualSendAttempt,
@@ -53,6 +55,8 @@ interface ConversationVerification {
 
 interface CommunicationsConversation {
   id: string;
+  leadIntakeId: string | null;
+  leadStatus: LeadIntakeStatus | null;
   customerName: string;
   preview: string;
   updatedAt: string;
@@ -164,6 +168,24 @@ const TERMINAL_FAILURE_STATUSES = new Set([
   "canceled",
   "cancelled",
 ]);
+
+const LEAD_PIPELINE: Array<{
+  status: LeadIntakeStatus;
+  label: string;
+}> = [
+  { status: "new", label: "New" },
+  { status: "contacted", label: "Contacted" },
+  { status: "scheduled", label: "Quoted" },
+  { status: "booked", label: "Booked" },
+  { status: "archived", label: "Lost" },
+];
+
+function normalizeLeadStatus(value: unknown): LeadIntakeStatus | null {
+  return typeof value === "string" &&
+    LEAD_PIPELINE.some((stage) => stage.status === value)
+    ? (value as LeadIntakeStatus)
+    : null;
+}
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
@@ -361,6 +383,10 @@ function normalizeConversation(value: unknown): CommunicationsConversation | nul
 
   return {
     id,
+    leadIntakeId: firstString(record, ["leadIntakeId", "lead_intake_id"]),
+    leadStatus: normalizeLeadStatus(
+      record.leadStatus ?? record.lead_status,
+    ),
     customerName:
       firstString(record, [
         "customerName",
@@ -985,6 +1011,7 @@ function CommunicationsInboxContent() {
   const [smsConsentEvidence, setSmsConsentEvidence] = useState("");
   const [smsConsentAttested, setSmsConsentAttested] = useState(false);
   const [smsConsentSaving, setSmsConsentSaving] = useState(false);
+  const [leadStatusSaving, setLeadStatusSaving] = useState(false);
   const inboxRequest = useRef(0);
   const detailRequest = useRef(0);
   const selectedIdRef = useRef<string | null>(null);
@@ -1256,6 +1283,62 @@ function CommunicationsInboxContent() {
     ],
   );
 
+  const updateLeadStatus = useCallback(
+    async (status: LeadIntakeStatus) => {
+      if (!selected?.leadIntakeId || !selected.leadStatus || leadStatusSaving) {
+        return;
+      }
+      if (
+        status === "archived" &&
+        !window.confirm(
+          `Mark ${selected.customerName} as lost? The conversation stays available and can be reopened later.`,
+        )
+      ) {
+        return;
+      }
+
+      setLeadStatusSaving(true);
+      setError(null);
+      setSendNotice(null);
+      try {
+        const response = await fetch(
+          `/api/admin/lead-intakes/${encodeURIComponent(selected.leadIntakeId)}`,
+          {
+            method: "PATCH",
+            headers: getAdminRequestHeaders(),
+            body: JSON.stringify({ status }),
+          },
+        );
+        const responseBody = (await response.json().catch(() => null)) as unknown;
+        if (!response.ok) {
+          const responseRecord = asRecord(responseBody);
+          throw new Error(
+            firstString(responseRecord, ["error", "message"]) ??
+              "Lead status could not be updated.",
+          );
+        }
+        setSendNotice(`Lead moved to ${formatLeadIntakeStatus(status)}.`);
+        await loadConversation(selected.id, true);
+        void loadInbox(debouncedQuery, true);
+      } catch (statusError) {
+        setError(
+          statusError instanceof Error
+            ? statusError.message
+            : "Lead status could not be updated.",
+        );
+      } finally {
+        setLeadStatusSaving(false);
+      }
+    },
+    [
+      debouncedQuery,
+      leadStatusSaving,
+      loadConversation,
+      loadInbox,
+      selected,
+    ],
+  );
+
   const sendMessage = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -1442,6 +1525,11 @@ function CommunicationsInboxContent() {
                           </time>
                         </div>
                         <div className="mt-1.5 flex items-center gap-2">
+                          {conversation.leadStatus ? (
+                            <span className="text-[9px] uppercase tracking-[0.13em] text-accent/80">
+                              {formatLeadIntakeStatus(conversation.leadStatus)}
+                            </span>
+                          ) : null}
                           {conversation.channels.map((itemChannel) => (
                             <span
                               key={itemChannel}
@@ -1515,6 +1603,46 @@ function CommunicationsInboxContent() {
                       </div>
                     </div>
                   </header>
+
+                  {selected.leadIntakeId && selected.leadStatus ? (
+                    <div className="border-b border-white/[0.06] bg-accent/[0.025] px-5 py-4 sm:px-6">
+                      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                        <div>
+                          <p className="text-[9px] uppercase tracking-[0.17em] text-accent/80">
+                            Lead pipeline
+                          </p>
+                          <p className="mt-1 text-xs text-muted">
+                            Keep the sale moving without leaving the conversation.
+                          </p>
+                        </div>
+                        <div
+                          role="group"
+                          aria-label="Lead status"
+                          className="flex max-w-full gap-1.5 overflow-x-auto pb-1"
+                        >
+                          {LEAD_PIPELINE.map((stage) => {
+                            const active = selected.leadStatus === stage.status;
+                            return (
+                              <button
+                                key={stage.status}
+                                type="button"
+                                disabled={leadStatusSaving || active}
+                                onClick={() => void updateLeadStatus(stage.status)}
+                                aria-pressed={active}
+                                className={`min-h-9 shrink-0 rounded-full border px-3 text-[9px] uppercase tracking-[0.13em] transition-colors disabled:cursor-default ${
+                                  active
+                                    ? "border-accent/45 bg-accent/15 text-foreground"
+                                    : "border-white/[0.08] bg-white/[0.025] text-muted hover:border-accent/25 hover:text-foreground disabled:opacity-60"
+                                }`}
+                              >
+                                {stage.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="min-h-[20rem] flex-1 overflow-y-auto bg-black/[0.045] px-4 py-6 sm:px-6">
                     {detailLoading && selected.messages === null ? (

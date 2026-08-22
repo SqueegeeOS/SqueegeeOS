@@ -1,7 +1,17 @@
 import type { ContactMethod, ServiceOption } from "./types";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
 
-export type LeadIntakeStatus = "new" | "contacted" | "scheduled" | "archived";
+/**
+ * `scheduled` is the persisted quote/presentation stage and `archived` is the
+ * persisted lost stage. The legacy values stay stable so existing records and
+ * presentation links do not need a risky data rewrite.
+ */
+export type LeadIntakeStatus =
+  | "new"
+  | "contacted"
+  | "scheduled"
+  | "booked"
+  | "archived";
 export type SmsConsentStatus = "unknown" | "opted_in" | "opted_out";
 export type LeadIntakeSource = "request_form" | "facebook_lead_ad";
 

@@ -9,9 +9,11 @@ export function formatLeadIntakeStatus(status: LeadIntakeStatus): string {
     case "contacted":
       return "Contacted";
     case "scheduled":
-      return "Scheduled";
+      return "Quoted";
+    case "booked":
+      return "Booked";
     case "archived":
-      return "Archived";
+      return "Lost";
   }
 }
 
