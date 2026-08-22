@@ -43,6 +43,8 @@ export async function runLeadAcknowledgementAutomation(
   smsSent: boolean;
   smsScheduled: boolean;
   duplicate: boolean;
+  emailDuplicate: boolean;
+  smsDuplicate: boolean;
   reason?: string;
   smsReason?: string;
 }> {
@@ -166,6 +168,8 @@ export async function runLeadAcknowledgementAutomation(
     smsSent,
     smsScheduled,
     duplicate: emailDuplicate || smsDuplicate,
+    emailDuplicate,
+    smsDuplicate,
     reason,
     smsReason,
   };

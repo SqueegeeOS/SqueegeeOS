@@ -12,6 +12,8 @@ describe("lead communication automation contract", () => {
     expect(source).toContain("buildLeadFirstTouchSmsPlan");
     expect(source).toContain('loadAutomationRule("lead_acknowledgement", "sms")');
     expect(source).toContain("allowUnverifiedSms");
+    expect(source).toContain("emailDuplicate");
+    expect(source).toContain("smsDuplicate");
   });
 
   it("queues quiet-hour SMS for the authenticated daily processor", () => {
