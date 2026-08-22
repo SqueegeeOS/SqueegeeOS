@@ -1012,6 +1012,7 @@ function CommunicationsInboxContent() {
   const [smsConsentAttested, setSmsConsentAttested] = useState(false);
   const [smsConsentSaving, setSmsConsentSaving] = useState(false);
   const [leadStatusSaving, setLeadStatusSaving] = useState(false);
+  const [leadWelcomeRetrying, setLeadWelcomeRetrying] = useState(false);
   const inboxRequest = useRef(0);
   const detailRequest = useRef(0);
   const selectedIdRef = useRef<string | null>(null);
@@ -1339,6 +1340,55 @@ function CommunicationsInboxContent() {
     ],
   );
 
+  const retryLeadWelcome = useCallback(async () => {
+    if (!selected?.leadIntakeId || leadWelcomeRetrying) return;
+
+    setLeadWelcomeRetrying(true);
+    setError(null);
+    setSendNotice(null);
+    try {
+      const response = await fetch(
+        `/api/admin/lead-intakes/${encodeURIComponent(selected.leadIntakeId)}/retry-welcome`,
+        {
+          method: "POST",
+          headers: getAdminRequestHeaders(),
+        },
+      );
+      const responseBody = (await response.json().catch(() => null)) as unknown;
+      if (!response.ok) {
+        const responseRecord = asRecord(responseBody);
+        throw new Error(
+          firstString(responseRecord, ["error", "message"]) ??
+            "The welcome text could not be retried.",
+        );
+      }
+      const responseRecord = asRecord(responseBody);
+      setSendNotice(
+        firstBoolean(responseRecord, ["smsScheduled", "sms_scheduled"])
+          ? "Welcome text scheduled for the next allowed delivery window."
+          : firstBoolean(responseRecord, ["smsSent", "sms_sent"])
+            ? "Welcome text sent through the consented lead flow."
+            : "The welcome text was already safely processed.",
+      );
+      await loadConversation(selected.id, true);
+      void loadInbox(debouncedQuery, true);
+    } catch (retryError) {
+      setError(
+        retryError instanceof Error
+          ? retryError.message
+          : "The welcome text could not be retried.",
+      );
+    } finally {
+      setLeadWelcomeRetrying(false);
+    }
+  }, [
+    debouncedQuery,
+    leadWelcomeRetrying,
+    loadConversation,
+    loadInbox,
+    selected,
+  ]);
+
   const sendMessage = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -1615,30 +1665,48 @@ function CommunicationsInboxContent() {
                             Keep the sale moving without leaving the conversation.
                           </p>
                         </div>
-                        <div
-                          role="group"
-                          aria-label="Lead status"
-                          className="flex max-w-full gap-1.5 overflow-x-auto pb-1"
-                        >
-                          {LEAD_PIPELINE.map((stage) => {
-                            const active = selected.leadStatus === stage.status;
-                            return (
-                              <button
-                                key={stage.status}
-                                type="button"
-                                disabled={leadStatusSaving || active}
-                                onClick={() => void updateLeadStatus(stage.status)}
-                                aria-pressed={active}
-                                className={`min-h-9 shrink-0 rounded-full border px-3 text-[9px] uppercase tracking-[0.13em] transition-colors disabled:cursor-default ${
-                                  active
-                                    ? "border-accent/45 bg-accent/15 text-foreground"
-                                    : "border-white/[0.08] bg-white/[0.025] text-muted hover:border-accent/25 hover:text-foreground disabled:opacity-60"
-                                }`}
-                              >
-                                {stage.label}
-                              </button>
-                            );
-                          })}
+                        <div className="flex max-w-full flex-wrap items-center justify-end gap-2">
+                          {selected.consent.smsStatus.toLowerCase() === "opted_in" &&
+                          selected.messages !== null &&
+                          !selected.messages.some(
+                            (message) =>
+                              message.channel === "sms" &&
+                              message.direction === "outbound",
+                          ) ? (
+                            <button
+                              type="button"
+                              disabled={leadWelcomeRetrying}
+                              onClick={() => void retryLeadWelcome()}
+                              className="min-h-9 shrink-0 rounded-full border border-accent/30 bg-accent/[0.08] px-3 text-[9px] uppercase tracking-[0.13em] text-foreground transition-colors hover:border-accent/50 disabled:opacity-60"
+                            >
+                              {leadWelcomeRetrying ? "Retrying…" : "Retry welcome text"}
+                            </button>
+                          ) : null}
+                          <div
+                            role="group"
+                            aria-label="Lead status"
+                            className="flex max-w-full gap-1.5 overflow-x-auto pb-1"
+                          >
+                            {LEAD_PIPELINE.map((stage) => {
+                              const active = selected.leadStatus === stage.status;
+                              return (
+                                <button
+                                  key={stage.status}
+                                  type="button"
+                                  disabled={leadStatusSaving || active}
+                                  onClick={() => void updateLeadStatus(stage.status)}
+                                  aria-pressed={active}
+                                  className={`min-h-9 shrink-0 rounded-full border px-3 text-[9px] uppercase tracking-[0.13em] transition-colors disabled:cursor-default ${
+                                    active
+                                      ? "border-accent/45 bg-accent/15 text-foreground"
+                                      : "border-white/[0.08] bg-white/[0.025] text-muted hover:border-accent/25 hover:text-foreground disabled:opacity-60"
+                                  }`}
+                                >
+                                  {stage.label}
+                                </button>
+                              );
+                            })}
+                          </div>
                         </div>
                       </div>
                     </div>
