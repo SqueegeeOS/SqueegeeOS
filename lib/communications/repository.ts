@@ -139,6 +139,35 @@ export interface TwilioInboundContactResolution {
   contactPointId: string | null;
 }
 
+interface LeadConversationCandidate {
+  id: string;
+  leadIntakeId: string;
+}
+
+export function selectSoleMessagedLeadConversation(
+  leadIntakeIds: string[],
+  conversations: LeadConversationCandidate[],
+  outboundConversationIds: string[],
+): LeadConversationCandidate | null {
+  const candidateLeadIds = new Set(leadIntakeIds);
+  const conversationById = new Map(
+    conversations
+      .filter((conversation) => candidateLeadIds.has(conversation.leadIntakeId))
+      .map((conversation) => [conversation.id, conversation]),
+  );
+  const messagedLeadIds = new Set<string>();
+  let newestConversation: LeadConversationCandidate | null = null;
+
+  for (const conversationId of outboundConversationIds) {
+    const conversation = conversationById.get(conversationId);
+    if (!conversation) continue;
+    newestConversation ??= conversation;
+    messagedLeadIds.add(conversation.leadIntakeId);
+  }
+
+  return messagedLeadIds.size === 1 ? newestConversation : null;
+}
+
 const CONVERSATION_SELECT =
   "id, homeowner_id, property_id, membership_id, lead_intake_id, subject, status, assigned_to, provider, provider_thread_id, last_message_at, created_at, updated_at";
 const MESSAGE_SELECT =
@@ -914,6 +943,58 @@ async function conversationIdForLead(leadIntakeId: string): Promise<string | nul
   return (data as { id?: string } | null)?.id ?? null;
 }
 
+async function messagedConversationForDuplicateLeads(
+  leadIntakeIds: string[],
+  normalizedPhone: string,
+): Promise<LeadConversationCandidate | null> {
+  const supabase = createServiceRoleSupabaseClient();
+  const conversationResult = await supabase
+    .from("customer_conversations")
+    .select("id, lead_intake_id")
+    .in("lead_intake_id", leadIntakeIds)
+    .eq("status", "open");
+  if (conversationResult.error) {
+    throw databaseError("resolve duplicate lead threads", conversationResult.error.message);
+  }
+
+  const conversations = (conversationResult.data ?? []).map((row) => ({
+    id: row.id as string,
+    leadIntakeId: row.lead_intake_id as string,
+  }));
+  if (conversations.length === 0) return null;
+
+  const messageResult = await supabase
+    .from("customer_messages")
+    .select("conversation_id")
+    .in(
+      "conversation_id",
+      conversations.map((conversation) => conversation.id),
+    )
+    .eq("direction", "outbound")
+    .eq("channel", "sms")
+    .eq("provider", "twilio")
+    .eq("recipient_address_normalized", normalizedPhone)
+    .in("delivery_status", [
+      "accepted",
+      "queued",
+      "sending",
+      "sent",
+      "delivered",
+      "read",
+    ])
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (messageResult.error) {
+    throw databaseError("resolve duplicate lead messages", messageResult.error.message);
+  }
+
+  return selectSoleMessagedLeadConversation(
+    leadIntakeIds,
+    conversations,
+    (messageResult.data ?? []).map((row) => row.conversation_id as string),
+  );
+}
+
 export async function resolveTwilioInboundContact(
   rawPhone: string,
 ): Promise<TwilioInboundContactResolution> {
@@ -994,7 +1075,32 @@ export async function resolveTwilioInboundContact(
 
   // A converted customer commonly remains in lead history. Prefer the single
   // canonical homeowner match over its historical lead duplicate.
-  if (homeownerMatches.length > 1 || (homeownerMatches.length === 0 && leadMatches.length > 1)) {
+  if (homeownerMatches.length > 1) {
+    return {
+      status: "ambiguous",
+      normalizedPhone,
+      conversationId: null,
+      homeownerId: null,
+      leadIntakeId: null,
+      contactPointId: null,
+    };
+  }
+
+  if (homeownerMatches.length === 0 && leadMatches.length > 1) {
+    const messagedConversation = await messagedConversationForDuplicateLeads(
+      leadMatches.map((lead) => lead.id),
+      normalizedPhone,
+    );
+    if (messagedConversation) {
+      return {
+        status: "resolved",
+        normalizedPhone,
+        conversationId: messagedConversation.id,
+        homeownerId: null,
+        leadIntakeId: messagedConversation.leadIntakeId,
+        contactPointId: null,
+      };
+    }
     return {
       status: "ambiguous",
       normalizedPhone,
