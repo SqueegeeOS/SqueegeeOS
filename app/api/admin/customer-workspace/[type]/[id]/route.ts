@@ -82,6 +82,7 @@ export async function PATCH(
           body.status === "new" ||
           body.status === "contacted" ||
           body.status === "scheduled" ||
+          body.status === "booked" ||
           body.status === "archived"
             ? body.status
             : undefined,

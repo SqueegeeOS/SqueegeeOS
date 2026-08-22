@@ -44,7 +44,7 @@ interface LeadIntakeSourceRow {
   notes: string | null;
   membership_tier: keyof typeof SQUEEGEEKING_TIERS | null;
   estimated_visit_price: number | string | null;
-  status: "new" | "contacted" | "scheduled" | "archived";
+  status: "new" | "contacted" | "scheduled" | "booked" | "archived";
   source: LeadIntakeSalesAssignment["source"];
   sms_consent_status: "unknown" | "opted_in" | "opted_out" | null;
   sms_consent_recorded_at: string | null;

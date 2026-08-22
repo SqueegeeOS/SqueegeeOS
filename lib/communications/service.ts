@@ -44,6 +44,7 @@ import type {
   CustomerMessageDeliveryStatus,
 } from "@/lib/communications/types";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
+import type { LeadIntakeStatus } from "@/lib/acquisition/lead-record";
 
 export interface CommunicationsProviderView {
   configured: boolean;
@@ -68,6 +69,8 @@ export interface CommunicationsMessageView {
 
 export interface CommunicationsConversationView {
   id: string;
+  leadIntakeId: string | null;
+  leadStatus: LeadIntakeStatus | null;
   customerName: string;
   preview: string;
   updatedAt: string;
@@ -357,6 +360,8 @@ function conversationView(
 
   return {
     id: context.conversation.id,
+    leadIntakeId: context.conversation.leadIntakeId,
+    leadStatus: context.leadStatus,
     customerName: context.customerName,
     preview: previewText(latest ?? messages?.at(-1)),
     updatedAt:

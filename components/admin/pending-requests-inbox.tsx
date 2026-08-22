@@ -32,8 +32,9 @@ import type {
 const FILTERS: Array<{ id: LeadIntakeFilter; label: string }> = [
   { id: "new", label: "New" },
   { id: "contacted", label: "Contacted" },
-  { id: "scheduled", label: "Scheduled" },
-  { id: "archived", label: "Archived" },
+  { id: "scheduled", label: "Quoted" },
+  { id: "booked", label: "Booked" },
+  { id: "archived", label: "Lost" },
   { id: "all", label: "All" },
 ];
 

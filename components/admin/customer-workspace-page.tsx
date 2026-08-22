@@ -433,9 +433,27 @@ export function CustomerWorkspacePage({
                   }
                   className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 disabled:opacity-40"
                 >
-                  {workspace.lead.status === "scheduled"
+                  {workspace.lead.status === "scheduled" ||
+                  workspace.lead.status === "booked"
                     ? "Repair presentation"
                     : "Schedule presentation"}
+                </button>
+              ) : null}
+              {workspace.lead?.status === "scheduled" ? (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() =>
+                    void runLeadAction(() =>
+                      updateLeadIntakeStatusClient(
+                        workspace.lead!.id,
+                        "booked",
+                      ).then(() => undefined),
+                    )
+                  }
+                  className="rounded-full border border-accent/40 bg-accent/10 px-4 py-2 text-xs uppercase tracking-[0.14em] text-foreground transition hover:border-accent/60 disabled:opacity-40"
+                >
+                  Mark booked
                 </button>
               ) : null}
               {workspace.lead && workspace.lead.status !== "archived" ? (
@@ -451,7 +469,7 @@ export function CustomerWorkspacePage({
                   }
                   className="rounded-full border border-border/50 px-4 py-2 text-xs uppercase tracking-[0.14em] text-muted transition hover:border-border hover:text-foreground disabled:opacity-40"
                 >
-                  Archive request
+                  Mark lost
                 </button>
               ) : null}
             </div>
