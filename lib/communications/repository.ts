@@ -92,6 +92,7 @@ interface LeadRow {
   status: LeadIntakeStatus;
   sms_consent_status: CustomerConsentStatus | null;
   sms_consent_recorded_at: string | null;
+  sms_verified_at: string | null;
   email_delivery_status: "active" | "bounced" | "complained" | null;
   email_delivery_status_recorded_at: string | null;
 }
@@ -367,7 +368,11 @@ export function leadSmsVerificationStatus(
   conversationId: string,
   leadPhone: string,
   verifiedInboundRows: VerifiedInboundSmsRow[],
+  storedVerifiedAt: string | null = null,
 ): CustomerContactVerificationStatus {
+  if (storedVerifiedAt && !Number.isNaN(Date.parse(storedVerifiedAt))) {
+    return "verified";
+  }
   return verifiedInboundRows.some(
     (row) =>
       row.conversation_id === conversationId &&
@@ -521,7 +526,7 @@ export async function loadCommunicationConversationContexts(
       leadIds.length
         ? supabase
             .from("lead_intakes")
-            .select("id, name, email, phone, service_address, status, sms_consent_status, sms_consent_recorded_at, email_delivery_status, email_delivery_status_recorded_at")
+            .select("id, name, email, phone, service_address, status, sms_consent_status, sms_consent_recorded_at, sms_verified_at, email_delivery_status, email_delivery_status_recorded_at")
             .in("id", leadIds)
         : Promise.resolve({ data: [], error: null }),
       propertyIds.length
@@ -621,6 +626,7 @@ export async function loadCommunicationConversationContexts(
               conversation.id,
               leadPhone,
               verifiedInboundSmsRows,
+              lead?.sms_verified_at ?? null,
             ),
           }
         : null;

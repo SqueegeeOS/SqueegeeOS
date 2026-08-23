@@ -93,6 +93,17 @@ describe("homeowner SMS destination selection", () => {
 });
 
 describe("lead SMS destination verification", () => {
+  it("keeps an exact lead number verified after HQ records explicit permission", () => {
+    expect(
+      leadSmsVerificationStatus(
+        "lead-conversation-1",
+        "+15305550101",
+        [],
+        "2026-08-22T20:00:00.000Z",
+      ),
+    ).toBe("verified");
+  });
+
   it("verifies only the exact lead conversation and normalized inbound number", () => {
     const inbound = [
       {
