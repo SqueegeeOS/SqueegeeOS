@@ -105,6 +105,11 @@ interface PropertyRow {
   zip: string | null;
 }
 
+interface VerifiedInboundSmsRow {
+  conversation_id: string;
+  sender_address_normalized: string | null;
+}
+
 export interface CommunicationDestination {
   address: string;
   contactPointId: string | null;
@@ -358,6 +363,20 @@ export function resolveHomeownerSmsDestination(
       };
 }
 
+export function leadSmsVerificationStatus(
+  conversationId: string,
+  leadPhone: string,
+  verifiedInboundRows: VerifiedInboundSmsRow[],
+): CustomerContactVerificationStatus {
+  return verifiedInboundRows.some(
+    (row) =>
+      row.conversation_id === conversationId &&
+      normalizeCustomerPhone(row.sender_address_normalized) === leadPhone,
+  )
+    ? "verified"
+    : "unverified";
+}
+
 export function maskCommunicationAddress(
   channel: CustomerCommunicationChannel,
   address: string,
@@ -483,9 +502,18 @@ export async function loadCommunicationConversationContexts(
   const supabase = createServiceRoleSupabaseClient();
   const homeownerIds = [...new Set(conversations.flatMap((item) => item.homeownerId ?? []))];
   const leadIds = [...new Set(conversations.flatMap((item) => item.leadIntakeId ?? []))];
+  const leadConversationIds = conversations
+    .filter((item) => item.leadIntakeId)
+    .map((item) => item.id);
   const propertyIds = [...new Set(conversations.flatMap((item) => item.propertyId ?? []))];
 
-  const [homeownersResult, leadsResult, propertiesResult, contactsResult] =
+  const [
+    homeownersResult,
+    leadsResult,
+    propertiesResult,
+    contactsResult,
+    verifiedInboundSmsResult,
+  ] =
     await Promise.all([
       homeownerIds.length
         ? supabase.from("homeowners").select("id, full_name, email, phone").in("id", homeownerIds)
@@ -505,6 +533,20 @@ export async function loadCommunicationConversationContexts(
       homeownerIds.length
         ? supabase.from("customer_contact_points").select("*").in("homeowner_id", homeownerIds)
         : Promise.resolve({ data: [], error: null }),
+      // Twilio inbound messages enter this ledger only after the webhook route
+      // validates its signature. Match both conversation and normalized number
+      // so a reply to one lead can never verify another lead's destination.
+      leadConversationIds.length
+        ? supabase
+            .from("customer_messages")
+            .select("conversation_id, sender_address_normalized")
+            .in("conversation_id", leadConversationIds)
+            .eq("direction", "inbound")
+            .eq("channel", "sms")
+            .eq("provider", "twilio")
+            .eq("delivery_status", "received")
+            .not("provider_message_id", "is", null)
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
   for (const [operation, error] of [
@@ -512,6 +554,7 @@ export async function loadCommunicationConversationContexts(
     ["load leads", leadsResult.error],
     ["load properties", propertiesResult.error],
     ["load contact points", contactsResult.error],
+    ["load verified inbound SMS", verifiedInboundSmsResult.error],
   ] as const) {
     if (error) throw databaseError(operation, error.message);
   }
@@ -525,6 +568,8 @@ export async function loadCommunicationConversationContexts(
   const properties = new Map(
     ((propertiesResult.data ?? []) as PropertyRow[]).map((row) => [row.id, row]),
   );
+  const verifiedInboundSmsRows = (verifiedInboundSmsResult.data ?? []) as
+    VerifiedInboundSmsRow[];
   const pointsByHomeowner = new Map<string, CustomerContactPoint[]>();
   for (const row of (contactsResult.data ?? []) as ContactPointRow[]) {
     const point = contactPointFromRow(row);
@@ -572,7 +617,11 @@ export async function loadCommunicationConversationContexts(
             address: leadPhone,
             contactPointId: null,
             consentStatus: lead?.sms_consent_status ?? "unknown",
-            verificationStatus: "unverified",
+            verificationStatus: leadSmsVerificationStatus(
+              conversation.id,
+              leadPhone,
+              verifiedInboundSmsRows,
+            ),
           }
         : null;
 

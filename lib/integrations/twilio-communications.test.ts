@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   customerMessageStatusForTwilio,
+  existingContactPointUpdateForInboundSms,
   normalizeStoredUsPhoneToE164,
   resolveTwilioSignatureUrl,
 } from "./twilio-communications";
@@ -40,5 +41,41 @@ describe("Twilio communications helpers", () => {
     expect(source).toContain("contact_consent_update_failed");
     expect(source).toContain("lead_consent_update_failed");
     expect(source).toContain("webhook_event_finalize_failed");
+  });
+
+  it("verifies an existing unverified contact point when inbound START opts it in", () => {
+    const verifiedAt = "2026-08-23T02:00:00.000Z";
+
+    expect(
+      existingContactPointUpdateForInboundSms("start", verifiedAt),
+    ).toEqual({
+      verification_status: "verified",
+      verified_at: verifiedAt,
+      consent_status: "opted_in",
+      consent_source: "twilio_keyword",
+      consent_recorded_at: verifiedAt,
+      opt_out_reason: null,
+    });
+    expect(source).toContain('.eq("channel", "sms")');
+    expect(source).toContain('.eq("address_normalized", input.phone)');
+    expect(source).toContain('.select("id")');
+    expect(source).toContain(
+      "phone: resolution.normalizedPhone ?? input.message.from",
+    );
+  });
+
+  it("preserves STOP suppression while verifying the inbound number", () => {
+    const verifiedAt = "2026-08-23T02:01:00.000Z";
+
+    expect(
+      existingContactPointUpdateForInboundSms("stop", verifiedAt),
+    ).toEqual({
+      verification_status: "verified",
+      verified_at: verifiedAt,
+      consent_status: "opted_out",
+      consent_source: "twilio_keyword",
+      consent_recorded_at: verifiedAt,
+      opt_out_reason: "customer_keyword",
+    });
   });
 });

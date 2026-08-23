@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  leadSmsVerificationStatus,
   resolveHomeownerEmailDestination,
   resolveHomeownerSmsDestination,
 } from "./repository";
@@ -88,5 +89,38 @@ describe("homeowner SMS destination selection", () => {
       consentStatus: "opted_in",
       verificationStatus: "verified",
     });
+  });
+});
+
+describe("lead SMS destination verification", () => {
+  it("verifies only the exact lead conversation and normalized inbound number", () => {
+    const inbound = [
+      {
+        conversation_id: "lead-conversation-1",
+        sender_address_normalized: "+15305550101",
+      },
+    ];
+
+    expect(
+      leadSmsVerificationStatus(
+        "lead-conversation-1",
+        "+15305550101",
+        inbound,
+      ),
+    ).toBe("verified");
+    expect(
+      leadSmsVerificationStatus(
+        "lead-conversation-2",
+        "+15305550101",
+        inbound,
+      ),
+    ).toBe("unverified");
+    expect(
+      leadSmsVerificationStatus(
+        "lead-conversation-1",
+        "+15305550102",
+        inbound,
+      ),
+    ).toBe("unverified");
   });
 });
