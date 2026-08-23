@@ -69,6 +69,34 @@ function maskedPhone(phone: string): string {
   return `***${phone.slice(-4)}`;
 }
 
+export function existingContactPointUpdateForInboundSms(
+  keyword: SmsConsentKeyword,
+  verifiedAt: string,
+): {
+  verification_status: "verified";
+  verified_at: string;
+  consent_status?: "opted_out" | "opted_in";
+  consent_source?: "twilio_keyword";
+  consent_recorded_at?: string;
+  opt_out_reason?: "customer_keyword" | null;
+} {
+  const verification = {
+    verification_status: "verified" as const,
+    verified_at: verifiedAt,
+  };
+  if (keyword === "none") return verification;
+
+  const consentStatus = keyword === "stop" ? "opted_out" : "opted_in";
+  return {
+    ...verification,
+    consent_status: consentStatus,
+    consent_source: "twilio_keyword",
+    consent_recorded_at: verifiedAt,
+    opt_out_reason:
+      consentStatus === "opted_out" ? "customer_keyword" : null,
+  };
+}
+
 async function ensureInboundContactPoint(input: {
   homeownerId: string;
   phone: string;
@@ -85,18 +113,16 @@ async function ensureInboundContactPoint(input: {
         : "unknown";
   const consentRecordedAt = consentStatus === "unknown" ? null : now;
   if (input.existingId) {
-    if (input.keyword !== "none") {
-      const updated = await supabase
-        .from("customer_contact_points")
-        .update({
-          consent_status: consentStatus,
-          consent_source: "twilio_keyword",
-          consent_recorded_at: consentRecordedAt,
-          opt_out_reason:
-            consentStatus === "opted_out" ? "customer_keyword" : null,
-        })
-        .eq("id", input.existingId);
-      if (updated.error) throw new Error("contact_consent_update_failed");
+    const updated = await supabase
+      .from("customer_contact_points")
+      .update(existingContactPointUpdateForInboundSms(input.keyword, now))
+      .eq("id", input.existingId)
+      .eq("channel", "sms")
+      .eq("address_normalized", input.phone)
+      .select("id")
+      .maybeSingle();
+    if (updated.error || updated.data?.id !== input.existingId) {
+      throw new Error("contact_consent_update_failed");
     }
     return input.existingId;
   }
@@ -167,7 +193,7 @@ export async function recordTwilioInboundMessage(input: {
   if (resolution.homeownerId) {
     contactPointId = await ensureInboundContactPoint({
       homeownerId: resolution.homeownerId,
-      phone: input.message.from,
+      phone: resolution.normalizedPhone ?? input.message.from,
       existingId: resolution.contactPointId,
       keyword: input.message.consentKeyword,
     });
