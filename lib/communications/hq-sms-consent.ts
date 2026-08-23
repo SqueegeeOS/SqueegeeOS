@@ -102,7 +102,7 @@ export async function recordHqSmsConsentDecision(input: {
   requestIp: string | null;
   userAgent: string | null;
 }): Promise<{
-  contactPointId: string;
+  contactPointId: string | null;
   consentStatus: "opted_in" | "opted_out";
   verificationStatus: "verified";
   consentRecordedAt: string;
@@ -111,15 +111,90 @@ export async function recordHqSmsConsentDecision(input: {
   if (!conversation) {
     throw new HqSmsConsentError("Conversation not found.", 404, "not_found");
   }
-  if (!conversation.homeownerId) {
+  if (!conversation.homeownerId && !conversation.leadIntakeId) {
     throw new HqSmsConsentError(
-      "Convert this request to a customer before recording member text permission.",
+      "This conversation is not attached to a customer or lead.",
       409,
-      "homeowner_required",
+      "conversation_identity_required",
     );
   }
 
   const supabase = createServiceRoleSupabaseClient();
+  const nextStatus =
+    input.decision.action === "record_opt_in" ? "opted_in" : "opted_out";
+
+  if (!conversation.homeownerId && conversation.leadIntakeId) {
+    const lead = await supabase
+      .from("lead_intakes")
+      .select("phone")
+      .eq("id", conversation.leadIntakeId)
+      .maybeSingle();
+    if (lead.error || !lead.data) {
+      throw new HqSmsConsentError(
+        "Lead phone record is unavailable.",
+        503,
+        "lead_phone_unavailable",
+      );
+    }
+    const currentPhone = normalizeCustomerPhone(
+      (lead.data as { phone?: string | null }).phone,
+    );
+    if (!currentPhone || currentPhone !== input.decision.phone) {
+      throw new HqSmsConsentError(
+        "The phone changed. Refresh the lead and confirm permission for the exact current number.",
+        409,
+        "phone_changed",
+      );
+    }
+
+    const { data, error } = await supabase.rpc(
+      "record_hq_lead_sms_consent_decision",
+      {
+        p_conversation_id: conversation.id,
+        p_address_normalized: input.decision.phone,
+        p_next_status: nextStatus,
+        p_evidence_note: input.decision.evidenceNote,
+        p_attested: input.decision.attested,
+        p_recorded_by: input.actor,
+        p_source_path: input.sourcePath,
+        p_request_ip: input.requestIp,
+        p_user_agent: input.userAgent,
+        p_idempotency_key: input.decision.idempotencyKey,
+      },
+    );
+    if (error) {
+      throw new HqSmsConsentError(
+        "Lead text consent could not be recorded. Confirm the lead consent migration is installed and try again.",
+        503,
+        "lead_consent_persistence_failed",
+      );
+    }
+    const row = (Array.isArray(data) ? data[0] : data) as {
+      lead_intake_id?: string;
+      consent_status?: string;
+      verification_status?: string;
+      consent_recorded_at?: string;
+    } | null;
+    if (
+      row?.lead_intake_id !== conversation.leadIntakeId ||
+      row.consent_status !== nextStatus ||
+      row.verification_status !== "verified" ||
+      !row.consent_recorded_at
+    ) {
+      throw new HqSmsConsentError(
+        "Lead text consent was not confirmed by storage.",
+        503,
+        "lead_consent_confirmation_failed",
+      );
+    }
+    return {
+      contactPointId: null,
+      consentStatus: nextStatus,
+      verificationStatus: "verified",
+      consentRecordedAt: row.consent_recorded_at,
+    };
+  }
+
   const homeowner = await supabase
     .from("homeowners")
     .select("phone")
@@ -165,8 +240,6 @@ export async function recordHqSmsConsentDecision(input: {
     }
   }
 
-  const nextStatus =
-    input.decision.action === "record_opt_in" ? "opted_in" : "opted_out";
   const { data, error } = await supabase.rpc("record_hq_sms_consent_decision", {
     p_conversation_id: conversation.id,
     p_address_normalized: input.decision.phone,
