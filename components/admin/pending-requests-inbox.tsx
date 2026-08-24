@@ -12,7 +12,10 @@ import { MotionReveal } from "@/components/craft/motion-reveal";
 import { ShimmerBlock } from "@/components/motion/shimmer-block";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { markRequestsInboxOpened } from "@/lib/admin/requests-inbox-read-state";
-import { schedulePresentationFromLead } from "@/lib/acquisition/leads/inbox-client";
+import {
+  removeLeadIntakeFromActiveHqClient,
+  schedulePresentationFromLead,
+} from "@/lib/acquisition/leads/inbox-client";
 import {
   filterLeads,
   formatLeadIntakeStatus,
@@ -68,6 +71,7 @@ function RequestInboxRow({
   salesReps,
   onOpen,
   onSchedule,
+  onRemove,
   onAssigned,
 }: {
   lead: LeadIntakeRecord;
@@ -77,6 +81,7 @@ function RequestInboxRow({
   salesReps: LeadIntakeSalesRepOption[];
   onOpen: () => void;
   onSchedule: () => void;
+  onRemove: () => void;
   onAssigned: (assignment: LeadIntakeSalesAssignment) => void;
 }) {
   const reduceMotion = useReducedMotion();
@@ -128,19 +133,29 @@ function RequestInboxRow({
             {formatLeadIntakeStatus(lead.status)}
           </span>
           {lead.status !== "archived" ? (
-            <button
-              type="button"
-              disabled={busy || !assignment}
-              onClick={onSchedule}
-              title={assignment ? undefined : "Assign an owner and next action first"}
-              className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-muted shadow-[var(--shadow-ambient)] backdrop-blur-sm transition-[border-color,color,opacity] duration-300 hover:border-accent/25 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {!assignment
-                ? "Assign first"
-                : lead.status === "scheduled"
-                  ? "Open presentation"
-                  : "Schedule presentation"}
-            </button>
+            <div className="flex flex-wrap justify-end gap-2 max-sm:max-w-40">
+              <button
+                type="button"
+                disabled={busy || !assignment}
+                onClick={onSchedule}
+                title={assignment ? undefined : "Assign an owner and next action first"}
+                className="rounded-full border border-white/[0.1] bg-white/[0.04] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-muted shadow-[var(--shadow-ambient)] backdrop-blur-sm transition-[border-color,color,opacity] duration-300 hover:border-accent/25 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {!assignment
+                  ? "Assign first"
+                  : lead.status === "scheduled"
+                    ? "Open presentation"
+                    : "Schedule presentation"}
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={onRemove}
+                className="rounded-full border border-red-300/15 bg-red-300/[0.035] px-3 py-1.5 text-[11px] uppercase tracking-[0.14em] text-red-100/65 transition hover:border-red-300/30 hover:text-red-100 disabled:opacity-40"
+              >
+                Remove test/fake
+              </button>
+            </div>
           ) : null}
         </div>
       </div>
@@ -232,6 +247,27 @@ export function PendingRequestsInbox() {
     [loadLeads, router],
   );
 
+  const runRemove = useCallback(
+    async (lead: LeadIntakeRecord) => {
+      const confirmed = window.confirm(
+        `Remove ${lead.name} from active Requests and Communications?\n\nThis safely archives the test/fake record instead of erasing consent or message history.`,
+      );
+      if (!confirmed) return;
+
+      setActingId(lead.id);
+      setError(null);
+      try {
+        await removeLeadIntakeFromActiveHqClient(lead.id);
+        await loadLeads();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not remove this record");
+      } finally {
+        setActingId(null);
+      }
+    },
+    [loadLeads],
+  );
+
   return (
     <AmbientStage className="px-4 py-10 text-foreground sm:px-6 sm:py-12">
       <div className="relative mx-auto max-w-6xl">
@@ -316,6 +352,7 @@ export function PendingRequestsInbox() {
                 salesReps={salesReps}
                 onOpen={() => router.push(customerWorkspaceHref("lead", lead.id))}
                 onSchedule={() => void runSchedule(lead)}
+                onRemove={() => void runRemove(lead)}
                 onAssigned={(assignment) =>
                   setAssignments((current) => [
                     ...current.filter(

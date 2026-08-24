@@ -193,7 +193,42 @@ export async function updateLeadIntakeStatus(
   }
 
   if (!data) return null;
+
   return rowToRecord(data as LeadIntakeRow);
+}
+
+export async function removeLeadIntakeFromActiveHq(
+  id: string,
+): Promise<LeadIntakeRecord | null> {
+  if (!isCloudPersistenceConnected()) return null;
+
+  const supabase = createServerSupabaseClient();
+  const leadUpdate = await supabase
+    .from("lead_intakes")
+    .update({ status: "archived" })
+    .eq("id", id)
+    .select()
+    .maybeSingle();
+
+  if (leadUpdate.error) {
+    throw new Error(`Failed to archive lead intake: ${leadUpdate.error.message}`);
+  }
+  if (!leadUpdate.data) return null;
+
+  // This is deliberately separate from the normal "Mark lost" lifecycle.
+  // Only the explicit test/fake cleanup action hides the linked thread.
+  const conversationUpdate = await supabase
+    .from("customer_conversations")
+    .update({ status: "archived" })
+    .eq("lead_intake_id", id);
+
+  if (conversationUpdate.error) {
+    throw new Error(
+      `Lead was archived, but its conversation could not be hidden: ${conversationUpdate.error.message}`,
+    );
+  }
+
+  return rowToRecord(leadUpdate.data as LeadIntakeRow);
 }
 
 export async function createLeadIntake(
