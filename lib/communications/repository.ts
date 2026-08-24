@@ -402,6 +402,7 @@ export async function listCommunicationConversations(
   const { data, error } = await supabase
     .from("customer_conversations")
     .select(CONVERSATION_SELECT)
+    .neq("status", "archived")
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .limit(Math.max(1, Math.min(limit, 500)));

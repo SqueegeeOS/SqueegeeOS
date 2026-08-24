@@ -19,6 +19,24 @@ export async function updateLeadIntakeStatusClient(
   return data.lead;
 }
 
+export async function removeLeadIntakeFromActiveHqClient(
+  id: string,
+): Promise<LeadIntakeRecord> {
+  const response = await fetch(`/api/admin/lead-intakes/${id}/remove`, {
+    method: "POST",
+    headers: getAdminRequestHeaders(),
+  });
+
+  const data = (await response.json().catch(() => null)) as {
+    lead?: LeadIntakeRecord;
+    error?: string;
+  } | null;
+  if (!response.ok || !data?.lead) {
+    throw new Error(data?.error ?? "Failed to remove test or fake request");
+  }
+  return data.lead;
+}
+
 export async function schedulePresentationFromLead(
   lead: LeadIntakeRecord,
 ): Promise<string> {

@@ -29,6 +29,16 @@ const STATUS_TONE: Record<HqMembershipRow["status"], string> = {
   cancelled: "text-muted/60",
 };
 
+const STATUS_PRIORITY: Record<HqMembershipRow["status"], number> = {
+  "needs scheduling": 0,
+  attention: 1,
+  "needs card": 2,
+  signed: 3,
+  active: 4,
+  scheduled: 5,
+  cancelled: 6,
+};
+
 function money(n: number | null): string {
   return typeof n === "number"
     ? n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 })
@@ -122,7 +132,9 @@ function HqMembershipsContent() {
     return () => window.clearTimeout(timer);
   }, [loadMemberships]);
 
-  const visibleRows = rows.filter((row) => row.rawStatus !== "cancelled");
+  const visibleRows = rows
+    .filter((row) => row.rawStatus !== "cancelled")
+    .sort((a, b) => STATUS_PRIORITY[a.status] - STATUS_PRIORITY[b.status]);
   const live = visibleRows;
   const active = live.filter(
     (r) => r.status === "active" || r.status === "scheduled" || r.status === "needs scheduling",
@@ -191,6 +203,55 @@ function HqMembershipsContent() {
           </GlassCard>
         ) : (
           <>
+            {needsScheduling.length > 0 ? (
+              <GlassCard
+                tone="subtle"
+                motion="rise"
+                className="mb-8 border-amber-300/20 bg-amber-300/[0.045]"
+              >
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-[10px] uppercase tracking-[0.2em] text-amber-200/80">
+                      Scheduling reminder
+                    </p>
+                    <h2 className="mt-2 font-serif text-2xl font-light text-foreground">
+                      {needsScheduling.length} existing member
+                      {needsScheduling.length === 1 ? " needs" : "s need"} a visit booked.
+                    </h2>
+                    <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
+                      These active memberships do not have a matched, verified Jobber visit yet.
+                      This queue refreshes automatically after the daily Jobber sync.
+                    </p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">
+                    Jobber auto-sync on
+                  </span>
+                </div>
+                <div className="mt-5 grid gap-3 border-t border-amber-300/10 pt-5 sm:grid-cols-2">
+                  {needsScheduling.map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex flex-col gap-3 rounded-2xl border border-white/[0.06] bg-background/30 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {row.customerName}
+                        </p>
+                        <p className="mt-1 truncate text-xs text-muted">{row.address}</p>
+                      </div>
+                      <ScheduleMembershipButton
+                        row={row}
+                        onScheduled={(message) => {
+                          setNotice(message);
+                          void loadMemberships();
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </GlassCard>
+            ) : null}
+
             <div className="mb-10 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-7">
               <Stat label="Active" value={String(active.length)} />
               <Stat label="Needs scheduling" value={String(needsScheduling.length)} />

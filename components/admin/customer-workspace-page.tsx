@@ -10,6 +10,7 @@ import { PaymentSetupEmailButton } from "@/components/admin/payment-setup-email-
 import { LeadAssignmentControl } from "@/components/admin/lead-assignment-control";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
+  removeLeadIntakeFromActiveHqClient,
   schedulePresentationFromLead,
   updateLeadIntakeStatusClient,
 } from "@/lib/acquisition/leads/inbox-client";
@@ -470,6 +471,29 @@ export function CustomerWorkspacePage({
                   className="rounded-full border border-border/50 px-4 py-2 text-xs uppercase tracking-[0.14em] text-muted transition hover:border-border hover:text-foreground disabled:opacity-40"
                 >
                   Mark lost
+                </button>
+              ) : null}
+              {workspace.lead && workspace.lead.status !== "archived" ? (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => {
+                    if (
+                      !window.confirm(
+                        `Remove ${workspace.contact.name} from active Requests and Communications?\n\nThis safely archives the record instead of erasing consent or message history.`,
+                      )
+                    ) {
+                      return;
+                    }
+                    void runLeadAction(() =>
+                      removeLeadIntakeFromActiveHqClient(workspace.lead!.id).then(
+                        () => undefined,
+                      ),
+                    );
+                  }}
+                  className="rounded-full border border-red-300/20 bg-red-300/[0.04] px-4 py-2 text-xs uppercase tracking-[0.14em] text-red-100/75 transition hover:border-red-300/35 hover:text-red-100 disabled:opacity-40"
+                >
+                  Remove test/fake
                 </button>
               ) : null}
             </div>
