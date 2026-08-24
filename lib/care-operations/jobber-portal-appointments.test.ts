@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildJobberPortalAppointmentValues,
   buildJobberPortalTimeWindow,
+  isEligibleJobberProjectionMembership,
   jobberVisitAppointmentStatus,
   selectNearestUpcomingJobberVisit,
   type JobberPortalVisitCandidate,
@@ -150,5 +151,26 @@ describe("Jobber member portal appointment projection", () => {
       'if (existing?.link_state === "revoked") return null',
     );
     expect(source).not.toContain('.eq("link_state", "revoked")\n    .select');
+    expect(source).not.toContain('.eq("status", "active")');
+  });
+
+  it("accepts an active owner-approved cash membership", () => {
+    expect(
+      isEligibleJobberProjectionMembership({
+        id: "membership-1",
+        homeowner_id: "homeowner-1",
+        property_id: "property-1",
+        status: "active",
+        payment_setup_completed_at: null,
+        stripe_payment_method_id: null,
+        stripe_customer_id: null,
+        payment_rail: "manual_cash_check",
+        manual_payment_approved_at: "2026-08-24T12:00:00.000Z",
+        manual_payment_approved_by: "owner",
+        agreement_id: "agreement-1",
+        sales_tier: "biannual",
+        visit_price: 400,
+      }),
+    ).toBe(true);
   });
 });

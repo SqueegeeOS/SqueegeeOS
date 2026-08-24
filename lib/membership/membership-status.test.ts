@@ -89,6 +89,14 @@ describe("resolveHqMembershipDisplayStatus", () => {
         nextScheduledAt: null,
       }),
     ).toBe("needs scheduling");
+
+    expect(
+      resolveHqMembershipDisplayStatus({
+        ...baseActive,
+        nextScheduledAt: null,
+        visitsStillToBook: 0,
+      }),
+    ).toBe("active");
   });
 
   it("shows signed when card is captured but membership is still pending_payment", () => {

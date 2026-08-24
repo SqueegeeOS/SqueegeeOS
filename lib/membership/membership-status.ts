@@ -39,6 +39,8 @@ export interface HqMembershipStatusInput extends MembershipStatusFields {
   visits_per_year?: number | null;
   /** ISO datetime of the next scheduled appointment, when known. */
   nextScheduledAt?: string | null;
+  /** Visits in the current contract year that are neither completed nor booked. */
+  visitsStillToBook?: number | null;
 }
 
 /** Portal-facing coarse status on MemberProfile. */
@@ -139,7 +141,8 @@ export function resolveHqMembershipDisplayStatus(
   if (lifecycle.state === "inconsistent") return "attention";
 
   if (lifecycle.isActive) {
-    return m.nextScheduledAt ? "scheduled" : "needs scheduling";
+    if (m.nextScheduledAt) return "scheduled";
+    return m.visitsStillToBook === 0 ? "active" : "needs scheduling";
   }
 
   if (lifecycle.state === "payment_pending" || lifecycle.state === "draft") {
