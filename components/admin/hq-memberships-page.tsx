@@ -71,6 +71,26 @@ function formatNextService(row: HqMembershipRow): string {
   return "needs setup";
 }
 
+function formatVisitDate(value: string): string {
+  return new Date(value).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "America/Los_Angeles",
+  });
+}
+
+function formatPlanYear(row: HqMembershipRow): string {
+  return `${formatVisitDate(row.planYearStart)} – ${formatVisitDate(row.planYearEnd)}`;
+}
+
+function visitProgressLabel(row: HqMembershipRow): string {
+  const required = row.visitsPerYear;
+  if (!required) return "Annual visit count needs setup";
+  const covered = row.visitsCompletedThisYear + row.visitsScheduledThisYear;
+  return `${Math.min(covered, required)} of ${required} visits completed or booked`;
+}
+
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <GlassCard tone="subtle" padding="sm">
@@ -219,8 +239,9 @@ function HqMembershipsContent() {
                       {needsScheduling.length === 1 ? " needs" : "s need"} a visit booked.
                     </h2>
                     <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-                      These active memberships do not have a matched, verified Jobber visit yet.
-                      This queue refreshes automatically after the daily Jobber sync.
+                      You only need one future visit booked to clear this reminder—not the
+                      entire year. If a visit already exists in Jobber, the row below will
+                      tell you when its property still needs pairing.
                     </p>
                   </div>
                   <span className="shrink-0 rounded-full border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-emerald-200/80">
@@ -238,14 +259,28 @@ function HqMembershipsContent() {
                           {row.customerName}
                         </p>
                         <p className="mt-1 truncate text-xs text-muted">{row.address}</p>
+                        <p className="mt-1 text-[11px] text-amber-100/70">
+                          {row.schedulingIssue === "jobber_property_not_linked"
+                            ? "Booked in Jobber? Pair this property so HQ can see it."
+                            : "No future Jobber visit is currently visible."}
+                        </p>
                       </div>
-                      <ScheduleMembershipButton
-                        row={row}
-                        onScheduled={(message) => {
-                          setNotice(message);
-                          void loadMemberships();
-                        }}
-                      />
+                      {row.schedulingIssue === "jobber_property_not_linked" ? (
+                        <Link
+                          href="/hq/jobber?returnTo=%2Fhq%2Fmemberships"
+                          className="shrink-0 text-xs text-accent underline-offset-2 hover:underline"
+                        >
+                          Pair in Jobber
+                        </Link>
+                      ) : (
+                        <ScheduleMembershipButton
+                          row={row}
+                          onScheduled={(message) => {
+                            setNotice(message);
+                            void loadMemberships();
+                          }}
+                        />
+                      )}
                     </div>
                   ))}
                 </div>
@@ -309,6 +344,68 @@ function HqMembershipsContent() {
                       </div>
                     ))}
                   </dl>
+                  <div className="mt-5 rounded-2xl border border-white/[0.06] bg-background/25 px-4 py-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-[0.16em] text-accent/80">
+                          Current plan year
+                        </p>
+                        <p className="mt-1 text-sm font-medium text-foreground/90">
+                          {visitProgressLabel(row)}
+                        </p>
+                        <p className="mt-1 text-xs text-muted">
+                          {formatPlanYear(row)}
+                        </p>
+                      </div>
+                      <div className="flex gap-4 text-right text-xs">
+                        <div>
+                          <p className="text-muted">Done</p>
+                          <p className="mt-1 font-mono text-foreground">
+                            {row.visitsCompletedThisYear}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted">Booked</p>
+                          <p className="mt-1 font-mono text-emerald-200">
+                            {row.visitsScheduledThisYear}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted">Still to book</p>
+                          <p className="mt-1 font-mono text-amber-200">
+                            {row.visitsStillToBook ?? "?"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    {row.upcomingVisits.length > 0 ? (
+                      <div className="mt-4 grid gap-2 border-t border-white/[0.05] pt-4 sm:grid-cols-2">
+                        {row.upcomingVisits.slice(0, 4).map((visit, visitIndex) => (
+                          <div
+                            key={visit.id}
+                            className="rounded-xl border border-white/[0.05] bg-white/[0.02] px-3 py-2.5"
+                          >
+                            <p className="text-xs font-medium text-foreground/90">
+                              Visit {visitIndex + 1} · {formatVisitDate(visit.scheduledAt)}
+                            </p>
+                            <p className="mt-1 text-[11px] text-muted">
+                              {[visit.serviceLabel, visit.timeWindow]
+                                .filter(Boolean)
+                                .join(" · ") || "Jobber visit"}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-4 border-t border-white/[0.05] pt-4 text-xs text-muted">
+                        {row.visitsStillToBook === 0
+                          ? "This plan year is fully covered."
+                          : row.schedulingIssue === "jobber_property_not_linked"
+                            ? "Connect the matching Jobber property to reveal booked visits."
+                            : "No upcoming visit is booked yet. Booking the rest of the year is optional."}
+                      </p>
+                    )}
+                  </div>
                   <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-border/30 pt-4">
                     {row.portalPath ? (
                       <Link

@@ -27,7 +27,14 @@ import {
   type HqJobberPropertyLink,
   type HqJobberVisitProjection,
 } from "@/lib/care-operations/jobber-hq-schedule";
-import { buildJobberPortalTimeWindow } from "@/lib/care-operations/jobber-portal-appointments";
+import {
+  buildJobberPortalTimeWindow,
+  jobberVisitAppointmentStatus,
+} from "@/lib/care-operations/jobber-portal-appointments";
+import {
+  buildMembershipAnnualVisitProgress,
+  type MembershipVisitProgressInput,
+} from "@/lib/membership/annual-visit-progress";
 
 export interface HqJobberConnectionSummary {
   status: "connected" | "refresh_required" | "disconnected" | "error" | "not_connected";
@@ -58,6 +65,16 @@ export interface HqMembershipRow {
     | "verified_jobber_appointment"
     | "paired_jobber_projection"
     | null;
+  planYearStart: string;
+  planYearEnd: string;
+  visitsCompletedThisYear: number;
+  visitsScheduledThisYear: number;
+  visitsStillToBook: number | null;
+  upcomingVisits: HqMembershipUpcomingVisit[];
+  schedulingIssue:
+    | "jobber_property_not_linked"
+    | "no_upcoming_visit"
+    | null;
   portalPath: string | null;
   agreementId: string | null;
   founding: boolean;
@@ -67,9 +84,21 @@ export interface HqMembershipRow {
   lifetimeMemberSavings: number | null;
 }
 
-interface UpcomingAppointmentRow {
+export interface HqMembershipUpcomingVisit {
+  id: string;
+  scheduledAt: string;
+  serviceLabel: string | null;
+  timeWindow: string | null;
+  source: "verified_jobber_appointment" | "paired_jobber_projection";
+}
+
+interface MembershipAppointmentRow {
+  id: string;
   property_id: string;
+  external_id: string;
+  service_type: string;
   scheduled_at: string;
+  status: "scheduled" | "completed" | "cancelled" | "no_show";
   notes: string | null;
 }
 
@@ -257,19 +286,17 @@ export async function GET(request: Request) {
       throw new Error(properties.error.message);
     }
 
-    const nowIso = new Date().toISOString();
+    const referenceDate = new Date();
     const { data: appointmentRows, error: appointmentError } =
       propertyIds.length > 0
         ? await supabase
             .from("member_appointments")
-            .select("property_id, scheduled_at, notes")
+            .select("id, property_id, external_id, service_type, scheduled_at, status, notes")
             .in("property_id", propertyIds)
             .eq("provider", AUTHORITATIVE_APPOINTMENT_PROVIDER)
             .in("provenance_state", [...AUTHORITATIVE_APPOINTMENT_PROVENANCE_STATES])
             .eq("verification_state", AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE)
             .eq("match_state", AUTHORITATIVE_APPOINTMENT_MATCH_STATE)
-            .eq("status", "scheduled")
-            .gte("scheduled_at", nowIso)
             .order("scheduled_at", { ascending: true })
         : { data: [], error: null };
 
@@ -277,11 +304,11 @@ export async function GET(request: Request) {
       throw new Error(appointmentError.message);
     }
 
-    const nextAppointmentByProperty = new Map<string, UpcomingAppointmentRow>();
-    for (const row of (appointmentRows ?? []) as UpcomingAppointmentRow[]) {
-      if (!nextAppointmentByProperty.has(row.property_id)) {
-        nextAppointmentByProperty.set(row.property_id, row);
-      }
+    const appointmentsByProperty = new Map<string, MembershipAppointmentRow[]>();
+    for (const row of (appointmentRows ?? []) as MembershipAppointmentRow[]) {
+      const propertyAppointments = appointmentsByProperty.get(row.property_id) ?? [];
+      propertyAppointments.push(row);
+      appointmentsByProperty.set(row.property_id, propertyAppointments);
     }
 
     const propertyLinksResult = propertyIds.length
@@ -309,9 +336,7 @@ export async function GET(request: Request) {
           )
           .eq("connection_id", JOBBER_CONNECTION_ID)
           .in("external_property_id", externalPropertyIds)
-          .eq("is_complete", false)
           .not("scheduled_start", "is", null)
-          .gte("scheduled_start", nowIso)
           .order("scheduled_start", { ascending: true })
       : { data: [], error: null };
     if (projectionsResult.error) {
@@ -338,19 +363,66 @@ export async function GET(request: Request) {
     );
 
     const out: HqMembershipRow[] = rows.map((m) => {
-      const upcoming = nextAppointmentByProperty.get(m.property_id) ?? null;
-      const pairedJobberVisit = upcoming
+      const appointmentVisits: MembershipVisitProgressInput[] = (
+        appointmentsByProperty.get(m.property_id) ?? []
+      ).map((appointment) => ({
+        id: appointment.id,
+        scheduledAt: appointment.scheduled_at,
+        status: appointment.status,
+        serviceLabel: appointment.service_type,
+        timeWindow: parseTimeWindowFromNotes(appointment.notes),
+        source: "verified_jobber_appointment",
+      }));
+      const appointmentExternalIds = new Set(
+        (appointmentsByProperty.get(m.property_id) ?? []).map(
+          (appointment) => appointment.external_id,
+        ),
+      );
+      const activePropertyLink = propertyLinks.find(
+        (link) =>
+          link.membership_id === m.id && link.property_id === m.property_id,
+      );
+      const projectionVisits: MembershipVisitProgressInput[] = activePropertyLink
+        ? jobberProjections
+            .filter(
+              (projection) =>
+                projection.connection_id === activePropertyLink.connection_id &&
+                projection.external_property_id ===
+                  activePropertyLink.external_property_id &&
+                !appointmentExternalIds.has(projection.external_visit_id),
+            )
+            .map((projection) => ({
+              id: `jobber-${projection.external_visit_id}`,
+              scheduledAt: projection.scheduled_start,
+              status: jobberVisitAppointmentStatus(projection),
+              serviceLabel: projection.title,
+              timeWindow: buildJobberPortalTimeWindow(
+                projection.scheduled_start,
+                projection.scheduled_end,
+              ),
+              source: "paired_jobber_projection",
+            }))
+        : [];
+      const progress = buildMembershipAnnualVisitProgress({
+        membershipCreatedAt: m.created_at,
+        visitsPerYear: m.visits_per_year,
+        visits: [...appointmentVisits, ...projectionVisits],
+        referenceDate,
+      });
+      const nextVisit = progress.upcoming[0] ?? null;
+      const pairedJobberVisit = nextVisit
         ? null
         : selectPairedJobberNextVisit({
             membershipId: m.id,
             propertyId: m.property_id,
             propertyLinks,
             projections: jobberProjections,
+            referenceDate,
           });
       const nextScheduledAt =
-        upcoming?.scheduled_at ?? pairedJobberVisit?.scheduled_start ?? null;
-      const nextServiceTimeWindow = upcoming
-        ? parseTimeWindowFromNotes(upcoming.notes)
+        nextVisit?.scheduledAt ?? pairedJobberVisit?.scheduled_start ?? null;
+      const nextServiceTimeWindow = nextVisit
+        ? nextVisit.timeWindow
         : pairedJobberVisit
           ? buildJobberPortalTimeWindow(
               pairedJobberVisit.scheduled_start,
@@ -358,8 +430,7 @@ export async function GET(request: Request) {
             )
           : null;
       const nextServiceDate = nextScheduledAt?.slice(0, 10) ?? null;
-      const nextServiceMonth =
-        nextServiceDate?.slice(0, 7) ?? m.next_billing_date?.slice(0, 7) ?? null;
+      const nextServiceMonth = nextServiceDate?.slice(0, 7) ?? null;
 
       const yearly = computeMembershipYearlyValue(m);
       const addonTotals = addonTotalsByMembership.get(m.id);
@@ -383,8 +454,15 @@ export async function GET(request: Request) {
         visit_price: m.visit_price,
         visits_per_year: m.visits_per_year,
         nextScheduledAt,
+        visitsStillToBook: progress.stillToBook,
       };
       const lifecycle = resolveMembershipLifecycle(lifecycleInput);
+      const schedulingIssue =
+        lifecycle.isActive && !nextScheduledAt && progress.stillToBook !== 0
+          ? activePropertyLink
+            ? "no_upcoming_visit"
+            : "jobber_property_not_linked"
+          : null;
 
       return {
         id: m.id,
@@ -411,11 +489,22 @@ export async function GET(request: Request) {
         nextServiceMonth,
         nextServiceDate,
         nextServiceTimeWindow,
-        nextServiceSource: upcoming
-          ? "verified_jobber_appointment"
-          : pairedJobberVisit
-            ? "paired_jobber_projection"
-            : null,
+        nextServiceSource:
+          nextVisit?.source ??
+          (pairedJobberVisit ? "paired_jobber_projection" : null),
+        planYearStart: progress.planYear.startsAt,
+        planYearEnd: progress.planYear.endsAt,
+        visitsCompletedThisYear: progress.completed,
+        visitsScheduledThisYear: progress.scheduled,
+        visitsStillToBook: progress.stillToBook,
+        upcomingVisits: progress.upcoming.map((visit) => ({
+          id: visit.id,
+          scheduledAt: visit.scheduledAt,
+          serviceLabel: visit.serviceLabel,
+          timeWindow: visit.timeWindow,
+          source: visit.source,
+        })),
+        schedulingIssue,
         portalPath: m.portal_access_token ? `/portal/${m.portal_access_token}` : null,
         agreementId: m.agreement_id,
         founding: Boolean(m.founding_member),

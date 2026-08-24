@@ -22,7 +22,7 @@ interface JobberClientProjectionRow {
   properties_complete: boolean;
 }
 
-interface MembershipRow {
+export interface JobberProjectionMembershipRow {
   id: string;
   homeowner_id: string;
   property_id: string;
@@ -30,6 +30,9 @@ interface MembershipRow {
   payment_setup_completed_at: string | null;
   stripe_payment_method_id: string | null;
   stripe_customer_id: string | null;
+  payment_rail?: "stripe_card" | "manual_cash_check";
+  manual_payment_approved_at?: string | null;
+  manual_payment_approved_by?: string | null;
   agreement_id: string | null;
   sales_tier: string | null;
   visit_price: number | null;
@@ -41,7 +44,7 @@ interface PropertyRow {
 }
 
 interface MemberTarget {
-  membership: MembershipRow;
+  membership: JobberProjectionMembershipRow;
   property: PropertyRow;
 }
 
@@ -209,11 +212,20 @@ export function buildJobberPortalAppointmentValues(input: {
   } as const;
 }
 
-function isEligibleMemberTarget(membership: MembershipRow, property: PropertyRow): boolean {
+export function isEligibleJobberProjectionMembership(
+  membership: JobberProjectionMembershipRow,
+): boolean {
+  return isMembershipActive(membership);
+}
+
+function isEligibleMemberTarget(
+  membership: JobberProjectionMembershipRow,
+  property: PropertyRow,
+): boolean {
   return Boolean(
     membership.property_id === property.id &&
       membership.homeowner_id === property.homeowner_id &&
-      isMembershipActive(membership),
+      isEligibleJobberProjectionMembership(membership),
   );
 }
 
@@ -222,12 +234,11 @@ async function loadMemberTargets(homeownerId: string): Promise<MemberTarget[]> {
   const membershipsResult = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, agreement_id, sales_tier, visit_price",
+      "id, homeowner_id, property_id, status, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, agreement_id, sales_tier, visit_price",
     )
-    .eq("homeowner_id", homeownerId)
-    .eq("status", "active");
+    .eq("homeowner_id", homeownerId);
   if (membershipsResult.error) throw new Error(membershipsResult.error.message);
-  const memberships = (membershipsResult.data ?? []) as MembershipRow[];
+  const memberships = (membershipsResult.data ?? []) as JobberProjectionMembershipRow[];
   if (memberships.length === 0) return [];
 
   const propertyIds = [...new Set(memberships.map((membership) => membership.property_id))];
