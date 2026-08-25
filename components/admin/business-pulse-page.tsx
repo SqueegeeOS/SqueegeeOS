@@ -572,7 +572,7 @@ function PulseContent() {
           </p>
         ) : null}
 
-        <section className="mt-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="mt-10 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard
             label="Completed work"
             value={loading ? "…" : money(metrics?.completedWorkValueCents ?? 0)}
@@ -587,6 +587,12 @@ function PulseContent() {
             label="Qualified membership ARR"
             value={loading ? "…" : money(metrics?.activeArrCents ?? 0)}
             detail={`${metrics?.activeMembers ?? 0} members with a signed contract and verified card or approved cash/check account.`}
+            accent
+          />
+          <MetricCard
+            label="Qualified membership MRR"
+            value={loading ? "…" : money(Math.round((metrics?.activeArrCents ?? 0) / 12))}
+            detail="Qualified active ARR divided by 12; normalized run rate, not cash collected this month."
             accent
           />
           <MetricCard

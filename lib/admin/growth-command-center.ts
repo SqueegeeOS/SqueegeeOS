@@ -38,16 +38,27 @@ export interface GrowthScenarioInput {
 
 export interface GrowthScenarioResult {
   monthsRemaining: number;
+  weeksRemaining: number;
   arrGap: number;
   requiredNetArrPerMonth: number;
+  requiredGrossArrPerMonth: number;
   requiredMembersPerMonth: number;
-  requiredLeadsPerWeek: number;
+  requiredLeadsPerWeek: number | null;
+  requiredCloseRatePercent: number | null;
   modeledMembersPerMonth: number;
   modeledNewArrPerMonth: number;
+  modeledGrossArrAdded: number;
+  retainedCurrentArrAtTarget: number;
+  retainedNewArrAtTarget: number;
+  modeledRetentionDrag: number;
+  leadPaceDeltaPerWeek: number | null;
   projectedArrAtTargetDate: number;
   projectedTargetPercent: number;
   onTrack: boolean;
 }
+
+export const WEEKS_PER_YEAR = 365.2425 / 7;
+const MILLISECONDS_PER_WEEK = 7 * 24 * 60 * 60 * 1_000;
 
 function positive(value: number, fallback = 0): number {
   return Number.isFinite(value) ? Math.max(0, value) : fallback;
@@ -68,6 +79,16 @@ export function monthsThroughDate(
   return Math.max(0, months);
 }
 
+export function weeksThroughDate(
+  referenceDate: string | Date,
+  targetDate: string | Date,
+): number {
+  const start = new Date(referenceDate);
+  const end = new Date(targetDate);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+  return Math.max(0, (end.getTime() - start.getTime()) / MILLISECONDS_PER_WEEK);
+}
+
 export function calculateGrowthScenario(
   input: GrowthScenarioInput,
 ): GrowthScenarioResult {
@@ -76,33 +97,77 @@ export function calculateGrowthScenario(
   const averageMemberArr = Math.max(1, positive(input.averageMemberArr, 1));
   const closeRate = Math.min(1, positive(input.closeRatePercent) / 100);
   const retention = Math.min(1, positive(input.annualRetentionPercent) / 100);
-  const monthsRemaining = monthsThroughDate(
+  const weeksRemaining = weeksThroughDate(
     input.referenceDate ?? new Date(),
     input.targetDate,
   );
+  const monthsRemaining = (weeksRemaining * 12) / WEEKS_PER_YEAR;
   const arrGap = Math.max(0, targetArr - currentArr);
   const requiredNetArrPerMonth =
     monthsRemaining > 0 ? arrGap / monthsRemaining : arrGap;
-  const requiredMembersPerMonth = requiredNetArrPerMonth / averageMemberArr;
+  const weeklyRetention =
+    retention > 0 ? Math.pow(retention, 1 / WEEKS_PER_YEAR) : 0;
+  const retainedCurrentArrAtTarget =
+    weeksRemaining > 0
+      ? currentArr * Math.pow(weeklyRetention, weeksRemaining)
+      : currentArr;
+  const contributionFactor =
+    weeksRemaining <= 0
+      ? 0
+      : Math.abs(weeklyRetention - 1) < 1e-9
+        ? weeksRemaining
+        : (1 - Math.pow(weeklyRetention, weeksRemaining)) /
+          (1 - weeklyRetention);
+  const requiredGrossArrPerWeek =
+    contributionFactor > 0
+      ? Math.max(0, targetArr - retainedCurrentArrAtTarget) / contributionFactor
+      : Math.max(0, targetArr - retainedCurrentArrAtTarget);
+  const requiredGrossArrPerMonth =
+    requiredGrossArrPerWeek * (WEEKS_PER_YEAR / 12);
+  const requiredMembersPerMonth = requiredGrossArrPerMonth / averageMemberArr;
   const requiredLeadsPerWeek =
-    closeRate > 0 ? requiredMembersPerMonth / closeRate / 4.345 : 0;
-  const modeledMembersPerMonth = positive(input.leadsPerWeek) * 4.345 * closeRate;
+    requiredGrossArrPerWeek <= 0
+      ? 0
+      : closeRate > 0
+        ? requiredGrossArrPerWeek / averageMemberArr / closeRate
+        : null;
+  const leadsPerWeek = positive(input.leadsPerWeek);
+  const requiredCloseRatePercent =
+    requiredGrossArrPerWeek <= 0
+      ? 0
+      : leadsPerWeek > 0
+        ? (requiredGrossArrPerWeek / (leadsPerWeek * averageMemberArr)) * 100
+        : null;
+  const modeledMembersPerMonth =
+    leadsPerWeek * (WEEKS_PER_YEAR / 12) * closeRate;
   const modeledNewArrPerMonth = modeledMembersPerMonth * averageMemberArr;
-
-  let projectedArr = currentArr;
-  const monthlyRetention = Math.pow(retention, 1 / 12);
-  for (let month = 0; month < monthsRemaining; month += 1) {
-    projectedArr = projectedArr * monthlyRetention + modeledNewArrPerMonth;
-  }
+  const modeledNewArrPerWeek = leadsPerWeek * closeRate * averageMemberArr;
+  const modeledGrossArrAdded = modeledNewArrPerWeek * weeksRemaining;
+  const retainedNewArrAtTarget = modeledNewArrPerWeek * contributionFactor;
+  const projectedArr = retainedCurrentArrAtTarget + retainedNewArrAtTarget;
+  const modeledRetentionDrag = Math.max(
+    0,
+    currentArr + modeledGrossArrAdded - projectedArr,
+  );
+  const leadPaceDeltaPerWeek =
+    requiredLeadsPerWeek == null ? null : leadsPerWeek - requiredLeadsPerWeek;
 
   return {
     monthsRemaining,
+    weeksRemaining,
     arrGap,
     requiredNetArrPerMonth,
+    requiredGrossArrPerMonth,
     requiredMembersPerMonth,
     requiredLeadsPerWeek,
+    requiredCloseRatePercent,
     modeledMembersPerMonth,
     modeledNewArrPerMonth,
+    modeledGrossArrAdded,
+    retainedCurrentArrAtTarget,
+    retainedNewArrAtTarget,
+    modeledRetentionDrag,
+    leadPaceDeltaPerWeek,
     projectedArrAtTargetDate: projectedArr,
     projectedTargetPercent:
       targetArr > 0 ? Math.min(999, (projectedArr / targetArr) * 100) : 100,

@@ -1,6 +1,9 @@
 import "server-only";
 
-import { isMembershipActive, isMembershipCancelled } from "@/lib/membership/membership-status";
+import {
+  hasPaymentArrangement,
+  isMembershipCancelled,
+} from "@/lib/membership/membership-status";
 import {
   createServerSupabaseClient,
   isSupabaseConfigured,
@@ -17,6 +20,10 @@ interface MembershipGrowthRow {
   created_at: string;
   payment_setup_completed_at: string | null;
   stripe_payment_method_id: string | null;
+  stripe_customer_id: string | null;
+  payment_rail: "stripe_card" | "manual_cash_check" | null;
+  manual_payment_approved_at: string | null;
+  manual_payment_approved_by: string | null;
 }
 
 interface LeadGrowthRow {
@@ -63,6 +70,10 @@ function yearlyValue(row: MembershipGrowthRow): number {
     : 0;
 }
 
+function isGrowthMembershipCancelled(row: MembershipGrowthRow): boolean {
+  return row.status.toLowerCase() === "archived" || isMembershipCancelled(row);
+}
+
 export async function loadGrowthTruthSnapshot(): Promise<GrowthTruthSnapshot> {
   if (!isSupabaseConfigured()) {
     return emptySnapshot("Supabase is not configured in this environment.");
@@ -73,7 +84,7 @@ export async function loadGrowthTruthSnapshot(): Promise<GrowthTruthSnapshot> {
     supabase
       .from("memberships")
       .select(
-        "status, agreement_id, annual_rate, visit_price, visits_per_year, started_at, created_at, payment_setup_completed_at, stripe_payment_method_id",
+        "status, agreement_id, annual_rate, visit_price, visits_per_year, started_at, created_at, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by",
       ),
     supabase.from("lead_intakes").select("status, source, submitted_at"),
     supabase.from("presentations").select("status, created_at, signed_at"),
@@ -94,10 +105,20 @@ export async function loadGrowthTruthSnapshot(): Promise<GrowthTruthSnapshot> {
   const presentations = (presentationsResult.data ?? []) as PresentationGrowthRow[];
   const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1_000).toISOString();
   const onBook = memberships.filter(
-    (row) => !isMembershipCancelled(row) && Boolean(row.agreement_id),
+    (row) => !isGrowthMembershipCancelled(row) && Boolean(row.agreement_id),
   );
-  const active = memberships.filter((row) => isMembershipActive(row));
-  const signedLast30 = onBook.filter(
+  const active = onBook.filter((row) =>
+    hasPaymentArrangement({
+      status: row.status,
+      payment_setup_completed_at: row.payment_setup_completed_at,
+      stripe_payment_method_id: row.stripe_payment_method_id,
+      stripe_customer_id: row.stripe_customer_id,
+      payment_rail: row.payment_rail ?? undefined,
+      manual_payment_approved_at: row.manual_payment_approved_at,
+      manual_payment_approved_by: row.manual_payment_approved_by,
+    }),
+  );
+  const signedLast30 = active.filter(
     (row) => (row.started_at ?? row.created_at) >= cutoff,
   );
   const leadsLast30 = leads.filter((lead) => lead.submitted_at >= cutoff);
@@ -126,7 +147,7 @@ export async function loadGrowthTruthSnapshot(): Promise<GrowthTruthSnapshot> {
       leadsLast30.length > 0
         ? Math.min(100, (signedLast30.length / leadsLast30.length) * 100)
         : null,
-    averageMemberArr: onBook.length > 0 ? onBookArr / onBook.length : null,
+    averageMemberArr: active.length > 0 ? activeArr / active.length : null,
     openLeads: leads.filter((lead) => lead.status === "new").length,
     draftPresentations: presentations.filter(
       (presentation) => presentation.status === "draft",
