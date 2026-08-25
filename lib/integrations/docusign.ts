@@ -472,9 +472,10 @@ export async function createDocuSignEnrollmentEnvelope(input: {
       templateId: config.enrollmentTemplateId,
       templateRoles: [
         {
-          email: input.snapshot.customer.email,
-          name: input.snapshot.customer.name,
+          email: (input.snapshot.signer ?? input.snapshot.customer).email,
+          name: (input.snapshot.signer ?? input.snapshot.customer).name,
           roleName: config.customerRoleName,
+          clientUserId: input.packetId,
           tabs: {
             textTabs: buildDocuSignEnrollmentTabs({
               snapshot: input.snapshot,
@@ -496,7 +497,7 @@ export async function createDocuSignEnrollmentEnvelope(input: {
           },
         ],
       },
-      emailSubject: `${input.snapshot.customer.name}, your SqueegeeKing home-care plan is ready`,
+      emailSubject: `${(input.snapshot.signer ?? input.snapshot.customer).name}, your SqueegeeKing home-care plan is ready`,
       emailBlurb:
         "Your plan is ready. DocuSign will walk you through two clear documents: the master terms and your property-specific service quote. It usually takes just a few minutes.",
       // Persist the external envelope id before allowing DocuSign to email the
@@ -524,6 +525,65 @@ export async function createDocuSignEnrollmentEnvelope(input: {
     envelopeId: body.envelopeId,
     status: typeof body.status === "string" ? body.status : "created",
   };
+}
+
+export async function createDocuSignRecipientView(input: {
+  envelopeId: string;
+  packetId: string;
+  snapshot: EnrollmentDocumentSnapshot;
+  returnUrl: string;
+  config?: DocuSignConfig;
+  fetch?: typeof fetch;
+}): Promise<string> {
+  const config = input.config ?? resolveDocuSignConfig();
+  const state = getDocuSignConfigState(config);
+  if (!state.configured) {
+    throw new Error(`DocuSign is not configured: ${state.missing.join(", ")}`);
+  }
+  const request = input.fetch ?? fetch;
+  const accessToken = await docuSignAccessToken(config, request);
+  const response = await request(
+    `${config.accountBaseUri}/restapi/v2.1/accounts/${encodeURIComponent(config.accountId)}/envelopes/${encodeURIComponent(input.envelopeId)}/views/recipient`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        returnUrl: input.returnUrl,
+        authenticationMethod: "none",
+        email: (input.snapshot.signer ?? input.snapshot.customer).email,
+        userName: (input.snapshot.signer ?? input.snapshot.customer).name,
+        clientUserId: input.packetId,
+      }),
+    },
+  );
+  const body = (await response.json().catch(() => null)) as {
+    url?: unknown;
+    message?: unknown;
+    errorCode?: unknown;
+  } | null;
+  if (!response.ok || typeof body?.url !== "string") {
+    const message =
+      typeof body?.message === "string"
+        ? body.message
+        : typeof body?.errorCode === "string"
+          ? body.errorCode
+          : `HTTP ${response.status}`;
+    throw new Error(`DocuSign signing session could not start: ${message}`);
+  }
+  const signingUrl = new URL(body.url);
+  const trustedHost =
+    signingUrl.protocol === "https:" &&
+    (signingUrl.hostname === "docusign.com" ||
+      signingUrl.hostname.endsWith(".docusign.com") ||
+      signingUrl.hostname === "docusign.net" ||
+      signingUrl.hostname.endsWith(".docusign.net"));
+  if (!trustedHost) {
+    throw new Error("DocuSign returned an invalid signing-session URL.");
+  }
+  return signingUrl.toString();
 }
 
 export async function sendCreatedDocuSignEnvelope(input: {

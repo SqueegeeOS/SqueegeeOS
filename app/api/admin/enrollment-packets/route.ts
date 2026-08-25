@@ -12,6 +12,10 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
+function optionalText(value: unknown): string | null {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
@@ -62,6 +66,15 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    const signerName = optionalText(body.signerName);
+    const signerEmail = optionalText(body.signerEmail);
+    const signerPhone = optionalText(body.signerPhone);
+    if (Boolean(signerName) !== Boolean(signerEmail)) {
+      return NextResponse.json(
+        { error: "A separate signer requires both a name and email." },
+        { status: 400 },
+      );
+    }
 
     if (
       parsed.value.paymentRail === "manual_cash_check" &&
@@ -89,6 +102,10 @@ export async function POST(request: Request) {
 
     const result = await sendEnrollmentPacket({
       presentation,
+      signer:
+        signerName && signerEmail
+          ? { name: signerName, email: signerEmail, phone: signerPhone }
+          : undefined,
       tier: parsed.value.tier,
       firstVisitPrice: parsed.value.firstVisitPrice,
       recurringVisitPrice: parsed.value.recurringVisitPrice,

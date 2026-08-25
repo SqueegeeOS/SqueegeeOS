@@ -48,6 +48,12 @@ export interface EnrollmentDocumentSnapshot {
     email: string;
     phone: string | null;
   };
+  /** Optional human signer when the agreement customer is a household. */
+  signer?: {
+    name: string;
+    email: string;
+    phone: string | null;
+  };
   property: {
     fullAddress: string;
     squareFeet: number | null;

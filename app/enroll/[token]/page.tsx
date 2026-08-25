@@ -15,7 +15,7 @@ export default async function EnrollmentPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ payment?: string }>;
+  searchParams: Promise<{ payment?: string; signing?: string }>;
 }) {
   const [{ token }, query] = await Promise.all([params, searchParams]);
   const status = await loadPublicEnrollmentStatus(token);
@@ -25,6 +25,7 @@ export default async function EnrollmentPage({
       token={token}
       initialStatus={status}
       paymentResult={query.payment ?? null}
+      signingResult={query.signing ?? null}
     />
   );
 }

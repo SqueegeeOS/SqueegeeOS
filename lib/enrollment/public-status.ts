@@ -29,6 +29,7 @@ export interface PublicEnrollmentStatus {
   paymentRail: PaymentRail;
   status: EnrollmentPacketStatus;
   agreementComplete: boolean;
+  signingAvailable: boolean;
   paymentComplete: boolean;
   paymentUrl: string | null;
   paymentUrlExpiresAt: string | null;
@@ -110,6 +111,10 @@ export async function loadPublicEnrollmentStatus(
     paymentRail,
     status: packet.status,
     agreementComplete,
+    signingAvailable:
+      packet.status === "signature_sent" &&
+      Boolean(packet.docusign_envelope_id) &&
+      !agreementComplete,
     paymentComplete,
     paymentUrl: paymentUrlOpen ? packet.stripe_payment_url : null,
     paymentUrlExpiresAt: paymentUrlOpen
