@@ -44,15 +44,18 @@ export function EnrollmentHandoffPage({
   token,
   initialStatus,
   paymentResult,
+  previewMode = false,
 }: {
   token: string;
   initialStatus: PublicEnrollmentStatus;
   paymentResult?: string | null;
+  previewMode?: boolean;
 }) {
   const [status, setStatus] = useState(initialStatus);
 
   useEffect(() => {
     if (
+      previewMode ||
       paymentResult !== "success" ||
       status.status === "portal_ready"
     ) {
@@ -77,7 +80,7 @@ export function EnrollmentHandoffPage({
       if (attempts >= 20) window.clearInterval(interval);
     }, 3000);
     return () => window.clearInterval(interval);
-  }, [paymentResult, status.status, token]);
+  }, [paymentResult, previewMode, status.status, token]);
 
   const agreementState = status.agreementComplete ? "done" : "current";
   const paymentState = status.paymentComplete
@@ -104,11 +107,16 @@ export function EnrollmentHandoffPage({
             <p className="mt-2 text-xs text-white/35">Powered by SqueegeeKing</p>
           </div>
           <span className="rounded-full border border-emerald-300/15 bg-emerald-300/[0.06] px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] text-emerald-100/75">
-            Private link
+            {previewMode ? "Private-link preview" : "Private link"}
           </span>
         </header>
 
         <section className="rounded-[2rem] border border-white/[0.09] bg-white/[0.045] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl sm:p-9">
+          {previewMode ? (
+            <div className="mb-6 rounded-2xl border border-[#d4c29c]/25 bg-[#d4c29c]/[0.09] px-4 py-3 text-xs leading-relaxed text-[#f2e6ca]">
+              Customer-view demonstration only. Nothing on this page can create a contract, membership, card setup, or charge.
+            </div>
+          ) : null}
           <p className="text-sm text-[#d4c29c]">Hey {status.customerFirstName}.</p>
           <h1 className="mt-3 font-serif text-4xl font-light leading-[1.05] sm:text-5xl">
             Your home-care plan is becoming real.
@@ -131,7 +139,13 @@ export function EnrollmentHandoffPage({
           <ol className="mt-8">
             <Step
               label="Clear agreement"
-              detail={status.agreementComplete ? "Your DocuSign packet is complete and safely on file." : `DocuSign sent the agreement to ${status.maskedEmail}.`}
+              detail={
+                previewMode
+                  ? `A real private link would securely open Michael's DocuSign agreement and send completion proof to ${status.maskedEmail}.`
+                  : status.agreementComplete
+                    ? "Your DocuSign packet is complete and safely on file."
+                    : `DocuSign sent the agreement to ${status.maskedEmail}.`
+              }
               state={agreementState}
             />
             <Step
@@ -165,7 +179,11 @@ export function EnrollmentHandoffPage({
             </p>
           ) : null}
 
-          {status.portalUrl ? (
+          {previewMode ? (
+            <div className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-[#d4c29c]/35 bg-[#d4c29c]/10 px-5 text-center text-sm font-bold text-[#efe1c3]">
+              Preview only · Signature submission is safely disabled
+            </div>
+          ) : status.portalUrl ? (
             <a
               href={status.portalUrl}
               className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#d4c29c] px-5 text-sm font-bold text-[#102017] transition hover:bg-[#eadbb9]"
@@ -186,7 +204,9 @@ export function EnrollmentHandoffPage({
           ) : null}
 
           <p className="mt-5 text-center text-[11px] leading-relaxed text-white/28">
-            {manualPayment
+            {previewMode
+              ? "A real customer link is unique, private, and no-index. This demonstration records nothing and has no legal or billing effect."
+              : manualPayment
               ? "No card is stored and automatic card billing is disabled. Questions? Reply to the SqueegeeKing email that brought you here."
               : "No payment is collected during card setup. Questions? Reply to the SqueegeeKing email that brought you here."}
           </p>
