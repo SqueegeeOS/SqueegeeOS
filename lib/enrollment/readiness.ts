@@ -209,7 +209,7 @@ export async function getEnrollmentReadiness(): Promise<EnrollmentReadiness> {
     },
     {
       id: "docusign",
-      label: "DocuSign email signing",
+      label: "DocuSign embedded signing",
       ready: docusign.configured,
       detail: docusign.configured
         ? "Remote signing and HMAC-verified completion events are configured."
