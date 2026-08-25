@@ -259,7 +259,7 @@ export function RemoteEnrollmentHandoff({
         </p>
         {packetStatus.status === "signature_sent" ? (
           <p className="mt-3 text-xs leading-relaxed text-white/45">
-            DocuSign sent the agreement for {presentation.clientName} to {presentation.clientEmail}.
+            HomeAtlas sent the private agreement link for {presentation.clientName} to {presentation.clientEmail}.
           </p>
         ) : null}
         <Link
@@ -334,7 +334,7 @@ export function RemoteEnrollmentHandoff({
         </button>
       </div>
       <p className="mt-3 text-xs leading-relaxed text-white/48">
-        DocuSign emails the MSA plus the property quote. The selected payment arrangement starts only after the agreement is complete.
+        HomeAtlas emails one private plan link, then embedded DocuSign opens the MSA and property quote for signature. The selected payment arrangement starts only after the agreement is complete.
       </p>
 
       <fieldset className="mt-5">
