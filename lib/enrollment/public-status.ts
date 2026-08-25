@@ -12,6 +12,10 @@ import {
   normalizePaymentRail,
   type PaymentRail,
 } from "@/lib/billing/payment-rail";
+import {
+  buildPublicEnrollmentAgreementSummary,
+  type PublicEnrollmentAgreementSummary,
+} from "./public-agreement-summary";
 
 export interface PublicEnrollmentStatus {
   customerFirstName: string;
@@ -21,6 +25,7 @@ export interface PublicEnrollmentStatus {
   cadence: string;
   firstVisitPriceCents: number;
   recurringVisitPriceCents: number;
+  agreementSummary: PublicEnrollmentAgreementSummary | null;
   paymentRail: PaymentRail;
   status: EnrollmentPacketStatus;
   agreementComplete: boolean;
@@ -98,6 +103,10 @@ export async function loadPublicEnrollmentStatus(
     cadence: snapshot.plan.cadence,
     firstVisitPriceCents: packet.first_visit_price_cents,
     recurringVisitPriceCents: packet.recurring_visit_price_cents,
+    agreementSummary: buildPublicEnrollmentAgreementSummary(
+      snapshot,
+      paymentRail,
+    ),
     paymentRail,
     status: packet.status,
     agreementComplete,

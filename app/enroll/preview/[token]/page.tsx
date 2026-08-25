@@ -16,10 +16,62 @@ const previewStatus: PublicEnrollmentStatus = {
   customerFirstName: "Michael",
   maskedEmail: "m•••••@example.com",
   propertyAddress: "Riley Residence · Customer preview",
-  planName: "Quarterly Exterior Care Plan",
-  cadence: "3 visits per year",
-  firstVisitPriceCents: 50000,
-  recurringVisitPriceCents: 50000,
+  planName: "Quarterly Solar + Exterior Care Plan",
+  cadence: "4 visits per year",
+  firstVisitPriceCents: 30000,
+  recurringVisitPriceCents: 30000,
+  agreementSummary: {
+    visitsPerYear: 4,
+    annualTotalCents: 160000,
+    planSummary:
+      "Four planned visits alternating solar-only care with solar, exterior windows, and standard window screens.",
+    customerChoiceNote:
+      "Optional services are separate from the $1,600 annual plan and are added only when requested.",
+    visits: [
+      {
+        label: "Visit 1",
+        timing: "First quarterly visit",
+        priceCents: 30000,
+        includedServices: ["Solar panel cleaning"],
+      },
+      {
+        label: "Visit 2",
+        timing: "Second quarterly visit",
+        priceCents: 50000,
+        includedServices: [
+          "Solar panel cleaning",
+          "Exterior window cleaning",
+          "Standard window-screen cleaning",
+        ],
+      },
+      {
+        label: "Visit 3",
+        timing: "Third quarterly visit",
+        priceCents: 30000,
+        includedServices: ["Solar panel cleaning"],
+      },
+      {
+        label: "Visit 4",
+        timing: "Fourth quarterly visit",
+        priceCents: 50000,
+        includedServices: [
+          "Solar panel cleaning",
+          "Exterior window cleaning",
+          "Standard window-screen cleaning",
+        ],
+      },
+    ],
+    optionalAddOns: [
+      { label: "Interior window cleaning", priceCents: 15000 },
+      { label: "Exterior cobweb removal around the home", priceCents: 4000 },
+      {
+        label: "Screened patio / enclosure screen cleaning",
+        priceCents: 5000,
+      },
+    ],
+    paymentSummary:
+      "Cash or check account. No card on file and no automatic card billing.",
+  },
   paymentRail: "manual_cash_check",
   status: "signature_sent",
   agreementComplete: false,
