@@ -1,8 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { selectPairedJobberNextVisit } from "./jobber-hq-schedule";
+import {
+  selectLinkedMembershipJobberVisits,
+  selectPairedJobberNextVisit,
+} from "./jobber-hq-schedule";
 
 const link = {
   connection_id: "squeegeeking",
+  external_property_id: "jobber-property-1",
+  property_id: "homeatlas-property-1",
+  membership_id: "membership-1",
+};
+
+const membershipJobLink = {
+  connection_id: "squeegeeking",
+  external_job_id: "job-1",
   external_property_id: "jobber-property-1",
   property_id: "homeatlas-property-1",
   membership_id: "membership-1",
@@ -17,6 +28,7 @@ function baseVisit() {
     connection_id: "squeegeeking",
     external_property_id: "jobber-property-1",
     external_visit_id: "visit-1",
+    external_job_id: "job-1",
     scheduled_start: "2026-09-10T17:00:00.000Z",
     scheduled_end: "2026-09-10T19:00:00.000Z",
     title: "Exterior windows",
@@ -32,6 +44,7 @@ describe("HQ paired Jobber schedule", () => {
         membershipId: "membership-1",
         propertyId: "homeatlas-property-1",
         propertyLinks: [link],
+        membershipJobLinks: [membershipJobLink],
         projections: [
           visit({
             external_visit_id: "later",
@@ -50,6 +63,7 @@ describe("HQ paired Jobber schedule", () => {
         membershipId: "another-membership",
         propertyId: "homeatlas-property-1",
         propertyLinks: [link],
+        membershipJobLinks: [membershipJobLink],
         projections: [visit()],
         referenceDate: new Date("2026-08-16T12:00:00.000Z"),
       }),
@@ -62,6 +76,7 @@ describe("HQ paired Jobber schedule", () => {
         membershipId: "membership-1",
         propertyId: "homeatlas-property-1",
         propertyLinks: [link],
+        membershipJobLinks: [membershipJobLink],
         projections: [
           visit({ visit_status: "CANCELLED" }),
           visit({ external_visit_id: "complete", is_complete: true }),
@@ -74,5 +89,26 @@ describe("HQ paired Jobber schedule", () => {
         referenceDate: new Date("2026-08-16T12:00:00.000Z"),
       }),
     ).toBeNull();
+  });
+
+  it("keeps add-on jobs at the property out of membership visit progress", () => {
+    const membershipVisits = selectLinkedMembershipJobberVisits({
+      membershipId: "membership-1",
+      propertyId: "homeatlas-property-1",
+      propertyLinks: [link],
+      membershipJobLinks: [membershipJobLink],
+      projections: [
+        visit({ external_visit_id: "cleaning" }),
+        visit({
+          external_visit_id: "screen-door",
+          external_job_id: "screen-door-job",
+          title: "Screen door replacement and installation",
+        }),
+      ],
+    });
+
+    expect(membershipVisits.map((projection) => projection.external_visit_id)).toEqual([
+      "cleaning",
+    ]);
   });
 });

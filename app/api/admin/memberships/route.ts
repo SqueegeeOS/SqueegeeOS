@@ -23,7 +23,9 @@ import {
 import { readJobberConnectionStatus } from "@/lib/care-operations/jobber-connection-store";
 import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
 import {
+  selectLinkedMembershipJobberVisits,
   selectPairedJobberNextVisit,
+  type HqJobberMembershipJobLink,
   type HqJobberPropertyLink,
   type HqJobberVisitProjection,
 } from "@/lib/care-operations/jobber-hq-schedule";
@@ -311,8 +313,10 @@ export async function GET(request: Request) {
       appointmentsByProperty.set(row.property_id, propertyAppointments);
     }
 
-    const propertyLinksResult = propertyIds.length
-      ? await supabase
+    const membershipIds = rows.map((row) => row.id);
+    const [propertyLinksResult, membershipJobLinksResult] = await Promise.all([
+      propertyIds.length
+        ? supabase
           .from("jobber_property_links")
           .select(
             "connection_id, external_property_id, property_id, membership_id",
@@ -320,11 +324,26 @@ export async function GET(request: Request) {
           .eq("connection_id", JOBBER_CONNECTION_ID)
           .in("property_id", propertyIds)
           .eq("link_state", "active")
-      : { data: [], error: null };
+        : Promise.resolve({ data: [], error: null }),
+      membershipIds.length
+        ? supabase
+            .from("jobber_membership_job_links")
+            .select(
+              "connection_id, external_job_id, external_property_id, membership_id, property_id",
+            )
+            .in("membership_id", membershipIds)
+            .eq("link_state", "active")
+        : Promise.resolve({ data: [], error: null }),
+    ]);
     if (propertyLinksResult.error) {
       throw new Error(propertyLinksResult.error.message);
     }
+    if (membershipJobLinksResult.error) {
+      throw new Error(membershipJobLinksResult.error.message);
+    }
     const propertyLinks = (propertyLinksResult.data ?? []) as HqJobberPropertyLink[];
+    const membershipJobLinks = (membershipJobLinksResult.data ??
+      []) as HqJobberMembershipJobLink[];
     const externalPropertyIds = [
       ...new Set(propertyLinks.map((link) => link.external_property_id)),
     ];
@@ -332,7 +351,7 @@ export async function GET(request: Request) {
       ? await supabase
           .from("jobber_visit_projections")
           .select(
-            "connection_id, external_property_id, external_visit_id, scheduled_start, scheduled_end, title, visit_status, is_complete",
+            "connection_id, external_job_id, external_property_id, external_visit_id, scheduled_start, scheduled_end, title, visit_status, is_complete",
           )
           .eq("connection_id", JOBBER_CONNECTION_ID)
           .in("external_property_id", externalPropertyIds)
@@ -383,12 +402,15 @@ export async function GET(request: Request) {
           link.membership_id === m.id && link.property_id === m.property_id,
       );
       const projectionVisits: MembershipVisitProgressInput[] = activePropertyLink
-        ? jobberProjections
+        ? selectLinkedMembershipJobberVisits({
+            membershipId: m.id,
+            propertyId: m.property_id,
+            propertyLinks,
+            membershipJobLinks,
+            projections: jobberProjections,
+          })
             .filter(
               (projection) =>
-                projection.connection_id === activePropertyLink.connection_id &&
-                projection.external_property_id ===
-                  activePropertyLink.external_property_id &&
                 !appointmentExternalIds.has(projection.external_visit_id),
             )
             .map((projection) => ({
@@ -416,6 +438,7 @@ export async function GET(request: Request) {
             membershipId: m.id,
             propertyId: m.property_id,
             propertyLinks,
+            membershipJobLinks,
             projections: jobberProjections,
             referenceDate,
           });
