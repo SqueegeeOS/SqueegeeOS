@@ -142,19 +142,54 @@ export function EnrollmentHandoffPage({
   token,
   initialStatus,
   paymentResult,
+  signingResult,
   previewMode = false,
 }: {
   token: string;
   initialStatus: PublicEnrollmentStatus;
   paymentResult?: string | null;
+  signingResult?: string | null;
   previewMode?: boolean;
 }) {
   const [status, setStatus] = useState(initialStatus);
+  const [startingSignature, setStartingSignature] = useState(false);
+  const [signatureError, setSignatureError] = useState<string | null>(null);
+
+  async function startSignature() {
+    if (previewMode || startingSignature) return;
+    setStartingSignature(true);
+    setSignatureError(null);
+    try {
+      const response = await fetch(
+        `/api/enrollment/${encodeURIComponent(token)}/signing`,
+        { method: "POST", cache: "no-store" },
+      );
+      const result = (await response.json().catch(() => null)) as {
+        url?: unknown;
+        error?: unknown;
+      } | null;
+      if (!response.ok || typeof result?.url !== "string") {
+        throw new Error(
+          typeof result?.error === "string"
+            ? result.error
+            : "The secure signing window could not open.",
+        );
+      }
+      window.location.assign(result.url);
+    } catch (error) {
+      setSignatureError(
+        error instanceof Error
+          ? error.message
+          : "The secure signing window could not open.",
+      );
+      setStartingSignature(false);
+    }
+  }
 
   useEffect(() => {
     if (
       previewMode ||
-      paymentResult !== "success" ||
+      (paymentResult !== "success" && signingResult !== "returned") ||
       status.status === "portal_ready"
     ) {
       return;
@@ -178,7 +213,7 @@ export function EnrollmentHandoffPage({
       if (attempts >= 20) window.clearInterval(interval);
     }, 3000);
     return () => window.clearInterval(interval);
-  }, [paymentResult, previewMode, status.status, token]);
+  }, [paymentResult, previewMode, signingResult, status.status, token]);
 
   const agreementState = status.agreementComplete ? "done" : "current";
   const paymentState = status.paymentComplete
@@ -246,7 +281,7 @@ export function EnrollmentHandoffPage({
                   ? `A real private link would securely open Michael's DocuSign agreement and send completion proof to ${status.maskedEmail}.`
                   : status.agreementComplete
                     ? "Your DocuSign packet is complete and safely on file."
-                    : `DocuSign sent the agreement to ${status.maskedEmail}.`
+                    : `Review the plan here, then sign securely with DocuSign. Completion proof will be sent to ${status.maskedEmail}.`
               }
               state={agreementState}
             />
@@ -280,11 +315,30 @@ export function EnrollmentHandoffPage({
               We&apos;re giving this handoff a quick human check. Your agreement is safe; SqueegeeKing will follow up if anything is needed.
             </p>
           ) : null}
+          {signatureError ? (
+            <p
+              aria-live="polite"
+              className="mb-4 rounded-xl border border-rose-300/20 bg-rose-300/[0.07] px-4 py-3 text-xs leading-relaxed text-rose-100"
+            >
+              {signatureError}
+            </p>
+          ) : null}
 
           {previewMode ? (
             <div className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-[#d4c29c]/35 bg-[#d4c29c]/10 px-5 text-center text-sm font-bold text-[#efe1c3]">
               Preview only · Signature submission is safely disabled
             </div>
+          ) : status.signingAvailable ? (
+            <button
+              type="button"
+              onClick={startSignature}
+              disabled={startingSignature}
+              className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#d4c29c] px-5 text-sm font-bold text-[#102017] transition hover:bg-[#eadbb9] disabled:cursor-wait disabled:opacity-70"
+            >
+              {startingSignature
+                ? "Opening your secure agreement…"
+                : "Review & sign my agreement"}
+            </button>
           ) : status.portalUrl ? (
             <a
               href={status.portalUrl}

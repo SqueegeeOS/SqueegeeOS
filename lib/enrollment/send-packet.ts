@@ -5,6 +5,8 @@ import {
   createDocuSignEnrollmentEnvelope,
   sendCreatedDocuSignEnvelope,
 } from "@/lib/integrations/docusign";
+import { sendResendEmail } from "@/lib/communications/providers/resend-email";
+import { resolvePublicAppOrigin } from "@/lib/membership/portal-access";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import type { PresentationData } from "@/lib/presentations/types";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
@@ -23,6 +25,7 @@ import type {
 } from "./types";
 import type { PaymentRail } from "@/lib/billing/payment-rail";
 import { getEnrollmentRecipientGate } from "./release-control";
+import { buildSignatureInvitationEmail } from "./signature-invitation-email";
 
 export class EnrollmentNotReadyError extends Error {
   constructor(
@@ -64,6 +67,7 @@ async function flagPacketError(
   packetId: string,
   code: string,
   error: unknown,
+  provider = "docusign",
 ): Promise<void> {
   const message =
     error instanceof Error ? error.message.slice(0, 2000) : "Unknown provider error";
@@ -80,13 +84,18 @@ async function flagPacketError(
     packetId,
     eventType: "provider_error",
     actor: "homeatlas_server",
-    provider: "docusign",
+    provider,
     eventData: { code, message },
   }).catch(() => {});
 }
 
 export async function sendEnrollmentPacket(input: {
   presentation: PresentationData;
+  signer?: {
+    name: string;
+    email: string;
+    phone?: string | null;
+  };
   tier: SqueegeeKingTierId;
   firstVisitPrice: number;
   recurringVisitPrice: number;
@@ -117,6 +126,7 @@ export async function sendEnrollmentPacket(input: {
 
   const snapshot = buildEnrollmentDocumentSnapshot({
     presentation: input.presentation,
+    signer: input.signer,
     tier: input.tier,
     firstVisitPrice: input.firstVisitPrice,
     recurringVisitPrice: input.recurringVisitPrice,
@@ -125,7 +135,9 @@ export async function sendEnrollmentPacket(input: {
     homeSolicitationNoticeDays: input.homeSolicitationNoticeDays,
     paymentRail: input.paymentRail,
   });
-  const email = normalizeEnrollmentEmail(input.presentation.clientEmail)!;
+  const email = normalizeEnrollmentEmail(
+    snapshot.signer?.email ?? input.presentation.clientEmail,
+  )!;
   const recipientGate = getEnrollmentRecipientGate(email);
   if (!recipientGate.allowed) {
     throw new EnrollmentNotReadyError(recipientGate.detail, readiness);
@@ -240,6 +252,7 @@ export async function sendEnrollmentPacket(input: {
   }
 
   let envelopeId = packet.docusign_envelope_id;
+  const envelopeWasAlreadySent = packet.docusign_status === "sent";
   if (!envelopeId) {
     try {
       const envelope = await createDocuSignEnrollmentEnvelope({
@@ -278,37 +291,100 @@ export async function sendEnrollmentPacket(input: {
     }
   }
 
+  const deliveryEmail = normalizeEnrollmentEmail(
+    packet.document_snapshot.signer?.email ?? packet.customer_email,
+  );
+  if (!deliveryEmail) {
+    throw new Error("The saved agreement signer does not have a valid email address.");
+  }
+  const savedRecipientGate = getEnrollmentRecipientGate(deliveryEmail);
+  if (!savedRecipientGate.allowed) {
+    throw new EnrollmentNotReadyError(savedRecipientGate.detail, readiness);
+  }
+
+  const tokenExpiresAt = new Date(
+    now.getTime() + 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const tokenSha256 = enrollmentTokenSha256(rawToken);
+  const rotateToken = await supabase
+    .from("enrollment_packets")
+    .update({
+      public_token_sha256: tokenSha256,
+      public_token_expires_at: tokenExpiresAt,
+    })
+    .eq("id", packet.id);
+  if (rotateToken.error) {
+    throw new Error(`The private agreement link could not be secured: ${rotateToken.error.message}`);
+  }
+
   try {
-    await sendCreatedDocuSignEnvelope({ envelopeId });
-    const sentAt = new Date().toISOString();
-    const markSent = await supabase
-      .from("enrollment_packets")
-      .update({
-        status: "signature_sent",
-        docusign_status: "sent",
-        signature_sent_at: sentAt,
-        last_error_code: null,
-        last_error_message: null,
-      })
-      .eq("id", packet.id);
-    if (markSent.error) throw new Error(markSent.error.message);
-    await recordPacketEvent({
-      packetId: packet.id,
-      eventType: "signature_email_sent",
-      actor: "homeatlas_server",
-      provider: "docusign",
-      providerEventKey: `envelope:${envelopeId}:sent`,
-      eventData: { recipient: email, sentAt },
-    });
+    if (!envelopeWasAlreadySent) {
+      await sendCreatedDocuSignEnvelope({ envelopeId });
+      const markEnvelopeSent = await supabase
+        .from("enrollment_packets")
+        .update({ docusign_status: "sent" })
+        .eq("id", packet.id);
+      if (markEnvelopeSent.error) {
+        throw new Error(markEnvelopeSent.error.message);
+      }
+      await recordPacketEvent({
+        packetId: packet.id,
+        eventType: "docusign_envelope_sent",
+        actor: "homeatlas_server",
+        provider: "docusign",
+        providerEventKey: `envelope:${envelopeId}:sent`,
+        eventData: { envelopeId },
+      });
+    }
   } catch (error) {
     await flagPacketError(packet.id, "docusign_send_failed", error);
     throw error;
   }
 
+  const enrollmentUrl = `${resolvePublicAppOrigin()}/enroll/${encodeURIComponent(rawToken)}`;
+  const invitation = buildSignatureInvitationEmail({
+    snapshot: packet.document_snapshot,
+    enrollmentUrl,
+  });
+  const emailResult = await sendResendEmail({
+    to: deliveryEmail,
+    replyTo: readiness.legalIdentity.noticeEmail,
+    subject: invitation.subject,
+    html: invitation.html,
+    text: invitation.text,
+    idempotencyKey: `enrollment-signature-${packet.id}-${tokenSha256.slice(0, 16)}`,
+  });
+  if (!emailResult.ok) {
+    const error = new Error(`The agreement email was not accepted: ${emailResult.errorCode}`);
+    await flagPacketError(packet.id, "resend_signature_invitation_failed", error, "resend");
+    throw error;
+  }
+
+  const sentAt = new Date().toISOString();
+  const markSent = await supabase
+    .from("enrollment_packets")
+    .update({
+      status: "signature_sent",
+      docusign_status: "sent",
+      signature_sent_at: sentAt,
+      last_error_code: null,
+      last_error_message: null,
+    })
+    .eq("id", packet.id);
+  if (markSent.error) throw new Error(markSent.error.message);
+  await recordPacketEvent({
+    packetId: packet.id,
+    eventType: "signature_email_sent",
+    actor: "homeatlas_server",
+    provider: "resend",
+    providerEventKey: `email:${emailResult.providerMessageId}`,
+    eventData: { recipient: deliveryEmail, sentAt },
+  });
+
   return {
     packetId: packet.id,
     status: "signature_sent",
-    customerEmail: email,
+    customerEmail: deliveryEmail,
     envelopeId,
     reused: false,
   };

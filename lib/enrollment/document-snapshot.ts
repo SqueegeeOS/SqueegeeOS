@@ -50,6 +50,11 @@ export function normalizeEnrollmentEmail(value: string): string | null {
 
 export function buildEnrollmentDocumentSnapshot(input: {
   presentation: PresentationData;
+  signer?: {
+    name: string;
+    email: string;
+    phone?: string | null;
+  };
   tier: SqueegeeKingTierId;
   firstVisitPrice: number;
   recurringVisitPrice: number;
@@ -60,11 +65,17 @@ export function buildEnrollmentDocumentSnapshot(input: {
   createdAt?: string;
 }): EnrollmentDocumentSnapshot {
   const customerEmail = normalizeEnrollmentEmail(input.presentation.clientEmail);
+  const signerEmail = input.signer
+    ? normalizeEnrollmentEmail(input.signer.email)
+    : null;
   if (!input.presentation.clientName.trim()) {
     throw new Error("Customer name is required before sending enrollment.");
   }
   if (!customerEmail) {
     throw new Error("A valid customer email is required for DocuSign.");
+  }
+  if (input.signer && (!input.signer.name.trim() || !signerEmail)) {
+    throw new Error("A valid signer name and email are required for DocuSign.");
   }
   if (!input.presentation.clientAddress.trim()) {
     throw new Error("Service address is required before sending enrollment.");
@@ -113,6 +124,15 @@ export function buildEnrollmentDocumentSnapshot(input: {
       email: customerEmail,
       phone: input.presentation.clientPhone.trim() || null,
     },
+    ...(input.signer
+      ? {
+          signer: {
+            name: input.signer.name.trim(),
+            email: signerEmail!,
+            phone: input.signer.phone?.trim() || null,
+          },
+        }
+      : {}),
     property: {
       fullAddress: input.presentation.clientAddress.trim(),
       squareFeet:

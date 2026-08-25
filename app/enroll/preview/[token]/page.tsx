@@ -75,6 +75,7 @@ const previewStatus: PublicEnrollmentStatus = {
   paymentRail: "manual_cash_check",
   status: "signature_sent",
   agreementComplete: false,
+  signingAvailable: true,
   paymentComplete: false,
   paymentUrl: null,
   paymentUrlExpiresAt: null,

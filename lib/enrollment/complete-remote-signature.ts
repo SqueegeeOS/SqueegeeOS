@@ -446,7 +446,7 @@ export async function completeRemoteEnrollmentSignature(input: {
       plan_id: planId(),
       plan_name: pricing.planName,
       signature_method: "docusign_remote",
-      signer_name: snapshot.customer.name,
+      signer_name: snapshot.signer?.name ?? snapshot.customer.name,
       signature_image_url: null,
       typed_text: null,
       signed_at: input.signedAt,

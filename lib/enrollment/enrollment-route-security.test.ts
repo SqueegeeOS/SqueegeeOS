@@ -21,6 +21,10 @@ const sendPacket = read("./send-packet.ts");
 const legalReleaseRoute = read(
   "../../app/api/admin/enrollment/legal-release/route.ts",
 );
+const publicSigningRoute = read(
+  "../../app/api/enrollment/[token]/signing/route.ts",
+);
+const publicSigning = read("./public-signing.ts");
 
 describe("enrollment route security contract", () => {
   it("keeps packet creation behind presentation ownership and readiness behind HQ auth", () => {
@@ -148,5 +152,21 @@ describe("enrollment route security contract", () => {
     expect(stripeHandoff).toContain(
       'input.packet.payment_rail !== "stripe_card"',
     );
+  });
+
+  it("validates the private token and packet state before creating an embedded signing view", () => {
+    const plausible = publicSigning.indexOf("isPlausibleEnrollmentToken(token)");
+    const packetRead = publicSigning.indexOf('.from("enrollment_packets")', plausible);
+    const recipientView = publicSigning.indexOf(
+      "createDocuSignRecipientView",
+      packetRead,
+    );
+
+    expect(publicSigningRoute).toContain("export async function POST(");
+    expect(publicSigningRoute).toContain('"Cache-Control": "private, no-store"');
+    expect(plausible).toBeGreaterThan(-1);
+    expect(packetRead).toBeGreaterThan(plausible);
+    expect(publicSigning).toContain('packet.status !== "signature_sent"');
+    expect(recipientView).toBeGreaterThan(packetRead);
   });
 });
