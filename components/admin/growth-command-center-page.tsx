@@ -42,6 +42,7 @@ function percent(value: number | null): string {
 
 function Field({
   label,
+  hint,
   value,
   suffix,
   min,
@@ -50,6 +51,7 @@ function Field({
   onChange,
 }: {
   label: string;
+  hint?: string;
   value: number;
   suffix?: string;
   min: number;
@@ -78,6 +80,7 @@ function Field({
         />
         {suffix ? <span className="text-xs text-white/35">{suffix}</span> : null}
       </span>
+      {hint ? <span className="mt-2 block text-[10px] leading-relaxed text-white/28">{hint}</span> : null}
     </label>
   );
 }
@@ -166,9 +169,6 @@ function GrowthContent() {
       if (body.averageMemberArr && body.averageMemberArr > 0) {
         setAverageMemberArr(Math.round(body.averageMemberArr));
       }
-      if (body.directionalCloseRate != null && body.leadsLast30Days >= 5) {
-        setCloseRate(Math.max(5, Math.min(80, Math.round(body.directionalCloseRate))));
-      }
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Growth truth could not load.");
     } finally {
@@ -199,6 +199,22 @@ function GrowthContent() {
     ((snapshot?.currentActiveArr ?? 0) / GROWTH_TARGET_ARR) * 100,
   );
   const sourceLabel = snapshot?.source === "supabase" ? "Live Supabase truth" : "Data unavailable";
+  const currentArr = snapshot?.currentActiveArr ?? 0;
+  const currentMrr = currentArr / 12;
+  const projectedMrr = scenario.projectedArrAtTargetDate / 12;
+  const requiredLeadLabel =
+    scenario.requiredLeadsPerWeek == null
+      ? "Set close rate"
+      : `${number(scenario.requiredLeadsPerWeek, 1)}/week`;
+  const paceMessage = scenario.onTrack
+    ? scenario.leadPaceDeltaPerWeek != null
+      ? `${number(Math.max(0, scenario.leadPaceDeltaPerWeek), 1)} qualified leads/week above the required pace.`
+      : "The selected assumptions reach the target."
+    : scenario.requiredCloseRatePercent != null && scenario.requiredCloseRatePercent > 100
+      ? "This lead volume cannot reach the target even at a 100% close rate. Raise lead volume or member ARR."
+      : scenario.leadPaceDeltaPerWeek != null
+        ? `${number(Math.abs(Math.min(0, scenario.leadPaceDeltaPerWeek)), 1)} more qualified leads/week are required at this close rate.`
+        : "Add a realistic close rate to calculate the required lead pace.";
 
   return (
     <AmbientStage className="min-h-screen px-4 py-8 text-foreground sm:px-6 sm:py-12">
@@ -230,6 +246,9 @@ function GrowthContent() {
               </p>
               <p className="mt-2 font-serif text-4xl text-accent">
                 {loading ? "..." : money(snapshot?.currentActiveArr ?? 0)}
+              </p>
+              <p className="mt-1 text-sm tabular-nums text-[#f5f2eb]/70">
+                {loading ? "..." : `${money(currentMrr)} MRR`}
               </p>
               <p className="mt-2 text-xs text-white/38">
                 {number(currentProgress, 1)}% of the Dec 2028 target
@@ -266,11 +285,17 @@ function GrowthContent() {
             </button>
           </div>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <TruthCard
               label="Active ARR"
               value={money(snapshot?.currentActiveArr ?? 0)}
               hint="Strict active memberships; primary operating metric."
+              accent
+            />
+            <TruthCard
+              label="Active MRR"
+              value={money(currentMrr)}
+              hint="Qualified active ARR divided by 12; a normalized recurring run rate, not monthly cash collected."
               accent
             />
             <TruthCard
@@ -317,12 +342,27 @@ function GrowthContent() {
               <p className="mt-3 text-sm leading-relaxed text-white/45">
                 These are assumptions, not promises. Change them until the operating pace feels demanding but believable.
               </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setAverageMemberArr(Math.round(snapshot?.averageMemberArr || 1_200));
+                  setLeadsPerWeek(10);
+                  setCloseRate(25);
+                  setRetention(90);
+                }}
+                className="mt-4 rounded-full border border-accent/20 bg-accent/[0.05] px-4 py-2 text-[10px] uppercase tracking-[0.14em] text-accent/75 transition hover:border-accent/40 hover:text-accent"
+              >
+                Reset practical base
+              </button>
               <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                <Field label="Average member ARR" value={averageMemberArr} suffix="per member" min={100} max={20_000} step={50} onChange={setAverageMemberArr} />
-                <Field label="Qualified leads" value={leadsPerWeek} suffix="per week" min={0} max={500} onChange={setLeadsPerWeek} />
-                <Field label="Close rate" value={closeRate} suffix="percent" min={0} max={100} onChange={setCloseRate} />
-                <Field label="Annual retention" value={retention} suffix="percent" min={0} max={100} onChange={setRetention} />
+                <Field label="Average member ARR" hint="Seeds from qualified active members." value={averageMemberArr} suffix="per member" min={100} max={20_000} step={50} onChange={setAverageMemberArr} />
+                <Field label="Qualified leads" hint="People who fit the offer—not every form submission." value={leadsPerWeek} suffix="per week" min={0} max={500} onChange={setLeadsPerWeek} />
+                <Field label="Close rate" hint="Your planning assumption; HomeAtlas does not auto-use the non-cohort 30-day rate." value={closeRate} suffix="percent" min={0} max={100} onChange={setCloseRate} />
+                <Field label="Annual retention" hint="Applied continuously to both existing and newly added ARR." value={retention} suffix="percent" min={0} max={100} onChange={setRetention} />
               </div>
+              <p className="mt-4 text-[10px] leading-relaxed text-white/28">
+                Live anchors: {money(currentArr)} qualified ARR and {money(snapshot?.averageMemberArr ?? averageMemberArr)} average qualified member ARR. Lead pace, close rate, and retention remain explicit assumptions.
+              </p>
             </div>
 
             <div className="rounded-[1.6rem] border border-accent/15 bg-[radial-gradient(circle_at_75%_10%,rgba(201,184,150,0.11),transparent_36%),rgba(0,0,0,0.22)] p-5 sm:p-7">
@@ -332,20 +372,36 @@ function GrowthContent() {
                   <p className={`mt-2 font-serif text-4xl sm:text-5xl ${scenario.onTrack ? "text-emerald-300" : "text-accent"}`}>
                     {money(scenario.projectedArrAtTargetDate)}
                   </p>
+                  <p className="mt-1 text-sm tabular-nums text-white/45">
+                    {money(projectedMrr)} modeled MRR
+                  </p>
                 </div>
                 <span className={`rounded-full border px-3 py-1.5 text-[10px] uppercase tracking-[0.14em] ${scenario.onTrack ? "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-200" : "border-amber-300/20 bg-amber-300/[0.06] text-amber-200"}`}>
                   {scenario.onTrack ? "Modeled on track" : "Pace needs work"}
                 </span>
               </div>
 
+              <div className={`mt-5 rounded-2xl border px-4 py-3 text-xs leading-relaxed ${scenario.onTrack ? "border-emerald-300/15 bg-emerald-300/[0.04] text-emerald-100/70" : "border-amber-300/15 bg-amber-300/[0.04] text-amber-100/70"}`}>
+                {paceMessage}
+              </div>
+
               <div className="mt-7 grid gap-3 sm:grid-cols-2">
-                <TruthCard label="Time remaining" value={`${scenario.monthsRemaining} months`} hint="From today through the target month." />
+                <TruthCard label="Time remaining" value={`${number(scenario.monthsRemaining, 1)} months`} hint={`${number(scenario.weeksRemaining, 1)} exact weeks through the target date.`} />
                 <TruthCard label="ARR gap" value={money(scenario.arrGap)} hint="Gap from strict active ARR to target." />
-                <TruthCard label="Required net pace" value={`${money(scenario.requiredNetArrPerMonth)}/mo`} hint={`${number(scenario.requiredMembersPerMonth, 1)} average new members per month before extra churn.`} accent />
-                <TruthCard label="Lead pace required" value={`${number(scenario.requiredLeadsPerWeek, 1)}/week`} hint={`At the chosen ${number(closeRate, 0)}% close rate and ${money(averageMemberArr)} average ARR.`} />
+                <TruthCard label="Required gross ARR pace" value={`${money(scenario.requiredGrossArrPerMonth)}/mo`} hint={`${number(scenario.requiredMembersPerMonth, 1)} average members/month after accounting for ${number(100 - retention, 0)}% annual loss.`} accent />
+                <TruthCard label="Lead pace required" value={requiredLeadLabel} hint={`At ${number(closeRate, 0)}% close and ${money(averageMemberArr)} average ARR. Simple net gap pace is ${money(scenario.requiredNetArrPerMonth)}/mo.`} />
                 <TruthCard label="Modeled closes" value={`${number(scenario.modeledMembersPerMonth, 1)}/mo`} hint="From your qualified-lead and close-rate inputs." />
                 <TruthCard label="Modeled new ARR" value={`${money(scenario.modeledNewArrPerMonth)}/mo`} hint="Gross new ARR before modeled retention loss." />
               </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <TruthCard label="Retained starting ARR" value={money(scenario.retainedCurrentArrAtTarget)} hint="Today’s qualified ARR remaining at the target date." />
+                <TruthCard label="Retained new ARR" value={money(scenario.retainedNewArrAtTarget)} hint="Modeled new ARR still active at the target date." />
+                <TruthCard label="Retention drag" value={money(scenario.modeledRetentionDrag)} hint="Modeled ARR lost before the target across old and new members." />
+              </div>
+              <p className="mt-5 text-[10px] leading-relaxed text-white/28">
+                Model: equal weekly lead flow, constant average ARR, close rate, and retention; no price increases, add-on expansion, seasonality, capacity ceiling, or paid-ad ramp. MRR is ARR ÷ 12 and is not cash collected in a given month.
+              </p>
             </div>
           </div>
         </section>
