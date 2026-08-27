@@ -92,9 +92,19 @@ function decodePrivateKey(raw: string): string {
 }
 
 function normalizeAuthServer(raw: string): string {
-  return raw
-    .replace(/^https?:\/\//i, "")
-    .replace(/\/$/, "") || "account.docusign.com";
+  const candidate = raw.trim() || "account.docusign.com";
+  try {
+    const url = new URL(
+      candidate.includes("://") ? candidate : `https://${candidate}`,
+    );
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, "");
+    return hostname === "account.docusign.com" ||
+      hostname === DOCUSIGN_DEMO_AUTH_SERVER
+      ? hostname
+      : "";
+  } catch {
+    return "";
+  }
 }
 
 function normalizeBaseUri(raw: string): string {
@@ -152,6 +162,7 @@ export function getDocuSignConfigState(
     ["DOCUSIGN_USER_ID", config.userId],
     ["DOCUSIGN_ACCOUNT_ID", config.accountId],
     ["DOCUSIGN_ACCOUNT_BASE_URI", config.accountBaseUri],
+    ["DOCUSIGN_AUTH_SERVER", config.authServer],
     ["DOCUSIGN_PRIVATE_KEY_BASE64", config.privateKey],
     ["DOCUSIGN_ENROLLMENT_TEMPLATE_ID", config.enrollmentTemplateId],
     ["DOCUSIGN_CONNECT_HMAC_SECRET", config.connectHmacSecret],
@@ -247,6 +258,7 @@ export async function prepareDocuSignEnrollmentRehearsalTemplate(input: {
     ["DOCUSIGN_USER_ID", config.userId],
     ["DOCUSIGN_ACCOUNT_ID", config.accountId],
     ["DOCUSIGN_ACCOUNT_BASE_URI", config.accountBaseUri],
+    ["DOCUSIGN_AUTH_SERVER", config.authServer],
     ["DOCUSIGN_PRIVATE_KEY_BASE64", config.privateKey],
   ];
   const missing = required
@@ -437,6 +449,7 @@ export async function probeDocuSignEnrollmentTemplate(input: {
     ["DOCUSIGN_USER_ID", config.userId],
     ["DOCUSIGN_ACCOUNT_ID", config.accountId],
     ["DOCUSIGN_ACCOUNT_BASE_URI", config.accountBaseUri],
+    ["DOCUSIGN_AUTH_SERVER", config.authServer],
     ["DOCUSIGN_PRIVATE_KEY_BASE64", config.privateKey],
     ["DOCUSIGN_ENROLLMENT_TEMPLATE_ID", config.enrollmentTemplateId],
   ];

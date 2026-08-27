@@ -13,6 +13,7 @@ import {
   parseDocuSignEnvelopeEvent,
   prepareDocuSignEnrollmentRehearsalTemplate,
   probeDocuSignEnrollmentTemplate,
+  resolveDocuSignConfig,
   type DocuSignConfig,
   verifyDocuSignConnectHmac,
 } from "./docusign";
@@ -26,6 +27,18 @@ function decodeJson(segment: string): Record<string, unknown> {
 }
 
 describe("DocuSign integration boundary", () => {
+  it("canonicalizes a full developer OAuth URL and selects the rehearsal template", () => {
+    const config = resolveDocuSignConfig({
+      authServer: "https://account-d.docusign.com/oauth/auth?prompt=login",
+      enrollmentTemplateId: "",
+    });
+
+    expect(config.authServer).toBe("account-d.docusign.com");
+    expect(config.enrollmentTemplateId).toBe(
+      "48f90f7b-015d-4d21-a20e-44cc392d6c5c",
+    );
+  });
+
   it("binds the household packet to one embedded signer and reuses that identity for the signing view", async () => {
     const { privateKey } = generateKeyPairSync("rsa", {
       modulusLength: 2048,
