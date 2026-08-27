@@ -4,6 +4,8 @@ import {
   createSign,
   timingSafeEqual,
 } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import type { EnrollmentDocumentSnapshot } from "@/lib/enrollment/types";
 import {
   buildDocuSignEnrollmentTabs,
@@ -57,6 +59,15 @@ export interface DocuSignTemplateDocumentEvidence {
     | null;
 }
 
+export interface DocuSignTemplateBootstrapResult {
+  ok: boolean;
+  templateId: string;
+  documentCount: number;
+  lockedTabCount: number;
+  signatureTabCount: number;
+  message: string;
+}
+
 export interface DocuSignEnvelopeEvent {
   envelopeId: string;
   eventType: string;
@@ -102,6 +113,9 @@ function normalizeBaseUri(raw: string): string {
 export function resolveDocuSignConfig(
   overrides: Partial<DocuSignConfig> = {},
 ): DocuSignConfig {
+  const authServer = normalizeAuthServer(
+    overrides.authServer?.trim() || value("DOCUSIGN_AUTH_SERVER"),
+  );
   return {
     integrationKey:
       overrides.integrationKey?.trim() || value("DOCUSIGN_INTEGRATION_KEY"),
@@ -110,15 +124,16 @@ export function resolveDocuSignConfig(
     accountBaseUri: normalizeBaseUri(
       overrides.accountBaseUri?.trim() || value("DOCUSIGN_ACCOUNT_BASE_URI"),
     ),
-    authServer: normalizeAuthServer(
-      overrides.authServer?.trim() || value("DOCUSIGN_AUTH_SERVER"),
-    ),
+    authServer,
     privateKey:
       overrides.privateKey?.trim() ||
       decodePrivateKey(value("DOCUSIGN_PRIVATE_KEY_BASE64")),
     enrollmentTemplateId:
       overrides.enrollmentTemplateId?.trim() ||
-      value("DOCUSIGN_ENROLLMENT_TEMPLATE_ID"),
+      value("DOCUSIGN_ENROLLMENT_TEMPLATE_ID") ||
+      (authServer === DOCUSIGN_DEMO_AUTH_SERVER
+        ? DOCUSIGN_REHEARSAL_TEMPLATE_ID
+        : ""),
     customerRoleName:
       overrides.customerRoleName?.trim() ||
       value("DOCUSIGN_CUSTOMER_ROLE_NAME") ||
@@ -203,6 +218,172 @@ async function docuSignAccessToken(
     throw new Error(`DocuSign authorization failed: ${description}`);
   }
   return body.access_token;
+}
+
+/**
+ * Installs only the clearly marked rehearsal documents and recipient tabs into
+ * the known DocuSign developer template. It never creates or sends an envelope.
+ */
+export async function prepareDocuSignEnrollmentRehearsalTemplate(input: {
+  config?: DocuSignConfig;
+  fetch?: typeof fetch;
+} = {}): Promise<DocuSignTemplateBootstrapResult> {
+  const config = input.config ?? resolveDocuSignConfig();
+  const request = input.fetch ?? fetch;
+
+  if (config.authServer !== DOCUSIGN_DEMO_AUTH_SERVER) {
+    throw new Error(
+      "The rehearsal-template installer is restricted to the DocuSign developer environment.",
+    );
+  }
+  if (config.enrollmentTemplateId !== DOCUSIGN_REHEARSAL_TEMPLATE_ID) {
+    throw new Error(
+      "The configured template is not the HomeAtlas rehearsal template.",
+    );
+  }
+
+  const required: Array<[string, string]> = [
+    ["DOCUSIGN_INTEGRATION_KEY", config.integrationKey],
+    ["DOCUSIGN_USER_ID", config.userId],
+    ["DOCUSIGN_ACCOUNT_ID", config.accountId],
+    ["DOCUSIGN_ACCOUNT_BASE_URI", config.accountBaseUri],
+    ["DOCUSIGN_PRIVATE_KEY_BASE64", config.privateKey],
+  ];
+  const missing = required
+    .filter(([, current]) => !current)
+    .map(([name]) => name);
+  if (missing.length > 0) {
+    throw new Error(`Add ${missing.join(", ")} before installing the template.`);
+  }
+
+  const documentPayloads = await Promise.all(
+    REHEARSAL_DOCUMENTS.map(async (document) => ({
+      documentBase64: (
+        await readFile(
+          path.join(
+            process.cwd(),
+            "docs",
+            "legal",
+            "rehearsal",
+            document.fileName,
+          ),
+        )
+      ).toString("base64"),
+      documentId: document.documentId,
+      fileExtension: "pdf",
+      name: document.name,
+      order: document.documentId,
+    })),
+  );
+  const accessToken = await docuSignAccessToken(config, request);
+  const templatePath = `${config.accountBaseUri}/restapi/v2.1/accounts/${encodeURIComponent(config.accountId)}/templates/${encodeURIComponent(config.enrollmentTemplateId)}`;
+  const providerJson = async (
+    url: string,
+    label: string,
+    init: RequestInit = {},
+  ): Promise<unknown> => {
+    const response = await request(url, {
+      ...init,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(
+        `${label} failed: ${providerFailureMessage(body, response.status)}`,
+      );
+    }
+    return body;
+  };
+
+  await providerJson(`${templatePath}/documents`, "Template document install", {
+    method: "PUT",
+    body: JSON.stringify({ documents: documentPayloads }),
+  });
+
+  const recipients = record(
+    await providerJson(`${templatePath}/recipients`, "Template recipient lookup"),
+  );
+  const signers = Array.isArray(recipients?.signers)
+    ? recipients.signers
+        .map(record)
+        .filter((row): row is Record<string, unknown> => Boolean(row))
+    : [];
+  const customer = signers.find(
+    (signer) => firstString(signer.roleName) === config.customerRoleName,
+  );
+  const recipientId = firstString(customer?.recipientId);
+  if (!recipientId) {
+    throw new Error(
+      `The rehearsal template is missing the ${config.customerRoleName} recipient role.`,
+    );
+  }
+
+  const textTabs = Object.values(DOCUSIGN_ENROLLMENT_TAB_LABELS).flatMap(
+    (tabLabel) => {
+      const documentIds = SHARED_DOCUMENT_TAB_LABELS.has(tabLabel)
+        ? ["1", "2"]
+        : [PROPERTY_DOCUMENT_TAB_LABELS.has(tabLabel) ? "2" : "1"];
+      return documentIds.map((documentId) => ({
+        anchorString: `[${tabLabel.replace(/_/g, " ").toUpperCase()}]`,
+        anchorUnits: "pixels",
+        anchorXOffset: "0",
+        anchorYOffset: "12",
+        documentId,
+        locked: "true",
+        required: "false",
+        tabLabel,
+        value: tabLabel,
+      }));
+    },
+  );
+  const signatureAnchor = {
+    anchorString: "Customer signature and date: supplied by DocuSign",
+    anchorUnits: "pixels",
+    documentId: "2",
+    locked: "false",
+    required: "true",
+  };
+
+  await providerJson(
+    `${templatePath}/recipients/${encodeURIComponent(recipientId)}/tabs`,
+    "Template tab install",
+    {
+      method: "PUT",
+      body: JSON.stringify({
+        textTabs,
+        signHereTabs: [
+          {
+            ...signatureAnchor,
+            anchorXOffset: "0",
+            anchorYOffset: "22",
+            tabLabel: "customer_signature",
+          },
+        ],
+        dateSignedTabs: [
+          {
+            ...signatureAnchor,
+            anchorXOffset: "205",
+            anchorYOffset: "22",
+            tabLabel: "customer_signed_date",
+          },
+        ],
+      }),
+    },
+  );
+
+  return {
+    ok: true,
+    templateId: config.enrollmentTemplateId,
+    documentCount: documentPayloads.length,
+    lockedTabCount: textTabs.length,
+    signatureTabCount: 1,
+    message:
+      "The developer-only rehearsal template now has both draft documents and the HomeAtlas locked-field contract. No envelope was created or sent.",
+  };
 }
 
 function collectTemplateTabLabels(value: unknown): Set<string> {
@@ -526,6 +707,49 @@ export async function createDocuSignEnrollmentEnvelope(input: {
     status: typeof body.status === "string" ? body.status : "created",
   };
 }
+
+const DOCUSIGN_DEMO_AUTH_SERVER = "account-d.docusign.com";
+const DOCUSIGN_REHEARSAL_TEMPLATE_ID =
+  "48f90f7b-015d-4d21-a20e-44cc392d6c5c";
+const REHEARSAL_DOCUMENTS = [
+  {
+    documentId: "1",
+    name: "HomeAtlas Master Service Agreement - Rehearsal Draft",
+    fileName:
+      "HOMEATLAS_CALIFORNIA_MASTER_SERVICE_AGREEMENT_REHEARSAL_DRAFT.pdf",
+  },
+  {
+    documentId: "2",
+    name: "HomeAtlas Property Service and Quote Agreement - Rehearsal Draft",
+    fileName:
+      "HOMEATLAS_PROPERTY_SERVICE_AND_QUOTE_AGREEMENT_REHEARSAL_DRAFT.pdf",
+  },
+] as const;
+
+const PROPERTY_DOCUMENT_TAB_LABELS = new Set<string>([
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.customerName,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.customerEmail,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.customerPhone,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.propertyAddress,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.planName,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.cadence,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.visitCount,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.firstVisitRate,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.recurringVisitRate,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.annualizedValue,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.serviceScope,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.billingSummary,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.billingConsent,
+]);
+
+const SHARED_DOCUMENT_TAB_LABELS = new Set<string>([
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.legalCompanyName,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.legalBusinessAddress,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.legalNoticeEmail,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.legalPhone,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.customerName,
+  DOCUSIGN_ENROLLMENT_TAB_LABELS.customerEmail,
+]);
 
 export async function createDocuSignRecipientView(input: {
   envelopeId: string;

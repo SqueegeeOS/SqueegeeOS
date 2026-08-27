@@ -45,6 +45,11 @@ const privateRoutePatterns = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  outputFileTracingIncludes: {
+    "/api/admin/enrollment/docusign/template": [
+      "./docs/legal/rehearsal/*.pdf",
+    ],
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

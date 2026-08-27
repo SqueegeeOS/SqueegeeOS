@@ -11,6 +11,7 @@ import {
   createDocuSignRecipientView,
   getDocuSignConfigState,
   parseDocuSignEnvelopeEvent,
+  prepareDocuSignEnrollmentRehearsalTemplate,
   probeDocuSignEnrollmentTemplate,
   type DocuSignConfig,
   verifyDocuSignConnectHmac,
@@ -325,6 +326,72 @@ describe("DocuSign integration boundary", () => {
     expect(calls).toHaveLength(7);
     expect(calls[0]?.method).toBe("POST");
     expect(calls.slice(1).every((call) => call.method === "GET")).toBe(true);
+    expect(calls.some((call) => call.url.includes("/envelopes"))).toBe(false);
+  });
+
+  it("installs the rehearsal template without creating or sending an envelope", async () => {
+    const { privateKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      publicKeyEncoding: { type: "spki", format: "pem" },
+    });
+    const config: DocuSignConfig = {
+      integrationKey: "integration-key",
+      userId: "impersonated-user",
+      accountId: "account-id",
+      accountBaseUri: "https://demo.docusign.net",
+      authServer: "account-d.docusign.com",
+      privateKey,
+      enrollmentTemplateId: "48f90f7b-015d-4d21-a20e-44cc392d6c5c",
+      customerRoleName: "Customer",
+      connectHmacSecret: "",
+    };
+    const calls: Array<{ url: string; method: string; body: unknown }> = [];
+    const request = async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ): Promise<Response> => {
+      const url = String(input);
+      calls.push({
+        url,
+        method: init?.method ?? "GET",
+        body:
+          init?.body && !url.endsWith("/oauth/token")
+            ? JSON.parse(String(init.body))
+            : null,
+      });
+      if (url.endsWith("/oauth/token")) {
+        return Response.json({ access_token: "access-token" });
+      }
+      if (url.endsWith("/recipients")) {
+        return Response.json({
+          signers: [{ recipientId: "7", roleName: "Customer" }],
+        });
+      }
+      return Response.json({ ok: true });
+    };
+
+    const result = await prepareDocuSignEnrollmentRehearsalTemplate({
+      config,
+      fetch: request as typeof fetch,
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      documentCount: 2,
+      signatureTabCount: 1,
+    });
+    expect(result.lockedTabCount).toBeGreaterThan(
+      Object.keys(DOCUSIGN_ENROLLMENT_TAB_LABELS).length,
+    );
+    const documentsCall = calls.find((call) => call.url.endsWith("/documents"));
+    expect(documentsCall?.method).toBe("PUT");
+    expect(
+      (documentsCall?.body as { documents: Array<{ documentBase64: string }> })
+        .documents.every((document) => document.documentBase64.length > 1_000),
+    ).toBe(true);
+    const tabsCall = calls.find((call) => call.url.endsWith("/recipients/7/tabs"));
+    expect(tabsCall?.method).toBe("PUT");
     expect(calls.some((call) => call.url.includes("/envelopes"))).toBe(false);
   });
 

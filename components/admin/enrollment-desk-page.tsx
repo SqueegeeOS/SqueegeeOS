@@ -119,6 +119,8 @@ function EnrollmentDeskContent() {
   const [docusignProbe, setDocusignProbe] =
     useState<DocuSignProbeResult | null>(null);
   const [probingDocusign, setProbingDocusign] = useState(false);
+  const [preparingDocusign, setPreparingDocusign] = useState(false);
+  const [templateMessage, setTemplateMessage] = useState<string | null>(null);
   const [releasingDocuments, setReleasingDocuments] = useState(false);
   const [releaseMessage, setReleaseMessage] = useState<string | null>(null);
   const [copiedCallback, setCopiedCallback] = useState(false);
@@ -193,6 +195,40 @@ function EnrollmentDeskContent() {
       setProbingDocusign(false);
     }
   }, []);
+
+  const prepareDocusignTemplate = useCallback(async () => {
+    setPreparingDocusign(true);
+    setTemplateMessage(null);
+    setDocusignProbe(null);
+    try {
+      const response = await fetch("/api/admin/enrollment/docusign/template", {
+        method: "POST",
+        headers: getAdminRequestHeaders(),
+        cache: "no-store",
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string; message?: string }
+        | null;
+      if (!response.ok || !body) {
+        throw new Error(
+          body?.error ?? "The DocuSign rehearsal template could not be installed.",
+        );
+      }
+      setTemplateMessage(
+        body.message ?? "The safe rehearsal template is installed.",
+      );
+      await runDocusignProbe();
+      await load();
+    } catch (templateError) {
+      setTemplateMessage(
+        templateError instanceof Error
+          ? templateError.message
+          : "The DocuSign rehearsal template could not be installed.",
+      );
+    } finally {
+      setPreparingDocusign(false);
+    }
+  }, [load, runDocusignProbe]);
 
   const releaseDocusignDocuments = useCallback(async () => {
     setReleasingDocuments(true);
@@ -517,12 +553,22 @@ function EnrollmentDeskContent() {
                   </p>
                   <button
                     type="button"
+                    disabled={preparingDocusign || probingDocusign}
+                    onClick={() => void prepareDocusignTemplate()}
+                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full border border-accent/25 bg-accent/[0.08] px-5 text-xs font-semibold text-accent transition hover:bg-accent/[0.13] disabled:cursor-not-allowed disabled:opacity-45"
+                  >
+                    {preparingDocusign
+                      ? "Installing rehearsal documents…"
+                      : "Install safe rehearsal template"}
+                  </button>
+                  <button
+                    type="button"
                     disabled={
                       probingDocusign ||
                       !data.providerLaunchPlan.canRunDocuSignProbe
                     }
                     onClick={() => void runDocusignProbe()}
-                    className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-accent px-5 text-xs font-semibold text-on-accent transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45"
+                    className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-full bg-accent px-5 text-xs font-semibold text-on-accent transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-45"
                   >
                     {probingDocusign
                       ? "Checking OAuth + template…"
@@ -530,6 +576,11 @@ function EnrollmentDeskContent() {
                         ? "Run read-only DocuSign check"
                         : "Add JWT + template settings first"}
                   </button>
+                  {templateMessage ? (
+                    <p className="mt-3 rounded-xl border border-white/10 bg-black/15 px-3 py-2 text-[10px] leading-relaxed text-muted">
+                      {templateMessage}
+                    </p>
+                  ) : null}
                   {docusignProbe ? (
                     <div
                       className={`mt-4 rounded-xl border px-4 py-3 text-xs leading-relaxed ${

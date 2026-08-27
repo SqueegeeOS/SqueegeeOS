@@ -14,6 +14,9 @@ const readinessRoute = read("../../app/api/admin/enrollment/readiness/route.ts")
 const docusignProbeRoute = read(
   "../../app/api/admin/enrollment/docusign/probe/route.ts",
 );
+const docusignTemplateRoute = read(
+  "../../app/api/admin/enrollment/docusign/template/route.ts",
+);
 const connectRoute = read("../../app/api/integrations/docusign/connect/route.ts");
 const stripeHandoff = read("./stripe-handoff.ts");
 const docusignProcessor = read("./process-docusign-connect.ts");
@@ -151,6 +154,22 @@ describe("enrollment route security contract", () => {
     ).toBeLessThan(docusignProcessor.lastIndexOf("createEnrollmentStripeHandoff"));
     expect(stripeHandoff).toContain(
       'input.packet.payment_rail !== "stripe_card"',
+    );
+  });
+
+  it("keeps the developer template installer behind HQ auth and free of customer sends", () => {
+    const auth = docusignTemplateRoute.indexOf(
+      "authorizeAdminRequest(request.headers)",
+    );
+    const prepare = docusignTemplateRoute.indexOf(
+      "prepareDocuSignEnrollmentRehearsalTemplate()",
+      auth,
+    );
+
+    expect(auth).toBeGreaterThan(-1);
+    expect(prepare).toBeGreaterThan(auth);
+    expect(docusignTemplateRoute).not.toMatch(
+      /createDocuSignEnrollmentEnvelope|sendCreatedDocuSignEnvelope|createEnrollmentStripeHandoff/,
     );
   });
 
