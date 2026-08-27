@@ -426,7 +426,7 @@ describe("DocuSign integration boundary", () => {
         .documents.every((document) => document.documentBase64.length > 1_000),
     ).toBe(true);
     const tabsCall = calls.find((call) => call.url.endsWith("/recipients/7/tabs"));
-    expect(tabsCall?.method).toBe("PUT");
+    expect(tabsCall?.method).toBe("POST");
     expect(calls.some((call) => call.url.includes("/envelopes"))).toBe(false);
   });
 
