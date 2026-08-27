@@ -1,6 +1,7 @@
 import {
   createHmac,
   createHash,
+  createPrivateKey,
   createSign,
   timingSafeEqual,
 } from "node:crypto";
@@ -79,13 +80,60 @@ function value(name: string): string {
   return process.env[name]?.trim() ?? "";
 }
 
-function decodePrivateKey(raw: string): string {
-  if (!raw) return "";
-  if (raw.includes("BEGIN") || raw.includes("\\n")) {
-    return raw.replace(/\\n/g, "\n");
+export function decodeDocuSignPrivateKey(raw: string): string {
+  let candidate = raw.trim();
+  if (!candidate) return "";
+
+  if (
+    (candidate.startsWith('"') && candidate.endsWith('"')) ||
+    (candidate.startsWith("'") && candidate.endsWith("'"))
+  ) {
+    try {
+      const parsed = JSON.parse(candidate) as unknown;
+      if (typeof parsed !== "string") return "";
+      candidate = parsed;
+    } catch {
+      candidate = candidate.slice(1, -1);
+    }
   }
+  candidate = candidate
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+
+  const normalizePem = (pem: string): string => {
+    const match = pem.match(
+      /-----BEGIN ([A-Z ]*PRIVATE KEY)-----([\s\S]*?)-----END \1-----/,
+    );
+    if (!match?.[1] || !match[2]) return "";
+    const body = match[2].replace(/\s+/g, "");
+    if (!body) return "";
+    const wrapped = body.match(/.{1,64}/g)?.join("\n") ?? "";
+    return `-----BEGIN ${match[1]}-----\n${wrapped}\n-----END ${match[1]}-----\n`;
+  };
+
+  if (candidate.includes("BEGIN") && candidate.includes("PRIVATE KEY")) {
+    return normalizePem(candidate);
+  }
+
   try {
-    return Buffer.from(raw, "base64").toString("utf8").replace(/\\n/g, "\n");
+    const decoded = Buffer.from(candidate.replace(/\s+/g, ""), "base64");
+    const decodedText = decoded.toString("utf8").trim();
+    if (decodedText.includes("BEGIN") && decodedText.includes("PRIVATE KEY")) {
+      return normalizePem(decodedText);
+    }
+
+    for (const type of ["pkcs8", "pkcs1"] as const) {
+      try {
+        return createPrivateKey({ key: decoded, format: "der", type })
+          .export({ format: "pem", type: "pkcs8" })
+          .toString();
+      } catch {
+        // Try the other common RSA private-key container.
+      }
+    }
+    return "";
   } catch {
     return "";
   }
@@ -137,7 +185,7 @@ export function resolveDocuSignConfig(
     authServer,
     privateKey:
       overrides.privateKey?.trim() ||
-      decodePrivateKey(value("DOCUSIGN_PRIVATE_KEY_BASE64")),
+      decodeDocuSignPrivateKey(value("DOCUSIGN_PRIVATE_KEY_BASE64")),
     enrollmentTemplateId:
       overrides.enrollmentTemplateId?.trim() ||
       value("DOCUSIGN_ENROLLMENT_TEMPLATE_ID") ||
