@@ -412,7 +412,7 @@ export async function prepareDocuSignEnrollmentRehearsalTemplate(input: {
     `${templatePath}/recipients/${encodeURIComponent(recipientId)}/tabs`,
     "Template tab install",
     {
-      method: "PUT",
+      method: "POST",
       body: JSON.stringify({
         textTabs,
         signHereTabs: [
