@@ -9,6 +9,7 @@ import {
   createDocuSignEnrollmentEnvelope,
   createDocuSignJwtAssertion,
   createDocuSignRecipientView,
+  decodeDocuSignPrivateKey,
   getDocuSignConfigState,
   parseDocuSignEnvelopeEvent,
   prepareDocuSignEnrollmentRehearsalTemplate,
@@ -27,6 +28,27 @@ function decodeJson(segment: string): Record<string, unknown> {
 }
 
 describe("DocuSign integration boundary", () => {
+  it("normalizes quoted escaped PEM and base64 DER private keys", () => {
+    const { privateKey: pemKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: "pkcs8", format: "pem" },
+      publicKeyEncoding: { type: "spki", format: "pem" },
+    });
+    const quotedEscapedPem = JSON.stringify(pemKey.replace(/\n/g, "\\n"));
+    expect(decodeDocuSignPrivateKey(quotedEscapedPem)).toContain(
+      "-----BEGIN PRIVATE KEY-----",
+    );
+
+    const { privateKey: derKey } = generateKeyPairSync("rsa", {
+      modulusLength: 2048,
+      privateKeyEncoding: { type: "pkcs8", format: "der" },
+      publicKeyEncoding: { type: "spki", format: "der" },
+    });
+    expect(decodeDocuSignPrivateKey(derKey.toString("base64"))).toContain(
+      "-----BEGIN PRIVATE KEY-----",
+    );
+  });
+
   it("canonicalizes a full developer OAuth URL and selects the rehearsal template", () => {
     const config = resolveDocuSignConfig({
       authServer: "https://account-d.docusign.com/oauth/auth?prompt=login",
