@@ -12,6 +12,7 @@ describe("enrollmentMembershipBillingState", () => {
         pausedAt: "2026-08-28T20:04:27.934Z",
       }),
     ).toEqual({
+      payment_setup_completed_at: "2026-08-28T20:04:27.934Z",
       automatic_billing_enabled: false,
       automatic_billing_paused_at: "2026-08-28T20:04:27.934Z",
       automatic_billing_pause_reason: MANUAL_PAYMENT_BILLING_PAUSE_REASON,
@@ -25,6 +26,7 @@ describe("enrollmentMembershipBillingState", () => {
         pausedAt: "ignored",
       }),
     ).toEqual({
+      payment_setup_completed_at: null,
       automatic_billing_enabled: true,
       automatic_billing_paused_at: null,
       automatic_billing_pause_reason: null,
