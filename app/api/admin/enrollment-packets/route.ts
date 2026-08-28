@@ -7,6 +7,7 @@ import {
 } from "@/lib/enrollment/send-packet";
 import { loadEnrollmentPacketStatus } from "@/lib/enrollment/packet-status-server";
 import { parseEnrollmentSubmission } from "@/lib/enrollment/submission";
+import { repairRecordedNativeEnrollment } from "@/lib/enrollment/repair-recorded-native-enrollment";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -50,6 +51,21 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Record<string, unknown>;
+    if (body.action === "repair_recorded_native_signature") {
+      const presentationId = optionalText(body.presentationId);
+      const actor = presentationId
+        ? await authorizeSalesPresentationRequest(request.headers, presentationId)
+        : null;
+      if (!presentationId || !actor) return unauthorized();
+      if (actor.kind !== "admin") {
+        return NextResponse.json(
+          { error: "Only HomeAtlas HQ can repair a recorded signature." },
+          { status: 403 },
+        );
+      }
+      const result = await repairRecordedNativeEnrollment(presentationId);
+      return NextResponse.json(result);
+    }
     const parsed = parseEnrollmentSubmission(body);
     const presentationId = parsed.ok
       ? parsed.value.presentationId

@@ -10,6 +10,8 @@ const route = read(
 );
 const sendPacket = read("./send-packet.ts");
 const handoff = read("../../components/enrollment/enrollment-handoff-page.tsx");
+const completion = read("./complete-remote-signature.ts");
+const repair = read("./repair-recorded-native-enrollment.ts");
 
 describe("HomeAtlas native enrollment signature contract", () => {
   it("keeps the customer signature behind the private packet token and provider binding", () => {
@@ -53,5 +55,25 @@ describe("HomeAtlas native enrollment signature contract", () => {
 
   it("shows the visit-by-visit agreement details immediately", () => {
     expect(handoff).toMatch(/<details\s+open\s+className=/);
+  });
+
+  it("keeps manual-payment membership pause metadata consistent", () => {
+    expect(completion).toContain("enrollmentMembershipBillingState({");
+    expect(completion).toContain("manualPayment,");
+    expect(completion).toContain(
+      "pausedAt: packet.manual_payment_approved_at ?? input.signedAt",
+    );
+  });
+
+  it("repairs a recorded signature only after matching its saved evidence", () => {
+    const evidence = repair.indexOf('external_signature_provider", "homeatlas_native"');
+    const membership = repair.indexOf('from("memberships")');
+    const packet = repair.indexOf('status: "signature_complete"');
+    const portal = repair.lastIndexOf("completeManualPaymentHandoff");
+
+    expect(evidence).toBeGreaterThan(-1);
+    expect(membership).toBeGreaterThan(evidence);
+    expect(packet).toBeGreaterThan(membership);
+    expect(portal).toBeGreaterThan(packet);
   });
 });

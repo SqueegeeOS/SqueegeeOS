@@ -45,6 +45,7 @@ import type {
   EnrollmentSignatureProvider,
 } from "./types";
 import { isManualPaymentRail } from "@/lib/billing/payment-rail";
+import { enrollmentMembershipBillingState } from "./membership-billing-state";
 
 export interface RemoteSignatureCompletion {
   packetId: string;
@@ -584,9 +585,10 @@ export async function completeRemoteEnrollmentSignature(input: {
     .update({
       agreement_id: agreementId,
       status: manualPayment ? "active" : "pending_payment",
-      automatic_billing_enabled: !manualPayment,
-      automatic_billing_paused_at: null,
-      automatic_billing_pause_reason: null,
+      ...enrollmentMembershipBillingState({
+        manualPayment,
+        pausedAt: packet.manual_payment_approved_at ?? input.signedAt,
+      }),
       payment_rail: packet.payment_rail,
       manual_payment_approved_at: packet.manual_payment_approved_at,
       manual_payment_approved_by: packet.manual_payment_approved_by,
