@@ -26,8 +26,18 @@ describe("enrollment submission parser", () => {
         salesContext: "customer_home",
         homeSolicitationNoticeDays: 3,
         paymentRail: "stripe_card",
+        signatureProvider: "homeatlas_native",
       },
     });
+  });
+
+  it("preserves an explicit legacy DocuSign selection", () => {
+    const parsed = parseEnrollmentSubmission({
+      ...validBody,
+      signatureProvider: "docusign",
+    });
+
+    expect(parsed.ok && parsed.value.signatureProvider).toBe("docusign");
   });
 
   it("preserves an explicit cash/check rail and strips inapplicable notice days", () => {

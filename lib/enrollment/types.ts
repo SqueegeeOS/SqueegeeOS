@@ -8,6 +8,10 @@ export type EnrollmentSalesContext =
   | "remote"
   | "other";
 
+export type EnrollmentSignatureProvider =
+  | "homeatlas_native"
+  | "docusign";
+
 export type EnrollmentPacketStatus =
   | "draft"
   | "signature_sent"
@@ -116,6 +120,7 @@ export interface EnrollmentPacketRow {
   public_token_sha256: string;
   public_token_expires_at: string;
   status: EnrollmentPacketStatus;
+  signature_provider: EnrollmentSignatureProvider;
   docusign_envelope_id: string | null;
   docusign_status: string | null;
   signature_sent_at: string | null;

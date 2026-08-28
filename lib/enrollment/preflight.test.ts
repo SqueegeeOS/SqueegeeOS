@@ -165,6 +165,32 @@ describe("no-send enrollment preflight", () => {
     expect(second.snapshotSha256).toBe(first.snapshotSha256);
   });
 
+  it("does not require DocuSign for the native HomeAtlas signature box", () => {
+    const nativeReadiness = readiness();
+    const docusign = nativeReadiness.checks.find(
+      (check) => check.id === "docusign",
+    )!;
+    docusign.ready = false;
+    docusign.detail = "DocuSign is not configured.";
+    docusign.missing = ["DOCUSIGN_INTEGRATION_KEY"];
+
+    const report = buildEnrollmentPreflightReport({
+      snapshot: snapshot(),
+      readiness: nativeReadiness,
+      actorKind: "admin",
+      presentationCanEnroll: true,
+      existingPacketStatus: null,
+      recipientGate: allowedRecipient,
+      signatureProvider: "homeatlas_native",
+    });
+
+    expect(report.readyToSend).toBe(true);
+    expect(report.checks.find((check) => check.id === "docusign")).toMatchObject({
+      ready: true,
+      detail: "Not required for the private HomeAtlas signature box.",
+    });
+  });
+
   it("ignores Stripe only for owner-approved cash/check and still blocks a rep", () => {
     const ownerReport = buildEnrollmentPreflightReport({
       snapshot: snapshot({ paymentRail: "manual_cash_check" }),

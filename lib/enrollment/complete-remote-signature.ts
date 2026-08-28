@@ -16,6 +16,8 @@ import {
 } from "@/lib/membership/portal-home-care-plan";
 import type { MembershipPlanId } from "@/lib/membership/types";
 import { storeSignedPdf } from "@/lib/agreement/store-signed-pdf";
+import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
+import { storeSignatureImage } from "@/lib/agreement/store-signature-image";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
   firstNameFromFullName,
@@ -37,7 +39,11 @@ import {
   PRESENTATION_CARE_PLAN_VERSION,
 } from "@/lib/presentations/care-plan";
 import type { PresentationData } from "@/lib/presentations/types";
-import type { EnrollmentDocumentSnapshot, EnrollmentPacketRow } from "./types";
+import type {
+  EnrollmentDocumentSnapshot,
+  EnrollmentPacketRow,
+  EnrollmentSignatureProvider,
+} from "./types";
 import { isManualPaymentRail } from "@/lib/billing/payment-rail";
 
 export interface RemoteSignatureCompletion {
@@ -136,17 +142,27 @@ export async function completeRemoteEnrollmentSignature(input: {
     service_agreement_version_id: string;
   };
   signedAt: string;
-  combinedPdf: Uint8Array;
-  certificatePdf: Uint8Array;
+  combinedPdf?: Uint8Array;
+  certificatePdf?: Uint8Array;
+  signatureProvider?: EnrollmentSignatureProvider;
+  signatureDataUrl?: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
 }): Promise<RemoteSignatureCompletion> {
   const supabase = createServiceRoleSupabaseClient();
   const packet = input.packet;
+  const signatureProvider = input.signatureProvider ?? "docusign";
+  const externalSignatureId =
+    signatureProvider === "docusign" ? packet.docusign_envelope_id : packet.id;
+  if (!externalSignatureId) {
+    throw new Error("The packet has no signature-provider binding.");
+  }
   const manualPayment = isManualPaymentRail(packet.payment_rail);
   const existingAgreement = await supabase
     .from("signed_agreements")
     .select("id, membership_id, homeowner_id, property_id")
-    .eq("external_signature_provider", "docusign")
-    .eq("external_envelope_id", packet.docusign_envelope_id)
+    .eq("external_signature_provider", signatureProvider)
+    .eq("external_envelope_id", externalSignatureId)
     .maybeSingle();
   if (existingAgreement.error) throw new Error(existingAgreement.error.message);
   if (
@@ -185,8 +201,14 @@ export async function completeRemoteEnrollmentSignature(input: {
     };
   }
 
-  if (!packet.docusign_envelope_id) {
+  if (signatureProvider === "docusign" && !packet.docusign_envelope_id) {
     throw new Error("The packet has no DocuSign envelope binding.");
+  }
+  if (
+    signatureProvider === "homeatlas_native" &&
+    !/^data:image\/png;base64,/i.test(input.signatureDataUrl ?? "")
+  ) {
+    throw new Error("The HomeAtlas signature image is missing or invalid.");
   }
   const presentation = await getPresentation(packet.presentation_id);
   if (!presentation) throw new Error("The enrollment presentation no longer exists.");
@@ -411,24 +433,68 @@ export async function completeRemoteEnrollmentSignature(input: {
     plan: portalPlan,
   });
 
+  let agreementPdf = input.combinedPdf;
+  let storedSignature: Awaited<ReturnType<typeof storeSignatureImage>> = null;
+  if (signatureProvider === "homeatlas_native") {
+    const signatureDataUrl = input.signatureDataUrl as string;
+    agreementPdf = await generateSignedPDF({
+      memberName: snapshot.signer?.name ?? snapshot.customer.name,
+      signedAt: input.signedAt,
+      signatureDataUrl,
+      tier: pricing.planName,
+      agreementTier: packet.agreement_tier,
+      propertyName: address.propertyName,
+      monthlyPrice: packet.recurring_visit_price_cents / 100,
+      homeSqft: snapshot.property.squareFeet ?? undefined,
+      twoStory: snapshot.property.twoStory,
+      includeScreens: snapshot.plan.visits.every(
+        (visit) => visit.screens === "included",
+      ),
+      includeInterior: snapshot.plan.visits.every(
+        (visit) => visit.interiorWindows === "included",
+      ),
+      carePlan: signedPresentation.carePlan,
+      carePlanPricing: {
+        baseVisitPrice: packet.recurring_visit_price_cents / 100,
+        annualTotal: packet.annualized_value_cents / 100,
+        averageVisitPrice:
+          packet.annualized_value_cents / 100 / snapshot.plan.visitsPerYear,
+        visits: snapshot.plan.visits.map((visit, index) => ({
+          id: `visit_${index + 1}`,
+          label: visit.label,
+          total: visit.priceCents / 100,
+          usedOverride: true,
+        })),
+      },
+      annualPrice: packet.annualized_value_cents / 100,
+    });
+    storedSignature = await storeSignatureImage(
+      signatureDataUrl,
+      `native/${safeFileSegment(packet.id)}-signature-${Date.now()}.png`,
+    );
+  }
+  if (!agreementPdf) {
+    throw new Error("The signed agreement PDF evidence is missing.");
+  }
+
   const timestamp = Date.now();
-  const baseName = safeFileSegment(`${packet.id}-${packet.docusign_envelope_id}`);
-  const [storedAgreement, storedCertificate] = await Promise.all([
-    storeSignedPdf(
-      input.combinedPdf,
-      `docusign/${baseName}-agreement-${timestamp}.pdf`,
-    ),
-    storeSignedPdf(
-      input.certificatePdf,
-      `docusign/${baseName}-certificate-${timestamp}.pdf`,
-    ),
-  ]);
+  const baseName = safeFileSegment(`${packet.id}-${externalSignatureId}`);
+  const storedAgreement = await storeSignedPdf(
+    agreementPdf,
+    `${signatureProvider}/${baseName}-agreement-${timestamp}.pdf`,
+  );
+  const storedCertificate = input.certificatePdf
+    ? await storeSignedPdf(
+        input.certificatePdf,
+        `${signatureProvider}/${baseName}-certificate-${timestamp}.pdf`,
+      )
+    : null;
   if (
     storedAgreement.backend !== "supabase" ||
-    storedCertificate.backend !== "supabase"
+    (storedCertificate && storedCertificate.backend !== "supabase")
   ) {
     throw new Error(
-      "The signed DocuSign evidence could not be stored in the private agreement vault.",
+      "The signed agreement evidence could not be stored in the private agreement vault.",
     );
   }
 
@@ -445,11 +511,18 @@ export async function completeRemoteEnrollmentSignature(input: {
       homeowner_name: snapshot.customer.name,
       plan_id: planId(),
       plan_name: pricing.planName,
-      signature_method: "docusign_remote",
+      signature_method:
+        signatureProvider === "docusign" ? "docusign_remote" : "drawn",
       signer_name: snapshot.signer?.name ?? snapshot.customer.name,
-      signature_image_url: null,
+      signature_image_url:
+        signatureProvider === "homeatlas_native"
+          ? storedSignature?.storageRef ?? input.signatureDataUrl
+          : null,
+      signature_image_storage_path: storedSignature?.storagePath ?? null,
       typed_text: null,
       signed_at: input.signedAt,
+      ip_address: input.ipAddress ?? null,
+      user_agent: input.userAgent ?? null,
       agreement_pdf_url: storedAgreement.url,
       status: "complete",
       storage_backend: "supabase",
@@ -462,18 +535,18 @@ export async function completeRemoteEnrollmentSignature(input: {
         : packet.recurring_visit_price_cents,
       billing_terms_hash: termsHash,
       payment_rail: packet.payment_rail,
-      external_signature_provider: "docusign",
-      external_envelope_id: packet.docusign_envelope_id,
+      external_signature_provider: signatureProvider,
+      external_envelope_id: externalSignatureId,
       msa_version: versions.msa.version,
       service_agreement_version: versions.service.version,
-      completion_certificate_url: storedCertificate.url,
+      completion_certificate_url: storedCertificate?.url ?? null,
       document_snapshot: snapshot,
     })
     .select("id")
     .single();
   if (agreementResult.error || !agreementResult.data?.id) {
     throw new Error(
-      `The DocuSign evidence was stored but the agreement record failed: ${agreementResult.error?.message ?? "unknown"}`,
+      `The signature evidence was stored but the agreement record failed: ${agreementResult.error?.message ?? "unknown"}`,
     );
   }
   const agreementId = agreementResult.data.id as string;
@@ -488,7 +561,10 @@ export async function completeRemoteEnrollmentSignature(input: {
           authorization_version: MEMBERSHIP_BILLING_AUTHORIZATION_VERSION,
           authorized_visit_price_cents: packet.recurring_visit_price_cents,
           billing_terms_hash: termsHash,
-          actor: "customer_docusign_signature",
+          actor:
+            signatureProvider === "docusign"
+              ? "customer_docusign_signature"
+              : "customer_homeatlas_signature",
           evidence_source: "customer_signature",
           occurred_at: input.signedAt,
         },

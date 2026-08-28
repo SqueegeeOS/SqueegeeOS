@@ -15,13 +15,14 @@ import {
   normalizeEnrollmentEmail,
 } from "./document-snapshot";
 import {
-  enrollmentReadyForPaymentRail,
+  enrollmentReadyForHandoff,
   getEnrollmentReadiness,
 } from "./readiness";
 import { enrollmentTokenSha256, generateEnrollmentToken } from "./token";
 import type {
   EnrollmentPacketRow,
   EnrollmentSalesContext,
+  EnrollmentSignatureProvider,
 } from "./types";
 import type { PaymentRail } from "@/lib/billing/payment-rail";
 import { getEnrollmentRecipientGate } from "./release-control";
@@ -103,23 +104,28 @@ export async function sendEnrollmentPacket(input: {
   salesContext: EnrollmentSalesContext;
   homeSolicitationNoticeDays: 3 | 5 | null;
   paymentRail: PaymentRail;
+  signatureProvider: EnrollmentSignatureProvider;
   actor: string;
 }): Promise<{
   packetId: string;
   status: "signature_sent";
   customerEmail: string;
-  envelopeId: string;
+  envelopeId: string | null;
   reused: boolean;
 }> {
   const readiness = await getEnrollmentReadiness();
   if (
-    !enrollmentReadyForPaymentRail(readiness, input.paymentRail) ||
+    !enrollmentReadyForHandoff(
+      readiness,
+      input.paymentRail,
+      input.signatureProvider,
+    ) ||
     !readiness.approvedVersions.msa ||
     !readiness.approvedVersions.serviceQuote ||
     !readiness.legalIdentity
   ) {
     throw new EnrollmentNotReadyError(
-      "The enrollment handoff is safely paused until legal and provider setup is complete.",
+      "The enrollment handoff is safely paused until legal and delivery setup is complete.",
       readiness,
     );
   }
@@ -152,11 +158,24 @@ export async function sendEnrollmentPacket(input: {
   let packet = existingResult.data ? asPacket(existingResult.data) : null;
 
   if (
-    packet?.docusign_envelope_id &&
+    packet &&
+    packet.signature_provider !== input.signatureProvider &&
+    (Boolean(packet.docusign_envelope_id) ||
+      (packet.status !== "draft" && packet.status !== "needs_attention"))
+  ) {
+    throw new Error(
+      "The signing method cannot change after the customer handoff begins. Void this packet before preparing a replacement.",
+    );
+  }
+
+  if (
+    packet &&
+    packet.status !== "draft" &&
+    packet.status !== "needs_attention" &&
     packet.payment_rail !== input.paymentRail
   ) {
     throw new Error(
-      "The payment arrangement cannot change after DocuSign begins. Void this packet before preparing a replacement.",
+      "The payment arrangement cannot change after the customer handoff begins. Void this packet before preparing a replacement.",
     );
   }
 
@@ -166,11 +185,7 @@ export async function sendEnrollmentPacket(input: {
     );
   }
 
-  if (
-    packet?.docusign_envelope_id &&
-    packet.status !== "needs_attention" &&
-    packet.status !== "draft"
-  ) {
+  if (packet && packet.status !== "needs_attention" && packet.status !== "draft") {
     return {
       packetId: packet.id,
       status: "signature_sent",
@@ -194,6 +209,7 @@ export async function sendEnrollmentPacket(input: {
     sales_context: input.salesContext,
     home_solicitation_notice_days: input.homeSolicitationNoticeDays,
     payment_rail: input.paymentRail,
+    signature_provider: input.signatureProvider,
     manual_payment_approved_at: manualPaymentApprovedAt,
     manual_payment_approved_by:
       input.paymentRail === "manual_cash_check" ? input.actor : null,
@@ -253,7 +269,7 @@ export async function sendEnrollmentPacket(input: {
 
   let envelopeId = packet.docusign_envelope_id;
   const envelopeWasAlreadySent = packet.docusign_status === "sent";
-  if (!envelopeId) {
+  if (input.signatureProvider === "docusign" && !envelopeId) {
     try {
       const envelope = await createDocuSignEnrollmentEnvelope({
         packetId: packet.id,
@@ -318,7 +334,11 @@ export async function sendEnrollmentPacket(input: {
   }
 
   try {
-    if (!envelopeWasAlreadySent) {
+    if (
+      input.signatureProvider === "docusign" &&
+      !envelopeWasAlreadySent &&
+      envelopeId
+    ) {
       await sendCreatedDocuSignEnvelope({ envelopeId });
       const markEnvelopeSent = await supabase
         .from("enrollment_packets")
@@ -345,6 +365,7 @@ export async function sendEnrollmentPacket(input: {
   const invitation = buildSignatureInvitationEmail({
     snapshot: packet.document_snapshot,
     enrollmentUrl,
+    signatureProvider: input.signatureProvider,
   });
   const emailResult = await sendResendEmail({
     to: deliveryEmail,
@@ -365,7 +386,8 @@ export async function sendEnrollmentPacket(input: {
     .from("enrollment_packets")
     .update({
       status: "signature_sent",
-      docusign_status: "sent",
+      docusign_status:
+        input.signatureProvider === "docusign" ? "sent" : null,
       signature_sent_at: sentAt,
       last_error_code: null,
       last_error_message: null,

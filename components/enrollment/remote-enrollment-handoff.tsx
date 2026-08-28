@@ -32,6 +32,7 @@ interface EnrollmentPreflightPayload {
     tierLabel: string;
     visitsPerYear: number;
     paymentRail: PaymentRail;
+    signatureProvider: "homeatlas_native" | "docusign";
   };
   checks: Array<{
     id: string;
@@ -148,6 +149,7 @@ export function RemoteEnrollmentHandoff({
     homeSolicitationNoticeDays:
       context === "customer_home" ? noticeDays : null,
     paymentRail,
+    signatureProvider: "homeatlas_native" as const,
   });
 
   const send = async () => {
@@ -228,7 +230,7 @@ export function RemoteEnrollmentHandoff({
           Checking secure handoff
         </p>
         <p className="mt-2 text-xs leading-relaxed text-white/48">
-          Restoring the last verified signature and Stripe step…
+          Restoring the last verified signature and payment step…
         </p>
       </div>
     );
@@ -283,10 +285,10 @@ export function RemoteEnrollmentHandoff({
           Fast phone handoff · recommended
         </span>
         <span className="mt-2 block font-serif text-xl font-light text-white">
-          Email the agreement, then finish securely.
+          Email one simple agreement link.
         </span>
         <span className="mt-2 block text-xs leading-relaxed text-white/48">
-          One owner tap starts a trustworthy customer flow on their own device. No card details pass through HomeAtlas.
+          The customer opens their exact plan, signs once, and they&apos;re done. No card details pass through HomeAtlas.
         </span>
         <span className="mt-4 inline-flex text-xs font-semibold text-accent">
           Prepare secure handoff <span className="ml-2 transition group-hover:translate-x-1">→</span>
@@ -334,7 +336,7 @@ export function RemoteEnrollmentHandoff({
         </button>
       </div>
       <p className="mt-3 text-xs leading-relaxed text-white/48">
-        HomeAtlas emails one private plan link, then embedded DocuSign opens the MSA and property quote for signature. The selected payment arrangement starts only after the agreement is complete.
+        HomeAtlas emails one private plan link. The customer sees the plain-English plan, draws one signature, and taps Sign and accept. The selected payment arrangement starts only after that signature is safely recorded.
       </p>
 
       <fieldset className="mt-5">
@@ -581,7 +583,7 @@ export function RemoteEnrollmentHandoff({
             </p>
           )}
           <p className="mt-3 text-[10px] leading-relaxed text-white/32">
-            Proof: no packet row, database write, DocuSign envelope, email,
+            Proof: no packet row, database write, signature record, email,
             Stripe session, saved card, or charge was created.
           </p>
         </div>
@@ -591,7 +593,7 @@ export function RemoteEnrollmentHandoff({
         type="button"
         onClick={send}
         disabled={!canSend || sending || preflighting}
-        className="mt-4 min-h-13 w-full rounded-xl bg-gradient-to-br from-accent to-[#ead8ad] px-5 text-sm font-bold text-[#0b0b0a] disabled:cursor-not-allowed disabled:opacity-35"
+        className="mt-4 min-h-13 w-full rounded-xl border border-white/15 bg-[#f4efe6] px-5 text-sm font-bold text-[#173f32] shadow-[0_14px_34px_rgba(0,0,0,0.18)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-35"
       >
         {sending
           ? "Preparing secure packet…"
@@ -602,7 +604,7 @@ export function RemoteEnrollmentHandoff({
       <p className="mt-3 text-center text-[10px] leading-relaxed text-white/28">
         {paymentRail === "manual_cash_check"
           ? "Owner approval is recorded with the packet. No Stripe customer, card link, or automatic charge is created."
-          : "No agreement is sent unless the approved templates and every provider check are green."}
+          : "No agreement is sent unless the approved documents and every delivery check are green."}
       </p>
     </div>
   );

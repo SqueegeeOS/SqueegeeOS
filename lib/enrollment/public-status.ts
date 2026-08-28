@@ -7,6 +7,7 @@ import type {
   EnrollmentDocumentSnapshot,
   EnrollmentPacketRow,
   EnrollmentPacketStatus,
+  EnrollmentSignatureProvider,
 } from "./types";
 import {
   normalizePaymentRail,
@@ -27,6 +28,7 @@ export interface PublicEnrollmentStatus {
   recurringVisitPriceCents: number;
   agreementSummary: PublicEnrollmentAgreementSummary | null;
   paymentRail: PaymentRail;
+  signatureProvider: EnrollmentSignatureProvider;
   status: EnrollmentPacketStatus;
   agreementComplete: boolean;
   signingAvailable: boolean;
@@ -59,6 +61,10 @@ export async function loadPublicEnrollmentStatus(
     .maybeSingle();
   if (result.error || !result.data) return null;
   const packet = result.data as EnrollmentPacketRow;
+  const signatureProvider: EnrollmentSignatureProvider =
+    packet.signature_provider === "homeatlas_native"
+      ? "homeatlas_native"
+      : "docusign";
   const paymentRail = normalizePaymentRail(packet.payment_rail);
   if (new Date(packet.public_token_expires_at).getTime() <= Date.now()) return null;
   const snapshot = packet.document_snapshot as EnrollmentDocumentSnapshot;
@@ -109,11 +115,13 @@ export async function loadPublicEnrollmentStatus(
       paymentRail,
     ),
     paymentRail,
+    signatureProvider,
     status: packet.status,
     agreementComplete,
     signingAvailable:
       packet.status === "signature_sent" &&
-      Boolean(packet.docusign_envelope_id) &&
+      (signatureProvider === "homeatlas_native" ||
+        Boolean(packet.docusign_envelope_id)) &&
       !agreementComplete,
     paymentComplete,
     paymentUrl: paymentUrlOpen ? packet.stripe_payment_url : null,
