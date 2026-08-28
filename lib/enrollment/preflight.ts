@@ -3,8 +3,11 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { PaymentRail } from "@/lib/billing/payment-rail";
 import type { EnrollmentReadiness } from "./readiness";
-import { enrollmentReadyForPaymentRail } from "./readiness";
-import type { EnrollmentDocumentSnapshot } from "./types";
+import { enrollmentReadyForHandoff } from "./readiness";
+import type {
+  EnrollmentDocumentSnapshot,
+  EnrollmentSignatureProvider,
+} from "./types";
 import type { EnrollmentRecipientGate } from "./release-control";
 
 export interface EnrollmentPreflightCheck {
@@ -26,6 +29,7 @@ export interface EnrollmentPreflightReport {
     recurringVisitPriceCents: number;
     annualizedValueCents: number;
     paymentRail: PaymentRail;
+    signatureProvider: EnrollmentSignatureProvider;
     salesContext: string;
     homeSolicitationNoticeDays: 3 | 5 | null;
     serviceAddressPresent: boolean;
@@ -81,8 +85,10 @@ export function buildEnrollmentPreflightReport(input: {
   presentationCanEnroll: boolean;
   existingPacketStatus: string | null;
   recipientGate: EnrollmentRecipientGate;
+  signatureProvider?: EnrollmentSignatureProvider;
 }): EnrollmentPreflightReport {
   const paymentRail = input.snapshot.payment?.rail ?? "stripe_card";
+  const signatureProvider = input.signatureProvider ?? "homeatlas_native";
   const operatorReady =
     paymentRail !== "manual_cash_check" || input.actorKind === "admin";
   const packetReady =
@@ -92,12 +98,16 @@ export function buildEnrollmentPreflightReport(input: {
   const providerChecks = input.readiness.checks.map((check) => {
     const ignoredForManualPayment =
       paymentRail === "manual_cash_check" && check.id === "stripe";
+    const ignoredForNativeSigning =
+      signatureProvider === "homeatlas_native" && check.id === "docusign";
     return {
       id: check.id,
       label: check.label,
-      ready: check.ready || ignoredForManualPayment,
+      ready: check.ready || ignoredForManualPayment || ignoredForNativeSigning,
       detail: ignoredForManualPayment
         ? "Not required for this owner-approved cash/check arrangement."
+        : ignoredForNativeSigning
+          ? "Not required for the private HomeAtlas signature box."
         : check.detail,
     };
   });
@@ -153,7 +163,11 @@ export function buildEnrollmentPreflightReport(input: {
       operatorReady &&
       input.recipientGate.allowed &&
       releaseBindingsReady &&
-      enrollmentReadyForPaymentRail(input.readiness, paymentRail),
+      enrollmentReadyForHandoff(
+        input.readiness,
+        paymentRail,
+        signatureProvider,
+      ),
     snapshotSha256: snapshotDigest({
       snapshot: input.snapshot,
       readiness: input.readiness,
@@ -166,6 +180,7 @@ export function buildEnrollmentPreflightReport(input: {
       recurringVisitPriceCents: input.snapshot.plan.recurringVisitPriceCents,
       annualizedValueCents: input.snapshot.plan.annualizedValueCents,
       paymentRail,
+      signatureProvider,
       salesContext: input.snapshot.disclosures.salesContext,
       homeSolicitationNoticeDays:
         input.snapshot.disclosures.homeSolicitationNoticeDays,

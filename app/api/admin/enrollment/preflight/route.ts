@@ -64,6 +64,7 @@ export async function POST(request: Request) {
         presentation.status !== "signed" && !presentation.agreementId,
       existingPacketStatus: existingPacket?.status ?? null,
       recipientGate: getEnrollmentRecipientGate(snapshot.customer.email),
+      signatureProvider: parsed.value.signatureProvider,
     });
 
     return NextResponse.json(

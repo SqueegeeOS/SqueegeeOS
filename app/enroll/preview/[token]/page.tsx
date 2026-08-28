@@ -73,6 +73,7 @@ const previewStatus: PublicEnrollmentStatus = {
       "Cash or check account. No card on file and no automatic card billing.",
   },
   paymentRail: "manual_cash_check",
+  signatureProvider: "homeatlas_native",
   status: "signature_sent",
   agreementComplete: false,
   signingAvailable: true,

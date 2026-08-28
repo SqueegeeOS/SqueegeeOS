@@ -4,7 +4,10 @@ import {
   isPaymentRail,
 } from "@/lib/billing/payment-rail";
 import type { SqueegeeKingTierId } from "@/lib/membership/tier-config";
-import type { EnrollmentSalesContext } from "./types";
+import type {
+  EnrollmentSalesContext,
+  EnrollmentSignatureProvider,
+} from "./types";
 
 export interface EnrollmentSubmission {
   presentationId: string;
@@ -15,6 +18,7 @@ export interface EnrollmentSubmission {
   salesContext: EnrollmentSalesContext;
   homeSolicitationNoticeDays: 3 | 5 | null;
   paymentRail: PaymentRail;
+  signatureProvider: EnrollmentSignatureProvider;
 }
 
 export type EnrollmentSubmissionParseResult =
@@ -43,6 +47,14 @@ function salesContext(value: unknown): EnrollmentSalesContext | null {
     : null;
 }
 
+function signatureProvider(value: unknown): EnrollmentSignatureProvider | null {
+  return value === undefined || value === "homeatlas_native"
+    ? "homeatlas_native"
+    : value === "docusign"
+      ? "docusign"
+      : null;
+}
+
 export function parseEnrollmentSubmission(
   body: Record<string, unknown>,
 ): EnrollmentSubmissionParseResult {
@@ -59,6 +71,7 @@ export function parseEnrollmentSubmission(
       : isPaymentRail(body.paymentRail)
         ? body.paymentRail
         : null;
+  const selectedSignatureProvider = signatureProvider(body.signatureProvider);
   const noticeDays =
     body.homeSolicitationNoticeDays === 3 ||
     body.homeSolicitationNoticeDays === 5
@@ -72,7 +85,8 @@ export function parseEnrollmentSubmission(
     !recurringVisitPrice ||
     !annualizedValue ||
     !context ||
-    !paymentRail
+    !paymentRail ||
+    !selectedSignatureProvider
   ) {
     return { ok: false, presentationId };
   }
@@ -89,6 +103,7 @@ export function parseEnrollmentSubmission(
       homeSolicitationNoticeDays:
         context === "customer_home" ? noticeDays : null,
       paymentRail,
+      signatureProvider: selectedSignatureProvider,
     },
   };
 }

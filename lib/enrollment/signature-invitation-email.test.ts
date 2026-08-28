@@ -49,13 +49,16 @@ describe("signature invitation email", () => {
     });
 
     expect(email.subject).toContain("Michael");
-    expect(email.html).toContain("Review &amp; sign my agreement");
+    expect(email.html).toContain("Open my agreement");
     expect(email.html).toContain("$1,600");
     expect(email.html).toContain("No card setup or automatic card billing");
     expect(email.html).toContain(
       "https://www.squeegeeking.net/enroll/private-token",
     );
     expect(email.text).toContain("Review and sign securely");
-    expect(email.text).not.toContain("DocuSign email");
+    expect(email.text).toContain("draw your signature in one box");
+    expect(email.text).not.toContain("DocuSign");
+    expect(email.html).not.toContain("#d4af37");
+    expect(email.html).not.toContain("#f0c85b");
   });
 });

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import type { PublicEnrollmentStatus } from "@/lib/enrollment/public-status";
 import type { PublicEnrollmentAgreementSummary } from "@/lib/enrollment/public-agreement-summary";
+import { AgreementSignaturePad } from "@/components/agreement/agreement-signature-pad";
 
 function money(cents: number): string {
   return new Intl.NumberFormat("en-US", {
@@ -27,7 +28,7 @@ function Step({
           state === "done"
             ? "border-emerald-300/40 bg-emerald-300/15 text-emerald-100"
             : state === "current"
-              ? "border-[#d4c29c]/50 bg-[#d4c29c]/15 text-[#f2e6ca] shadow-[0_0_24px_rgba(212,194,156,0.14)]"
+              ? "border-[#b8cdbf]/45 bg-[#b8cdbf]/10 text-[#dce9e1] shadow-[0_0_24px_rgba(184,205,191,0.10)]"
               : "border-white/10 bg-white/[0.03] text-white/30"
         }`}
       >
@@ -52,7 +53,7 @@ function AgreementSummary({
       className="mt-8 overflow-hidden rounded-[1.65rem] border border-white/[0.09] bg-black/15"
     >
       <div className="border-b border-white/[0.08] p-5 sm:p-6">
-        <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#d4c29c]/70">
+        <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#b8cdbf]/75">
           Your agreement, at a glance
         </p>
         <div className="mt-3 flex items-end justify-between gap-4">
@@ -91,7 +92,7 @@ function AgreementSummary({
                   : "Custom service scope"}
               </p>
             </div>
-            <strong className="font-serif text-2xl font-light text-[#efe1c3]">
+            <strong className="font-serif text-2xl font-light text-[#d9d0bf]">
               {money(visit.priceCents)}
             </strong>
           </li>
@@ -110,7 +111,7 @@ function AgreementSummary({
                 className="flex items-start justify-between gap-4 text-xs leading-relaxed text-white/55"
               >
                 <span>{addOn.label}</span>
-                <span className="shrink-0 text-[#efe1c3]/80">
+                <span className="shrink-0 text-[#d9d0bf]/80">
                   {addOn.priceCents === null
                     ? "By request"
                     : `+${money(addOn.priceCents)}`}
@@ -154,6 +155,9 @@ export function EnrollmentHandoffPage({
   const [status, setStatus] = useState(initialStatus);
   const [startingSignature, setStartingSignature] = useState(false);
   const [signatureError, setSignatureError] = useState<string | null>(null);
+  const [signatureDataUrl, setSignatureDataUrl] = useState("");
+  const [consentAccepted, setConsentAccepted] = useState(false);
+  const [previewComplete, setPreviewComplete] = useState(false);
 
   async function startSignature() {
     if (previewMode || startingSignature) return;
@@ -182,6 +186,55 @@ export function EnrollmentHandoffPage({
           ? error.message
           : "The secure signing window could not open.",
       );
+      setStartingSignature(false);
+    }
+  }
+
+  async function submitNativeSignature() {
+    if (startingSignature || !signatureDataUrl || !consentAccepted) return;
+    setStartingSignature(true);
+    setSignatureError(null);
+    if (previewMode) {
+      window.setTimeout(() => {
+        setPreviewComplete(true);
+        setStartingSignature(false);
+      }, 450);
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/api/enrollment/${encodeURIComponent(token)}/native-signature`,
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ signatureDataUrl, consent: true }),
+        },
+      );
+      const result = (await response.json().catch(() => null)) as {
+        error?: unknown;
+      } | null;
+      if (!response.ok) {
+        throw new Error(
+          typeof result?.error === "string"
+            ? result.error
+            : "Your signature could not be safely recorded.",
+        );
+      }
+      const statusResponse = await fetch(
+        `/api/enrollment/${encodeURIComponent(token)}`,
+        { cache: "no-store" },
+      );
+      if (statusResponse.ok) {
+        setStatus((await statusResponse.json()) as PublicEnrollmentStatus);
+      }
+    } catch (error) {
+      setSignatureError(
+        error instanceof Error
+          ? error.message
+          : "Your signature could not be safely recorded.",
+      );
+    } finally {
       setStartingSignature(false);
     }
   }
@@ -227,14 +280,15 @@ export function EnrollmentHandoffPage({
       ? "current"
       : "next";
   const manualPayment = status.paymentRail === "manual_cash_check";
+  const nativeSigning = status.signatureProvider === "homeatlas_native";
 
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#08100c] px-5 pb-10 pt-20 text-[#f6f1e7] sm:px-8 sm:py-16">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_5%,rgba(45,97,66,0.34),transparent_35%),radial-gradient(circle_at_90%_90%,rgba(212,194,156,0.12),transparent_32%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_5%,rgba(45,97,66,0.34),transparent_35%),radial-gradient(circle_at_90%_90%,rgba(184,205,191,0.09),transparent_32%)]" />
       <div className="relative mx-auto max-w-xl">
         <header className="mb-8 flex items-center justify-between">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#d4c29c]/75">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#b8cdbf]/80">
               HomeAtlas handoff
             </p>
             <p className="mt-2 text-xs text-white/35">Powered by SqueegeeKing</p>
@@ -246,19 +300,46 @@ export function EnrollmentHandoffPage({
 
         <section className="rounded-[2rem] border border-white/[0.09] bg-white/[0.045] p-6 shadow-[0_28px_90px_rgba(0,0,0,0.34)] backdrop-blur-xl sm:p-9">
           {previewMode ? (
-            <div className="mb-6 rounded-2xl border border-[#d4c29c]/25 bg-[#d4c29c]/[0.09] px-4 py-3 text-xs leading-relaxed text-[#f2e6ca]">
-              Customer-view demonstration only. Nothing on this page can create a contract, membership, card setup, or charge.
+            <div className="mb-6 rounded-2xl border border-[#b8cdbf]/25 bg-[#b8cdbf]/[0.07] px-4 py-3 text-xs leading-relaxed text-[#dce9e1]">
+              Owner test. It feels like the real customer flow, but this copy records nothing and creates no charge.
             </div>
           ) : null}
-          <p className="text-sm text-[#d4c29c]">Hey {status.customerFirstName}.</p>
+          <p className="text-sm text-[#b8cdbf]">Hey {status.customerFirstName}.</p>
           <h1 className="mt-3 font-serif text-4xl font-light leading-[1.05] sm:text-5xl">
-            Your home-care plan is becoming real.
+            Your home-care plan is ready.
           </h1>
           <p className="mt-5 text-sm leading-relaxed text-white/52">
             {status.propertyAddress} · {status.planName} · {status.cadence}
           </p>
 
-          {status.agreementSummary ? (
+          {status.agreementSummary && nativeSigning ? (
+            <div className="mt-8 rounded-[1.65rem] border border-white/[0.09] bg-black/15 p-5 sm:p-6">
+              <div className="flex items-end justify-between gap-5">
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[#b8cdbf]/75">
+                    Your plan
+                  </p>
+                  <p className="mt-2 font-serif text-3xl font-light text-white">
+                    {money(status.agreementSummary.annualTotalCents)}
+                  </p>
+                  <p className="mt-1 text-xs text-white/42">per year</p>
+                </div>
+                <span className="rounded-full border border-white/[0.09] bg-white/[0.04] px-3 py-1.5 text-[10px] text-white/55">
+                  {status.agreementSummary.visitsPerYear} visits
+                </span>
+              </div>
+              <p className="mt-4 text-xs leading-relaxed text-white/52">
+                {status.agreementSummary.planSummary}
+              </p>
+              <details className="group mt-5 border-t border-white/[0.08] pt-4">
+                <summary className="cursor-pointer list-none text-xs font-semibold text-[#d9d0bf] marker:content-none">
+                  <span className="group-open:hidden">View visit details</span>
+                  <span className="hidden group-open:inline">Hide visit details</span>
+                </summary>
+                <AgreementSummary agreement={status.agreementSummary} />
+              </details>
+            </div>
+          ) : status.agreementSummary ? (
             <AgreementSummary agreement={status.agreementSummary} />
           ) : (
             <div className="mt-7 grid grid-cols-2 gap-3">
@@ -273,7 +354,7 @@ export function EnrollmentHandoffPage({
             </div>
           )}
 
-          <ol className="mt-8">
+          {!nativeSigning ? <ol className="mt-8">
             <Step
               label="Clear agreement"
               detail={
@@ -303,10 +384,41 @@ export function EnrollmentHandoffPage({
               detail={status.portalUrl ? "Your private HomeAtlas portal is ready." : "Photos, visits, notes, care choices, and the next appointment will live together here."}
               state={portalState}
             />
-          </ol>
+          </ol> : null}
+
+          {nativeSigning && !status.agreementComplete ? (
+            <section className="mt-8 border-t border-white/[0.08] pt-7" aria-labelledby="signature-heading">
+              <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#b8cdbf]/75">
+                One last thing
+              </p>
+              <h2 id="signature-heading" className="mt-2 font-serif text-3xl font-light text-white">
+                Sign here.
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-white/48">
+                Draw your signature in the white box. That&apos;s it.
+              </p>
+              <div className="mt-5">
+                <AgreementSignaturePad
+                  onSigned={setSignatureDataUrl}
+                  onCleared={() => setSignatureDataUrl("")}
+                  disabled={startingSignature || previewComplete}
+                />
+              </div>
+              <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 text-xs leading-relaxed text-white/58">
+                <input
+                  type="checkbox"
+                  checked={consentAccepted}
+                  onChange={(event) => setConsentAccepted(event.target.checked)}
+                  disabled={startingSignature || previewComplete}
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[#173f32]"
+                />
+                <span>I agree to this home-care plan and consent to sign electronically.</span>
+              </label>
+            </section>
+          ) : null}
 
           {paymentResult === "cancelled" && !status.paymentComplete ? (
-            <p className="mb-4 rounded-xl border border-[#d4c29c]/20 bg-[#d4c29c]/[0.07] px-4 py-3 text-xs leading-relaxed text-[#efe1c3]">
+            <p className="mb-4 rounded-xl border border-[#b8cdbf]/20 bg-[#b8cdbf]/[0.06] px-4 py-3 text-xs leading-relaxed text-[#dce9e1]">
               No worries — Stripe setup was closed and nothing was charged. You can pick up right here.
             </p>
           ) : null}
@@ -324,16 +436,25 @@ export function EnrollmentHandoffPage({
             </p>
           ) : null}
 
-          {previewMode ? (
-            <div className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-[#d4c29c]/35 bg-[#d4c29c]/10 px-5 text-center text-sm font-bold text-[#efe1c3]">
-              Preview only · Signature submission is safely disabled
+          {previewComplete ? (
+            <div className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-emerald-300/25 bg-emerald-300/[0.07] px-5 text-center text-sm font-bold text-emerald-100">
+              Test complete · this is exactly where the customer finishes
             </div>
+          ) : nativeSigning && status.signingAvailable ? (
+            <button
+              type="button"
+              onClick={submitNativeSignature}
+              disabled={startingSignature || !signatureDataUrl || !consentAccepted}
+              className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-white/15 bg-[#f4efe6] px-5 text-sm font-bold text-[#173f32] shadow-[0_14px_34px_rgba(0,0,0,0.18)] transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-35"
+            >
+              {startingSignature ? "Safely recording…" : previewMode ? "Finish owner test" : "Sign and accept"}
+            </button>
           ) : status.signingAvailable ? (
             <button
               type="button"
               onClick={startSignature}
               disabled={startingSignature}
-              className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#d4c29c] px-5 text-sm font-bold text-[#102017] transition hover:bg-[#eadbb9] disabled:cursor-wait disabled:opacity-70"
+              className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-white/15 bg-[#f4efe6] px-5 text-sm font-bold text-[#173f32] transition hover:bg-white disabled:cursor-wait disabled:opacity-70"
             >
               {startingSignature
                 ? "Opening your secure agreement…"
@@ -342,14 +463,14 @@ export function EnrollmentHandoffPage({
           ) : status.portalUrl ? (
             <a
               href={status.portalUrl}
-              className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#d4c29c] px-5 text-sm font-bold text-[#102017] transition hover:bg-[#eadbb9]"
+              className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-white/15 bg-[#f4efe6] px-5 text-sm font-bold text-[#173f32] transition hover:bg-white"
             >
               Open my home
             </a>
           ) : status.paymentUrl ? (
             <a
               href={status.paymentUrl}
-              className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#d4c29c] px-5 text-sm font-bold text-[#102017] transition hover:bg-[#eadbb9]"
+              className="flex min-h-14 w-full items-center justify-center rounded-2xl border border-white/15 bg-[#f4efe6] px-5 text-sm font-bold text-[#173f32] transition hover:bg-white"
             >
               Continue securely on Stripe
             </a>

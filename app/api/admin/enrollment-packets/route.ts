@@ -114,6 +114,7 @@ export async function POST(request: Request) {
       homeSolicitationNoticeDays:
         parsed.value.homeSolicitationNoticeDays,
       paymentRail: parsed.value.paymentRail,
+      signatureProvider: parsed.value.signatureProvider,
       actor:
         actor.kind === "admin"
           ? "homeatlas_hq"

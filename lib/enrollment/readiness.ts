@@ -11,7 +11,10 @@ import {
   getDocuSignConfigState,
   resolveDocuSignConfig,
 } from "@/lib/integrations/docusign";
-import type { ApprovedAgreementVersion } from "./types";
+import type {
+  ApprovedAgreementVersion,
+  EnrollmentSignatureProvider,
+} from "./types";
 import type { PaymentRail } from "@/lib/billing/payment-rail";
 import {
   getEnrollmentReleaseControlState,
@@ -59,6 +62,19 @@ export function enrollmentReadyForPaymentRail(
     (check) =>
       check.ready ||
       (paymentRail === "manual_cash_check" && check.id === "stripe"),
+  );
+}
+
+export function enrollmentReadyForHandoff(
+  readiness: EnrollmentReadiness,
+  paymentRail: PaymentRail,
+  signatureProvider: EnrollmentSignatureProvider,
+): boolean {
+  return readiness.checks.every(
+    (check) =>
+      check.ready ||
+      (paymentRail === "manual_cash_check" && check.id === "stripe") ||
+      (signatureProvider === "homeatlas_native" && check.id === "docusign"),
   );
 }
 
