@@ -331,7 +331,10 @@ export function EnrollmentHandoffPage({
               <p className="mt-4 text-xs leading-relaxed text-white/52">
                 {status.agreementSummary.planSummary}
               </p>
-              <details className="group mt-5 border-t border-white/[0.08] pt-4">
+              <details
+                open
+                className="group mt-5 border-t border-white/[0.08] pt-4"
+              >
                 <summary className="cursor-pointer list-none text-xs font-semibold text-[#d9d0bf] marker:content-none">
                   <span className="group-open:hidden">View visit details</span>
                   <span className="hidden group-open:inline">Hide visit details</span>

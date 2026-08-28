@@ -50,4 +50,8 @@ describe("HomeAtlas native enrollment signature contract", () => {
     expect(handoff).not.toContain("#ead8ad");
     expect(handoff).not.toContain("#f0c85b");
   });
+
+  it("shows the visit-by-visit agreement details immediately", () => {
+    expect(handoff).toMatch(/<details\s+open\s+className=/);
+  });
 });
