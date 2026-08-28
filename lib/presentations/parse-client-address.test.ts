@@ -18,6 +18,20 @@ describe("parseClientAddress", () => {
     });
   });
 
+  it.each([
+    "7365 County Road-46, Willows California 95988",
+    "7365 County Road-46, Willows, California 95988",
+  ])("normalizes a full state name with an optional comma: %s", (raw) => {
+    expect(parseClientAddress(raw)).toEqual({
+      address: "7365 County Road-46",
+      city: "Willows",
+      state: "CA",
+      zip: "95988",
+      propertyName: "7365 County Road-46",
+    });
+    expect(hasCompleteClientAddress(parseClientAddress(raw))).toBe(true);
+  });
+
   it("uses fallback when state/zip missing", () => {
     expect(parseClientAddress("123 Main St", "Lake House")).toEqual({
       address: "123 Main St",

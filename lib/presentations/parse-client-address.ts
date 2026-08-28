@@ -6,10 +6,78 @@ export interface ParsedClientAddress {
   propertyName: string;
 }
 
-// Accept ZIP+4 pasted with a normal hyphen, whitespace, or a typographic dash.
-// The stored value is always canonicalized to 12345-6789.
-const STATE_ZIP_PATTERN =
-  /,\s*([A-Za-z]{2})\s+(\d{5})(?:[-\s‐‑‒–—―−]?(\d{4}))?\s*$/;
+const STATE_NAME_TO_CODE: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+};
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+const STATE_TOKEN_PATTERN = [
+  ...Object.keys(STATE_NAME_TO_CODE)
+    .sort((left, right) => right.length - left.length)
+    .map(escapeRegExp),
+  "[A-Za-z]{2}",
+].join("|");
+
+// Accept state abbreviations or full state names, with or without the comma
+// before the state. ZIP+4 may use a normal hyphen, whitespace, or a typographic
+// dash. The stored state and ZIP are always canonicalized.
+const STATE_ZIP_PATTERN = new RegExp(
+  `(?:,|\\s)\\s*(${STATE_TOKEN_PATTERN})\\s+(\\d{5})(?:[-\\s‐‑‒–—―−]?(\\d{4}))?\\s*$`,
+  "i",
+);
 
 /**
  * Best-effort parse of a single-line client address from presentations.
@@ -43,7 +111,9 @@ export function parseClientAddress(
     };
   }
 
-  const state = stateZipMatch[1].toUpperCase();
+  const stateToken = stateZipMatch[1].trim().toLowerCase();
+  const state =
+    STATE_NAME_TO_CODE[stateToken] ?? stateZipMatch[1].toUpperCase();
   const zip = stateZipMatch[3]
     ? `${stateZipMatch[2]}-${stateZipMatch[3]}`
     : stateZipMatch[2];
