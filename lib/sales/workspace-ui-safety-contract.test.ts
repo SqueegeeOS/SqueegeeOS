@@ -129,9 +129,9 @@ describe("sales representative workspace activity safety", () => {
   it("turns one conversational door result into one field talk", () => {
     expect(workspace).toContain("salesDoorDispositionCountsConversation");
     expect(workspace).toContain("totals.conversationsToday += 1");
-    expect(workspace).toContain('label: "Extra talk"');
-    expect(workspace).toContain('detail: "No saved door"');
-    expect(workspace).toContain("counts the talk automatically");
+    expect(workspace).toContain('label: "Homeowner talked to"');
+    expect(workspace).toContain('detail: "Log real conversation"');
+    expect(workspace).toContain("counts the homeowner conversation automatically");
     expect(doorMemory).toContain(
       "This outcome counts one conversation automatically.",
     );

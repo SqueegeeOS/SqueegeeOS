@@ -51,7 +51,16 @@ const visit: JobberVisitNode = {
   client: { id: "client-1", name: "Home Owner" },
   property: {
     id: "jobber-property-1",
+    name: "Home",
     jobberWebUri: "https://secure.getjobber.com/properties/jobber-property-1",
+    address: {
+      street1: "42 Canyon Road",
+      street2: null,
+      city: "Chico",
+      province: "CA",
+      postalCode: "95928",
+      country: "US",
+    },
   },
   job: {
     id: "job-1",
@@ -483,6 +492,12 @@ describe("complete read-only Jobber visit synchronization", () => {
       external_property_id: "jobber-property-1",
       jobber_property_web_uri:
         "https://secure.getjobber.com/properties/jobber-property-1",
+      property_name: "Home",
+      property_address: {
+        street1: "42 Canyon Road",
+        city: "Chico",
+        province: "CA",
+      },
       visit_status: "UPCOMING",
       client_confirmed: true,
       job_billing_type: "PER_VISIT",

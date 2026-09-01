@@ -50,7 +50,12 @@ export interface JobberVisitNode {
   scopeItems: JobberServiceScopeItemNode[];
   scopeReadState: "available" | "partial" | "permission_hidden";
   client: { id: string; name: string };
-  property: { id: string; jobberWebUri: string };
+  property: {
+    id: string;
+    name: string | null;
+    jobberWebUri: string;
+    address: JobberPropertyAddress;
+  };
   job: {
     id: string;
     jobNumber: number;
@@ -66,6 +71,15 @@ export interface JobberVisitNode {
 export interface JobberVisitPage {
   nodes: JobberVisitNode[];
   pageInfo: { endCursor: string | null; hasNextPage: boolean };
+}
+
+export interface JobberPropertyAddress {
+  street1: string;
+  street2: string | null;
+  city: string;
+  province: string;
+  postalCode: string;
+  country: string;
 }
 
 export interface JobberClientPropertyNode {
@@ -177,7 +191,12 @@ function buildJobberVisitsQuery(options: {
               : ""
           }
           client { id name }
-          property { id jobberWebUri }
+          property {
+            id
+            name
+            jobberWebUri
+            address { street1 street2 city province postalCode country }
+          }
           job {
             id
             jobNumber

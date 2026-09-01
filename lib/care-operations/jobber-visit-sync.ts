@@ -197,6 +197,8 @@ export function toJobberVisitProjectionRow(
     external_client_id: visit.client.id,
     external_property_id: visit.property.id,
     jobber_property_web_uri: visit.property.jobberWebUri,
+    property_name: visit.property.name,
+    property_address: visit.property.address,
     job_number: visit.job.jobNumber,
     title: visit.title ?? visit.job.title,
     client_name: visit.client.name,

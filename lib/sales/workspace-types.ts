@@ -131,10 +131,30 @@ export interface SalesDoorMemory {
   occurredAt: string;
 }
 
+export interface SalesPerformanceDay {
+  date: string;
+  doors: number;
+  homeownersTalkedTo: number;
+  presentations: number;
+  leads: number;
+  wins: number;
+  closedArrCents: number;
+}
+
+export interface SalesPerformanceHistory {
+  rangeDays: number;
+  days: SalesPerformanceDay[];
+  totals: Omit<SalesPerformanceDay, "date">;
+  conversationRatePercent: number;
+  presentationRatePercent: number;
+  closeRatePercent: number;
+}
+
 export interface SalesWorkspacePayload {
   profile: SalesRepProfile;
   launchEvidence: SalesRepLaunchCountsEvidence;
   metrics: SalesWorkspaceMetrics;
+  performance: SalesPerformanceHistory;
   leads: SalesRepLead[];
   recentDoorMemories: SalesDoorMemory[];
   recentDoorMemoriesStatus: "complete" | "unavailable";

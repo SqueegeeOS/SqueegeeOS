@@ -20,6 +20,7 @@ import {
   ServiceInterestPicker,
 } from "@/components/sales/service-interest-control";
 import { AtlasMark } from "@/components/theme/atlas-mark";
+import { CustomerProofMap } from "@/components/sales/customer-proof-map";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { paymentHandoffSendLabel } from "@/lib/membership/payment-handoff-progress";
 import { usePaymentHandoffRefresh } from "@/lib/membership/use-payment-handoff-refresh";
@@ -36,6 +37,7 @@ import type {
   SalesActivityType,
   SalesDoorMemory,
   SalesDoorMemoryReceipt,
+  SalesPerformanceHistory,
   SalesRepLead,
   SalesRepRecentWin,
   SalesWorkspaceMetrics,
@@ -198,6 +200,22 @@ function emptyLeadForm(clientEventId = ""): CreateSalesLeadInput {
   };
 }
 
+const EMPTY_PERFORMANCE: SalesPerformanceHistory = {
+  rangeDays: 30,
+  days: [],
+  totals: {
+    doors: 0,
+    homeownersTalkedTo: 0,
+    presentations: 0,
+    leads: 0,
+    wins: 0,
+    closedArrCents: 0,
+  },
+  conversationRatePercent: 0,
+  presentationRatePercent: 0,
+  closeRatePercent: 0,
+};
+
 type ManualPulseActivity =
   | "door_knock"
   | "conversation"
@@ -279,14 +297,14 @@ const QUICK_ACTIONS: Array<{
   },
   {
     type: "conversation",
-    label: "Extra talk",
-    detail: "No saved door",
+    label: "Homeowner talked to",
+    detail: "Log real conversation",
     metric: "conversationsToday",
   },
   {
     type: "presentation_started",
-    label: "Presented",
-    detail: "Log full pitch",
+    label: "Presentation given",
+    detail: "Log full presentation",
     metric: "presentationsToday",
   },
 ];
@@ -446,6 +464,15 @@ function moneyFromCents(cents: number) {
   }).format(cents / 100);
 }
 
+function shortPerformanceDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 function followUpLabel(value: string | null) {
   if (!value) return "No follow-up set";
   const date = new Date(value);
@@ -565,6 +592,12 @@ export function SalesRepWorkspace({
 
   const profile = workspace?.profile ?? fallbackProfile(repSlug);
   const metrics = workspace?.metrics ?? EMPTY_METRICS;
+  const performance = workspace?.performance ?? EMPTY_PERFORMANCE;
+  const recentPerformanceDays = performance.days.slice(-14);
+  const peakDailyDoors = Math.max(
+    1,
+    ...recentPerformanceDays.map((day) => day.doors),
+  );
   const totalsArePartial = workspaceLoadError !== null;
   const milestone = useMemo(
     () => getMilestoneProgress(profile, metrics.qualifiedRetainedMembers),
@@ -1823,7 +1856,7 @@ export function SalesRepWorkspace({
                 id="field-pulse-title"
                 className={`mt-1 text-3xl sm:text-4xl ${craftHeading}`}
               >
-                Knock. Talk. Close. Move.
+                Knock. Connect. Present. Move.
               </h1>
             </div>
             <p
@@ -1834,6 +1867,24 @@ export function SalesRepWorkspace({
               {totalsArePartial ? "Partial totals" : "Today · Pacific time"}
             </p>
           </div>
+
+          <nav
+            aria-label="Field workspace views"
+            className="mb-4 grid grid-cols-2 gap-1 rounded-2xl border border-white/[0.08] bg-black/20 p-1"
+          >
+            <a
+              href="#pulse"
+              className="flex min-h-11 items-center justify-center rounded-xl bg-white/[0.09] px-4 text-[10px] font-bold uppercase tracking-[0.16em] text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Today
+            </a>
+            <a
+              href="#performance"
+              className="flex min-h-11 items-center justify-center rounded-xl px-4 text-[10px] font-bold uppercase tracking-[0.16em] text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              30-day performance
+            </a>
+          </nav>
 
           {workspaceLoadError ? (
             <div
@@ -1961,9 +2012,9 @@ export function SalesRepWorkspace({
 
           <p className="mt-3 px-1 text-[11px] font-medium leading-5 text-muted sm:text-xs">
             Next door starts each house. Saving Talked, Follow up, or Interested
-            counts the talk automatically. Use Extra talk only away from a saved
-            door. Presented saves separately; phone-only entries sync when service
-            returns.
+            counts the homeowner conversation automatically. Presentations save
+            separately; phone-only entries sync when service returns. Today resets
+            at midnight Pacific while the performance history stays intact.
           </p>
 
           {offlineQueue.length > 0 ? (
@@ -2100,6 +2151,115 @@ export function SalesRepWorkspace({
           loading={loading}
         />
 
+        <CustomerProofMap repSlug={profile.slug} repName={profile.displayName} />
+
+        <section id="performance" className="mt-8 scroll-mt-24" aria-labelledby="performance-title">
+          <GlassCard tone="elevated" padding="lg" rim className="overflow-hidden">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className={craftEyebrow}>Field performance · rolling 30 days</p>
+                <h2 id="performance-title" className={`mt-2 text-3xl sm:text-4xl ${craftHeading}`}>
+                  Every day resets. Every day still counts.
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
+                  Today&apos;s buttons return to zero at midnight Pacific. HomeAtlas
+                  preserves the underlying activity here so coaching and progress
+                  stay visible.
+                </p>
+              </div>
+              <a
+                href="#pulse"
+                className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-full border border-accent/40 bg-accent/[0.08] px-5 text-[10px] font-bold uppercase tracking-[0.15em] text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                Back to today
+              </a>
+            </div>
+
+            <div className="mt-7 grid grid-cols-2 gap-3 lg:grid-cols-6">
+              {[
+                ["Doors knocked", performance.totals.doors],
+                ["Homeowners talked to", performance.totals.homeownersTalkedTo],
+                ["Presentations", performance.totals.presentations],
+                ["Leads added", performance.totals.leads],
+                ["Membership wins", performance.totals.wins],
+                ["Closed ARR", moneyFromCents(performance.totals.closedArrCents)],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-white/[0.07] bg-black/15 p-4">
+                  <p className="font-serif text-2xl tabular-nums text-foreground sm:text-3xl">
+                    {loading ? "–" : value}
+                  </p>
+                  <p className="mt-1 text-[9px] uppercase leading-4 tracking-[0.16em] text-muted">
+                    {label}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 rounded-[1.5rem] border border-white/[0.07] bg-black/20 p-4 sm:p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-foreground">
+                    Last 14 days
+                  </p>
+                  <p className="mt-1 text-xs text-muted">Daily field funnel, not cumulative totals</p>
+                </div>
+                <div className="flex flex-wrap gap-3 text-[9px] uppercase tracking-[0.12em] text-muted" aria-label="Chart legend">
+                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-white/35" />Doors</span>
+                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-accent" />Talked to</span>
+                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-sm bg-emerald-300" />Presented</span>
+                </div>
+              </div>
+
+              <div className="mt-6 grid h-48 grid-cols-[repeat(14,minmax(0,1fr))] items-end gap-1.5 sm:gap-2" role="img" aria-label="Fourteen day activity chart">
+                {recentPerformanceDays.map((day) => (
+                  <div
+                    key={day.date}
+                    className="flex h-full min-w-0 flex-col justify-end"
+                    title={`${shortPerformanceDate(day.date)}: ${day.doors} doors, ${day.homeownersTalkedTo} homeowners talked to, ${day.presentations} presentations`}
+                  >
+                    <div className="flex h-[9.5rem] items-end justify-center gap-px">
+                      {[
+                        ["doors", day.doors, "bg-white/35"],
+                        ["homeowners talked to", day.homeownersTalkedTo, "bg-accent"],
+                        ["presentations", day.presentations, "bg-emerald-300"],
+                      ].map(([label, count, color]) => {
+                        const numericCount = Number(count);
+                        const height = numericCount > 0
+                          ? Math.max(5, (numericCount / peakDailyDoors) * 100)
+                          : 1;
+                        return (
+                          <span
+                            key={label}
+                            aria-label={`${numericCount} ${label}`}
+                            className={`w-1/3 rounded-t-sm ${color} transition-[height] duration-500`}
+                            style={{ height: `${height}%` }}
+                          />
+                        );
+                      })}
+                    </div>
+                    <span className="mt-2 truncate text-center text-[8px] tabular-nums text-muted/75">
+                      {day.date.slice(8)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {[
+                ["Door → conversation", performance.conversationRatePercent],
+                ["Conversation → presentation", performance.presentationRatePercent],
+                ["Presentation → win", performance.closeRatePercent],
+              ].map(([label, value]) => (
+                <div key={label} className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-4">
+                  <p className="text-[10px] font-semibold uppercase leading-4 tracking-[0.13em] text-muted">{label}</p>
+                  <p className="shrink-0 font-serif text-2xl tabular-nums text-accent">{loading ? "–" : `${value}%`}</p>
+                </div>
+              ))}
+            </div>
+          </GlassCard>
+        </section>
+
         <section className="mt-8 grid gap-5 lg:grid-cols-[1.25fr_0.75fr]">
           <GlassCard tone="elevated" padding="lg" rim className="relative overflow-hidden">
             <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-accent/[0.07] blur-3xl" aria-hidden />
@@ -2115,7 +2275,7 @@ export function SalesRepWorkspace({
                 ) : null}
               </div>
               <h2 className={`mt-5 max-w-3xl text-3xl sm:text-5xl ${craftHeading}`}>
-                Turn every good doorstep into a remembered relationship.
+                Turn every real doorstep conversation into a remembered relationship.
               </h2>
               <p className="mt-5 max-w-2xl text-sm leading-7 text-muted sm:text-base">
                 Capture the homeowner, permission, next move, and value while the
@@ -2156,8 +2316,8 @@ export function SalesRepWorkspace({
             <div className="mt-6 grid grid-cols-2 gap-3">
               {[
                 ["Doors", metrics.doorsToday],
-                ["Talks", metrics.conversationsToday],
-                ["Pitches", metrics.presentationsToday],
+                ["Homeowners talked to", metrics.conversationsToday],
+                ["Presentations", metrics.presentationsToday],
                 ["Auto signed", metrics.signedToday],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-2xl border border-white/[0.06] bg-black/15 p-4">
