@@ -31,10 +31,12 @@ const client: JobberClientNode = {
         name: "Canyon House",
         jobberWebUri: "https://secure.getjobber.com/properties/property-1",
         address: {
-          street: "123 Canyon Street",
+          street1: "42 Canyon Road",
+          street2: null,
           city: "Chico",
           province: "CA",
           postalCode: "95928",
+          country: "US",
         },
       },
     ],
@@ -221,6 +223,11 @@ describe("Jobber customer synchronization", () => {
     });
     expect(row.search_text).toContain("ada lovelace");
     expect(row.search_text).toContain("canyon house");
+    expect(row.search_text).toContain("42 canyon road");
+    expect(row.properties[0]?.address).toMatchObject({
+      city: "Chico",
+      province: "CA",
+    });
     expect(hashJobberClientPayload(client)).toBe(
       hashJobberClientPayload({ ...client }),
     );

@@ -8,6 +8,7 @@ import { markJobberWebhookEventsReconciled } from "@/lib/integrations/jobber-web
 import { runAutomaticMembershipBilling } from "@/lib/billing/automatic-billing-executor";
 import { qualifyDueSalesAttributions } from "@/lib/sales/attribution-lifecycle-server";
 import { reconcileSignedMembershipAttributionsForActiveReps } from "@/lib/sales/signed-attribution-server";
+import { geocodeTerritoryBacklog } from "@/lib/sales/territory-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,6 +72,19 @@ export async function GET(request: Request) {
       },
     );
     const sync = await syncAllJobberData();
+    const territory = await geocodeTerritoryBacklog("david", {
+      maxBatches: 6,
+      stopAtMs: requestStartedAt + 180_000,
+    }).catch((error) => {
+      console.error("[jobber-reconcile-cron] territory geocoding failed", {
+        reason: error instanceof Error ? error.message : "unknown",
+      });
+      return {
+        status: "failed" as const,
+        error:
+          "Territory map refresh failed; the Jobber snapshot still completed.",
+      };
+    });
     const webhookInbox = await markJobberWebhookEventsReconciled({
       snapshotStartedAt,
       syncSummary: sync,
@@ -103,6 +117,7 @@ export async function GET(request: Request) {
       {
         ok: true,
         sync,
+        territory,
         webhookInbox,
         scheduledCommunications,
         signatureAttributionRepairs,

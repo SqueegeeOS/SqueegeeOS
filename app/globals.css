@@ -1,4 +1,32 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+.leaflet-container {
+  font-family: var(--font-geist-sans), sans-serif;
+  background: #11100e;
+}
+
+.leaflet-control-attribution,
+.leaflet-control-zoom a {
+  background: rgba(8, 7, 6, 0.88) !important;
+  color: #d8d2c6 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+
+.leaflet-control-attribution a,
+.leaflet-tooltip {
+  color: #c9b896 !important;
+}
+
+.leaflet-tooltip {
+  border: 1px solid rgba(201, 184, 150, 0.35) !important;
+  background: rgba(8, 7, 6, 0.94) !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.32) !important;
+}
+
+.leaflet-tooltip-top::before {
+  border-top-color: rgba(8, 7, 6, 0.94) !important;
+}
 
 :root {
   --background: #070605;

@@ -65,6 +65,9 @@ const MEMORIES = [
   },
 ] as const;
 
+const SERVICE_RIBBON =
+  "WINDOWS · PRESSURE WASHING · SOLAR · EVERY 3 MONTHS · EVERY 6 MONTHS · SEVEN-DAY GUARANTEE · RAINBLOCK · ";
+
 const CARE_OPTIONS = [
   {
     number: "01",
@@ -259,6 +262,13 @@ export function AtlasGlass() {
           <span>Enter HomeAtlas</span><i aria-hidden="true" />
         </a>
       </section>
+
+      <div className={styles.serviceRibbon} aria-label="SqueegeeKing services and guarantees">
+        <div className={styles.serviceRibbonTrack}>
+          <span>{SERVICE_RIBBON.repeat(2)}</span>
+          <span aria-hidden="true">{SERVICE_RIBBON.repeat(2)}</span>
+        </div>
+      </div>
 
       <section id="homeatlas-live" className={styles.portalSection} aria-labelledby="portal-title">
         <div className={styles.portalIntro}>

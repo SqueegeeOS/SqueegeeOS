@@ -67,6 +67,10 @@ import {
   normalizeSalesServiceInterests,
   type SalesServiceInterest,
 } from "./service-interests";
+import {
+  buildSalesPerformanceHistory,
+  getSalesPerformanceStartUtc,
+} from "./performance-history";
 
 interface SalesRepRow {
   id: string;
@@ -118,6 +122,7 @@ interface SalesLeadRow {
 interface SalesActivityRow {
   event_type: string;
   quantity: number;
+  occurred_at: string;
 }
 
 interface SalesLeadInteractionRow {
@@ -725,6 +730,7 @@ export async function loadSalesWorkspace(
   const rep = await loadRepRow(slug);
   const supabase = createPrivilegedServerSupabaseClient();
   const { startUtc, endUtc } = getBusinessCalendarDayUtcBounds(referenceDate);
+  const performanceStartUtc = getSalesPerformanceStartUtc(referenceDate);
 
   let closeLedgerStatus: SalesWorkspacePayload["closeLedgerStatus"] = "complete";
   try {
@@ -749,6 +755,7 @@ export async function loadSalesWorkspace(
     openLeadRows,
     leadsTodayResult,
     activityResult,
+    leadHistoryResult,
     attributions,
     doorMemoryResult,
     launchEvidenceResult,
@@ -763,17 +770,24 @@ export async function loadSalesWorkspace(
         .lt("created_at", endUtc.toISOString()),
       supabase
         .from("sales_rep_activity_events")
-        .select("event_type, quantity")
+        .select("event_type, quantity, occurred_at")
         .eq("rep_id", rep.id)
         .is("reversed_at", null)
-        .gte("occurred_at", startUtc.toISOString())
+        .gte("occurred_at", performanceStartUtc.toISOString())
         .lt("occurred_at", endUtc.toISOString()),
+      supabase
+        .from("sales_rep_leads")
+        .select("created_at")
+        .eq("rep_id", rep.id)
+        .gte("created_at", performanceStartUtc.toISOString())
+        .lt("created_at", endUtc.toISOString()),
       loadAllSalesRepAttributionRows(rep.id),
       loadRecentDoorMemories(rep.id),
       supabase.rpc("homeatlas_sales_rep_launch_evidence"),
     ]);
 
-  const firstError = leadsTodayResult.error ?? activityResult.error;
+  const firstError =
+    leadsTodayResult.error ?? activityResult.error ?? leadHistoryResult.error;
   if (firstError) {
     throw new SalesWorkspaceUnavailableError(readableStorageError(firstError.message));
   }
@@ -782,7 +796,6 @@ export async function loadSalesWorkspace(
       "HomeAtlas could not verify today's lead count.",
     );
   }
-
   const [recentInteractions, closeJourneys] = await Promise.all([
     loadRecentSalesLeadInteractions(
       rep.id,
@@ -812,12 +825,6 @@ export async function loadSalesWorkspace(
     ),
   );
   const activities = (activityResult.data ?? []) as SalesActivityRow[];
-  const activityCount = (eventType: string) =>
-    activities.reduce(
-      (total, activity) =>
-        total + (activity.event_type === eventType ? Number(activity.quantity) || 0 : 0),
-      0,
-    );
   const openLeads = leads;
   let launchEvidence = unavailableSalesRepLaunchCountsEvidence();
   if (!launchEvidenceResult.error) {
@@ -838,6 +845,15 @@ export async function loadSalesWorkspace(
   const signatureBackedAttributions = attributions.filter(
     (attribution) => Boolean(attribution.signed_agreement_id),
   );
+  const performance = buildSalesPerformanceHistory({
+    referenceDate,
+    activities,
+    leadCreatedAt: (leadHistoryResult.data ?? []).map((row) =>
+      String(row.created_at),
+    ),
+    attributions,
+  });
+  const today = performance.days.at(-1)!;
   const closedAttributions = signatureBackedAttributions.filter(
     (attribution) => attribution.qualification_status !== "cancelled",
   );
@@ -867,9 +883,9 @@ export async function loadSalesWorkspace(
     profile: profileFromRow(rep),
     launchEvidence,
     metrics: {
-      doorsToday: activityCount("door_knock"),
-      conversationsToday: activityCount("conversation"),
-      presentationsToday: activityCount("presentation_started"),
+      doorsToday: today.doors,
+      conversationsToday: today.homeownersTalkedTo,
+      presentationsToday: today.presentations,
       leadsToday: leadsTodayResult.count,
       signedToday: attributionsToday.length,
       closedArrTodayCents: attributionsToday.reduce(
@@ -891,6 +907,7 @@ export async function loadSalesWorkspace(
         (attribution) => attribution.qualification_status === "qualified",
       ).length,
     },
+    performance,
     leads,
     recentDoorMemories: doorMemoryResult.memories,
     recentDoorMemoriesStatus: doorMemoryResult.status,

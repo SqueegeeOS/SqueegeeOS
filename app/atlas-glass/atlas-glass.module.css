@@ -190,6 +190,58 @@
 .scrollCue { position: absolute; z-index: 6; bottom: 23px; left: 50%; display: grid; justify-items: center; gap: 7px; color: rgba(255,248,232,.55); font-family: var(--font-mono),monospace; font-size: .5rem; letter-spacing: .2em; text-decoration: none; text-transform: uppercase; transform: translateX(-50%); }
 .scrollCue i { width: 1px; height: 22px; background: linear-gradient(var(--gold),transparent); transform-origin: top; animation: scroll 1.8s ease-in-out infinite; }
 
+
+.serviceRibbon {
+  position: relative;
+  z-index: 8;
+  overflow: hidden;
+  border-block: 1px solid rgba(212,189,141,.28);
+  background:
+    radial-gradient(circle at 50% 0,rgba(212,189,141,.12),transparent 38%),
+    linear-gradient(90deg,#071c16,#173f32 50%,#071c16);
+  box-shadow:
+    inset 0 1px rgba(255,248,232,.05),
+    0 22px 52px -38px rgba(0,0,0,.95);
+}
+
+.serviceRibbon::before,
+.serviceRibbon::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  inset-block: 0;
+  width: min(12vw,150px);
+  pointer-events: none;
+}
+
+.serviceRibbon::before {
+  left: 0;
+  background: linear-gradient(90deg,#071c16,transparent);
+}
+
+.serviceRibbon::after {
+  right: 0;
+  background: linear-gradient(-90deg,#071c16,transparent);
+}
+
+.serviceRibbonTrack {
+  display: flex;
+  width: max-content;
+  padding-block: 17px;
+  color: #ead6ab;
+  font-family: var(--font-mono),monospace;
+  font-size: clamp(.62rem,.75vw,.76rem);
+  font-weight: 650;
+  letter-spacing: .25em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 0 22px rgba(234,214,171,.16);
+  animation: serviceRibbon 34s linear infinite;
+}
+
+.serviceRibbonTrack span { padding-right: 1.5rem; }
+
 .portalSection { position: relative; overflow: hidden; padding: clamp(100px,12vw,180px) clamp(24px,5vw,84px); background: linear-gradient(rgba(16,45,35,.94),rgba(7,28,22,.98)); }
 .portalSection::before { content: "HOMEATLAS"; position: absolute; top: -.16em; left: 50%; width: 100%; color: rgba(244,239,228,.032); font-family: var(--font-serif),Georgia,serif; font-size: clamp(3.8rem,16.5vw,16.5rem); line-height: 1; letter-spacing: -.075em; text-align: center; white-space: nowrap; transform: translateX(-50%); }
 .portalIntro { position: relative; z-index: 1; display: grid; max-width: 1480px; margin: 0 auto; grid-template-columns: minmax(280px,.7fr) minmax(600px,1.45fr); align-items: center; gap: clamp(55px,7vw,110px); }
@@ -372,6 +424,7 @@
 @keyframes panel { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
 @keyframes radar { from { opacity:.65; transform:translate(-50%,-50%) scale(.55); } to { opacity:0; transform:translate(-50%,-50%) scale(1.55); } }
 @keyframes marquee { to { transform:translateX(-50%); } }
+@keyframes serviceRibbon { to { transform:translateX(-50%); } }
 @keyframes signalBlink { 0%,100% { opacity:.42; transform:scale(.78); } 50% { opacity:1; transform:scale(1.15); } }
 
 @media (max-width:1100px) {

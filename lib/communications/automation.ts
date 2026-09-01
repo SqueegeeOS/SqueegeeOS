@@ -339,8 +339,8 @@ export function buildLeadFirstTouchSmsPlan(
   const services = serviceSummary(input.services);
   const text =
     input.source === "facebook_lead_ad"
-      ? `SqueegeeKing LLC: Hi ${name}, thanks for requesting information about ${services}. I’m Donovan, the owner. I received your request and will personally follow up shortly. What is the service address? Reply STOP to opt out.`
-      : `SqueegeeKing LLC: Hi ${name}, thanks for requesting information about ${services}. I’m Donovan, the owner. I received your request and will personally follow up shortly. You can reply here with questions or scheduling details. Reply STOP to opt out.`;
+      ? `Hi ${name}, thanks for reaching out to SqueegeeKing about ${services}! Our team received your request and will personally follow up shortly. You can reply here with questions or scheduling details. Reply STOP to opt out.`
+      : `Hi ${name}, this is SqueegeeKing. We received your request for ${services}. A person from our team will follow up soon. Reply STOP to opt out.`;
   return {
     mode: "plan_only",
     kind: "lead_first_touch",
