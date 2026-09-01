@@ -20,6 +20,10 @@ import {
   type TechnicianVisitEventType,
 } from "@/lib/field-operations/technician-visit-events";
 import {
+  technicianJobClockElapsedSeconds,
+  type TechnicianJobClockAction,
+} from "@/lib/field-operations/technician-job-clock";
+import {
   filterTechnicianVisits,
   listTechnicianCrew,
   resolveTechnicianVisitReadiness,
@@ -135,6 +139,20 @@ function formatSyncedAt(value: string | null, timezone: string): string {
   }).format(new Date(value));
 }
 
+function formatJobDuration(totalSeconds: number | null): string {
+  if (totalSeconds === null) return "—";
+  const seconds = Math.max(0, Math.floor(totalSeconds));
+  const hours = Math.floor(seconds / 3_600);
+  const minutes = Math.floor((seconds % 3_600) / 60);
+  const remainingSeconds = seconds % 60;
+  if (hours > 0) {
+    return `${hours}h ${minutes.toString().padStart(2, "0")}m ${remainingSeconds
+      .toString()
+      .padStart(2, "0")}s`;
+  }
+  return `${minutes}m ${remainingSeconds.toString().padStart(2, "0")}s`;
+}
+
 function serviceLabel(visit: JobberTodayVisit): string {
   return visit.title?.trim() || "Scheduled Jobber service";
 }
@@ -182,6 +200,7 @@ function TechnicianVisitCard({
   timezone,
   fieldRecordStatusAvailable,
   fieldEventStatusAvailable,
+  jobClockStatusAvailable,
   fieldActorName,
   ownerSession,
   onSaved,
@@ -190,6 +209,7 @@ function TechnicianVisitCard({
   timezone: string;
   fieldRecordStatusAvailable: boolean;
   fieldEventStatusAvailable: boolean;
+  jobClockStatusAvailable: boolean;
   fieldActorName: string | null;
   ownerSession: boolean;
   onSaved: () => void;
@@ -197,6 +217,8 @@ function TechnicianVisitCard({
   const [captureOpen, setCaptureOpen] = useState(false);
   const [hasDraft, setHasDraft] = useState(false);
   const [routePending, setRoutePending] = useState(false);
+  const [clockPending, setClockPending] = useState(false);
+  const [clockNow, setClockNow] = useState(() => new Date());
   const [routeError, setRouteError] = useState<string | null>(null);
   const [routeNotice, setRouteNotice] = useState<string | null>(null);
   const readiness = resolveTechnicianVisitReadiness(
@@ -260,6 +282,11 @@ function TechnicianVisitCard({
         : visit.homeAtlasFieldRecordCount > 0
           ? "Add visit memory"
           : "Document this visit";
+  const jobClock = visit.homeAtlasJobClock;
+  const clockElapsedSeconds = technicianJobClockElapsedSeconds(
+    jobClock,
+    clockNow,
+  );
 
   useEffect(() => {
     if (!propertyId || !appointmentId) return;
@@ -275,6 +302,52 @@ function TechnicianVisitCard({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [appointmentId, propertyId]);
+
+  useEffect(() => {
+    if (jobClock.state !== "running") return;
+    const timer = window.setInterval(() => setClockNow(new Date()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [jobClock.state]);
+
+  async function updateJobClock(action: TechnicianJobClockAction) {
+    if (!propertyId || !appointmentId || clockPending) return;
+    setClockPending(true);
+    setRouteError(null);
+    setRouteNotice(null);
+    try {
+      const response = await fetch("/api/field/job-clock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          actionId: crypto.randomUUID(),
+          propertyId,
+          appointmentId,
+          action,
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(body?.error ?? "Could not update the job clock.");
+      }
+      setRouteNotice(
+        action === "start"
+          ? "Job clock started. Finish it after cleanup and pack-up."
+          : "Job clock finished. Actual on-site time is saved.",
+      );
+      setClockNow(new Date());
+      onSaved();
+    } catch (clockError) {
+      setRouteError(
+        clockError instanceof Error
+          ? clockError.message
+          : "Could not update the job clock.",
+      );
+    } finally {
+      setClockPending(false);
+    }
+  }
 
   async function advanceRoute(eventType: TechnicianVisitEventType) {
     if (!propertyId || !appointmentId || routePending) return;
@@ -429,6 +502,88 @@ function TechnicianVisitCard({
             {readinessStyle.detail}
           </p>
         </div>
+
+        {propertyId && appointmentId ? (
+          <section className="mt-3 overflow-hidden rounded-2xl border border-white/12 bg-black/25">
+            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-[0.17em] text-white/40">
+                  Actual job time
+                </p>
+                <p className="mt-1 text-sm font-medium text-white">
+                  {jobClock.state === "running"
+                    ? "Clock running"
+                    : jobClock.state === "finished"
+                      ? "Job time saved"
+                      : "Ready at arrival"}
+                </p>
+              </div>
+              <span
+                className={`rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums ${
+                  jobClock.state === "running"
+                    ? "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
+                    : "border-white/10 bg-white/[0.04] text-white/70"
+                }`}
+              >
+                {formatJobDuration(clockElapsedSeconds)}
+              </span>
+            </div>
+
+            {!jobClockStatusAvailable ? (
+              <p className="px-4 py-4 text-xs leading-relaxed text-amber-100">
+                The job clock is waiting for its private time-ledger migration.
+              </p>
+            ) : jobClock.state === "not_started" ? (
+              <button
+                type="button"
+                disabled={clockPending}
+                onClick={() => void updateJobClock("start")}
+                className="flex min-h-20 w-full items-center justify-between gap-4 bg-[#9be2bd]/[0.1] px-4 text-left text-[#d5f8e4] active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span>
+                  <span className="block text-base font-semibold">
+                    {clockPending ? "Starting job…" : "Start job"}
+                  </span>
+                  <span className="mt-1 block text-xs font-normal text-[#bff1d5]/65">
+                    Tap once you have arrived at the property.
+                  </span>
+                </span>
+                <span className="rounded-full border border-[#9be2bd]/35 px-3 py-1 text-xs">
+                  1 of 2
+                </span>
+              </button>
+            ) : jobClock.state === "running" ? (
+              <button
+                type="button"
+                disabled={clockPending}
+                onClick={() => void updateJobClock("finish")}
+                className="flex min-h-20 w-full items-center justify-between gap-4 bg-rose-300/[0.09] px-4 text-left text-rose-100 active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <span>
+                  <span className="block text-base font-semibold">
+                    {clockPending ? "Finishing job…" : "Finish job"}
+                  </span>
+                  <span className="mt-1 block text-xs font-normal text-rose-100/65">
+                    Tap after cleanup, inspection, and pack-up are complete.
+                  </span>
+                </span>
+                <span className="rounded-full border border-rose-200/30 px-3 py-1 text-xs">
+                  2 of 2
+                </span>
+              </button>
+            ) : (
+              <div className="px-4 py-4 text-xs leading-relaxed text-white/55">
+                Started {formatTime(jobClock.startedAt!, timezone)}
+                {jobClock.endedAt
+                  ? ` · finished ${formatTime(jobClock.endedAt, timezone)}`
+                  : ""}
+                {jobClock.finishedByDisplayName
+                  ? ` · closed by ${jobClock.finishedByDisplayName}`
+                  : ""}
+              </div>
+            )}
+          </section>
+        ) : null}
 
         {fieldEventStatusAvailable && propertyId && appointmentId ? (
           <section className="mt-3 rounded-2xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.055] p-4">
@@ -1015,6 +1170,7 @@ export function TechnicianTodayWorkspace({
                     fieldEventStatusAvailable={
                       data.fieldEventStatusAvailable
                     }
+                    jobClockStatusAvailable={data.jobClockStatusAvailable}
                     fieldActorName={
                       technicianSession ? actorDisplayName : null
                     }
