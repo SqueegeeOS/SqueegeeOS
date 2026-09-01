@@ -9,6 +9,11 @@ import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/clie
 import { loadOpenVisitFieldFollowUps } from "@/lib/field-records/visit-field-follow-up-server";
 import { loadTechnicianVisitEventSnapshots } from "@/lib/field-operations/technician-visit-event-server";
 import type { TechnicianVisitEventSnapshot } from "@/lib/field-operations/technician-visit-events";
+import { loadTechnicianJobClockSnapshots } from "@/lib/field-operations/technician-job-clock-server";
+import {
+  EMPTY_TECHNICIAN_JOB_CLOCK,
+  type TechnicianJobClockSnapshot,
+} from "@/lib/field-operations/technician-job-clock";
 import { loadFieldIndependenceReviews } from "@/lib/field-operations/independence-review-server";
 import type { FieldIndependenceReview } from "@/lib/field-operations/independence-review";
 import { readJobberConnectionStatus } from "./jobber-connection-store";
@@ -127,6 +132,7 @@ function toTodayVisit(
   appointmentLinks: JobberTodayAppointmentLink[],
   fieldRecordsByAppointment: Map<string, JobberTodayFieldRecordSummary>,
   fieldEventsByAppointment: Map<string, TechnicianVisitEventSnapshot>,
+  jobClocksByAppointment: Map<string, TechnicianJobClockSnapshot>,
   independenceReviewsByAppointment: Map<string, FieldIndependenceReview>,
   portalPathByMembershipId: Map<string, string>,
 ): JobberTodayVisit {
@@ -144,6 +150,9 @@ function toTodayVisit(
     : undefined;
   const fieldEvent = homeAtlas.homeAtlasAppointmentId
     ? fieldEventsByAppointment.get(homeAtlas.homeAtlasAppointmentId)
+    : undefined;
+  const jobClock = homeAtlas.homeAtlasAppointmentId
+    ? jobClocksByAppointment.get(homeAtlas.homeAtlasAppointmentId)
     : undefined;
   return {
     projectionId: row.id,
@@ -176,6 +185,7 @@ function toTodayVisit(
     homeAtlasFieldStageAt: fieldEvent?.occurredAt ?? null,
     homeAtlasFieldStageBy: fieldEvent?.actorDisplayName ?? null,
     homeAtlasFieldEventCount: fieldEvent?.eventCount ?? 0,
+    homeAtlasJobClock: jobClock ?? EMPTY_TECHNICIAN_JOB_CLOCK,
     homeAtlasIndependenceReview: homeAtlas.homeAtlasAppointmentId
       ? (independenceReviewsByAppointment.get(
           homeAtlas.homeAtlasAppointmentId,
@@ -375,9 +385,11 @@ export async function loadJobberTodayBoard(
     }));
   const fieldRecordsByAppointment =
     summarizeJobberTodayFieldRecords(fieldRecordRows);
-  const fieldEvents = await loadTechnicianVisitEventSnapshots(appointmentIds);
-  const independenceReviews =
-    await loadFieldIndependenceReviews(appointmentIds);
+  const [fieldEvents, jobClocks, independenceReviews] = await Promise.all([
+    loadTechnicianVisitEventSnapshots(appointmentIds),
+    loadTechnicianJobClockSnapshots(appointmentIds),
+    loadFieldIndependenceReviews(appointmentIds),
+  ]);
 
   const visits = visitRows.map((row) =>
     toTodayVisit(
@@ -387,6 +399,7 @@ export async function loadJobberTodayBoard(
       appointmentLinks,
       fieldRecordsByAppointment,
       fieldEvents.byAppointmentId,
+      jobClocks.byAppointmentId,
       independenceReviews.byAppointmentId,
       portalPathByMembershipId,
     ),
@@ -408,6 +421,7 @@ export async function loadJobberTodayBoard(
     loadedAt: new Date().toISOString(),
     fieldRecordStatusAvailable,
     fieldEventStatusAvailable: fieldEvents.available,
+    jobClockStatusAvailable: jobClocks.available,
     independenceReviewStatusAvailable: independenceReviews.available,
     summary: summarizeJobberTodayVisits(visits),
     visits,
