@@ -234,15 +234,15 @@ export function JobberConnectionPanel({
     <section className="mb-8 rounded-[2rem] border border-border/80 bg-background/65 p-5 sm:p-7">
       <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
         <div>
-          <p className={craftEyebrow}>Read-only scheduling truth</p>
+          <p className={craftEyebrow}>Jobber scheduling authority</p>
           <h2 className="mt-2 font-serif text-2xl font-light text-foreground">
             Jobber connection
           </h2>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
-            Connect the SqueegeeKing Jobber account, synchronize its complete
-            read-only customer and visit index, then pair records under human
-            review. HomeAtlas never changes Jobber appointments or enables
-            billing from a pairing.
+            Synchronize the complete customer and visit index, pair records
+            under human review, and let owners assign a future visit to one
+            verified Jobber technician from Dispatch. Pairing never changes an
+            appointment, and no Jobber action enables billing.
           </p>
         </div>
         <span

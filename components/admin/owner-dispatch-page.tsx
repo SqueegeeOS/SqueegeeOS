@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
 import { OwnerDispatchMap } from "@/components/admin/owner-dispatch-map";
@@ -158,6 +158,7 @@ export function OwnerDispatchPage() {
   const [city, setCity] = useState("all");
   const [query, setQuery] = useState("");
   const [assignmentTechnicianId, setAssignmentTechnicianId] = useState("");
+  const didAutoAdvanceEmptyCurrentMonth = useRef(false);
 
   const load = useCallback(async () => {
     if (!unlocked) return;
@@ -170,6 +171,15 @@ export function OwnerDispatchPage() {
       });
       const body = (await response.json().catch(() => null)) as (OwnerDispatchPayload & { error?: string }) | null;
       if (!response.ok || !body?.visits) throw new Error(body?.error ?? "Could not load dispatch.");
+      if (
+        !didAutoAdvanceEmptyCurrentMonth.current &&
+        month === currentMonth() &&
+        body.visits.length === 0
+      ) {
+        didAutoAdvanceEmptyCurrentMonth.current = true;
+        setMonth(shiftMonth(month, 1));
+        return;
+      }
       setPayload(body);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Could not load dispatch.");
@@ -344,7 +354,7 @@ export function OwnerDispatchPage() {
                 <h2 className="mt-3 font-serif text-3xl font-light sm:text-4xl">{selectedVisit.clientName}</h2>
                 <p className="mt-2 text-sm text-white/55">{selectedVisit.serviceLabel} · {TIME_FORMAT.format(new Date(selectedVisit.scheduledStart))}{selectedVisit.scheduledEnd ? `–${TIME_FORMAT.format(new Date(selectedVisit.scheduledEnd))}` : ""}</p>
                 <p className="mt-2 text-sm text-white/45">{selectedVisit.address ?? "Address not available in the current Jobber projection"}</p>
-                <div className="mt-4 flex flex-wrap gap-2">{selectedVisit.assignedUsers.length ? selectedVisit.assignedUsers.map((user) => <span key={user.id} className="rounded-full border border-emerald-300/20 px-3 py-1.5 text-xs text-emerald-100">{user.name}</span>) : <span className="rounded-full border border-amber-300/25 px-3 py-1.5 text-xs text-amber-100">Unassigned in Jobber</span>}<span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/50">{formatDuration(visitDuration(selectedVisit))}</span></div>
+                <div className="mt-4 flex flex-wrap gap-2">{selectedVisit.assignedUsers.length ? selectedVisit.assignedUsers.map((user) => <span key={user.id} className="rounded-full border border-emerald-300/20 px-3 py-1.5 text-xs text-emerald-100">{user.name}</span>) : selectedVisit.assignmentReadState === "available" ? <span className="rounded-full border border-amber-300/25 px-3 py-1.5 text-xs text-amber-100">Unassigned in Jobber</span> : <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/55">Saved crew not visible · assignment will verify live</span>}<span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/50">{formatDuration(visitDuration(selectedVisit))}</span></div>
                 {selectedVisit.scopeItems.length ? <ul className="mt-5 grid gap-2 sm:grid-cols-2">{selectedVisit.scopeItems.map((item) => <li key={item.id} className="rounded-xl border border-white/[0.07] bg-black/15 px-3 py-2 text-xs text-white/60">{item.name}{item.quantity !== 1 ? ` × ${item.quantity}` : ""}</li>)}</ul> : null}
               </div>
               <div className="flex min-w-[13rem] flex-col gap-2">
