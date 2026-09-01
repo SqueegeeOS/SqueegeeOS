@@ -29,6 +29,7 @@ export const ROUTES = {
   hqSales: "/hq/sales",
   hqEnrollment: "/hq/enrollment",
   hqToday: "/hq/today",
+  hqDispatch: "/hq/dispatch",
   hqTechnicians: "/hq/technicians",
   hqAftercare: "/hq/aftercare",
   hqBilling: "/hq/billing",
