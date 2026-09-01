@@ -123,8 +123,48 @@ describe("buildOwnerDispatchPayload", () => {
         }),
       ],
       geocodes: [],
+      generatedAt: "2026-08-10T12:01:00.000Z",
     });
     expect(payload.summary.unassigned).toBe(0);
     expect(payload.summary.assignmentUnknown).toBe(1);
+  });
+
+  it("excludes completed, removed, and already-started visits", () => {
+    const payload = buildOwnerDispatchPayload({
+      month: "2026-08",
+      connected: true,
+      connectionStatus: "connected",
+      accountName: null,
+      lastSyncedAt: null,
+      generatedAt: "2026-08-10T17:00:00.000Z",
+      projections: [
+        projection({ scheduled_start: "2026-08-10T16:00:00.000Z" }),
+        projection({
+          id: "complete",
+          external_visit_id: "complete",
+          scheduled_start: "2026-08-11T16:00:00.000Z",
+          is_complete: true,
+        }),
+        projection({
+          id: "removed",
+          external_visit_id: "removed",
+          scheduled_start: "2026-08-12T16:00:00.000Z",
+          visit_status: "REMOVED",
+        }),
+        projection({
+          id: "future",
+          external_visit_id: "future",
+          scheduled_start: "2026-08-13T16:00:00.000Z",
+        }),
+      ],
+      geocodes: [],
+    });
+
+    expect(payload.visits.map((visit) => visit.projectionId)).toEqual([
+      "future",
+    ]);
+    expect(payload.summary.total).toBe(1);
+    expect(payload.summary.remaining).toBe(1);
+    expect(payload.summary.complete).toBe(0);
   });
 });

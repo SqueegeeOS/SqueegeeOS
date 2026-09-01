@@ -148,12 +148,16 @@ export function OwnerDispatchPage() {
   const [payload, setPayload] = useState<OwnerDispatchPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [assigning, setAssigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [assignmentError, setAssignmentError] = useState<string | null>(null);
+  const [assignmentSuccess, setAssignmentSuccess] = useState<string | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [selectedVisitId, setSelectedVisitId] = useState<string | null>(null);
   const [technician, setTechnician] = useState("all");
   const [city, setCity] = useState("all");
   const [query, setQuery] = useState("");
+  const [assignmentTechnicianId, setAssignmentTechnicianId] = useState("");
 
   const load = useCallback(async () => {
     if (!unlocked) return;
@@ -214,6 +218,55 @@ export function OwnerDispatchPage() {
   const selectedVisit = useMemo(() => filteredVisits.find((visit) => visit.projectionId === selectedVisitId) ?? filteredVisits[0] ?? null, [filteredVisits, selectedVisitId]);
   const unassignedVisits = (payload?.visits ?? []).filter((visit) => visit.assignmentReadState === "available" && visit.assignedUsers.length === 0 && !visit.isComplete);
 
+  const selectVisit = (projectionId: string) => {
+    setSelectedVisitId(projectionId);
+    setAssignmentTechnicianId("");
+    setAssignmentError(null);
+    setAssignmentSuccess(null);
+  };
+
+  const assignTechnician = async () => {
+    if (!selectedVisit || !assignmentTechnicianId) return;
+    setAssigning(true);
+    setAssignmentError(null);
+    setAssignmentSuccess(null);
+    try {
+      const response = await fetch("/api/admin/dispatch/assignment", {
+        method: "POST",
+        headers: {
+          ...getAdminRequestHeaders(),
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          projectionId: selectedVisit.projectionId,
+          jobberUserId: assignmentTechnicianId,
+          expectedAssignedUserIds: selectedVisit.assignedUsers.map(
+            (user) => user.id,
+          ),
+          clientRequestId: crypto.randomUUID(),
+        }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        error?: string;
+        assignedUsers?: Array<{ id: string; name: string }>;
+      } | null;
+      if (!response.ok || !body?.assignedUsers?.length) {
+        throw new Error(body?.error ?? "Jobber did not confirm that assignment.");
+      }
+      const assignedName = body.assignedUsers[0]?.name ?? "Technician";
+      await load();
+      setAssignmentSuccess(`${assignedName} is confirmed on this visit in Jobber.`);
+    } catch (assignmentFailure) {
+      setAssignmentError(
+        assignmentFailure instanceof Error
+          ? assignmentFailure.message
+          : "The assignment stopped safely.",
+      );
+    } finally {
+      setAssigning(false);
+    }
+  };
+
   if (!unlocked) return <AdminPinGate onUnlock={() => setUnlocked(true)} />;
 
   return (
@@ -223,11 +276,11 @@ export function OwnerDispatchPage() {
         <header className="mt-10 flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className={craftEyebrow}>HQ · Dispatch command</p>
-            <h1 className="mt-3 font-serif text-4xl font-light tracking-[-0.04em] sm:text-6xl">See the month. Place the crew.</h1>
-            <p className="mt-4 max-w-2xl text-sm leading-7 text-muted sm:text-base">Upcoming work, route density, workload, and unassigned risk—mirrored from Jobber into one owner-only command board.</p>
+            <h1 className="mt-3 font-serif text-4xl font-light tracking-[-0.04em] sm:text-6xl">Upcoming work. Place the crew.</h1>
+            <p className="mt-4 max-w-2xl text-sm leading-7 text-muted sm:text-base">Every future Jobber visit, route density, workload, and technician assignment—controlled from one owner-only command board.</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setMonth(shiftMonth(month, -1))} className={craftSecondaryButton}>Previous</button>
+            <button type="button" disabled={month <= currentMonth()} onClick={() => setMonth(shiftMonth(month, -1))} className={craftSecondaryButton}>Previous</button>
             <button type="button" onClick={() => setMonth(currentMonth())} className={craftSecondaryButton}>This month</button>
             <button type="button" onClick={() => setMonth(shiftMonth(month, 1))} className={craftSecondaryButton}>Next</button>
             <button type="button" disabled={syncing} onClick={() => void syncJobber()} className={craftPrimaryButton}>{syncing ? "Syncing…" : "Sync Jobber"}</button>
@@ -243,10 +296,10 @@ export function OwnerDispatchPage() {
             <p className={`rounded-full border px-3 py-2 text-[10px] uppercase tracking-[0.14em] ${payload?.connected ? "border-emerald-300/25 text-emerald-100" : "border-amber-300/25 text-amber-100"}`}>{payload?.connected ? "Jobber connected" : "Reconnect Jobber"}</p>
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-            <Metric label="Visits" value={payload?.summary.total ?? 0} detail="Month workload" />
-            <Metric label="Remaining" value={payload?.summary.remaining ?? 0} detail="Still ahead" />
-            <Metric label="Assigned" value={payload?.summary.assigned ?? 0} detail="Crew verified" />
+            <Metric label="Upcoming" value={payload?.summary.total ?? 0} detail="Future visits only" />
+            <Metric label="Crew ready" value={payload?.summary.assigned ?? 0} detail="Assigned in Jobber" />
             <Metric label="Unassigned" value={payload?.summary.assignmentUnknown ? "—" : (payload?.summary.unassigned ?? 0)} detail={payload?.summary.assignmentUnknown ? "Visibility incomplete" : "Needs Jobber crew"} warning={Boolean(payload?.summary.unassigned || payload?.summary.assignmentUnknown)} />
+            <Metric label="Technicians" value={payload?.assignableUsers.length ?? 0} detail="Schedulable in Jobber" />
             <Metric label="Mapped" value={payload?.summary.mapped ?? 0} detail="Route-ready pins" />
             <Metric label="Crew hours" value={formatDuration(payload?.summary.scheduledMinutes ?? 0)} detail="Scheduled duration" />
           </div>
@@ -268,13 +321,13 @@ export function OwnerDispatchPage() {
         <section className="mt-6"><CalendarStrip month={month} visits={payload?.visits ?? []} selectedDay={selectedDay} onSelectDay={setSelectedDay} /></section>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(21rem,0.55fr)]">
-          <OwnerDispatchMap visits={filteredVisits} selectedVisitId={selectedVisit?.projectionId ?? null} onSelect={setSelectedVisitId} />
+          <OwnerDispatchMap visits={filteredVisits} selectedVisitId={selectedVisit?.projectionId ?? null} onSelect={selectVisit} />
           <div className="rounded-[1.6rem] border border-white/10 bg-[#111615] p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3"><div><p className={craftEyebrow}>Unassigned queue</p><h2 className="mt-2 font-serif text-3xl font-light">Close the gaps.</h2></div><span className="rounded-full border border-amber-300/25 px-3 py-1.5 text-sm tabular-nums text-amber-100">{unassignedVisits.length}</span></div>
-            <p className="mt-3 text-xs leading-5 text-white/45">HomeAtlas never invents assignments. Open the exact Jobber property, assign the crew there, then sync.</p>
+            <p className="mt-3 text-xs leading-5 text-white/45">Pick a visit below, then assign a schedulable Jobber technician directly from its detail card.</p>
             <div className="mt-5 max-h-[25rem] space-y-3 overflow-y-auto pr-1">
               {unassignedVisits.length ? unassignedVisits.map((visit) => (
-                <button key={visit.projectionId} type="button" onClick={() => setSelectedVisitId(visit.projectionId)} className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-left hover:border-amber-300/25">
+                <button key={visit.projectionId} type="button" onClick={() => selectVisit(visit.projectionId)} className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-left hover:border-amber-300/25">
                   <div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-medium text-white">{visit.clientName}</p><span className="shrink-0 text-[10px] text-amber-100">{DATE_FORMAT.format(new Date(visit.scheduledStart))}</span></div>
                   <p className="mt-1 truncate text-xs text-white/40">{visit.serviceLabel}</p>
                 </button>
@@ -295,9 +348,42 @@ export function OwnerDispatchPage() {
                 {selectedVisit.scopeItems.length ? <ul className="mt-5 grid gap-2 sm:grid-cols-2">{selectedVisit.scopeItems.map((item) => <li key={item.id} className="rounded-xl border border-white/[0.07] bg-black/15 px-3 py-2 text-xs text-white/60">{item.name}{item.quantity !== 1 ? ` × ${item.quantity}` : ""}</li>)}</ul> : null}
               </div>
               <div className="flex min-w-[13rem] flex-col gap-2">
-                {selectedVisit.jobberPropertyWebUri ? <a href={selectedVisit.jobberPropertyWebUri} target="_blank" rel="noreferrer" className={craftPrimaryButton}>Assign crew in Jobber</a> : null}
+                <label htmlFor="dispatch-technician" className="text-[10px] uppercase tracking-[0.16em] text-white/45">Technician</label>
+                <select
+                  id="dispatch-technician"
+                  value={assignmentTechnicianId}
+                  onChange={(event) => setAssignmentTechnicianId(event.target.value)}
+                  disabled={payload?.assignmentCapability !== "available" || assigning}
+                  className={craftInput}
+                >
+                  <option value="">Choose technician</option>
+                  {(payload?.assignableUsers ?? []).map((user) => (
+                    <option key={user.id} value={user.id}>{user.name}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  disabled={
+                    assigning ||
+                    !assignmentTechnicianId ||
+                    payload?.assignmentCapability !== "available"
+                  }
+                  onClick={() => void assignTechnician()}
+                  className={craftPrimaryButton}
+                >
+                  {assigning ? "Confirming with Jobber…" : "Assign in Jobber"}
+                </button>
+                <p className="text-[11px] leading-5 text-white/38">This sets this visit&apos;s Jobber crew to the one technician you choose.</p>
+                {payload?.assignmentMessage ? (
+                  <p className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-xs leading-5 text-amber-100">
+                    {payload.assignmentMessage}{" "}
+                    {payload.assignmentCapability === "permission_required" ? <Link href="/hq/jobber" className="underline underline-offset-4">Reconnect Jobber</Link> : null}
+                  </p>
+                ) : null}
+                {assignmentError ? <p role="alert" className="rounded-xl border border-red-300/20 bg-red-300/[0.06] p-3 text-xs leading-5 text-red-100">{assignmentError}</p> : null}
+                {assignmentSuccess ? <p role="status" className="rounded-xl border border-emerald-300/20 bg-emerald-300/[0.06] p-3 text-xs leading-5 text-emerald-100">{assignmentSuccess}</p> : null}
+                {selectedVisit.jobberPropertyWebUri ? <a href={selectedVisit.jobberPropertyWebUri} target="_blank" rel="noreferrer" className={craftSecondaryButton}>Open property in Jobber</a> : null}
                 <Link href={selectedVisit.homeAtlasVisitHref} className={craftSecondaryButton}>Open HomeAtlas record</Link>
-                <button type="button" disabled={syncing} onClick={() => void syncJobber()} className={craftSecondaryButton}>{syncing ? "Syncing…" : "I updated Jobber · Sync"}</button>
               </div>
             </div>
           </section>
