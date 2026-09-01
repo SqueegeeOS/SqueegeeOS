@@ -4,6 +4,8 @@ import { readJobberConnectionStatus } from "@/lib/care-operations/jobber-connect
 import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { chunkItems } from "@/lib/care-operations/jobber-sync-utils";
+import { JobberAssignmentError } from "@/lib/care-operations/jobber-visit-assignment";
+import { loadOwnerDispatchAssignableUsers } from "./owner-dispatch-assignment-server";
 import {
   buildOwnerDispatchPayload,
   ownerDispatchMonthUtcBounds,
@@ -34,6 +36,10 @@ export async function loadOwnerDispatchMonth(
   month: string,
 ): Promise<OwnerDispatchPayload> {
   const { startUtc, endUtc } = ownerDispatchMonthUtcBounds(month);
+  const generatedAt = new Date().toISOString();
+  const lowerBound = new Date(
+    Math.max(startUtc.getTime(), Date.parse(generatedAt)),
+  ).toISOString();
   const supabase = createServiceRoleSupabaseClient();
   const [connection, visitsResult, latestSyncResult] = await Promise.all([
     readJobberConnectionStatus(),
@@ -42,7 +48,8 @@ export async function loadOwnerDispatchMonth(
       .select(DISPATCH_VISIT_SELECT)
       .eq("connection_id", JOBBER_CONNECTION_ID)
       .neq("visit_status", "REMOVED")
-      .gte("scheduled_start", startUtc.toISOString())
+      .eq("is_complete", false)
+      .gt("scheduled_start", lowerBound)
       .lt("scheduled_start", endUtc.toISOString())
       .order("scheduled_start", { ascending: true })
       .limit(1_500),
@@ -82,6 +89,32 @@ export async function loadOwnerDispatchMonth(
   const latestSync = latestSyncResult.data as {
     source_observed_at?: string;
   } | null;
+  let assignableUsers: OwnerDispatchPayload["assignableUsers"] = [];
+  let assignmentCapability: OwnerDispatchPayload["assignmentCapability"] =
+    connection.connected ? "unavailable" : "permission_required";
+  let assignmentMessage: string | null = connection.connected
+    ? null
+    : "Reconnect Jobber before assigning technicians.";
+  if (connection.connected) {
+    try {
+      assignableUsers = await loadOwnerDispatchAssignableUsers();
+      assignmentCapability = "available";
+      assignmentMessage = assignableUsers.length
+        ? null
+        : "No Jobber users are currently marked available for scheduling.";
+    } catch (error) {
+      if (error instanceof JobberAssignmentError) {
+        assignmentCapability = error.code === "permission_required"
+          ? "permission_required"
+          : "unavailable";
+        assignmentMessage = error.message;
+      } else {
+        assignmentCapability = "unavailable";
+        assignmentMessage =
+          "Technician assignments are temporarily unavailable. The future-job board is still current.";
+      }
+    }
+  }
   return buildOwnerDispatchPayload({
     month,
     connected: connection.connected,
@@ -90,5 +123,9 @@ export async function loadOwnerDispatchMonth(
     lastSyncedAt: latestSync?.source_observed_at ?? null,
     projections,
     geocodes,
+    assignableUsers,
+    assignmentCapability,
+    assignmentMessage,
+    generatedAt,
   });
 }

@@ -46,6 +46,19 @@ export interface OwnerDispatchCrewMember {
   scheduledMinutes: number;
 }
 
+export interface OwnerDispatchAssignableUser {
+  id: string;
+  name: string;
+  availableForScheduling: boolean;
+  isAccountOwner: boolean;
+  isAccountAdmin: boolean;
+}
+
+export type OwnerDispatchAssignmentCapability =
+  | "available"
+  | "permission_required"
+  | "unavailable";
+
 export interface OwnerDispatchPayload {
   month: string;
   timezone: string;
@@ -56,6 +69,9 @@ export interface OwnerDispatchPayload {
   lastSyncedAt: string | null;
   visits: OwnerDispatchVisit[];
   crew: OwnerDispatchCrewMember[];
+  assignableUsers: OwnerDispatchAssignableUser[];
+  assignmentCapability: OwnerDispatchAssignmentCapability;
+  assignmentMessage: string | null;
   summary: {
     total: number;
     remaining: number;
@@ -168,12 +184,23 @@ export function buildOwnerDispatchPayload(input: {
   lastSyncedAt: string | null;
   projections: OwnerDispatchProjectionRow[];
   geocodes: OwnerDispatchGeocodeRow[];
+  assignableUsers?: OwnerDispatchAssignableUser[];
+  assignmentCapability?: OwnerDispatchAssignmentCapability;
+  assignmentMessage?: string | null;
   generatedAt?: string;
 }): OwnerDispatchPayload {
+  const generatedAt = input.generatedAt ?? new Date().toISOString();
+  const generatedAtMs = Date.parse(generatedAt);
   const geocodeByPropertyId = new Map(
     input.geocodes.map((row) => [row.external_property_id, row]),
   );
-  const visits = input.projections.map((row): OwnerDispatchVisit => {
+  const visits = input.projections.filter((row) => {
+    const scheduledStartMs = Date.parse(row.scheduled_start);
+    return !row.is_complete &&
+      row.visit_status !== "REMOVED" &&
+      Number.isFinite(scheduledStartMs) &&
+      scheduledStartMs > generatedAtMs;
+  }).map((row): OwnerDispatchVisit => {
     const assignment = readJobberTodayVisitAssignment(row.raw_payload);
     const scope = readJobberTodayVisitScope(row.raw_payload);
     const property = readPropertyAddress(row.property_address);
@@ -240,7 +267,7 @@ export function buildOwnerDispatchPayload(input: {
   return {
     month: input.month,
     timezone: COMPANY_BUSINESS_TIMEZONE,
-    generatedAt: input.generatedAt ?? new Date().toISOString(),
+    generatedAt,
     connected: input.connected,
     connectionStatus: input.connectionStatus,
     accountName: input.accountName,
@@ -249,6 +276,9 @@ export function buildOwnerDispatchPayload(input: {
     crew: [...crewTotals.values()].sort((left, right) =>
       left.displayName.localeCompare(right.displayName, "en-US"),
     ),
+    assignableUsers: input.assignableUsers ?? [],
+    assignmentCapability: input.assignmentCapability ?? "unavailable",
+    assignmentMessage: input.assignmentMessage ?? null,
     summary: {
       total: visits.length,
       remaining: visits.length - complete,
