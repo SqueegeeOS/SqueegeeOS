@@ -253,7 +253,8 @@
 .atlasCore { position: relative; width: 310px; height: 310px; margin: 72px auto 0 10px; border: 1px solid rgba(212,189,141,.2); border-radius: 50%; }
 .atlasCore::before, .atlasCore::after { content: ""; position: absolute; border: 1px solid rgba(212,189,141,.12); border-radius: 50%; }
 .atlasCore::before { inset: 31px; } .atlasCore::after { inset: 82px; }
-.coreMark { position: absolute; z-index: 2; top: 50%; left: 50%; display: grid; width: 92px; height: 92px; place-items: center; border-radius: 50%; background: var(--cream); color: var(--forest); box-shadow: 0 0 70px rgba(212,189,141,.16); transform: translate(-50%,-50%); }
+.coreMark { position: absolute; z-index: 2; top: 50%; left: 50%; display: grid; width: 92px; height: 92px; place-items: center; border-radius: 50%; background: var(--cream); color: var(--gold); box-shadow: 0 0 70px rgba(212,189,141,.16); transform: translate(-50%,-50%); }
+.coreMark svg { --accent: var(--gold); color: var(--gold); }
 .atlasCore > p { position: absolute; z-index: 3; right: -72px; bottom: 12px; margin: 0; color: rgba(244,239,228,.42); font-family: var(--font-mono),monospace; font-size: .48rem; line-height: 1.7; letter-spacing: .18em; }
 .orbitOne, .orbitTwo { position: absolute; inset: -1px; border-radius: 50%; animation: orbit 13s linear infinite; }
 .orbitTwo { inset: 31px; animation-duration: 9s; animation-direction: reverse; }
