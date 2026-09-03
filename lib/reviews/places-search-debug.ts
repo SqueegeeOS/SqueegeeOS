@@ -5,7 +5,10 @@ import {
   type PlaceSearchCandidate,
   type NewPlaceRecord,
 } from "./place-id-resolver";
-import { CHICO_SEARCH_BIAS } from "./places-search-config";
+import {
+  CHICO_SEARCH_BIAS,
+  getPlacesSearchRadiusMeters,
+} from "./places-search-config";
 
 export type PlacesSearchApiKind =
   | "places_new"
@@ -147,6 +150,24 @@ export async function runPlacesSearchDiagnostic(
     );
   }
 
+  const newApiInvalidArgument = attempts.some(
+    (attempt) =>
+      attempt.api === "places_new" &&
+      (attempt.httpStatus === 400 ||
+        attempt.googleStatus === "INVALID_ARGUMENT"),
+  );
+  if (newApiInvalidArgument) {
+    notes.push(
+      "Places API (New) rejected the request as invalid. The search radius is already capped at Google's 50 km limit; review the returned Google error message and request fields before retrying.",
+    );
+  }
+
+  if (attempts.length > 0 && merged.size === 0 && !onlyErrors) {
+    notes.push(
+      "Google accepted at least one search, but these queries returned no candidates. Service-area businesses may still be absent from public Places results; Business Profile API access remains the authoritative connection path.",
+    );
+  }
+
   return {
     queriesAttempted: queries,
     apiKeySource: meta.apiKeySource,
@@ -166,15 +187,14 @@ function buildNewSearchBody(query: string, serviceAreaMode?: boolean) {
     pageSize: 10,
     languageCode: "en",
     regionCode: "US",
+    ...(serviceAreaMode ? { includePureServiceAreaBusinesses: true } : {}),
     locationBias: {
       circle: {
         center: {
           latitude: CHICO_SEARCH_BIAS.latitude,
           longitude: CHICO_SEARCH_BIAS.longitude,
         },
-        radius: serviceAreaMode
-          ? CHICO_SEARCH_BIAS.radiusMeters * 1.5
-          : CHICO_SEARCH_BIAS.radiusMeters,
+        radius: getPlacesSearchRadiusMeters(serviceAreaMode),
       },
     },
   };
@@ -254,9 +274,7 @@ async function debugPlacesLegacy(
   url.searchParams.set(
     "radius",
     String(
-      serviceAreaMode
-        ? CHICO_SEARCH_BIAS.radiusMeters * 1.5
-        : CHICO_SEARCH_BIAS.radiusMeters,
+      getPlacesSearchRadiusMeters(serviceAreaMode),
     ),
   );
 
@@ -313,7 +331,7 @@ async function debugFindPlaceText(
   url.searchParams.set("key", apiKey);
   url.searchParams.set(
     "locationbias",
-    `circle:${serviceAreaMode ? CHICO_SEARCH_BIAS.radiusMeters * 1.5 : CHICO_SEARCH_BIAS.radiusMeters}@${CHICO_SEARCH_BIAS.latitude},${CHICO_SEARCH_BIAS.longitude}`,
+    `circle:${getPlacesSearchRadiusMeters(serviceAreaMode)}@${CHICO_SEARCH_BIAS.latitude},${CHICO_SEARCH_BIAS.longitude}`,
   );
 
   const response = await fetch(url.toString(), { cache: "no-store" });

@@ -1,4 +1,7 @@
-import { CHICO_SEARCH_BIAS } from "./places-search-config";
+import {
+  CHICO_SEARCH_BIAS,
+  getPlacesSearchRadiusMeters,
+} from "./places-search-config";
 
 const PLACE_ID_PATTERN = /ChIJ[A-Za-z0-9_-]{10,}/g;
 const MAX_REDIRECTS = 12;
@@ -594,15 +597,14 @@ export interface SearchGooglePlacesOptions {
 }
 
 function buildNewSearchBody(query: string, serviceAreaMode?: boolean) {
-  const radius = serviceAreaMode
-    ? CHICO_SEARCH_BIAS.radiusMeters * 1.5
-    : CHICO_SEARCH_BIAS.radiusMeters;
+  const radius = getPlacesSearchRadiusMeters(serviceAreaMode);
 
   return {
     textQuery: query,
     pageSize: 10,
     languageCode: "en",
     regionCode: "US",
+    ...(serviceAreaMode ? { includePureServiceAreaBusinesses: true } : {}),
     locationBias: {
       circle: {
         center: {
@@ -754,7 +756,7 @@ async function searchFindPlaceFromText(
   url.searchParams.set("key", apiKey);
   url.searchParams.set(
     "locationbias",
-    `circle:${serviceAreaMode ? CHICO_SEARCH_BIAS.radiusMeters * 1.5 : CHICO_SEARCH_BIAS.radiusMeters}@${CHICO_SEARCH_BIAS.latitude},${CHICO_SEARCH_BIAS.longitude}`,
+    `circle:${getPlacesSearchRadiusMeters(serviceAreaMode)}@${CHICO_SEARCH_BIAS.latitude},${CHICO_SEARCH_BIAS.longitude}`,
   );
 
   try {
@@ -811,9 +813,7 @@ async function searchGooglePlacesLegacy(
   url.searchParams.set(
     "radius",
     String(
-      serviceAreaMode
-        ? CHICO_SEARCH_BIAS.radiusMeters * 1.5
-        : CHICO_SEARCH_BIAS.radiusMeters,
+      getPlacesSearchRadiusMeters(serviceAreaMode),
     ),
   );
 
