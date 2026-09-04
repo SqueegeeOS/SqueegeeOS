@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canCreateNativeJobCloseout,
   technicianCanDocumentVisit,
   technicianCanFinishJob,
   technicianJobClockElapsedSeconds,
@@ -15,6 +16,14 @@ const VALID_REQUEST = {
 };
 
 describe("technician job clock", () => {
+  it("offers native closeout only while running and before the first saved record", () => {
+    expect(canCreateNativeJobCloseout("not_started", 0)).toBe(false);
+    expect(canCreateNativeJobCloseout("running", 0)).toBe(true);
+    expect(canCreateNativeJobCloseout("running", 1)).toBe(false);
+    expect(canCreateNativeJobCloseout("finished", 0)).toBe(false);
+    expect(canCreateNativeJobCloseout("finished", 1)).toBe(false);
+    expect(canCreateNativeJobCloseout("running", Number.NaN)).toBe(false);
+  });
   it("accepts only appointment-scoped start and finish actions", () => {
     expect(validateTechnicianJobClockRequest(VALID_REQUEST)).toBeNull();
     expect(

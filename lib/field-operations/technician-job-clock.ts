@@ -8,6 +8,14 @@ export type TechnicianJobClockState =
   | "running"
   | "finished";
 
+/** Native jobs have one closeout; additional submissions are not amendments. */
+export function canCreateNativeJobCloseout(
+  state: TechnicianJobClockState,
+  closeoutCount: number,
+): boolean {
+  return state === "running" && closeoutCount === 0;
+}
+
 export interface TechnicianJobClockRequest {
   actionId: string;
   propertyId?: string | null;
