@@ -48,7 +48,8 @@
   at 21:30:12 UTC (2:30 PM Pacific) after the origin fix; current status is active.
   Do not replace that access or resend the consumed invitation.
 - Actual camera file upload through Tyler's device and opening that stored image in HQ.
-- Native exception resolution workflow beyond viewing the flag/notes.
+- Native exception resolution shipped in PR #170; real customer use remains
+  unverified because no native customer closeout exists yet.
 - Non-member payment collection remains a separate owner/provider action.
 - Broader luxury audit remains open; this phase does not claim every site surface is finished.
 
@@ -233,5 +234,48 @@ described above is the only live SMS sent by this launch phase.
   resolution, queue read failure, private evidence, original work summary, unchanged
   Jobber completion, upcoming navigation, referrals, keyboard and no overflow/errors.
   Inspected mobile saved-resolution screenshot; agent-browser checked entry screen.
-- CI/release/canonical production verification pending. Real Tyler phone/photo/job
-  run remains unverified; do not claim full launch completion from synthetic work.
+- PR #170 merged `27e3dd0`; CI `33926367909` passed tests/lint/build in 2m12s.
+  Production `dpl_AnmjN82upJqB6NtkPxW1krXWL9Bg` /
+  `squeegee-6c23km592-squeegee-os.vercel.app` is Ready; build/deploy about 132s.
+- Canonical owner HQ Today displays 0 open issues, the truthful empty queue and
+  a working Refresh issues button; no alerts/overflow. Unauthenticated production
+  issue GET and resolution PATCH both returned 401 without any record writes.
+- Canonical technician owner-preview Upcoming still loads 17 direction links;
+  no issue queue exposed there, no alerts/overflow. Returned owner's tab to Today.
+  Deployment-specific 15-minute error scan returned no rows; drain/monitor setup
+  was not re-audited. Customer resolution writes were not exercised in live UI.
+- Live read-only assignment audit: Tyler has eight future nonremoved incomplete
+  visits, Sep 7 08:00 Pacific through Sep 28 10:00 Pacific. No assignment changed.
+- Real Tyler phone/photo/job run remains unverified; do not claim full launch
+  completion from synthetic work. Next audit should cover remaining referral-to-sale
+  attribution and owner history access, then prepare the real-device first-job check.
+
+## 2026-09-04: Exact technician referral credit in HQ
+
+- Read-only production audit found zero technician referrals; no test lead, owner
+  alert email, customer message, commission, charge or provider mutation was created.
+- HQ sales/request lists now show the authenticated referring technician directly.
+  Customer workspaces show a shared, owner-only referral-credit card with a direct
+  original-inquiry link. No circular link appears when already on that inquiry.
+- Fixed a lineage/visibility gap: original technician inquiries no longer redirect
+  via fuzzy email/address matching to a potentially different customer record.
+  A sold property's credit follows membership -> exact presentation -> exact intake,
+  not a newer draft or most recent email-matched lead. Existing nonreferral customer
+  matching and all provider/commission business rules remain unchanged.
+- Durable read failures show credit unavailable, never an invented replacement.
+  No local presentation fallback is used for credit. No earnings/payout amount is
+  inferred from a signature, active plan or saved card; collected-payment and agreed
+  compensation review remain owner work. This is attribution, not a payroll ledger.
+- Added 14 regression tests: exact lineage, missing metadata/read failures, no cloud
+  fallback, exact original-workspace navigation, and signed-plan handoff. Full suite
+  passed 1,501 tests / 322 files; lint passed (84 existing warnings, zero errors);
+  production build and TypeScript passed.
+- Local production-build browser fixture passed 390/1440: visible credit, keyboard
+  original link, no self-link, unavailable/absent states, no horizontal overflow,
+  no client errors or business writes. Mobile screenshot inspected. Re-ran owner
+  closeout/issue/navigation and technician activation/clock/photo/retry/finish
+  fixtures at both widths; all passed with Jobber completion unchanged. The local
+  agent-browser check verified technician access entry; isolated browser closed.
+- Production release and post-deploy checks pending. A real technician referral
+  sale, collected commission, and Tyler's real phone/photo/job run are not verified.
+  Next: owner history access and a concise real-device first-job handoff.

@@ -1,5 +1,7 @@
 "use client";
 
+import { TechnicianReferralLabel } from "./technician-referral-credit";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -120,6 +122,7 @@ function RequestInboxRow({
           <p className="mt-1 truncate text-sm leading-relaxed text-muted">
             {detailLine}
           </p>
+          <TechnicianReferralLabel lead={lead} />
         </button>
 
         <div className="flex shrink-0 flex-col items-end gap-2 pt-0.5">

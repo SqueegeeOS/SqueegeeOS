@@ -36,6 +36,7 @@ import {
 import { normalizeUsPostalCodeInput } from "@/lib/address/postal-code";
 import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
 import { VISIT_MONTHS } from "@/lib/membership/visit-preferences";
+import { TechnicianReferralCreditCard } from "./technician-referral-credit";
 
 function paymentSetupGuidance(
   state: PaymentSetupEmailState,
@@ -380,6 +381,7 @@ export function CustomerWorkspacePage({
               ) : null}
             </header>
 
+            <TechnicianReferralCreditCard credit={workspace.technicianReferralCredit} currentLeadId={type === "lead" ? id : null} />
             {error ? <p className="mb-4 text-sm text-red-500">{error}</p> : null}
             {paymentNotice ? (
               <p
