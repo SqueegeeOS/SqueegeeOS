@@ -13,7 +13,9 @@ import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import {
   classifyJobberTodayVisit,
+  hasNativeJobberVisitAssignment,
   isJobberTodayDataStale,
+  jobberVisitNeedsCustomerPortalUpdate,
   type JobberTodayData,
   type JobberTodayVisit,
   type JobberTodayVisitMoment,
@@ -326,10 +328,7 @@ function JobberVisitCard({
     visit.isComplete &&
     visit.homeAtlasFieldRecordCount === 0;
   const needsCustomerPortalUpdate =
-    fieldRecordStatusAvailable &&
-    visit.isComplete &&
-    visit.homeAtlasFieldRecordCount > 0 &&
-    visit.homeAtlasCustomerVisibleRecordCount === 0;
+    fieldRecordStatusAvailable && jobberVisitNeedsCustomerPortalUpdate(visit);
   const needsJobberCompletion =
     fieldEventStatusAvailable &&
     visit.homeAtlasFieldStage === "departed" &&
@@ -409,8 +408,8 @@ function JobberVisitCard({
             ) : null}
             <p
               className={`mt-3 text-xs ${
-                visit.assignmentReadState !== "available" ||
-                visit.assignedUsers.length === 0
+                !hasNativeJobberVisitAssignment(visit) &&
+                (visit.assignmentReadState !== "available" || visit.assignedUsers.length === 0)
                   ? "text-amber-200"
                   : "text-muted"
               }`}
@@ -697,6 +696,18 @@ function JobberVisitCard({
                 </div>
               ) : null}
             </>
+          ) : visit.homeAtlasFieldAssignmentId ? (
+            <div className="rounded-xl border border-border bg-foreground/[0.025] p-4 text-xs leading-relaxed text-muted">
+              <p>
+                Private technician job. HQ can review its work evidence without a
+                membership or customer portal. Pairing is only needed to publish a
+                separate customer update.
+              </p>
+              <Link href={jobberTodayPairingHref(visit.projectionId)}
+                className="mt-2 inline-flex min-h-10 items-center text-accent underline underline-offset-4">
+                Optional customer portal pairing
+              </Link>
+            </div>
           ) : propertyId ? (
             <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] p-4 text-xs leading-relaxed text-amber-100">
               This property is paired, but the HomeAtlas appointment is still
@@ -984,7 +995,7 @@ function TodayWorkspaceContent({
                 detail={
                   data.summary.assignmentUnknown > 0
                     ? `${data.summary.assignmentUnknown} stop${data.summary.assignmentUnknown === 1 ? "" : "s"} could not be verified`
-                    : "Mirrored from Jobber"
+                    : "HomeAtlas or Jobber assignment"
                 }
               />
               <MetricCard
@@ -997,7 +1008,7 @@ function TodayWorkspaceContent({
                 detail={
                   data.summary.assignmentUnknown > 0
                     ? "Crew visibility incomplete"
-                    : "Needs a Jobber crew assignment"
+                    : "Assign a technician in Dispatch"
                 }
                 warning={
                   data.summary.assignmentUnknown > 0 ||
@@ -1098,15 +1109,15 @@ function TodayWorkspaceContent({
         {data && data.summary.assignmentUnknown > 0 ? (
           <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
             HomeAtlas could not verify crew assignments for {data.summary.assignmentUnknown} visit
-            {data.summary.assignmentUnknown === 1 ? "" : "s"}. Keep dispatching
-            from Jobber until the app has Users read access and a fresh sync.
+            {data.summary.assignmentUnknown === 1 ? "" : "s"}. Review these stops
+            in Dispatch or Jobber before assigning. Their crew visibility is incomplete.
           </div>
         ) : data && data.summary.unassigned > 0 ? (
           <div className="mb-6 rounded-2xl border border-amber-500/25 bg-amber-500/[0.06] p-4 text-sm text-amber-100">
             {data.summary.unassigned} visit
             {data.summary.unassigned === 1 ? " has" : "s have"} no technician
-            assigned in Jobber. Assign the crew there; HomeAtlas will mirror it
-            on the next sync.
+            assigned. Use HomeAtlas Dispatch to assign a technician, or assign
+            in Jobber and sync. Appointment dates remain controlled by Jobber.
           </div>
         ) : null}
 

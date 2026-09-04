@@ -10,6 +10,7 @@ import { TechnicianUpcoming } from "@/components/field/technician-upcoming";
 import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
 import {
   classifyJobberTodayVisit,
+  hasNativeJobberVisitAssignment,
   isJobberTodayDataStale,
   type JobberTodayData,
   type JobberTodayVisit,
@@ -470,13 +471,15 @@ function TechnicianVisitCard({
           <span className="uppercase tracking-[0.15em] text-muted">Crew</span>
           <span
             className={
-              visit.assignmentReadState !== "available" ||
-              visit.assignedUsers.length === 0
+              !hasNativeJobberVisitAssignment(visit) &&
+              (visit.assignmentReadState !== "available" || visit.assignedUsers.length === 0)
                 ? "text-warning"
                 : "text-foreground/75"
             }
           >
-            {visit.assignmentReadState !== "available"
+            {hasNativeJobberVisitAssignment(visit)
+              ? visit.homeAtlasAssignedTechnicianName || "Assigned technician"
+              : visit.assignmentReadState !== "available"
               ? "Visibility unavailable"
               : visit.assignedUsers.length > 0
                 ? visit.assignedUsers.map((user) => user.name).join(", ")

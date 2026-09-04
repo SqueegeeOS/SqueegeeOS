@@ -1,6 +1,8 @@
-import type {
-  JobberTodayAssignedUser,
-  JobberTodayVisit,
+import {
+  hasNativeJobberVisitAssignment,
+  jobberVisitNeedsCustomerPortalUpdate,
+  type JobberTodayAssignedUser,
+  type JobberTodayVisit,
 } from "@/lib/care-operations/jobber-today-types";
 
 export type TechnicianVisitReadiness =
@@ -44,7 +46,16 @@ export const TECHNICIAN_UNASSIGNED_CREW = "unassigned";
 type TechnicianAssignmentInput = Pick<
   JobberTodayVisit,
   "assignedUsers" | "assignmentReadState"
->;
+> & Partial<Pick<JobberTodayVisit,
+  "homeAtlasFieldAssignmentId" | "homeAtlasAssignedTechnicianId" | "homeAtlasAssignedTechnicianName"
+>>;
+
+function effectiveTechnicianCrew(visit: TechnicianAssignmentInput): JobberTodayAssignedUser[] {
+  if (hasNativeJobberVisitAssignment(visit) && visit.homeAtlasAssignedTechnicianId) {
+    return [{ id: visit.homeAtlasAssignedTechnicianId, name: visit.homeAtlasAssignedTechnicianName || "Assigned technician" }];
+  }
+  return visit.assignmentReadState === "available" ? visit.assignedUsers : [];
+}
 
 export function technicianCrewSelection(userId: string): string {
   return `user:${userId}`;
@@ -55,9 +66,8 @@ export function listTechnicianCrew(
 ): TechnicianCrewMember[] {
   const crew = new Map<string, TechnicianCrewMember>();
   for (const visit of visits) {
-    if (visit.assignmentReadState !== "available") continue;
     const seenOnVisit = new Set<string>();
-    for (const user of visit.assignedUsers) {
+    for (const user of effectiveTechnicianCrew(visit)) {
       if (seenOnVisit.has(user.id)) continue;
       seenOnVisit.add(user.id);
       const existing = crew.get(user.id);
@@ -81,7 +91,7 @@ export function filterTechnicianVisits<T extends TechnicianAssignmentInput>(
   if (crewSelection === TECHNICIAN_UNASSIGNED_CREW) {
     return visits.filter(
       (visit) =>
-        visit.assignmentReadState === "available" &&
+        !hasNativeJobberVisitAssignment(visit) && visit.assignmentReadState === "available" &&
         visit.assignedUsers.length === 0,
     );
   }
@@ -89,7 +99,7 @@ export function filterTechnicianVisits<T extends TechnicianAssignmentInput>(
   const userId = crewSelection.slice("user:".length);
   if (!userId) return visits;
   return visits.filter((visit) =>
-    visit.assignedUsers.some((user) => user.id === userId),
+    effectiveTechnicianCrew(visit).some((user) => user.id === userId),
   );
 }
 
@@ -107,12 +117,7 @@ export function resolveTechnicianVisitReadiness(
     return "closeout_required";
   }
   if (visit.homeAtlasOpenFollowUpCount > 0) return "follow_up_open";
-  if (
-    !visit.homeAtlasFieldAssignmentId &&
-    visit.isComplete &&
-    visit.homeAtlasFieldRecordCount > 0 &&
-    visit.homeAtlasCustomerVisibleRecordCount === 0
-  ) {
+  if (jobberVisitNeedsCustomerPortalUpdate(visit)) {
     return "portal_update_required";
   }
   if (visit.isComplete) return "complete";

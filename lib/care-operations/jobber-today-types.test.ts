@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   classifyJobberTodayVisit,
+  jobberVisitNeedsCustomerPortalUpdate,
   isJobberTodayDataStale,
   readJobberTodayVisitAssignment,
   readJobberTodayVisitScope,
@@ -216,6 +217,45 @@ describe("Jobber Today board states", () => {
       unassigned: 1,
       assignmentUnknown: 2,
     });
+  });
+
+  it("accepts private native evidence without claiming a portal update or Jobber completion", () => {
+    const visit = {
+      isComplete: true, homeAtlasFieldRecordCount: 1,
+      homeAtlasCustomerVisibleRecordCount: 0, homeAtlasFieldStage: "departed" as const,
+      assignedUsers: [], assignmentReadState: "available" as const,
+      homeAtlasFieldAssignmentId: "assignment-1", homeAtlasAssignedTechnicianId: "homeatlas:tech-1",
+    };
+    expect(jobberVisitNeedsCustomerPortalUpdate(visit)).toBe(false);
+    expect(summarizeJobberTodayVisits([visit])).toMatchObject({
+      complete: 1, documented: 1, portalUpdated: 0, completedWithoutRecord: 0,
+      completedWithPrivateOnlyRecord: 0, assigned: 1, unassigned: 0, assignmentUnknown: 0,
+    });
+    expect(summarizeJobberTodayVisits([{ ...visit, isComplete: false }])).toMatchObject({
+      complete: 0, remaining: 1, jobberCompletionPending: 1,
+    });
+    expect(summarizeJobberTodayVisits([{ ...visit, homeAtlasFieldRecordCount: 0 }])).toMatchObject({
+      completedWithoutRecord: 1, documented: 0,
+    });
+    expect(jobberVisitNeedsCustomerPortalUpdate({ ...visit, homeAtlasFieldAssignmentId: null })).toBe(true);
+    expect(jobberVisitNeedsCustomerPortalUpdate({ ...visit, homeAtlasFieldAssignmentId: null, isComplete: false })).toBe(false);
+    expect(jobberVisitNeedsCustomerPortalUpdate({ ...visit, homeAtlasFieldAssignmentId: null, homeAtlasCustomerVisibleRecordCount: 1 })).toBe(false);
+  });
+
+  it("counts confirmed native assignments even when Jobber crew visibility is unavailable", () => {
+    const visit = {
+      isComplete: false, homeAtlasFieldRecordCount: 0, homeAtlasCustomerVisibleRecordCount: 0,
+      homeAtlasFieldStage: null, assignedUsers: [], assignmentReadState: "permission_hidden" as const,
+      homeAtlasFieldAssignmentId: "assignment-1", homeAtlasAssignedTechnicianId: "homeatlas:tech-1",
+    };
+    expect(summarizeJobberTodayVisits([visit])).toMatchObject({ assigned: 1, unassigned: 0, assignmentUnknown: 0 });
+    for (const incomplete of [
+      { ...visit, homeAtlasFieldAssignmentId: null },
+      { ...visit, homeAtlasAssignedTechnicianId: null },
+    ]) {
+      expect(summarizeJobberTodayVisits([incomplete])).toMatchObject({ assigned: 0, unassigned: 0, assignmentUnknown: 1 });
+    }
+    expect(summarizeJobberTodayVisits([{ ...visit, assignedUsers: [{ id: "other", name: "Other tech" }], assignmentReadState: "available" }])).toMatchObject({ assigned: 1 });
   });
 
   it("opens field capture only through the active property and appointment pair", () => {

@@ -33,12 +33,13 @@ try {
     let evidenceReads = 0;
     let failUpcoming = false;
     let inviteSends = 0;
+    let ownerBoard = board;
     await page.route("**/api/**", async route => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/api/admin/unlock") return route.fulfill({ json: { mode: "pin" } });
       if (path === "/api/admin/technicians/access-grants") return route.fulfill({ json: route.request().method() === "POST" ? { grantId: assignmentId, inviteExpiresAt: now, claimPath: "/tech/access?token=" + "a".repeat(43) } : { crew: [{ jobberUserId: "homeatlas:" + assignmentId, displayName: "Internal Test", source: "homeatlas", observedStopCount: 0, latestObservedAt: null, currentGrant: null }], grants: [] } });
       if (path === `/api/admin/technicians/access-grants/${assignmentId}/sms`) { inviteSends++; return route.fulfill({ json: { status: "queued", destinationEnding: "0199", receiptSaved: true } }); }
-      if (path === "/api/admin/care-operations/jobber/today") return route.fulfill({ json: board });
+      if (path === "/api/admin/care-operations/jobber/today") return route.fulfill({ json: ownerBoard });
       if (path === "/api/field/today") return route.fulfill({ json: board });
       if (path === "/api/field/upcoming") return route.fulfill(failUpcoming ? { status: 503, json: { error: "Schedule temporarily unavailable" } } : { json: { visits: [{ id: "future-1", clientName: "Future assigned household", service: "Exterior glass and screens", scheduledStart: "2026-09-15T16:00:00Z", scheduledEnd: null, address: "1 Test Street" }] } });
       if (path === `/api/admin/field-records/${assignmentId}`) {
@@ -74,7 +75,28 @@ try {
     await page.getByText("Inspect the gate latch.", { exact: true }).waitFor();
     await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-evidence-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);
+    ownerBoard = { ...board, visits: [{ ...visit, isComplete: true }],
+      summary: { ...board.summary, complete: 1, remaining: 0, jobberCompletionPending: 0 } };
+    await page.reload();
+    await page.getByRole("button", { name: "Review technician notes + photos" }).waitFor();
+    assert.equal(await page.getByText("Customer portal update needed", { exact: true }).count(), 0, "Native private evidence is a valid closeout");
+    assert.equal(await page.getByText("Close this visit in Jobber", { exact: true }).count(), 0, "Completed Jobber visits require no further completion");
+    await page.getByRole("link", { name: "Optional customer portal pairing" }).waitFor();
+    await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-native-complete-${width}.png`, fullPage: true });
+    ownerBoard = { ...ownerBoard, visits: [{ ...ownerBoard.visits[0], homeAtlasFieldAssignmentId: null, homeAtlasAssignedTechnicianId: null, homeAtlasAssignedTechnicianName: null }],
+      summary: { ...ownerBoard.summary, completedWithPrivateOnlyRecord: 1, assigned: 0, unassigned: 1 } };
+    await page.reload();
+    await page.getByText("Customer portal update needed", { exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Review technician notes + photos" }).count(), 0, "Legacy visit must not request unrelated native evidence");
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ width, nativePrivateCloseout: "accepted", legacyPortalWarning: "preserved" }));
     await page.goto(`${base}/tech`);
+    const nativeCrewLens = page.getByRole("button", { name: "Internal test tech · 1", exact: true });
+    await nativeCrewLens.waitFor();
+    await nativeCrewLens.click();
+    await page.getByRole("heading", { name: "Internal test household", exact: true }).waitFor();
+    assert.equal(await nativeCrewLens.getAttribute("aria-pressed"), "true");
+    assert.equal(await page.getByText("Unassigned in Jobber", { exact: true }).count(), 0);
     const techAccent = await page.locator(".atlas-role-shell").first().evaluate(el => getComputedStyle(el).getPropertyValue("--accent").trim());
     const upcoming = page.getByRole("button", { name: /Upcoming jobs/ });
     await upcoming.focus();

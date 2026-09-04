@@ -42,11 +42,11 @@
 
 ## Still not verified / launch handoff
 
-- Tyler's actual device claim and complete real assigned-job run. Following explicit
+- Tyler's complete real assigned-job run. Following explicit
   owner confirmation, one private activation invitation was sent to his registered
-  phone on September 4 at 21:08 UTC. Twilio accepted it; carrier delivery and device
-  activation are not established by that receipt. Activation expires September 5
-  at 21:08 UTC. Do not replace or resend a still-valid invitation automatically.
+  phone on September 4 at 21:08 UTC. The original grant was successfully claimed
+  at 21:30:12 UTC (2:30 PM Pacific) after the origin fix; current status is active.
+  Do not replace that access or resend the consumed invitation.
 - Actual camera file upload through Tyler's device and opening that stored image in HQ.
 - Native exception resolution workflow beyond viewing the flag/notes.
 - Non-member payment collection remains a separate owner/provider action.
@@ -99,3 +99,45 @@ described above is the only live SMS sent by this launch phase.
   extra capture controls, unchanged Jobber completion and mobile/desktop overflow.
 - This adds browser evidence for the technician controls, not proof of Tyler's
   physical-device upload, live storage signing or completion of his real jobs.
+
+### Release verification / next audit
+
+- PR #167 merged as `5e5911c`; CI tests/lint/build passed. Local suite: 1,455
+  tests / 316 files, production build and both browser fixture sizes passed.
+- Production `dpl_4JAd5KCsWF52F6MTr99y4y2EUY4q` is Ready on the canonical domain.
+  Live owner-preview technician shell and Upcoming jobs open with no alert or
+  horizontal overflow; the shared accent is #c9b896. No Jobber stops exist today,
+  so real clock/photo/closeout behavior could not be exercised on a live stop.
+- The next owner audit found HQ's customer-publication warning and crew counts
+  still using legacy assumptions; see the correction below.
+- Owner review/payment visibility and real-device photo evidence remain separate
+  completion gates. Do not mark the overall launch goal complete from fixtures.
+
+## HQ native review truth
+
+- Shared customer-update predicate now exempts private native closeouts in both
+  HQ Today and technician readiness; legacy portal closeout checks are preserved.
+- Confirmed HomeAtlas assignments count as assigned even when Jobber has no crew
+  seat or hides its crew list. Incomplete native identity does not fabricate a crew.
+- Owner field-mode crew filters and technician cards use the native assignment
+  ahead of the mirrored Jobber crew. Assignment summaries and instructions now
+  mention HomeAtlas Dispatch without changing Jobber scheduling authority.
+- HQ can review private native evidence without mandatory membership pairing.
+  Optional portal pairing and existing owner publication controls remain available.
+- Added regression tests for native/legacy publication, missing proof, unchanged
+  Jobber completion, partial assignment identity, native crew counts and filters.
+- Full local suite: 1,458 tests / 316 files; quiet lint and production build passed.
+- Browser verifier passed completed native/legacy owner states and the native crew
+  filter at 390px and 1440px, plus evidence retry, keyboard, no overflow, referral
+  layout and shared accent. Inspected the completed-native mobile screenshot.
+- Separate technician-role rehearsal passed activation, save retry, one private
+  upload/commit, clock-out and unchanged Jobber completion at both viewport sizes.
+  Browser APIs/storage remain synthetic; this is not a real customer job.
+- Local access entry was also inspected with agent-browser. CI/production pending.
+- Remaining owner audit: native exception resolution (not merely viewing flags),
+  and payment visibility. Jobber sync already observes invoice/invoiceReadState;
+  HQ Today currently omits that from its DTO. Inspect source-specific payment
+  evidence before adding any paid/unpaid label. No collection is authorized.
+- Owner's current design direction: fewer clicks, streamlined actions and visible
+  bottlenecks. Observed HQ mobile friction: nine metrics stack before the route.
+  Compact that summary and improve direct next actions in a subsequent UI pass.
