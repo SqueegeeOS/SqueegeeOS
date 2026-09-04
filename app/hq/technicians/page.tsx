@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { TechnicianAccessPage } from "@/components/admin/technician-access-page";
 
 export const metadata: Metadata = {
-  title: "Team Field Access | HomeAtlas HQ",
-  description: "Issue and revoke least-privilege HomeAtlas Field Passes.",
+  title: "Technicians | HomeAtlas HQ",
+  description: "Manage persistent, least-privilege HomeAtlas technician access.",
   robots: { index: false, follow: false },
 };
 

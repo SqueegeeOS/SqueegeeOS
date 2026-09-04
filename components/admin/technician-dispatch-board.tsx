@@ -44,11 +44,11 @@ const PASS_STATE_COPY: Record<
   { label: string; className: string }
 > = {
   active: {
-    label: "Field Pass active",
+    label: "Technician active",
     className: "border-emerald-300/25 text-emerald-100",
   },
   expiring: {
-    label: "Pass expiring",
+    label: "Access needs refresh",
     className: "border-amber-300/25 text-amber-100",
   },
   pending: {
@@ -56,15 +56,15 @@ const PASS_STATE_COPY: Record<
     className: "border-sky-300/25 text-sky-100",
   },
   expired: {
-    label: "Pass expired",
+    label: "Access expired",
     className: "border-red-300/25 text-red-100",
   },
   revoked: {
-    label: "Pass revoked",
+    label: "Access removed",
     className: "border-red-300/25 text-red-100",
   },
   missing: {
-    label: "No Field Pass",
+    label: "No Technician Access",
     className: "border-white/10 text-white/45",
   },
 };
@@ -270,7 +270,7 @@ function CrewDispatchCard({
           href={`#${technicianFieldPassAnchorId(member.jobberUserId)}`}
           className="mt-4 inline-flex min-h-11 items-center text-xs font-medium text-amber-100 underline decoration-amber-200/30 underline-offset-4"
         >
-          Set up this Field Pass
+          Set up Technician Access
         </a>
       ) : null}
     </li>
@@ -334,7 +334,7 @@ export function TechnicianDispatchBoard({
               <li>
                 {board.summary.crewWithoutUsablePass} scheduled crew member
                 {board.summary.crewWithoutUsablePass === 1 ? " needs" : "s need"}{" "}
-                a usable Field Pass.
+                active Technician Access.
               </li>
             ) : null}
             {board.summary.unassignedStops > 0 ? (

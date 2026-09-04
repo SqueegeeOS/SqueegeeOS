@@ -73,7 +73,11 @@ export async function updateLeadIntakeFields(
     status: data.status as LeadIntakeRecord["status"],
     submittedAt: data.submitted_at as string,
     source:
-      data.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+      data.source === "facebook_lead_ad"
+        ? "facebook_lead_ad"
+        : data.source === "technician_referral"
+          ? "technician_referral"
+          : "request_form",
     clientSubmissionId:
       (data.client_submission_id as string | null) ?? null,
     externalLeadId: (data.external_lead_id as string | null) ?? null,
@@ -85,6 +89,12 @@ export async function updateLeadIntakeFields(
     sourceAdsetName: (data.source_adset_name as string | null) ?? null,
     sourceAdId: (data.source_ad_id as string | null) ?? null,
     sourceAdName: (data.source_ad_name as string | null) ?? null,
+    referredByTechnicianKey:
+      (data.referred_by_technician_key as string | null) ?? null,
+    referredByTechnicianName:
+      (data.referred_by_technician_name as string | null) ?? null,
+    referralPermissionConfirmedAt:
+      (data.referral_permission_confirmed_at as string | null) ?? null,
   };
 }
 

@@ -100,7 +100,11 @@ function mapLeadRow(row: Record<string, unknown>): LeadIntakeRecord {
     status: row.status as LeadIntakeRecord["status"],
     submittedAt: row.submitted_at as string,
     source:
-      row.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+      row.source === "facebook_lead_ad"
+        ? "facebook_lead_ad"
+        : row.source === "technician_referral"
+          ? "technician_referral"
+          : "request_form",
     clientSubmissionId:
       (row.client_submission_id as string | null) ?? null,
     externalLeadId: (row.external_lead_id as string | null) ?? null,
@@ -112,6 +116,12 @@ function mapLeadRow(row: Record<string, unknown>): LeadIntakeRecord {
     sourceAdsetName: (row.source_adset_name as string | null) ?? null,
     sourceAdId: (row.source_ad_id as string | null) ?? null,
     sourceAdName: (row.source_ad_name as string | null) ?? null,
+    referredByTechnicianKey:
+      (row.referred_by_technician_key as string | null) ?? null,
+    referredByTechnicianName:
+      (row.referred_by_technician_name as string | null) ?? null,
+    referralPermissionConfirmedAt:
+      (row.referral_permission_confirmed_at as string | null) ?? null,
   };
 }
 

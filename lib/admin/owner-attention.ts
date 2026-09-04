@@ -268,7 +268,11 @@ function formatCapacityHours(minutes: number): string {
 function firstUsefulLeadContext(lead: LeadIntakeRecord): string {
   const service = lead.servicesInterested[0];
   return [
-    lead.source === "facebook_lead_ad" ? "Facebook lead" : "Website request",
+    lead.source === "facebook_lead_ad"
+      ? "Facebook lead"
+      : lead.source === "technician_referral"
+        ? `Technician referral${lead.referredByTechnicianName ? ` · ${lead.referredByTechnicianName}` : ""}`
+        : "Website request",
     service || null,
     lead.serviceAddress || null,
   ]

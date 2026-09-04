@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   const actor = await authorizeFieldRequest(request.headers);
   if (!actor) {
-    return NextResponse.json({ error: "Field Pass required" }, { status: 401 });
+    return NextResponse.json({ error: "Technician Access required" }, { status: 401 });
   }
 
   try {

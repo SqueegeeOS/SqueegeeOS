@@ -82,7 +82,7 @@ export default async function TechnicianPropertiesPage() {
         <div className="rounded-2xl border border-[#262c2a] bg-[#111615] px-6 py-12 text-center">
           <p className="text-sm leading-relaxed text-[#777]">
             {technicianSession
-              ? "No paired homes are assigned to this Field Pass today."
+              ? "No paired homes are assigned to you today."
               : "No properties yet. Paired HomeAtlas homes will appear here."}
           </p>
         </div>

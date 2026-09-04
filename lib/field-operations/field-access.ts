@@ -20,6 +20,7 @@ export {
 const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const HOMEATLAS_TECHNICIAN_PREFIX = "homeatlas:";
 
 function recentRosterWindow(): { from: string; to: string } {
   const now = Date.now();
@@ -38,6 +39,7 @@ export interface AdminFieldActor {
 
 export interface TechnicianFieldActor {
   kind: "technician";
+  role: "technician";
   displayName: string;
   grantId: string;
   jobberUserId: string;
@@ -61,6 +63,7 @@ export interface TechnicianAccessGrantView {
 export interface TechnicianRosterMember {
   jobberUserId: string;
   displayName: string;
+  source?: "jobber" | "homeatlas";
   observedStopCount: number;
   latestObservedAt: string | null;
   currentGrant: TechnicianAccessGrantView | null;
@@ -71,6 +74,7 @@ interface TechnicianAccessGrantRow {
   jobber_user_id: string;
   display_name: string;
   status: "pending" | "active" | "revoked";
+  access_role: "technician";
   invite_expires_at: string;
   session_expires_at: string | null;
   claimed_at: string | null;
@@ -81,6 +85,18 @@ interface TechnicianAccessGrantRow {
 interface JobberAssignmentProjectionRow {
   raw_payload: unknown;
   source_observed_at: string | null;
+}
+
+interface HomeAtlasTechnicianRow {
+  id: string;
+  display_name: string;
+  status: "active" | "inactive";
+}
+
+function homeAtlasTechnicianId(identityKey: string): string | null {
+  if (!identityKey.startsWith(HOMEATLAS_TECHNICIAN_PREFIX)) return null;
+  const id = identityKey.slice(HOMEATLAS_TECHNICIAN_PREFIX.length);
+  return UUID_PATTERN.test(id) ? id : null;
 }
 
 interface ClaimRpcRow {
@@ -161,21 +177,23 @@ export async function authorizeFieldRequest(
     const result = await supabase
       .from("technician_access_grants")
       .select(
-        "id, jobber_user_id, display_name, status, session_expires_at",
+        "id, jobber_user_id, display_name, status, access_role, session_expires_at",
       )
       .eq("session_token_hash", hashFieldAccessToken(sessionToken))
       .eq("status", "active")
+      .eq("access_role", "technician")
       .gt("session_expires_at", new Date().toISOString())
       .maybeSingle();
 
     if (result.error || !result.data) return null;
     const row = result.data as Pick<
       TechnicianAccessGrantRow,
-      "id" | "jobber_user_id" | "display_name" | "status" | "session_expires_at"
+      "id" | "jobber_user_id" | "display_name" | "status" | "access_role" | "session_expires_at"
     >;
     if (!row.session_expires_at) return null;
     return {
       kind: "technician",
+      role: "technician",
       grantId: row.id,
       jobberUserId: row.jobber_user_id,
       displayName: row.display_name,
@@ -191,7 +209,7 @@ export async function claimTechnicianFieldPass(inviteToken: string): Promise<{
   actor: TechnicianFieldActor;
 }> {
   if (!isFieldAccessToken(inviteToken)) {
-    throw new Error("This Field Pass link is invalid or expired.");
+    throw new Error("This Technician Access link is invalid or expired.");
   }
 
   const sessionToken = issueOpaqueFieldToken();
@@ -206,13 +224,14 @@ export async function claimTechnicianFieldPass(inviteToken: string): Promise<{
     .single();
 
   if (result.error || !result.data) {
-    throw new Error("This Field Pass link is invalid, expired, or already used.");
+    throw new Error("This Technician Access link is invalid, expired, or already used.");
   }
   const row = result.data as ClaimRpcRow;
   return {
     sessionToken,
     actor: {
       kind: "technician",
+      role: "technician",
       grantId: row.grant_id,
       jobberUserId: row.jobber_user_id,
       displayName: row.display_name,
@@ -241,27 +260,46 @@ export async function issueTechnicianFieldPass(input: {
   const inviteExpiresAt = new Date(Date.now() + FIELD_INVITE_TTL_MS);
   const supabase = createServiceRoleSupabaseClient();
   const rosterWindow = recentRosterWindow();
+  const nativeTechnicianId = homeAtlasTechnicianId(jobberUserId);
+
+  if (nativeTechnicianId) {
+    const nativeTechnician = await supabase
+      .from("homeatlas_technicians")
+      .select("id, display_name, status")
+      .eq("id", nativeTechnicianId)
+      .eq("status", "active")
+      .maybeSingle();
+    if (
+      nativeTechnician.error ||
+      !nativeTechnician.data ||
+      nativeTechnician.data.display_name !== displayName
+    ) {
+      throw new Error("Choose an active HomeAtlas technician.");
+    }
+  }
 
   // A pass can only be issued for a Jobber user actually observed in the
   // read-only visit projection. HQ cannot invent a privileged crew identity.
-  const observed = await supabase
-    .from("jobber_visit_projections")
-    .select("raw_payload")
-    .eq("connection_id", JOBBER_CONNECTION_ID)
-    .gte("scheduled_start", rosterWindow.from)
-    .lte("scheduled_start", rosterWindow.to)
-    .order("source_observed_at", { ascending: false })
-    .limit(2_000);
-  if (observed.error) throw new Error("Could not verify the Jobber crew roster.");
-  const mirrored = (observed.data ?? []).some((candidate) =>
-    readJobberTodayVisitAssignment(
-      (candidate as { raw_payload: unknown }).raw_payload,
-    ).assignedUsers.some(
-      (user) => user.id === jobberUserId && user.name === displayName,
-    ),
-  );
-  if (!mirrored) {
-    throw new Error("Refresh Jobber before issuing a pass for this crew member.");
+  if (!nativeTechnicianId) {
+    const observed = await supabase
+      .from("jobber_visit_projections")
+      .select("raw_payload")
+      .eq("connection_id", JOBBER_CONNECTION_ID)
+      .gte("scheduled_start", rosterWindow.from)
+      .lte("scheduled_start", rosterWindow.to)
+      .order("source_observed_at", { ascending: false })
+      .limit(2_000);
+    if (observed.error) throw new Error("Could not verify the Jobber crew roster.");
+    const mirrored = (observed.data ?? []).some((candidate) =>
+      readJobberTodayVisitAssignment(
+        (candidate as { raw_payload: unknown }).raw_payload,
+      ).assignedUsers.some(
+        (user) => user.id === jobberUserId && user.name === displayName,
+      ),
+    );
+    if (!mirrored) {
+      throw new Error("Refresh Jobber before issuing access for this crew member.");
+    }
   }
 
   const result = await supabase
@@ -274,7 +312,7 @@ export async function issueTechnicianFieldPass(input: {
     })
     .single();
   if (result.error || !result.data) {
-    throw new Error(result.error?.message ?? "Could not create the Field Pass.");
+    throw new Error(result.error?.message ?? "Could not create Technician Access.");
   }
   const row = result.data as {
     grant_id: string;
@@ -292,7 +330,7 @@ export async function revokeTechnicianFieldPass(
   revokedBy = "HomeAtlas HQ",
 ): Promise<{ grantId: string; revokedAt: string }> {
   if (!UUID_PATTERN.test(grantId) || !normalizedText(revokedBy, 80)) {
-    throw new Error("Choose a valid Field Pass to revoke.");
+    throw new Error("Choose valid Technician Access to remove.");
   }
   const supabase = createServiceRoleSupabaseClient();
   const result = await supabase
@@ -302,7 +340,7 @@ export async function revokeTechnicianFieldPass(
     })
     .single();
   if (result.error || !result.data) {
-    throw new Error(result.error?.message ?? "Could not revoke the Field Pass.");
+    throw new Error(result.error?.message ?? "Could not remove Technician Access.");
   }
   const row = result.data as { grant_id: string; revoked_at: string };
   return { grantId: row.grant_id, revokedAt: row.revoked_at };
@@ -314,7 +352,7 @@ export async function listTechnicianAccessRoster(): Promise<{
 }> {
   const supabase = createServiceRoleSupabaseClient();
   const rosterWindow = recentRosterWindow();
-  const [projectionResult, grantResult] = await Promise.all([
+  const [projectionResult, grantResult, nativeTechnicianResult] = await Promise.all([
     supabase
       .from("jobber_visit_projections")
       .select("raw_payload, source_observed_at")
@@ -326,17 +364,27 @@ export async function listTechnicianAccessRoster(): Promise<{
     supabase
       .from("technician_access_grants")
       .select(
-        "id, jobber_user_id, display_name, status, invite_expires_at, session_expires_at, claimed_at, revoked_at, created_at",
+        "id, jobber_user_id, display_name, status, access_role, invite_expires_at, session_expires_at, claimed_at, revoked_at, created_at",
       )
       .order("created_at", { ascending: false })
       .limit(500),
+    supabase
+      .from("homeatlas_technicians")
+      .select("id, display_name, status")
+      .eq("status", "active")
+      .order("display_name", { ascending: true }),
   ]);
   if (projectionResult.error) {
     throw new Error("Could not read the mirrored Jobber crew roster.");
   }
   if (grantResult.error) {
     throw new Error(
-      "Technician Field Pass storage is not ready. Apply migration 057.",
+      "Technician Access storage is not ready. Apply the latest migration.",
+    );
+  }
+  if (nativeTechnicianResult.error) {
+    throw new Error(
+      "HomeAtlas technician roster is not ready. Apply the latest migration.",
     );
   }
 
@@ -365,11 +413,23 @@ export async function listTechnicianAccessRoster(): Promise<{
       observedCrew.set(user.id, {
         jobberUserId: user.id,
         displayName: existing?.displayName ?? user.name,
+        source: "jobber",
         observedStopCount: (existing?.observedStopCount ?? 0) + 1,
         latestObservedAt:
           existing?.latestObservedAt ?? projection.source_observed_at,
       });
     }
+  }
+
+  for (const technician of (nativeTechnicianResult.data ?? []) as HomeAtlasTechnicianRow[]) {
+    const identityKey = `${HOMEATLAS_TECHNICIAN_PREFIX}${technician.id}`;
+    observedCrew.set(identityKey, {
+      jobberUserId: identityKey,
+      displayName: technician.display_name,
+      source: "homeatlas",
+      observedStopCount: observedCrew.get(identityKey)?.observedStopCount ?? 0,
+      latestObservedAt: null,
+    });
   }
 
   // A removed or inactive Jobber user must never disappear while their pass is
@@ -379,6 +439,9 @@ export async function listTechnicianAccessRoster(): Promise<{
     observedCrew.set(jobberUserId, {
       jobberUserId,
       displayName: currentGrant.displayName,
+      source: jobberUserId.startsWith(HOMEATLAS_TECHNICIAN_PREFIX)
+        ? "homeatlas"
+        : "jobber",
       observedStopCount: 0,
       latestObservedAt: null,
     });

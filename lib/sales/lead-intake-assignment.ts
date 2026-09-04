@@ -16,7 +16,10 @@ export interface LeadIntakeSalesAssignment {
   repDisplayName: string;
   repWorkspacePath: string;
   status: SalesLeadStatus;
-  source: Extract<SalesLeadSource, "request_form" | "facebook_lead_ad">;
+  source: Extract<
+    SalesLeadSource,
+    "request_form" | "facebook_lead_ad" | "technician_referral"
+  >;
   nextFollowUpAt: string;
   createdAt: string;
   updatedAt: string;
@@ -95,6 +98,8 @@ export function salesLeadSourceLabel(source: SalesLeadSource): string {
       return "Website request";
     case "facebook_lead_ad":
       return "Facebook lead";
+    case "technician_referral":
+      return "Technician referral";
     case "door_to_door":
       return "Door-to-door";
     case "referral":

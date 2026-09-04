@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { TechnicianPortalDock } from "@/components/field/technician-portal-dock";
 
 export const metadata: Metadata = {
   title: "Technician",
@@ -15,6 +16,9 @@ export default function TechLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-[100svh] bg-[#0a0a0a] text-white">{children}</div>
+    <div className="min-h-[100svh] bg-[#08100d] text-white">
+      {children}
+      <TechnicianPortalDock />
+    </div>
   );
 }
