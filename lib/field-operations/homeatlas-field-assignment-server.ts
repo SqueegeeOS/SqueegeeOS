@@ -1,4 +1,5 @@
 import "server-only";
+import { hasUnresolvedFieldIssue } from "@/lib/field-records/field-closeout-review";
 
 import { chunkItems } from "@/lib/care-operations/jobber-sync-utils";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
@@ -122,6 +123,13 @@ export async function loadHomeAtlasFieldExecution(assignmentIds: string[]): Prom
   }
   const closeouts = (closeoutResult.data ?? []) as CloseoutRow[];
   const recordIds = closeouts.map((row) => row.field_record_id);
+  const resolvedRecords = new Set<string>();
+  if (recordIds.length) {
+    const resolutions = await supabase.from("homeatlas_technician_issue_resolutions")
+      .select("field_record_id").in("field_record_id", recordIds);
+    if (resolutions.error) throw new Error("Could not verify technician issue status.");
+    for (const row of resolutions.data ?? []) resolvedRecords.add(row.field_record_id);
+  }
   const photoResult = recordIds.length
     ? await supabase.from("homeatlas_technician_job_photos")
         .select("field_record_id, customer_visible")
@@ -147,7 +155,7 @@ export async function loadHomeAtlasFieldExecution(assignmentIds: string[]): Prom
       latestFieldRecordBy: closeout?.technician_display_name ?? null,
       // Native closeouts live in private HQ tables, not the customer portal.
       customerVisibleRecordCount: 0,
-      openFollowUpCount: closeout?.follow_up_needed ? 1 : 0,
+      openFollowUpCount: closeout && hasUnresolvedFieldIssue(closeout.follow_up_needed, closeout.scope_exception, resolvedRecords.has(closeout.field_record_id)) ? 1 : 0,
       customerSummary: closeout?.customer_summary || null,
       internalNote: closeout?.internal_note || null,
       scopeException: closeout?.scope_exception || null,

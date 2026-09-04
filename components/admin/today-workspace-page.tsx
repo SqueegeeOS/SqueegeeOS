@@ -1,5 +1,6 @@
 "use client";
 import { FieldCloseoutReview } from "@/components/admin/field-closeout-review";
+import { TechnicianIssueQueue } from "@/components/admin/technician-issue-queue";
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -619,7 +620,7 @@ function JobberVisitCard({
             </div>
           ) : null}
           {visit.homeAtlasFieldAssignmentId && visit.homeAtlasFieldRecordCount > 0 ? (
-            <FieldCloseoutReview key={visit.homeAtlasFieldAssignmentId} assignmentId={visit.homeAtlasFieldAssignmentId} />
+            <FieldCloseoutReview key={visit.homeAtlasFieldAssignmentId} assignmentId={visit.homeAtlasFieldAssignmentId} onResolved={onFieldRecordSaved} />
           ) : null}
           {propertyId && appointmentId ? (
             <>
@@ -1094,6 +1095,8 @@ function TodayWorkspaceContent({
             </div>
           </section>
         ) : null}
+
+        <TechnicianIssueQueue refreshKey={data?.loadedAt} onResolved={() => void load()} />
 
         {data ? (
           <FieldFollowUpQueue

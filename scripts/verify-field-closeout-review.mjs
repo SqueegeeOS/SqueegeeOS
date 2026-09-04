@@ -34,18 +34,33 @@ try {
     let failUpcoming = false;
     let inviteSends = 0;
     let ownerBoard = board;
+    let resolution = null;
+    let failResolution = true;
+    let resolutionWrites = 0;
+    let showIssues = false;
+    let failIssues = false;
     await page.route("**/api/**", async route => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/api/admin/unlock") return route.fulfill({ json: { mode: "pin" } });
       if (path === "/api/admin/technicians/access-grants") return route.fulfill({ json: route.request().method() === "POST" ? { grantId: assignmentId, inviteExpiresAt: now, claimPath: "/tech/access?token=" + "a".repeat(43) } : { crew: [{ jobberUserId: "homeatlas:" + assignmentId, displayName: "Internal Test", source: "homeatlas", observedStopCount: 0, latestObservedAt: null, currentGrant: null }], grants: [] } });
       if (path === `/api/admin/technicians/access-grants/${assignmentId}/sms`) { inviteSends++; return route.fulfill({ json: { status: "queued", destinationEnding: "0199", receiptSaved: true } }); }
       if (path === "/api/admin/care-operations/jobber/today") return route.fulfill({ json: ownerBoard });
+      if (path === "/api/admin/field-records/issues") return route.fulfill(failIssues ? { status: 503, json: { error: "Issue queue unavailable" } } : { json: { hasMore: false, issues: showIssues && !resolution ? [{ assignmentId, fieldRecordId: assignmentId, clientName: "Earlier flagged visit", technicianName: "Internal test tech", visitDate: "2026-08-01", scopeException: "Side window inaccessible." }] : [] } });
       if (path === "/api/field/today") return route.fulfill({ json: board });
       if (path === "/api/field/upcoming") return route.fulfill(failUpcoming ? { status: 503, json: { error: "Schedule temporarily unavailable" } } : { json: { visits: [{ id: "future-1", clientName: "Future assigned household", service: "Exterior glass and screens", scheduledStart: "2026-09-15T16:00:00Z", scheduledEnd: null, address: "1 Test Street" }] } });
       if (path === `/api/admin/field-records/${assignmentId}`) {
+        if (route.request().method() === "PATCH") {
+          assert.equal(route.request().headers().origin, base);
+          const body = route.request().postDataJSON();
+          assert.equal(body.fieldRecordId, assignmentId);
+          if (failResolution) return route.fulfill({ status: 503, json: { error: "Resolution temporarily unavailable" } });
+          resolutionWrites++;
+          resolution = { note: body.note, resolvedBy: "Authenticated HQ operator", resolvedAt: now };
+          return route.fulfill({ json: { resolution } });
+        }
         evidenceReads++;
         return route.fulfill(failEvidence ? { status: 503, json: { error: "Evidence temporarily unavailable" } } : { json: {
-          technicianName: "Internal test tech", visitDate: now.slice(0,10), savedAt: now, customerSummary: "Exterior glass cleaned.", internalNote: "Inspect the gate latch.", scopeException: "Side window inaccessible.", followUpNeeded: true,
+          fieldRecordId: assignmentId, resolution, technicianName: "Internal test tech", visitDate: now.slice(0,10), savedAt: now, customerSummary: "Exterior glass cleaned.", internalNote: "Inspect the gate latch.", scopeException: "Side window inaccessible.", followUpNeeded: true,
           photos: [{ id: "test-photo", captureType: "after", mimeType: "image/jpeg", url: null }],
         } });
       }
@@ -80,6 +95,16 @@ try {
     failEvidence = false;
     await page.getByRole("button", { name: "Refresh evidence and photo links" }).click();
     await page.getByText("Inspect the gate latch.", { exact: true }).waitFor();
+    await page.getByLabel("What resolved the issue?").fill("Owner returned and completed the inaccessible window.");
+    await page.getByRole("button", { name: "Save resolution", exact: true }).click();
+    await page.getByText("Resolution temporarily unavailable", { exact: true }).waitFor();
+    assert.equal(await page.getByLabel("What resolved the issue?").inputValue(), "Owner returned and completed the inaccessible window.");
+    failResolution = false;
+    await page.getByRole("button", { name: "Save resolution", exact: true }).click();
+    await page.getByRole("heading", { name: "Resolved in HQ", exact: true }).waitFor();
+    assert.equal(resolutionWrites, 1);
+    await page.getByText("Inspect the gate latch.", { exact: true }).waitFor();
+    assert.equal(await page.getByText("This visit needs owner follow-up.", { exact: true }).count(), 0);
     await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-evidence-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);
     ownerBoard = { ...board, visits: [{ ...visit, isComplete: true, jobberInvoiceStatus: "NONE" }],
@@ -99,6 +124,24 @@ try {
     assert.equal(await page.getByRole("button", { name: "Review technician notes + photos" }).count(), 0, "Legacy visit must not request unrelated native evidence");
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ width, nativePrivateCloseout: "accepted", legacyPortalWarning: "preserved" }));
+    ownerBoard = { ...board, visits: [], summary: { ...board.summary, total: 0 } };
+    showIssues = true; resolution = null;
+    await page.reload();
+    const issueQueue = page.getByRole("region", { name: "Technician issues", exact: true });
+    await issueQueue.getByText("Earlier flagged visit", { exact: true }).waitFor();
+    await issueQueue.getByRole("button", { name: "Review technician notes + photos" }).click();
+    await issueQueue.getByLabel("What resolved the issue?").fill("Owner resolved the older visit exception.");
+    await issueQueue.getByRole("button", { name: "Save resolution", exact: true }).click();
+    await issueQueue.getByText("No unresolved technician issues.", { exact: true }).waitFor();
+    assert.equal(resolutionWrites, 2);
+    failIssues = true;
+    await issueQueue.getByRole("button", { name: "Refresh issues", exact: true }).click();
+    await issueQueue.getByText("Issue queue unavailable", { exact: true }).waitFor();
+    assert.equal(await issueQueue.getByText("No unresolved technician issues.", { exact: true }).count(), 0);
+    failIssues = false;
+    await issueQueue.getByRole("button", { name: "Refresh issues", exact: true }).click();
+    await issueQueue.getByText("No unresolved technician issues.", { exact: true }).waitFor();
+    console.log(JSON.stringify({ width, issueRetryPreservesNote: true, earlierVisitResolved: true, resolutionWrites }));
     await page.goto(`${base}/tech`);
     const nativeCrewLens = page.getByRole("button", { name: "Internal test tech · 1", exact: true });
     await nativeCrewLens.waitFor();

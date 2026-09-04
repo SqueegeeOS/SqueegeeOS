@@ -53,7 +53,42 @@ begin
   if (select count(*) from public.homeatlas_technician_job_closeouts c where c.assignment_id = rehearsal.assignment_id) <> 1 then raise exception 'Duplicate closeout'; end if;
   if (select count(*) from public.homeatlas_technician_job_clocks c where c.assignment_id = rehearsal.assignment_id) <> 1 then raise exception 'Duplicate clock'; end if;
   if (select is_complete from public.jobber_visit_projections where id=projection_id) then raise exception 'Jobber authority changed'; end if;
+  -- Exercise the owner resolver as the actual server role, never a customer role.
+  set local role service_role;
+  if not exists(select 1 from public.list_open_homeatlas_technician_issues() q where q.field_record_id = record_id) then raise exception 'Flagged visit missing from owner queue'; end if;
+  select * into result_row from public.resolve_homeatlas_technician_issue(assignment_id,record_id,'Owner inspected and repaired latch.','Internal HQ rehearsal');
+  if result_row.resolution_note <> 'Owner inspected and repaired latch.' then raise exception 'Resolution note missing'; end if;
+  select * into result_row from public.resolve_homeatlas_technician_issue(assignment_id,record_id,'Owner inspected and repaired latch.','Internal HQ rehearsal');
+  if (select count(*) from public.homeatlas_technician_issue_resolutions where field_record_id=record_id) <> 1 then raise exception 'Duplicate resolution'; end if;
+  if exists(select 1 from public.list_open_homeatlas_technician_issues() q where q.field_record_id = record_id) then raise exception 'Resolved visit still open'; end if;
+  blocked := false;
+  begin
+    perform public.resolve_homeatlas_technician_issue(assignment_id,record_id,'Conflicting replacement note','Internal HQ rehearsal');
+  exception when unique_violation then blocked := true;
+  end;
+  if not blocked then raise exception 'Conflicting note overwrote original'; end if;
+  blocked := false;
+  begin
+    perform public.resolve_homeatlas_technician_issue(gen_random_uuid(),record_id,'Cross assignment note','Internal HQ rehearsal');
+  exception when no_data_found then blocked := true;
+  end;
+  if not blocked then raise exception 'Cross assignment accepted'; end if;
+  reset role;
+  if not (select follow_up_needed from public.homeatlas_technician_job_closeouts where field_record_id=record_id) then raise exception 'Original technician flag rewritten'; end if;
+  if (select is_complete from public.jobber_visit_projections where id=projection_id) then raise exception 'Resolution changed Jobber completion'; end if;
+  if has_table_privilege('anon','public.homeatlas_technician_issue_resolutions','SELECT') or
+     has_table_privilege('authenticated','public.homeatlas_technician_issue_resolutions','INSERT') or
+     has_function_privilege('anon','public.resolve_homeatlas_technician_issue(uuid,uuid,text,text)','EXECUTE') or
+     has_function_privilege('authenticated','public.list_open_homeatlas_technician_issues()','EXECUTE') then raise exception 'Public issue access exposed'; end if;
+  blocked := false;
+  begin
+    update public.homeatlas_technician_issue_resolutions set resolution_note='Changed' where field_record_id=record_id;
+  exception when others then
+    if sqlerrm not like '%immutable%' then raise; end if;
+    blocked := true;
+  end;
+  if not blocked then raise exception 'Resolution history mutable'; end if;
 end;
 $$;
-select 'assignment, scope denial, clock-in replay, finish guard, closeout, clock-out and closeout replay passed; fixtures rolled back' as rehearsal;
+select 'assignment, scope denial, clock-in replay, finish guard, closeout, clock-out, closeout replay, issue queue, resolution replay/conflict/isolation/privacy/immutability passed; fixtures rolled back' as rehearsal;
 rollback;

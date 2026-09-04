@@ -3,6 +3,7 @@ import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { VISIT_MEDIA_BUCKET, fieldAssignmentPhotoStoragePrefix } from "@/lib/field-records/visit-field-record";
 import type { FieldCloseoutReview } from "@/lib/field-records/field-closeout-review";
+import { FIELD_RECORD_UUID } from "@/lib/field-records/field-closeout-review";
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store" };
@@ -23,6 +24,10 @@ export async function GET(request: Request, context: { params: Promise<{ assignm
     if (record.error) throw new Error("Closeout lookup failed");
     if (!record.data) return NextResponse.json({ error: "No closeout has been submitted for this visit." }, { status: 404, headers });
     const row = record.data;
+    const resolutionResult = await supabase.from("homeatlas_technician_issue_resolutions")
+      .select("resolution_note, resolved_by, resolved_at").eq("field_record_id", row.field_record_id).maybeSingle();
+    if (resolutionResult.error) throw new Error("Resolution lookup failed");
+    const resolution = resolutionResult.data;
     const result = await supabase.from("homeatlas_technician_job_photos")
       .select("id, storage_path, capture_type, mime_type")
       .eq("field_record_id", row.field_record_id).order("created_at");
@@ -38,6 +43,8 @@ export async function GET(request: Request, context: { params: Promise<{ assignm
       return { id: photo.id, captureType: photo.capture_type, mimeType: photo.mime_type, url: signed?.error ? null : signed?.data?.signedUrl ?? null };
     }));
     const review: FieldCloseoutReview = {
+      fieldRecordId: row.field_record_id,
+      resolution: resolution ? { note: resolution.resolution_note, resolvedBy: resolution.resolved_by, resolvedAt: resolution.resolved_at } : null,
       technicianName: row.technician_display_name,
       visitDate: row.visit_date,
       savedAt: row.created_at,
@@ -50,5 +57,36 @@ export async function GET(request: Request, context: { params: Promise<{ assignm
     return NextResponse.json(review, { headers });
   } catch {
     return NextResponse.json({ error: "Could not load the visit evidence. Try again." }, { status: 503, headers });
+  }
+}
+
+export async function PATCH(request: Request, context: { params: Promise<{ assignmentId: string }> }) {
+  if (!authorizeAdminRequest(request.headers)) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
+  // Cookie-authenticated owner action. Reject opaque/cross-site/missing origins.
+  if (request.headers.get("origin") !== new URL(request.url).origin) {
+    return NextResponse.json({ error: "Invalid origin" }, { status: 403, headers });
+  }
+  const { assignmentId } = await context.params;
+  const body = await request.json().catch(() => null);
+  if (!FIELD_RECORD_UUID.test(assignmentId) || !body || typeof body.fieldRecordId !== "string" ||
+      !FIELD_RECORD_UUID.test(body.fieldRecordId) || typeof body.note !== "string" ||
+      body.note.trim().length < 3 || body.note.trim().length > 1200) {
+    return NextResponse.json({ error: "Enter a resolution note between 3 and 1,200 characters for this closeout." }, { status: 400, headers });
+  }
+  try {
+    const result = await createServiceRoleSupabaseClient().rpc("resolve_homeatlas_technician_issue", {
+      p_assignment_id: assignmentId, p_field_record_id: body.fieldRecordId,
+      p_resolution_note: body.note.trim(), p_resolved_by: "Authenticated HQ operator",
+    }).single();
+    if (result.error || !result.data) {
+      if (result.error?.code === "23505") return NextResponse.json({ error: "Already resolved. Refresh evidence to see the saved note." }, { status: 409, headers });
+      if (result.error?.code === "P0002") return NextResponse.json({ error: "This closeout is no longer available. Refresh evidence." }, { status: 404, headers });
+      if (result.error?.code === "22023") return NextResponse.json({ error: "This closeout has no issue to resolve." }, { status: 400, headers });
+      throw new Error("Resolution failed");
+    }
+    const saved = result.data as { resolution_note: string; resolved_by: string; resolved_at: string };
+    return NextResponse.json({ resolution: { note: saved.resolution_note, resolvedBy: saved.resolved_by, resolvedAt: saved.resolved_at } }, { headers });
+  } catch {
+    return NextResponse.json({ error: "Could not save the resolution. Your note is kept; try again." }, { status: 503, headers });
   }
 }

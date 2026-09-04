@@ -245,7 +245,7 @@ describe("Jobber Today board states", () => {
   it("counts confirmed native assignments even when Jobber crew visibility is unavailable", () => {
     const visit = {
       isComplete: false, homeAtlasFieldRecordCount: 0, homeAtlasCustomerVisibleRecordCount: 0,
-      homeAtlasFieldStage: null, assignedUsers: [], assignmentReadState: "permission_hidden" as const,
+      homeAtlasFieldStage: "not_started" as const, assignedUsers: [], assignmentReadState: "permission_hidden" as const,
       homeAtlasFieldAssignmentId: "assignment-1", homeAtlasAssignedTechnicianId: "homeatlas:tech-1",
     };
     expect(summarizeJobberTodayVisits([visit])).toMatchObject({ assigned: 1, unassigned: 0, assignmentUnknown: 0 });
