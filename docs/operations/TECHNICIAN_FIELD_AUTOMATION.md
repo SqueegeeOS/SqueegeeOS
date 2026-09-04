@@ -1,5 +1,29 @@
 # Technician Field Automation
 
+## HomeAtlas-native technicians (September 2026)
+
+Tyler Germany is an active HomeAtlas technician. HQ Dispatch can assign him to an
+exact future Jobber visit without an additional Jobber seat. Jobber remains the
+source for date, time, scope and official completion; HomeAtlas stores staffing.
+
+His native flow is **Clock in → save work notes/photos → Clock out & complete**.
+The existing revocable technician role scopes all reads and writes to his assigned
+stops. Native assignment IDs take priority even when the visit also has a member
+appointment. Native records are private HQ evidence, not customer publication.
+
+HQ Today shows the assigned name, timer, field stage, and an owner-only **Review
+technician notes + photos** panel. Photos receive five-minute signed links only
+after owner authorization. Failed image access never discards saved notes.
+Completing the field clock does not mark Jobber complete, send messages or charge.
+
+Migration `20260904203151_native_field_closeout_retry_safety.sql` serializes clock
+and closeout execution against reassignment and safely replays a saved closeout
+after clock-out. `scripts/rehearse-native-field-flow.sql` tests these transitions
+with synthetic records in a transaction that always rolls back. Never remove its
+ROLLBACK or reuse a real customer's appointment to simulate completion.
+
+The older Jobber-seat timeline below remains supported for legacy member jobs.
+
 HomeAtlas Field Run uses the mirrored Jobber appointment as scheduling and
 assignment truth. It adds a private HomeAtlas service timeline without changing
 the Jobber visit:

@@ -1,0 +1,74 @@
+// UI-only fixture verification against a local production build. No live writes.
+import { createRequire } from "node:module";
+import assert from "node:assert/strict";
+const require = createRequire(import.meta.url);
+const { chromium } = require(process.env.PLAYWRIGHT_MODULE || "playwright");
+const base = process.env.FIELD_TEST_BASE || "http://127.0.0.1:3013";
+if (!/^http:\/\/(127\.0\.0\.1|localhost):\d+$/.test(base)) throw new Error("Local fixture server required");
+const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });
+const assignmentId = "11111111-1111-4111-8111-111111111111";
+const now = new Date().toISOString();
+const clock = { state: "finished", startedAt: now, endedAt: now, durationSeconds: 3600, startedByDisplayName: "Internal test tech", finishedByDisplayName: "Internal test tech" };
+const visit = { projectionId: "fixture-projection", externalVisitId: "fixture-visit", clientName: "Internal test household", title: "Window cleaning", jobNumber: 1,
+  visitStatus: "SCHEDULED", jobStatus: "ACTIVE", scheduledStart: now, scheduledEnd: null, isComplete: false, assignedUsers: [], assignmentReadState: "available", scopeItems: [], scopeReadState: "available",
+  propertyLabel: "Internal test property", jobberPropertyWebUri: null, jobberClientWebUri: null, homeAtlasPropertyId: null, homeAtlasAppointmentId: null, homeAtlasMembershipId: null, homeAtlasPortalPath: null,
+  homeAtlasFieldAssignmentId: assignmentId, homeAtlasAssignedTechnicianId: "homeatlas:test", homeAtlasAssignedTechnicianName: "Internal test tech",
+  homeAtlasFieldRecordCount: 1, homeAtlasLatestFieldRecordAt: now, homeAtlasLatestFieldRecordBy: "Internal test tech", homeAtlasCustomerVisibleRecordCount: 0, homeAtlasOpenFollowUpCount: 1,
+  homeAtlasFieldCustomerSummary: "Exterior glass cleaned.", homeAtlasFieldInternalNote: "Inspect the gate latch.", homeAtlasFieldScopeException: "Side window inaccessible.", homeAtlasFieldPhotoCount: 1,
+  homeAtlasFieldStage: "departed", homeAtlasFieldStageAt: now, homeAtlasFieldStageBy: "Internal test tech", homeAtlasFieldEventCount: 0, homeAtlasJobClock: clock, homeAtlasIndependenceReview: null };
+const board = { calendarDate: now.slice(0,10), timezone: "America/Los_Angeles", connected: true, connectionStatus: "connected", accountName: "Internal fixture", lastSyncedAt: now, loadedAt: now,
+  fieldRecordStatusAvailable: true, fieldEventStatusAvailable: true, jobClockStatusAvailable: true, independenceReviewStatusAvailable: true, fieldFollowUps: [], visits: [visit],
+  summary: { total: 1, complete: 0, remaining: 1, documented: 1, portalUpdated: 0, completedWithoutRecord: 0, completedWithPrivateOnlyRecord: 0, jobberCompletionPending: 1, assigned: 1, unassigned: 0, assignmentUnknown: 0 } };
+try {
+  for (const width of [390, 1440]) {
+    const context = await browser.newContext({ viewport: { width, height: 950 }, reducedMotion: "reduce" });
+    if (process.env.ADMIN_PIN) {
+      const unlock = await context.request.post(`${base}/api/admin/unlock`, { headers: { "x-admin-pin": process.env.ADMIN_PIN } });
+      assert.equal(unlock.status(), 200, "Configured local owner login must succeed");
+    }
+    const page = await context.newPage();
+    const errors = [];
+    page.on("pageerror", error => errors.push(error.message));
+    let failEvidence = false;
+    let evidenceReads = 0;
+    await page.route("**/api/**", async route => {
+      const path = new URL(route.request().url()).pathname;
+      if (path === "/api/admin/unlock") return route.fulfill({ json: { mode: "pin" } });
+      if (path === "/api/admin/care-operations/jobber/today") return route.fulfill({ json: board });
+      if (path === `/api/admin/field-records/${assignmentId}`) {
+        evidenceReads++;
+        return route.fulfill(failEvidence ? { status: 503, json: { error: "Evidence temporarily unavailable" } } : { json: {
+          technicianName: "Internal test tech", visitDate: now.slice(0,10), savedAt: now, customerSummary: "Exterior glass cleaned.", internalNote: "Inspect the gate latch.", scopeException: "Side window inaccessible.", followUpNeeded: true,
+          photos: [{ id: "test-photo", captureType: "after", mimeType: "image/jpeg", url: null }],
+        } });
+      }
+      return route.fulfill({ status: 404, json: { error: "Not part of fixture" } });
+    });
+    await page.goto(`${base}/hq/today`);
+    const button = page.getByRole("button", { name: "Review technician notes + photos" });
+    await button.waitFor({ timeout: 12000 }).catch(async error => {
+      console.error((await page.locator("body").innerText()).slice(0, 2000));
+      throw error;
+    });
+    await page.getByText("HomeAtlas technician · Internal test tech", { exact: true }).waitFor();
+    await page.getByText("Actual job time", { exact: true }).waitFor();
+    assert.equal(evidenceReads, 0, "Evidence should load only on request");
+    await button.focus();
+    await page.keyboard.press("Enter");
+    await page.getByText("Inspect the gate latch.", { exact: true }).waitFor();
+    await page.getByText("Side window inaccessible.", { exact: true }).waitFor();
+    await page.getByText("Photo 1 could not be opened.", { exact: true }).waitFor();
+    assert.equal(await button.getAttribute("aria-expanded"), "true");
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "No horizontal overflow");
+    failEvidence = true;
+    await page.getByRole("button", { name: "Refresh evidence and photo links" }).click();
+    await page.getByText("Evidence temporarily unavailable", { exact: true }).waitFor();
+    failEvidence = false;
+    await page.getByRole("button", { name: "Refresh evidence and photo links" }).click();
+    await page.getByText("Inspect the gate latch.", { exact: true }).waitFor();
+    await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-evidence-${width}.png`, fullPage: true });
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ width, evidenceReads, keyboard: "passed", notes: "passed", storageError: "passed", retry: "passed", overflow: "none", pageErrors: 0 }));
+    await context.close();
+  }
+} finally { await browser.close(); }

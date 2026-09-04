@@ -1,4 +1,5 @@
 "use client";
+import { FieldCloseoutReview } from "@/components/admin/field-closeout-review";
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -414,7 +415,9 @@ function JobberVisitCard({
                   : "text-muted"
               }`}
             >
-              {visit.assignmentReadState !== "available"
+              {visit.homeAtlasAssignedTechnicianName
+                ? `HomeAtlas technician · ${visit.homeAtlasAssignedTechnicianName}`
+                : visit.assignmentReadState !== "available"
                 ? "Crew visibility unavailable"
                 : visit.assignedUsers.length > 0
                   ? `Crew · ${visit.assignedUsers.map((user) => user.name).join(", ")}`
@@ -446,7 +449,7 @@ function JobberVisitCard({
           </div>
         </div>
 
-        {fieldEventStatusAvailable && appointmentId ? (
+        {fieldEventStatusAvailable && (appointmentId || visit.homeAtlasFieldAssignmentId) ? (
           <div className="mt-5 rounded-2xl border border-accent/25 bg-accent/[0.055] p-4">
             <div className="flex items-center justify-between gap-4">
               <div>
@@ -491,7 +494,7 @@ function JobberVisitCard({
           </div>
         ) : null}
 
-        {appointmentId ? (
+        {appointmentId || visit.homeAtlasFieldAssignmentId ? (
           <div className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-border/70 bg-foreground/[0.025] px-4 py-3">
             <div>
               <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
@@ -604,6 +607,9 @@ function JobberVisitCard({
                 complete the homeowner experience.
               </p>
             </div>
+          ) : null}
+          {visit.homeAtlasFieldAssignmentId && visit.homeAtlasFieldRecordCount > 0 ? (
+            <FieldCloseoutReview key={visit.homeAtlasFieldAssignmentId} assignmentId={visit.homeAtlasFieldAssignmentId} />
           ) : null}
           {propertyId && appointmentId ? (
             <>

@@ -145,7 +145,8 @@ export async function loadHomeAtlasFieldExecution(assignmentIds: string[]): Prom
       fieldRecordCount: closeout ? 1 : 0,
       latestFieldRecordAt: closeout?.created_at ?? null,
       latestFieldRecordBy: closeout?.technician_display_name ?? null,
-      customerVisibleRecordCount: closeout && (closeout.customer_summary.trim() || (photo?.visible ?? 0) > 0) ? 1 : 0,
+      // Native closeouts live in private HQ tables, not the customer portal.
+      customerVisibleRecordCount: 0,
       openFollowUpCount: closeout?.follow_up_needed ? 1 : 0,
       customerSummary: closeout?.customer_summary || null,
       internalNote: closeout?.internal_note || null,

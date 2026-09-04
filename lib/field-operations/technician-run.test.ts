@@ -25,6 +25,12 @@ function visit(overrides: Record<string, unknown> = {}) {
 }
 
 describe("technician run automation", () => {
+  it("accepts native jobs without member pairing or private evidence publication", () => {
+    const native = { ...visit(), homeAtlasFieldAssignmentId: "native", homeAtlasPropertyId: null, homeAtlasAppointmentId: null };
+    expect(resolveTechnicianVisitReadiness(native, true)).toBe("ready");
+    expect(resolveTechnicianVisitReadiness(native, false)).toBe("proof_unavailable");
+    expect(resolveTechnicianVisitReadiness({ ...native, isComplete: true, homeAtlasFieldRecordCount: 1 }, true)).toBe("complete");
+  });
   it("fails closed until Jobber and HomeAtlas have a safe visit pair", () => {
     expect(
       resolveTechnicianVisitReadiness(

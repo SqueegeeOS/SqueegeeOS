@@ -24,7 +24,7 @@ type TechnicianVisitInput = Pick<
   | "homeAtlasCustomerVisibleRecordCount"
   | "homeAtlasOpenFollowUpCount"
   | "homeAtlasFieldStage"
->;
+> & { homeAtlasFieldAssignmentId?: string | null };
 
 export interface TechnicianRunSummary {
   total: number;
@@ -97,8 +97,8 @@ export function resolveTechnicianVisitReadiness(
   visit: TechnicianVisitInput,
   fieldRecordStatusAvailable: boolean,
 ): TechnicianVisitReadiness {
-  if (!visit.homeAtlasPropertyId) return "pairing_required";
-  if (!visit.homeAtlasAppointmentId) return "appointment_syncing";
+  if (!visit.homeAtlasFieldAssignmentId && !visit.homeAtlasPropertyId) return "pairing_required";
+  if (!visit.homeAtlasFieldAssignmentId && !visit.homeAtlasAppointmentId) return "appointment_syncing";
   if (!fieldRecordStatusAvailable) return "proof_unavailable";
   if (visit.homeAtlasFieldStage === "departed" && !visit.isComplete) {
     return "jobber_completion_pending";
@@ -108,6 +108,7 @@ export function resolveTechnicianVisitReadiness(
   }
   if (visit.homeAtlasOpenFollowUpCount > 0) return "follow_up_open";
   if (
+    !visit.homeAtlasFieldAssignmentId &&
     visit.isComplete &&
     visit.homeAtlasFieldRecordCount > 0 &&
     visit.homeAtlasCustomerVisibleRecordCount === 0
