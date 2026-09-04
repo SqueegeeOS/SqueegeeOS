@@ -74,12 +74,12 @@ describe("technician field run contract", () => {
     expect(fieldCapture).toContain("Build customer update from completed work");
   });
 
-  it("makes the phone-first field run an intentional owner mode inside Today", () => {
+  it("keeps the phone-first field run available as an owner preview inside Today", () => {
     expect(hqToday).toContain("OwnerFieldWorkspace");
     expect(hqToday).toContain("Open owner field mode");
     expect(hqToday).toContain("embeddedInHq");
-    expect(fieldRun).toContain("Owner field mode");
-    expect(fieldRun).toContain("HQ board");
+    expect(fieldRun).toContain("Owner field preview");
+    expect(fieldRun).toContain("HQ view");
   });
 
   it("hands a completed owner visit to portal and payment review without charging", () => {
