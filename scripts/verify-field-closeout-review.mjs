@@ -31,10 +31,13 @@ try {
     page.on("pageerror", error => errors.push(error.message));
     let failEvidence = false;
     let evidenceReads = 0;
+    let failUpcoming = false;
     await page.route("**/api/**", async route => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/api/admin/unlock") return route.fulfill({ json: { mode: "pin" } });
       if (path === "/api/admin/care-operations/jobber/today") return route.fulfill({ json: board });
+      if (path === "/api/field/today") return route.fulfill({ json: board });
+      if (path === "/api/field/upcoming") return route.fulfill(failUpcoming ? { status: 503, json: { error: "Schedule temporarily unavailable" } } : { json: { visits: [{ id: "future-1", clientName: "Future assigned household", service: "Exterior glass and screens", scheduledStart: "2026-09-15T16:00:00Z", scheduledEnd: null, address: "1 Test Street" }] } });
       if (path === `/api/admin/field-records/${assignmentId}`) {
         evidenceReads++;
         return route.fulfill(failEvidence ? { status: 503, json: { error: "Evidence temporarily unavailable" } } : { json: {
@@ -68,6 +71,22 @@ try {
     await page.getByText("Inspect the gate latch.", { exact: true }).waitFor();
     await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-evidence-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);
+    await page.goto(`${base}/tech`);
+    const upcoming = page.getByRole("button", { name: /Upcoming jobs/ });
+    await upcoming.focus();
+    await page.keyboard.press("Enter");
+    await page.getByText("Future assigned household", { exact: true }).waitFor();
+    await page.getByText("Exterior glass and screens", { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Upcoming schedule must fit mobile");
+    failUpcoming = true;
+    await page.getByRole("button", { name: "Refresh upcoming jobs" }).click();
+    await page.getByText("Schedule temporarily unavailable", { exact: true }).waitFor();
+    failUpcoming = false;
+    await page.getByRole("button", { name: "Refresh upcoming jobs" }).click();
+    await page.getByText("Future assigned household", { exact: true }).waitFor();
+    await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-upcoming-${width}.png`, fullPage: true });
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ width, upcomingSchedule: "passed", keyboard: "passed", scheduleRetry: "passed" }));
     console.log(JSON.stringify({ width, evidenceReads, keyboard: "passed", notes: "passed", storageError: "passed", retry: "passed", overflow: "none", pageErrors: 0 }));
     await context.close();
   }

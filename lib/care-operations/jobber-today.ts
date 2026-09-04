@@ -233,12 +233,14 @@ export function toTodayVisit(
 
 export async function loadJobberTodayBoard(
   reference: Date = new Date(),
+  rangeEndReference: Date = reference,
 ): Promise<JobberTodayData> {
   const supabase = createServiceRoleSupabaseClient();
-  const { startUtc, endUtc } = getBusinessCalendarDayUtcBounds(
+  const { startUtc } = getBusinessCalendarDayUtcBounds(
     reference,
     COMPANY_BUSINESS_TIMEZONE,
   );
+  const { endUtc } = getBusinessCalendarDayUtcBounds(rangeEndReference, COMPANY_BUSINESS_TIMEZONE);
 
   const [connection, visitsResult, latestSyncResult, fieldFollowUps] =
     await Promise.all([

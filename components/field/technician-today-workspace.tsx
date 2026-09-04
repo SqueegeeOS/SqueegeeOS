@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { StatePanel } from "@/components/craft/state-panel";
 import { StatusNotice } from "@/components/craft/status-notice";
+import { TechnicianUpcoming } from "@/components/field/technician-upcoming";
 import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
 import {
   classifyJobberTodayVisit,
@@ -1050,7 +1051,7 @@ export function TechnicianTodayWorkspace({
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
             {technicianSession
-              ? "Only your assigned Jobber stops, required job details, and customer proof in one phone-first workspace."
+              ? "Your jobs, your time, and your work notes. Everything you need on site, with no owner controls in the way."
               : "Work each Jobber stop from arrival through customer proof, portal verification, and owner-approved payment review."}
           </p>
           {technicianSession ? (
@@ -1059,6 +1060,8 @@ export function TechnicianTodayWorkspace({
             </p>
           ) : null}
         </header>
+
+        <TechnicianUpcoming />
 
         {error ? <StatusNotice tone="danger" className="mb-5">{error}</StatusNotice> : null}
 

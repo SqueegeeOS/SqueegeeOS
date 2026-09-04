@@ -23,8 +23,11 @@
   finish-before-proof rejection, save closeout, finish, retry closeout, no duplicate
   clocks/closeouts, Jobber completion unchanged.
 - Verified zero synthetic technician/visit rows remained after rollback; no real assignments created.
-- Final local checks: 1,435 tests in 312 files passed; lint 0 errors/84 existing
-  warnings; TypeScript passed; production build generated all 154 pages.
+- Final local checks: 1,441 tests in 313 files passed; lint 0 errors/84 existing
+  warnings; TypeScript passed; production build generated all 155 pages.
+- Added a read-only next-six-weeks schedule, scoped server-side to the technician's
+  assignments. Mobile/desktop fixtures cover upcoming work, keyboard opening, error/retry.
+- Owner has assigned Tyler six real upcoming visits. No assignment changes were made by this release.
 - Local 390px and 1440px production-build UI fixture checks cover keyboard opening,
   notes/exceptions, failed photo signing, error/retry, no overflow and no page errors.
   Browser fixtures mock board/evidence responses; this is not a live technician session.
@@ -34,7 +37,8 @@
 
 ## Still not verified / launch handoff
 
-- Tyler's actual device claim and complete real assigned-job run (no invite authorized by goal).
+- Tyler's actual device claim and complete real assigned-job run. The owner has now
+  explicitly authorized texting his private invite to his registered phone; delivery is pending.
 - Actual camera file upload through Tyler's device and opening that stored image in HQ.
 - Native exception resolution workflow beyond viewing the flag/notes.
 - Non-member payment collection remains a separate owner/provider action.
