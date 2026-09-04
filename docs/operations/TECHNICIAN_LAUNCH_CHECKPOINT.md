@@ -48,7 +48,8 @@
   at 21:30:12 UTC (2:30 PM Pacific) after the origin fix; current status is active.
   Do not replace that access or resend the consumed invitation.
 - Actual camera file upload through Tyler's device and opening that stored image in HQ.
-- Native exception resolution workflow beyond viewing the flag/notes.
+- Native exception resolution shipped in PR #170; real customer use remains
+  unverified because no native customer closeout exists yet.
 - Non-member payment collection remains a separate owner/provider action.
 - Broader luxury audit remains open; this phase does not claim every site surface is finished.
 
@@ -233,5 +234,18 @@ described above is the only live SMS sent by this launch phase.
   resolution, queue read failure, private evidence, original work summary, unchanged
   Jobber completion, upcoming navigation, referrals, keyboard and no overflow/errors.
   Inspected mobile saved-resolution screenshot; agent-browser checked entry screen.
-- CI/release/canonical production verification pending. Real Tyler phone/photo/job
-  run remains unverified; do not claim full launch completion from synthetic work.
+- PR #170 merged `27e3dd0`; CI `33926367909` passed tests/lint/build in 2m12s.
+  Production `dpl_AnmjN82upJqB6NtkPxW1krXWL9Bg` /
+  `squeegee-6c23km592-squeegee-os.vercel.app` is Ready; build/deploy about 132s.
+- Canonical owner HQ Today displays 0 open issues, the truthful empty queue and
+  a working Refresh issues button; no alerts/overflow. Unauthenticated production
+  issue GET and resolution PATCH both returned 401 without any record writes.
+- Canonical technician owner-preview Upcoming still loads 17 direction links;
+  no issue queue exposed there, no alerts/overflow. Returned owner's tab to Today.
+  Deployment-specific 15-minute error scan returned no rows; drain/monitor setup
+  was not re-audited. Customer resolution writes were not exercised in live UI.
+- Live read-only assignment audit: Tyler has eight future nonremoved incomplete
+  visits, Sep 7 08:00 Pacific through Sep 28 10:00 Pacific. No assignment changed.
+- Real Tyler phone/photo/job run remains unverified; do not claim full launch
+  completion from synthetic work. Next audit should cover remaining referral-to-sale
+  attribution and owner history access, then prepare the real-device first-job check.
