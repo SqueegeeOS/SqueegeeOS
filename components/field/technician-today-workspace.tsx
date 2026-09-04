@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AmbientStage } from "@/components/craft/ambient-stage";
+import { StatePanel } from "@/components/craft/state-panel";
+import { StatusNotice } from "@/components/craft/status-notice";
 import {
   classifyJobberTodayVisit,
   isJobberTodayDataStale,
@@ -420,7 +422,7 @@ function TechnicianVisitCard({
   return (
     <article
       id={`visit-${visit.projectionId}`}
-      className="scroll-mt-5 overflow-hidden rounded-[1.65rem] border border-white/10 bg-[#111615] shadow-[0_22px_65px_rgba(0,0,0,0.32)]"
+      className="scroll-mt-5 overflow-hidden rounded-[var(--radius-card-lg)] border border-[var(--border-strong)] bg-surface-elevated shadow-[var(--shadow-float)]"
     >
       <div className="border-b border-white/10 bg-white/[0.025] px-5 py-4">
         <div className="flex items-start justify-between gap-4">
@@ -443,7 +445,7 @@ function TechnicianVisitCard({
       </div>
 
       <div className="p-5">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-[#9be2bd]">
+        <p className="text-[10px] uppercase tracking-[0.18em] text-accent">
           {visit.jobNumber ? `Job #${visit.jobNumber}` : "Jobber visit"}
           {moment === "in_progress" ? " · happening now" : ""}
           {moment === "late" ? " · past scheduled time" : ""}
@@ -554,17 +556,17 @@ function TechnicianVisitCard({
                 type="button"
                 disabled={clockPending}
                 onClick={() => void updateJobClock("start")}
-                className="flex min-h-20 w-full items-center justify-between gap-4 bg-[#9be2bd]/[0.1] px-4 text-left text-[#d5f8e4] active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex min-h-20 w-full items-center justify-between gap-4 bg-accent/10 px-4 text-left text-foreground active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span>
                   <span className="block text-base font-semibold">
                     {clockPending ? "Starting job…" : "I’m here · Start job"}
                   </span>
-                  <span className="mt-1 block text-xs font-normal text-[#bff1d5]/65">
+                  <span className="mt-1 block text-xs font-normal text-accent/65">
                     Saves arrival and starts your on-site timer.
                   </span>
                 </span>
-                <span className="rounded-full border border-[#9be2bd]/35 px-3 py-1 text-xs">
+                <span className="rounded-full border border-accent/35 px-3 py-1 text-xs">
                   1 of 3
                 </span>
               </button>
@@ -574,17 +576,17 @@ function TechnicianVisitCard({
                   type="button"
                   disabled={!canCapture}
                   onClick={() => setCaptureOpen(true)}
-                  className="flex min-h-20 w-full items-center justify-between gap-4 bg-[#9be2bd]/[0.08] px-4 text-left text-[#d5f8e4] active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex min-h-20 w-full items-center justify-between gap-4 bg-accent/[0.08] px-4 text-left text-foreground active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>
                     <span className="block text-base font-semibold">
                       Document finished work
                     </span>
-                    <span className="mt-1 block text-xs font-normal text-[#bff1d5]/65">
+                    <span className="mt-1 block text-xs font-normal text-accent/65">
                       Check the scope, add notes and photos, then save.
                     </span>
                   </span>
-                  <span className="rounded-full border border-[#9be2bd]/35 px-3 py-1 text-xs">
+                  <span className="rounded-full border border-accent/35 px-3 py-1 text-xs">
                     2 of 3
                   </span>
                 </button>
@@ -623,17 +625,17 @@ function TechnicianVisitCard({
         ) : null}
 
         {!technicianSession && fieldEventStatusAvailable && propertyId && appointmentId ? (
-          <section className="mt-3 rounded-2xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.055] p-4">
+          <section className="mt-3 rounded-[var(--radius-inset)] border border-accent/25 bg-accent/[0.055] p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.17em] text-[#9be2bd]">
+                <p className="text-[10px] uppercase tracking-[0.17em] text-accent">
                   Automated service flow
                 </p>
-                <p className="mt-1 text-sm font-medium text-[#d5f8e4]">
+                <p className="mt-1 text-sm font-medium text-foreground">
                   {technicianVisitStageLabel(visit.homeAtlasFieldStage)}
                 </p>
               </div>
-              <span className="rounded-full border border-[#9be2bd]/25 px-3 py-1 text-xs tabular-nums text-[#bff1d5]">
+              <span className="rounded-full border border-accent/25 px-3 py-1 text-xs tabular-nums text-accent">
                 {stageProgress.completed}/{stageProgress.total}
               </span>
             </div>
@@ -646,7 +648,7 @@ function TechnicianVisitCard({
               aria-valuenow={stageProgress.completed}
             >
               <div
-                className="h-full rounded-full bg-[#9be2bd] transition-[width] duration-500"
+                className="h-full rounded-full bg-accent transition-[width] duration-500"
                 style={{
                   width: `${(stageProgress.completed / stageProgress.total) * 100}%`,
                 }}
@@ -675,7 +677,7 @@ function TechnicianVisitCard({
                   }
                   void advanceRoute(routeAction.eventType);
                 }}
-                className="mt-4 flex min-h-14 w-full items-center justify-between rounded-xl border border-[#9be2bd]/40 bg-[#9be2bd]/[0.12] px-4 text-left text-base font-medium text-[#d5f8e4] active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-4 flex min-h-14 w-full items-center justify-between rounded-[var(--radius-control)] border border-accent/40 bg-accent/[0.12] px-4 text-left text-base font-medium text-foreground active:scale-[0.995] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span>
                   {routePending
@@ -683,7 +685,7 @@ function TechnicianVisitCard({
                     : routeAction.kind === "closeout" && captureOpen
                       ? "Close field form"
                       : routeAction.label}
-                  <span className="mt-0.5 block text-[10px] font-normal leading-relaxed text-[#bff1d5]/60">
+                  <span className="mt-0.5 block text-[10px] font-normal leading-relaxed text-accent/60">
                     {routeAction.detail}
                   </span>
                 </span>
@@ -768,7 +770,7 @@ function TechnicianVisitCard({
               {billingReviewHref ? (
                 <Link
                   href={billingReviewHref}
-                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.09] px-3 text-center text-sm text-[#d5f8e4] active:scale-[0.99]"
+                  className="inline-flex min-h-12 items-center justify-center rounded-[var(--radius-control)] border border-accent/35 bg-accent/[0.09] px-3 text-center text-sm text-foreground active:scale-[0.99]"
                   title="Opens the exact appointment in Billing. No charge happens from this link."
                 >
                   Review payment readiness
@@ -784,7 +786,7 @@ function TechnicianVisitCard({
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(visit.propertyLabel)}`}
               target="_blank"
               rel="noreferrer"
-              className="col-span-2 inline-flex min-h-12 items-center justify-center rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.09] px-3 text-center text-sm font-medium text-[#d5f8e4] active:scale-[0.99]"
+              className="col-span-2 inline-flex min-h-12 items-center justify-center rounded-[var(--radius-control)] border border-accent/35 bg-accent/[0.09] px-3 text-center text-sm font-medium text-foreground active:scale-[0.99]"
             >
               Navigate to job
             </a>
@@ -817,7 +819,7 @@ function TechnicianVisitCard({
               href={visit.jobberPropertyWebUri}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.06] px-3 text-center text-sm text-[#bff1d5] active:scale-[0.99]"
+              className="inline-flex min-h-12 items-center justify-center rounded-[var(--radius-control)] border border-accent/25 bg-accent/[0.06] px-3 text-center text-sm text-accent active:scale-[0.99]"
             >
               Open in Jobber
             </a>
@@ -835,12 +837,12 @@ function TechnicianVisitCard({
                 type="button"
                 aria-expanded={captureOpen}
                 onClick={() => setCaptureOpen((open) => !open)}
-                className="flex min-h-14 w-full items-center justify-between rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.09] px-4 text-left text-base font-medium text-[#c9f3dc] active:scale-[0.995]"
+                className="flex min-h-14 w-full items-center justify-between rounded-[var(--radius-control)] border border-accent/35 bg-accent/[0.09] px-4 text-left text-base font-medium text-foreground active:scale-[0.995]"
               >
                 <span>
                   {captureOpen ? "Close field form" : actionLabel}
                   {hasDraft && !captureOpen ? (
-                    <span className="mt-0.5 block text-[10px] font-normal text-[#bff1d5]/55">
+                    <span className="mt-0.5 block text-[10px] font-normal text-accent/55">
                       Saved on this device
                     </span>
                   ) : null}
@@ -1002,7 +1004,7 @@ export function TechnicianTodayWorkspace({
   }, []);
 
   return (
-    <AmbientStage className="min-h-[100svh] bg-[#080b0a] px-4 py-6 pb-28 text-white sm:px-6 sm:py-10 sm:pb-28">
+    <AmbientStage founding className="atlas-role-shell min-h-[100svh] px-4 py-6 pb-28 text-foreground sm:px-6 sm:py-10 sm:pb-28">
       <div className="mx-auto max-w-3xl">
         <nav className="flex items-center justify-between gap-3">
           <Link
@@ -1041,7 +1043,7 @@ export function TechnicianTodayWorkspace({
         </nav>
 
         <header className="pb-7 pt-10">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-[#9be2bd]">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-accent">
             {technicianSession ? "Technician workspace" : "Owner field preview"}
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
@@ -1053,21 +1055,17 @@ export function TechnicianTodayWorkspace({
               : "Work each Jobber stop from arrival through customer proof, portal verification, and owner-approved payment review."}
           </p>
           {technicianSession ? (
-            <p className="mt-4 inline-flex min-h-10 items-center rounded-full border border-[#9be2bd]/25 bg-[#9be2bd]/[0.07] px-4 text-xs text-[#c9f3dc]">
+            <p className="mt-4 inline-flex min-h-10 items-center rounded-full border border-accent/25 bg-accent/[0.07] px-4 text-xs text-accent">
                Technician · {actorDisplayName}
             </p>
           ) : null}
         </header>
 
-        {error ? (
-          <div className="mb-5 rounded-2xl border border-rose-300/30 bg-rose-300/[0.08] px-4 py-3 text-sm text-rose-100">
-            {error}
-          </div>
-        ) : null}
+        {error ? <StatusNotice tone="danger" className="mb-5">{error}</StatusNotice> : null}
 
         {data && summary ? (
           <>
-            <section className="rounded-[1.75rem] border border-white/10 bg-[#111615]/90 p-5 shadow-[0_20px_65px_rgba(0,0,0,0.3)]">
+            <section className="rounded-[var(--radius-card-lg)] border border-[var(--border-strong)] bg-surface-elevated/90 p-5 shadow-[var(--shadow-float)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-sm font-medium text-white">
@@ -1120,7 +1118,7 @@ export function TechnicianTodayWorkspace({
                       onClick={() => selectCrew(TECHNICIAN_ALL_CREW)}
                       className={`min-h-12 shrink-0 snap-start rounded-full border px-4 text-sm active:scale-[0.99] ${
                         activeCrewSelection === TECHNICIAN_ALL_CREW
-                          ? "border-[#9be2bd]/45 bg-[#9be2bd]/[0.12] text-[#d5f8e4]"
+                          ? "border-accent/45 bg-accent/[0.12] text-foreground"
                           : "border-white/10 bg-white/[0.025] text-white/60"
                       }`}
                     >
@@ -1136,7 +1134,7 @@ export function TechnicianTodayWorkspace({
                           onClick={() => selectCrew(selection)}
                           className={`min-h-12 shrink-0 snap-start rounded-full border px-4 text-sm active:scale-[0.99] ${
                             activeCrewSelection === selection
-                              ? "border-[#9be2bd]/45 bg-[#9be2bd]/[0.12] text-[#d5f8e4]"
+                              ? "border-accent/45 bg-accent/[0.12] text-foreground"
                               : "border-white/10 bg-white/[0.025] text-white/60"
                           }`}
                         >
@@ -1166,35 +1164,35 @@ export function TechnicianTodayWorkspace({
             </section>
 
             {stale ? (
-              <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/[0.08] px-4 py-3 text-sm leading-relaxed text-amber-100">
+              <StatusNotice tone="warning" className="mt-4">
                 Jobber data is stale. Refresh this view; if the time does not
                 change, ask HQ to run a Jobber sync before trusting the route.
-              </div>
+              </StatusNotice>
             ) : null}
 
             {data.summary.assignmentUnknown > 0 ? (
-              <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/[0.08] px-4 py-3 text-sm leading-relaxed text-amber-100">
+              <StatusNotice tone="warning" className="mt-4">
                 Crew assignments could not be verified for {data.summary.assignmentUnknown} stop
                 {data.summary.assignmentUnknown === 1 ? "" : "s"}. HQ needs
                 Jobber Users read access before technicians should rely on
                 personal route filtering.
-              </div>
+              </StatusNotice>
             ) : data.summary.unassigned > 0 ? (
-              <div className="mt-4 rounded-2xl border border-amber-300/30 bg-amber-300/[0.08] px-4 py-3 text-sm leading-relaxed text-amber-100">
+              <StatusNotice tone="warning" className="mt-4">
                 {data.summary.unassigned} stop
                 {data.summary.unassigned === 1 ? " is" : "s are"} unassigned in
                 Jobber. It stays visible here so work cannot disappear between
                 crews.
-              </div>
+              </StatusNotice>
             ) : null}
 
             {nextAction ? (
               <a
                 href={`#visit-${nextAction.projectionId}`}
-                className="mt-4 flex min-h-16 items-center justify-between gap-4 rounded-2xl border border-[#9be2bd]/30 bg-[#9be2bd]/[0.09] px-5 text-left text-[#d5f8e4] active:scale-[0.995]"
+                className="mt-4 flex min-h-16 items-center justify-between gap-4 rounded-[var(--radius-inset)] border border-accent/30 bg-accent/[0.09] px-5 text-left text-foreground active:scale-[0.995]"
               >
                 <span>
-                  <span className="block text-[10px] uppercase tracking-[0.18em] text-[#9be2bd]/70">
+                  <span className="block text-[10px] uppercase tracking-[0.18em] text-accent/70">
                     Next action
                   </span>
                   <span className="mt-1 block text-base font-medium">
@@ -1228,23 +1226,27 @@ export function TechnicianTodayWorkspace({
                   />
                 ))
               ) : (
-                <div className="rounded-[1.75rem] border border-white/10 bg-[#111615] px-6 py-12 text-center">
-                  <p className="text-lg text-white">No Jobber stops today.</p>
-                  <p className="mt-2 text-sm text-white/45">
-                    {data.visits.length > 0
+                <StatePanel
+                  eyebrow="Today"
+                  title="No Jobber stops today."
+                  detail={
+                    data.visits.length > 0
                       ? "No stops match this crew lens. Choose All to see the full route."
                       : technicianSession
                         ? "No stops are assigned to you today."
-                        : "The route is clear. Future work stays in Dispatch."}
-                  </p>
-                </div>
+                        : "The route is clear. Future work stays in Dispatch."
+                  }
+                />
               )}
             </section>
           </>
         ) : loading ? (
-          <div className="rounded-[1.75rem] border border-white/10 bg-[#111615] px-6 py-16 text-center text-sm text-white/50">
-            Building today&apos;s field run…
-          </div>
+          <StatePanel
+            busy
+            eyebrow="Today"
+            title="Building the field run"
+            detail="Connecting the latest Jobber schedule and your assigned stops."
+          />
         ) : null}
       </div>
     </AmbientStage>

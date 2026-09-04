@@ -7,7 +7,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0a0a",
+  themeColor: "#090705",
+  colorScheme: "dark",
 };
 
 export default function TechLayout({
@@ -16,7 +17,7 @@ export default function TechLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-[100svh] bg-[#08100d] text-white">
+    <div className="atlas-role-shell min-h-[100svh] text-foreground" data-atlas-theme="lux">
       {children}
       <TechnicianPortalDock />
     </div>

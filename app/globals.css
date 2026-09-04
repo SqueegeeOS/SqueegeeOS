@@ -37,6 +37,17 @@
   --surface: #121110;
   --surface-elevated: #181614;
   --border: #ffffff10;
+  --border-strong: rgba(255, 248, 235, 0.14);
+  --control-bg: rgba(255, 248, 235, 0.04);
+  --control-bg-hover: rgba(255, 248, 235, 0.065);
+  --status-success: #8fc9aa;
+  --status-success-soft: rgba(143, 201, 170, 0.1);
+  --status-warning: #ddb977;
+  --status-warning-soft: rgba(221, 185, 119, 0.1);
+  --status-danger: #df9c98;
+  --status-danger-soft: rgba(223, 156, 152, 0.1);
+  --status-info: #9bb8d2;
+  --status-info-soft: rgba(155, 184, 210, 0.1);
   --stone: #8a8680;
   --charcoal: #141210;
   --off-white: #f5f2eb;
@@ -54,6 +65,12 @@
     inset 0 1px 0 rgba(255, 248, 235, 0.07);
   --radius-card: 1.35rem;
   --radius-card-lg: 1.75rem;
+  --radius-control: 0.875rem;
+  --radius-inset: 1rem;
+  --ease-premium: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-fast: 160ms;
+  --motion-standard: 240ms;
+  --motion-reveal: 420ms;
   --site-nav-height: 3.5rem;
   --site-breadcrumb-height: 0px;
   --site-chrome-offset: var(--site-nav-height);
@@ -72,6 +89,10 @@
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
   --color-border: var(--border);
+  --color-success: var(--status-success);
+  --color-warning: var(--status-warning);
+  --color-danger: var(--status-danger);
+  --color-info: var(--status-info);
   --font-sans: var(--font-geist-sans);
   --font-serif: var(--font-cormorant);
   --font-mono: var(--font-geist-mono);
@@ -105,6 +126,105 @@ body {
   text-rendering: optimizeLegibility;
   line-height: 1.55;
   letter-spacing: -0.01em;
+}
+
+button,
+[role="button"],
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+.atlas-role-shell {
+  min-height: 100svh;
+  background:
+    radial-gradient(ellipse 80% 46% at 50% -12%, rgba(201, 184, 150, 0.08), transparent 64%),
+    var(--background);
+  color: var(--foreground);
+}
+
+.atlas-role-shell::selection {
+  background: rgba(201, 184, 150, 0.32);
+}
+
+.atlas-status {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-control);
+  background: var(--control-bg);
+  color: color-mix(in srgb, var(--foreground) 82%, transparent);
+}
+
+.atlas-status[data-tone="success"] {
+  border-color: color-mix(in srgb, var(--status-success) 34%, transparent);
+  background: var(--status-success-soft);
+  color: color-mix(in srgb, var(--status-success) 86%, white 14%);
+}
+
+.atlas-status[data-tone="warning"] {
+  border-color: color-mix(in srgb, var(--status-warning) 34%, transparent);
+  background: var(--status-warning-soft);
+  color: color-mix(in srgb, var(--status-warning) 86%, white 14%);
+}
+
+.atlas-status[data-tone="danger"] {
+  border-color: color-mix(in srgb, var(--status-danger) 34%, transparent);
+  background: var(--status-danger-soft);
+  color: color-mix(in srgb, var(--status-danger) 86%, white 14%);
+}
+
+.atlas-status[data-tone="info"] {
+  border-color: color-mix(in srgb, var(--status-info) 34%, transparent);
+  background: var(--status-info-soft);
+  color: color-mix(in srgb, var(--status-info) 86%, white 14%);
+}
+
+.atlas-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgba(255, 248, 235, 0.055);
+}
+
+.atlas-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 248, 235, 0.08), transparent);
+  animation: atlas-skeleton-sweep 1.7s var(--ease-premium) infinite;
+}
+
+@keyframes atlas-skeleton-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+  }
+
+  .atlas-skeleton::after {
+    animation: none;
+    display: none;
+  }
 }
 
 * {

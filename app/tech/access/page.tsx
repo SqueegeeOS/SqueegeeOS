@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { AccessFrame } from "@/components/craft/access-frame";
+import { StatusNotice } from "@/components/craft/status-notice";
+import { craftPrimaryButton } from "@/lib/craft/tokens";
 import { isFieldAccessToken } from "@/lib/field-operations/field-access";
 
 export const metadata: Metadata = {
@@ -32,25 +34,17 @@ export default async function FieldAccessPage({
   const error = params.error === "claim-failed";
 
   return (
-    <main className="mx-auto flex min-h-[100svh] max-w-lg items-center px-4 py-10">
-      <section className="w-full rounded-[1.75rem] border border-white/10 bg-[#111615] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.38)] sm:p-8">
-        <p className="text-[10px] uppercase tracking-[0.2em] text-[#9be2bd]">
-          HomeAtlas · Technician Access
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold tracking-[-0.03em] text-white">
-          Your workday, without the clutter.
-        </h1>
-        <p className="mt-4 text-sm leading-relaxed text-white/55">
-          Technician Access opens only your work. Track time, review assigned
-          stops, add photos and notes, close out visits, and send warm referrals
-          to HQ—never billing, customer messaging, or owner controls.
-        </p>
-
+    <AccessFrame
+      eyebrow="HomeAtlas · Technician Access"
+      badge="Field only"
+      title="Your workday, without the clutter."
+      detail="Technician Access opens only your work. Track time, review assigned stops, add photos and notes, close out visits, and send warm referrals to HQ—never billing, customer messaging, or owner controls."
+    >
         {error ? (
-          <div role="alert" className="mt-6 rounded-xl border border-red-300/25 bg-red-300/[0.07] p-4 text-sm leading-relaxed text-red-100">
+          <StatusNotice tone="danger" className="mt-6">
             That install link is invalid, expired, revoked, or already used. Ask
             HQ to create a new Technician Access link.
-          </div>
+          </StatusNotice>
         ) : null}
 
         {token ? (
@@ -59,29 +53,21 @@ export default async function FieldAccessPage({
             <input type="hidden" name="returnTo" value={returnTo} />
             <button
               type="submit"
-              className="min-h-14 w-full rounded-xl border border-[#9be2bd]/50 bg-[#9be2bd] px-5 text-sm font-semibold text-[#07110c] shadow-[0_16px_40px_rgba(105,214,157,0.16)] active:scale-[0.99]"
+              className={`w-full ${craftPrimaryButton}`}
             >
               Activate my workspace
             </button>
-            <p className="mt-3 text-center text-xs leading-relaxed text-white/35">
+            <p className="mt-3 text-center text-xs leading-relaxed text-foreground/45">
               One-time setup on this device. Access remains active while you are
               on the team, and HQ can remove it instantly.
             </p>
           </form>
         ) : (
-          <div className="mt-7 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] p-4 text-sm leading-relaxed text-amber-100">
+          <StatusNotice tone="warning" className="mt-7">
             Open the one-time link HQ created for your technician profile. If
             you need a new link, ask HQ to open Team in HomeAtlas.
-          </div>
+          </StatusNotice>
         )}
-
-        <Link
-          href="/hq"
-          className="mt-6 inline-flex min-h-11 items-center text-xs text-white/65 hover:text-white/85"
-        >
-          Founder sign-in →
-        </Link>
-      </section>
-    </main>
+    </AccessFrame>
   );
 }
