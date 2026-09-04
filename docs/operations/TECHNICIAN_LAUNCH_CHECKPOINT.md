@@ -122,11 +122,16 @@ described above is the only live SMS sent by this launch phase.
 - Owner field-mode crew filters and technician cards use the native assignment
   ahead of the mirrored Jobber crew. Assignment summaries and instructions now
   mention HomeAtlas Dispatch without changing Jobber scheduling authority.
+- Technician read authorization now makes native assignment authoritative too:
+  stale mirrored Jobber crew cannot see reassigned customer/work details. Partial
+  native identity fails closed. Regression tests cover both mismatches and missing IDs.
+- Owner independence/performance reviews are stripped from technician responses,
+  not just hidden in the UI; owner source data remains unchanged.
 - HQ can review private native evidence without mandatory membership pairing.
   Optional portal pairing and existing owner publication controls remain available.
 - Added regression tests for native/legacy publication, missing proof, unchanged
   Jobber completion, partial assignment identity, native crew counts and filters.
-- Full local suite: 1,458 tests / 316 files; quiet lint and production build passed.
+- Full local suite after privacy checks: 1,460 tests / 316 files; quiet lint and production build passed.
 - Browser verifier passed completed native/legacy owner states and the native crew
   filter at 390px and 1440px, plus evidence retry, keyboard, no overflow, referral
   layout and shared accent. Inspected the completed-native mobile screenshot.
@@ -138,6 +143,9 @@ described above is the only live SMS sent by this launch phase.
   and payment visibility. Jobber sync already observes invoice/invoiceReadState;
   HQ Today currently omits that from its DTO. Inspect source-specific payment
   evidence before adding any paid/unpaid label. No collection is authorized.
+- Read-only production evidence: visits from the prior 30 through next 45 days
+  have 19 `paid`, 18 `NONE`, and one `awaiting_payment` invoice projection. This
+  confirms source visibility, not Stripe settlement or a live payment action.
 - Owner's current design direction: fewer clicks, streamlined actions and visible
   bottlenecks. Observed HQ mobile friction: nine metrics stack before the route.
   Compact that summary and improve direct next actions in a subsequent UI pass.
