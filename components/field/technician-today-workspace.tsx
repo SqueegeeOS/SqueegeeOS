@@ -47,7 +47,7 @@ const VisitFieldCapture = dynamic(
   {
     ssr: false,
     loading: () => (
-      <p className="py-8 text-center text-sm text-white/55">
+      <p className="py-8 text-center text-sm text-muted">
         Opening field closeout…
       </p>
     ),
@@ -61,17 +61,17 @@ const READINESS_STYLE: Record<
   ready: {
     label: "Ready",
     detail: "This exact Jobber stop is ready for field work.",
-    className: "border-emerald-300/35 bg-emerald-300/10 text-emerald-100",
+    className: "border-success/35 bg-success/10 text-success",
   },
   complete: {
     label: "Closed out",
     detail: "Jobber is complete and the HomeAtlas work record is saved.",
-    className: "border-emerald-300/35 bg-emerald-300/10 text-emerald-100",
+    className: "border-success/35 bg-success/10 text-success",
   },
   closeout_required: {
     label: "Closeout required",
     detail: "Jobber is complete, but HomeAtlas still needs a note or photo.",
-    className: "border-amber-300/40 bg-amber-300/10 text-amber-100",
+    className: "border-warning/40 bg-warning/10 text-warning",
   },
   portal_update_required: {
     label: "Portal update needed",
@@ -81,7 +81,7 @@ const READINESS_STYLE: Record<
   follow_up_open: {
     label: "Exception open",
     detail: "The visit is documented, but its HQ follow-up is still open.",
-    className: "border-amber-300/40 bg-amber-300/10 text-amber-100",
+    className: "border-warning/40 bg-warning/10 text-warning",
   },
   pairing_required: {
     label: "HQ pairing needed",
@@ -91,7 +91,7 @@ const READINESS_STYLE: Record<
   appointment_syncing: {
     label: "Visit syncing",
     detail: "The home is paired; HQ needs the verified appointment link.",
-    className: "border-amber-300/35 bg-amber-300/10 text-amber-100",
+    className: "border-warning/35 bg-warning/10 text-warning",
   },
   proof_unavailable: {
     label: "Proof check unavailable",
@@ -102,7 +102,7 @@ const READINESS_STYLE: Record<
     label: "Jobber close pending",
     detail:
       "Field Run is done, but Jobber still shows this visit open. HQ needs to close it there.",
-    className: "border-amber-300/40 bg-amber-300/10 text-amber-100",
+    className: "border-warning/40 bg-warning/10 text-warning",
   },
 };
 
@@ -185,10 +185,10 @@ function RunMetric({
 }) {
   const toneClass =
     tone === "good"
-      ? "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-100"
+      ? "border-success/25 bg-success/[0.08] text-success"
       : tone === "warning"
-        ? "border-amber-300/30 bg-amber-300/[0.08] text-amber-100"
-        : "border-white/10 bg-white/[0.04] text-white";
+        ? "border-warning/30 bg-warning/[0.08] text-warning"
+        : "border-foreground/10 bg-foreground/[0.04] text-foreground";
   return (
     <div className={`rounded-2xl border px-4 py-3 ${toneClass}`}>
       <p className="text-2xl font-semibold tabular-nums">{value}</p>
@@ -424,13 +424,13 @@ function TechnicianVisitCard({
       id={`visit-${visit.projectionId}`}
       className="scroll-mt-5 overflow-hidden rounded-[var(--radius-card-lg)] border border-[var(--border-strong)] bg-surface-elevated shadow-[var(--shadow-float)]"
     >
-      <div className="border-b border-white/10 bg-white/[0.025] px-5 py-4">
+      <div className="border-b border-foreground/10 bg-foreground/[0.025] px-5 py-4">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-2xl font-semibold tabular-nums text-white">
+            <p className="text-2xl font-semibold tabular-nums text-foreground">
               {formatTime(visit.scheduledStart, timezone)}
             </p>
-            <p className="mt-1 text-xs text-white/45">
+            <p className="mt-1 text-xs text-muted">
               {visit.scheduledEnd
                 ? `Until ${formatTime(visit.scheduledEnd, timezone)}`
                 : "Scheduled start"}
@@ -450,24 +450,24 @@ function TechnicianVisitCard({
           {moment === "in_progress" ? " · happening now" : ""}
           {moment === "late" ? " · past scheduled time" : ""}
         </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-white">
+        <h2 className="mt-2 text-2xl font-semibold tracking-[-0.02em] text-foreground">
           {visit.clientName}
         </h2>
-        <p className="mt-2 text-base leading-relaxed text-white/70">
+        <p className="mt-2 text-base leading-relaxed text-foreground/70">
           {serviceLabel(visit)}
         </p>
         {visit.propertyLabel ? (
-          <p className="mt-1 text-sm text-white/45">{visit.propertyLabel}</p>
+          <p className="mt-1 text-sm text-muted">{visit.propertyLabel}</p>
         ) : null}
 
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3 text-xs">
-          <span className="uppercase tracking-[0.15em] text-white/35">Crew</span>
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.025] px-4 py-3 text-xs">
+          <span className="uppercase tracking-[0.15em] text-muted">Crew</span>
           <span
             className={
               visit.assignmentReadState !== "available" ||
               visit.assignedUsers.length === 0
-                ? "text-amber-100"
-                : "text-white/75"
+                ? "text-warning"
+                : "text-foreground/75"
             }
           >
             {visit.assignmentReadState !== "available"
@@ -478,16 +478,16 @@ function TechnicianVisitCard({
           </span>
         </div>
 
-        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.025] px-4 py-3">
+        <div className="mt-3 rounded-xl border border-foreground/10 bg-foreground/[0.025] px-4 py-3">
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-white/35">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-muted">
               Service scope
             </span>
             <span
               className={`text-xs ${
                 visit.scopeReadState === "available"
-                  ? "text-white/70"
-                  : "text-amber-100"
+                  ? "text-foreground/70"
+                  : "text-warning"
               }`}
             >
               {visit.scopeReadState === "available"
@@ -498,7 +498,7 @@ function TechnicianVisitCard({
             </span>
           </div>
           {visit.scopeItems.length > 0 ? (
-            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-white/50">
+            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted">
               {visit.scopeItems
                 .map((item) =>
                   item.quantity > 1
@@ -518,13 +518,13 @@ function TechnicianVisitCard({
         </div>
 
         {hasJobTarget ? (
-          <section className="mt-3 overflow-hidden rounded-2xl border border-white/12 bg-black/25">
-            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3">
+          <section className="mt-3 overflow-hidden rounded-2xl border border-foreground/12 bg-background/60">
+            <div className="flex items-center justify-between gap-4 border-b border-foreground/10 px-4 py-3">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.17em] text-white/40">
+                <p className="text-[10px] uppercase tracking-[0.17em] text-muted">
                   Actual job time
                 </p>
-                <p className="mt-1 text-sm font-medium text-white">
+                <p className="mt-1 text-sm font-medium text-foreground">
                   {jobClock.state === "running"
                     ? "Clock running"
                     : jobClock.state === "finished"
@@ -535,8 +535,8 @@ function TechnicianVisitCard({
               <span
                 className={`rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums ${
                   jobClock.state === "running"
-                    ? "border-emerald-300/35 bg-emerald-300/10 text-emerald-100"
-                    : "border-white/10 bg-white/[0.04] text-white/70"
+                    ? "border-success/35 bg-success/10 text-success"
+                    : "border-foreground/10 bg-foreground/[0.04] text-foreground/70"
                 }`}
               >
                 {formatJobDuration(clockElapsedSeconds)}
@@ -544,11 +544,11 @@ function TechnicianVisitCard({
             </div>
 
             {!jobClockStatusAvailable ? (
-              <p className="px-4 py-4 text-xs leading-relaxed text-amber-100">
+              <p className="px-4 py-4 text-xs leading-relaxed text-warning">
                 The job clock is waiting for its private time-ledger migration.
               </p>
             ) : jobClock.state === "not_started" && !canOperate ? (
-              <p className="px-4 py-4 text-xs leading-relaxed text-white/55">
+              <p className="px-4 py-4 text-xs leading-relaxed text-muted">
                 Assigned technician starts and completes this job from their private Field Pass.
               </p>
             ) : jobClock.state === "not_started" ? (
@@ -611,7 +611,7 @@ function TechnicianVisitCard({
                 </button>
               )
             ) : (
-              <div className="px-4 py-4 text-xs leading-relaxed text-white/55">
+              <div className="px-4 py-4 text-xs leading-relaxed text-muted">
                 Started {formatTime(jobClock.startedAt!, timezone)}
                 {jobClock.endedAt
                   ? ` · finished ${formatTime(jobClock.endedAt, timezone)}`
@@ -640,7 +640,7 @@ function TechnicianVisitCard({
               </span>
             </div>
             <div
-              className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/10"
+              className="mt-3 h-1.5 overflow-hidden rounded-full bg-foreground/10"
               role="progressbar"
               aria-label="Service flow progress"
               aria-valuemin={0}
@@ -655,7 +655,7 @@ function TechnicianVisitCard({
               />
             </div>
             {visit.homeAtlasFieldStageAt ? (
-              <p className="mt-2 text-[11px] text-white/45">
+              <p className="mt-2 text-[11px] text-muted">
                 Last moved {formatTime(visit.homeAtlasFieldStageAt, timezone)}
                 {visit.homeAtlasFieldStageBy
                   ? ` by ${visit.homeAtlasFieldStageBy}`
@@ -692,18 +692,18 @@ function TechnicianVisitCard({
                 <span aria-hidden>→</span>
               </button>
             ) : (
-              <div className="mt-4 rounded-xl border border-emerald-300/25 bg-emerald-300/[0.08] px-4 py-3 text-sm text-emerald-100">
+              <div className="mt-4 rounded-xl border border-success/25 bg-success/[0.08] px-4 py-3 text-sm text-success">
                 Stop complete. The next assigned home is ready above.
               </div>
             )}
 
-            <p className="mt-3 text-[10px] leading-relaxed text-white/40">
+            <p className="mt-3 text-[10px] leading-relaxed text-muted">
               Customer alert copy is prepared for approved moments. Nothing is
               sent until messaging approval and consent checks are live.
             </p>
           </section>
         ) : !technicianSession && propertyId && appointmentId ? (
-          <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] px-4 py-3 text-xs leading-relaxed text-amber-100">
+          <div className="mt-3 rounded-xl border border-warning/25 bg-warning/[0.07] px-4 py-3 text-xs leading-relaxed text-warning">
             Automated route status is waiting on migration 058. Visit closeouts
             still save normally.
           </div>
@@ -727,7 +727,7 @@ function TechnicianVisitCard({
         ) : null}
 
         {visit.homeAtlasFieldRecordCount > 0 ? (
-          <div className="mt-3 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] px-4 py-3 text-xs text-emerald-100/75">
+          <div className="mt-3 rounded-xl border border-success/20 bg-success/[0.05] px-4 py-3 text-xs text-success">
             {visit.homeAtlasFieldRecordCount} saved field record
             {visit.homeAtlasFieldRecordCount === 1 ? "" : "s"}
             {visit.homeAtlasLatestFieldRecordBy
@@ -737,7 +737,7 @@ function TechnicianVisitCard({
         ) : null}
 
         {visit.homeAtlasOpenFollowUpCount > 0 ? (
-          <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] px-4 py-3 text-xs text-amber-100/80">
+          <div className="mt-3 rounded-xl border border-warning/25 bg-warning/[0.07] px-4 py-3 text-xs text-warning">
             {visit.homeAtlasOpenFollowUpCount} visit exception
             {visit.homeAtlasOpenFollowUpCount === 1 ? " is" : "s are"} still
             open for HQ.
@@ -745,14 +745,14 @@ function TechnicianVisitCard({
         ) : null}
 
         {ownerCheckoutReady ? (
-          <section className="mt-3 rounded-2xl border border-emerald-300/30 bg-emerald-300/[0.08] p-4">
-            <p className="text-[10px] uppercase tracking-[0.17em] text-emerald-200/70">
+          <section className="mt-3 rounded-2xl border border-success/30 bg-success/[0.08] p-4">
+            <p className="text-[10px] uppercase tracking-[0.17em] text-success">
               Owner checkout
             </p>
-            <p className="mt-1 text-sm font-medium text-emerald-100">
+            <p className="mt-1 text-sm font-medium text-success">
               Visit proof and the customer update are complete.
             </p>
-            <p className="mt-1 text-xs leading-relaxed text-emerald-100/65">
+            <p className="mt-1 text-xs leading-relaxed text-success">
               Verify the portal, then review payment readiness. These links do
               not email, invoice, or charge the customer.
             </p>
@@ -762,7 +762,7 @@ function TechnicianVisitCard({
                   href={visit.homeAtlasPortalPath}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-emerald-200/25 bg-emerald-200/[0.06] px-3 text-center text-sm text-emerald-100 active:scale-[0.99]"
+                  className="inline-flex min-h-12 items-center justify-center rounded-xl border border-success/25 bg-success/[0.06] px-3 text-center text-sm text-success active:scale-[0.99]"
                 >
                   Verify customer portal
                 </Link>
@@ -794,22 +794,22 @@ function TechnicianVisitCard({
           {propertyId ? (
             <Link
               href={`/tech/properties/${propertyId}`}
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/15 bg-white/[0.035] px-3 text-center text-sm text-white/80 active:scale-[0.99]"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-foreground/15 bg-foreground/[0.035] px-3 text-center text-sm text-foreground/80 active:scale-[0.99]"
             >
               Property memory
             </Link>
           ) : fieldActorName && fieldAssignmentId ? (
-            <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-emerald-300/25 bg-emerald-300/[0.06] px-3 text-center text-sm text-emerald-100">
+            <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-success/25 bg-success/[0.06] px-3 text-center text-sm text-success">
               Jobber-backed field record
             </span>
           ) : fieldActorName ? (
-            <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-amber-300/25 bg-amber-300/[0.06] px-3 text-center text-sm text-amber-100">
+            <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-warning/25 bg-warning/[0.06] px-3 text-center text-sm text-warning">
               HQ pairing needed
             </span>
           ) : (
             <Link
               href="/hq/jobber"
-              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-amber-300/25 bg-amber-300/[0.06] px-3 text-center text-sm text-amber-100 active:scale-[0.99]"
+              className="inline-flex min-h-12 items-center justify-center rounded-xl border border-warning/25 bg-warning/[0.06] px-3 text-center text-sm text-warning active:scale-[0.99]"
             >
               Ask HQ to pair
             </Link>
@@ -824,7 +824,7 @@ function TechnicianVisitCard({
               Open in Jobber
             </a>
           ) : ownerSession ? (
-            <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/10 px-3 text-center text-sm text-white/35">
+            <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-foreground/10 px-3 text-center text-sm text-muted">
               Jobber link missing
             </span>
           ) : null}
@@ -851,7 +851,7 @@ function TechnicianVisitCard({
               </button>
             ) : null}
             {captureOpen ? (
-              <div className="mt-3 rounded-2xl border border-white/10 bg-black/20 p-4">
+              <div className="mt-3 rounded-2xl border border-foreground/10 bg-background/60 p-4">
                 <VisitFieldCapture
                   propertyId={propertyId}
                   appointmentId={appointmentId}
@@ -1009,7 +1009,7 @@ export function TechnicianTodayWorkspace({
         <nav className="flex items-center justify-between gap-3">
           <Link
             href="/"
-            className="text-[10px] uppercase tracking-[0.22em] text-white/45"
+            className="text-[10px] uppercase tracking-[0.22em] text-muted"
           >
             HomeAtlas · Crew
           </Link>
@@ -1018,7 +1018,7 @@ export function TechnicianTodayWorkspace({
               <form action="/api/field/access/logout" method="post">
                 <button
                   type="submit"
-                  className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
+                  className="inline-flex min-h-11 items-center rounded-full border border-foreground/10 px-4 text-xs text-foreground/65"
                 >
                   Sign out
                 </button>
@@ -1027,14 +1027,14 @@ export function TechnicianTodayWorkspace({
               <button
                 type="button"
                 onClick={onExitHqMode}
-                className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
+                className="inline-flex min-h-11 items-center rounded-full border border-foreground/10 px-4 text-xs text-foreground/65"
               >
                 HQ board
               </button>
             ) : (
               <Link
                 href="/hq/today"
-                className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
+                className="inline-flex min-h-11 items-center rounded-full border border-foreground/10 px-4 text-xs text-foreground/65"
               >
                 HQ view
               </Link>
@@ -1046,10 +1046,10 @@ export function TechnicianTodayWorkspace({
           <p className="text-[10px] uppercase tracking-[0.24em] text-accent">
             {technicianSession ? "Technician workspace" : "Owner field preview"}
           </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
+          <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-foreground sm:text-5xl">
             {technicianSession ? `Ready, ${actorDisplayName.split(" ")[0]}?` : "Run Today"}
           </h1>
-          <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
+          <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
             {technicianSession
               ? "Your jobs, your time, and your work notes. Everything you need on site, with no owner controls in the way."
               : "Work each Jobber stop from arrival through customer proof, portal verification, and owner-approved payment review."}
@@ -1070,10 +1070,10 @@ export function TechnicianTodayWorkspace({
             <section className="rounded-[var(--radius-card-lg)] border border-[var(--border-strong)] bg-surface-elevated/90 p-5 shadow-[var(--shadow-float)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-white">
+                  <p className="text-sm font-medium text-foreground">
                     {formatDate(data.calendarDate)}
                   </p>
-                  <p className="mt-1 text-xs text-white/45">
+                  <p className="mt-1 text-xs text-muted">
                     {data.accountName ?? "Jobber account"} · synced {" "}
                     {formatSyncedAt(data.lastSyncedAt, data.timezone)}
                   </p>
@@ -1082,7 +1082,7 @@ export function TechnicianTodayWorkspace({
                   type="button"
                   onClick={() => void load()}
                   disabled={loading}
-                  className="inline-flex min-h-11 items-center rounded-full border border-white/15 px-4 text-xs text-white/70 disabled:opacity-50"
+                  className="inline-flex min-h-11 items-center rounded-full border border-foreground/15 px-4 text-xs text-foreground/70 disabled:opacity-50"
                 >
                   {loading ? "Refreshing…" : "Refresh"}
                 </button>
@@ -1101,12 +1101,12 @@ export function TechnicianTodayWorkspace({
 
               {!technicianSession &&
               (crew.length > 0 || data.summary.unassigned > 0) ? (
-                <div className="mt-5 border-t border-white/10 pt-5">
+                <div className="mt-5 border-t border-foreground/10 pt-5">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
                       Route lens
                     </p>
-                    <p className="text-[10px] text-white/35">
+                    <p className="text-[10px] text-muted">
                       Saved on this phone
                     </p>
                   </div>
@@ -1121,7 +1121,7 @@ export function TechnicianTodayWorkspace({
                       className={`min-h-12 shrink-0 snap-start rounded-full border px-4 text-sm active:scale-[0.99] ${
                         activeCrewSelection === TECHNICIAN_ALL_CREW
                           ? "border-accent/45 bg-accent/[0.12] text-foreground"
-                          : "border-white/10 bg-white/[0.025] text-white/60"
+                          : "border-foreground/10 bg-foreground/[0.025] text-foreground/60"
                       }`}
                     >
                       All · {data.visits.length}
@@ -1137,7 +1137,7 @@ export function TechnicianTodayWorkspace({
                           className={`min-h-12 shrink-0 snap-start rounded-full border px-4 text-sm active:scale-[0.99] ${
                             activeCrewSelection === selection
                               ? "border-accent/45 bg-accent/[0.12] text-foreground"
-                              : "border-white/10 bg-white/[0.025] text-white/60"
+                              : "border-foreground/10 bg-foreground/[0.025] text-foreground/60"
                           }`}
                         >
                           {member.name} · {member.stopCount}
@@ -1153,8 +1153,8 @@ export function TechnicianTodayWorkspace({
                         onClick={() => selectCrew(TECHNICIAN_UNASSIGNED_CREW)}
                         className={`min-h-12 shrink-0 snap-start rounded-full border px-4 text-sm active:scale-[0.99] ${
                           activeCrewSelection === TECHNICIAN_UNASSIGNED_CREW
-                            ? "border-amber-300/45 bg-amber-300/[0.12] text-amber-100"
-                            : "border-amber-300/20 bg-amber-300/[0.05] text-amber-100/70"
+                            ? "border-warning/45 bg-warning/[0.12] text-warning"
+                            : "border-warning/20 bg-warning/[0.05] text-warning"
                         }`}
                       >
                         Unassigned · {data.summary.unassigned}

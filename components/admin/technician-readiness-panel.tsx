@@ -22,37 +22,37 @@ const OUTCOME_COPY: Record<
   in_progress: {
     label: "Route in progress",
     detail: "The day stays open until every assigned stop is complete.",
-    className: "border-amber-300/25 bg-amber-300/[0.08] text-amber-100",
+    className: "border-warning/25 bg-warning/[0.08] text-warning",
   },
   needs_schedule: {
     label: "Needs Jobber route",
     detail: "Assign at least one Jobber stop to this technician on the trial date.",
-    className: "border-amber-300/25 bg-amber-300/[0.08] text-amber-100",
+    className: "border-warning/25 bg-warning/[0.08] text-warning",
   },
   needs_review: {
     label: "Needs closeout review",
     detail: "Every assigned stop needs a completed HomeAtlas independence review.",
-    className: "border-amber-300/25 bg-amber-300/[0.08] text-amber-100",
+    className: "border-warning/25 bg-warning/[0.08] text-warning",
   },
   verified: {
     label: "Independent day verified",
     detail: "Every assigned stop completed with verified quality and zero owner help.",
-    className: "border-emerald-300/30 bg-emerald-300/[0.1] text-emerald-100",
+    className: "border-success/30 bg-success/[0.1] text-success",
   },
   did_not_verify: {
     label: "Did not verify",
     detail: "At least one assigned stop needed owner help, rework, or another exception.",
-    className: "border-red-300/25 bg-red-300/[0.08] text-red-100",
+    className: "border-danger/25 bg-danger/[0.08] text-danger",
   },
   source_unavailable: {
     label: "Source unavailable",
     detail: "Jobber connection or assignment evidence is incomplete. HomeAtlas fails closed.",
-    className: "border-red-300/25 bg-red-300/[0.08] text-red-100",
+    className: "border-danger/25 bg-danger/[0.08] text-danger",
   },
   cancelled: {
     label: "Cancelled",
     detail: "This trial remains in history but does not count as evidence.",
-    className: "border-white/10 bg-white/[0.04] text-white/55",
+    className: "border-foreground/10 bg-foreground/[0.04] text-muted",
   },
 };
 
@@ -234,24 +234,24 @@ export function TechnicianReadinessPanel() {
 
   if (loading && !snapshot) {
     return (
-      <section className="mt-8 rounded-[2rem] border border-white/10 bg-black/20 p-8 text-center text-sm text-muted">
+      <section className="mt-8 rounded-[2rem] border border-foreground/10 bg-background/60 p-8 text-center text-sm text-muted">
         Building the independent-day readiness file…
       </section>
     );
   }
 
   return (
-    <section className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-[#0d1211]">
-      <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_right,rgba(155,226,189,0.14),transparent_48%)] p-5 sm:p-7">
+    <section className="mt-8 overflow-hidden rounded-[var(--radius-card-lg)] border border-border bg-surface-elevated">
+      <div className="border-b border-foreground/10 bg-[radial-gradient(circle_at_top_right,rgba(155,226,189,0.14),transparent_48%)] p-5 sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-3xl">
             <p className="text-[10px] uppercase tracking-[0.2em] text-accent">
               Owner time buyback · Readiness file
             </p>
-            <h2 className="mt-2 font-serif text-3xl font-light tracking-[-0.03em] text-white sm:text-4xl">
+            <h2 className="mt-2 font-serif text-3xl font-light tracking-[-0.03em] text-foreground sm:text-4xl">
               Prove the first day Noah does not need to be there.
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/55">
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
               Eight observed skills prepare the technician. The result itself is
               source-backed: every assigned Jobber stop must finish with verified
               quality, complete closeout evidence, and zero owner intervention.
@@ -261,7 +261,7 @@ export function TechnicianReadinessPanel() {
             type="button"
             onClick={() => void load()}
             disabled={loading || busy !== null}
-            className="min-h-12 shrink-0 rounded-full border border-white/10 px-5 text-xs text-white/65 disabled:opacity-40"
+            className="min-h-12 shrink-0 rounded-full border border-foreground/10 px-5 text-xs text-foreground/65 disabled:opacity-40"
           >
             {loading ? "Refreshing…" : "Refresh evidence"}
           </button>
@@ -272,8 +272,8 @@ export function TechnicianReadinessPanel() {
             <span
               className={`rounded-full border px-3 py-1.5 text-[11px] ${
                 snapshot.jobberConnected
-                  ? "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-100"
-                  : "border-red-300/25 bg-red-300/[0.08] text-red-100"
+                  ? "border-success/25 bg-success/[0.08] text-success"
+                  : "border-danger/25 bg-danger/[0.08] text-danger"
               }`}
             >
               Jobber {snapshot.jobberStatus.replaceAll("_", " ")}
@@ -281,8 +281,8 @@ export function TechnicianReadinessPanel() {
             <span
               className={`rounded-full border px-3 py-1.5 text-[11px] ${
                 snapshot.schemaAvailable
-                  ? "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-100"
-                  : "border-amber-300/25 bg-amber-300/[0.08] text-amber-100"
+                  ? "border-success/25 bg-success/[0.08] text-success"
+                  : "border-warning/25 bg-warning/[0.08] text-warning"
               }`}
             >
               {snapshot.schemaAvailable
@@ -292,8 +292,8 @@ export function TechnicianReadinessPanel() {
             <span
               className={`rounded-full border px-3 py-1.5 text-[11px] ${
                 snapshot.jobberDataFresh
-                  ? "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-100"
-                  : "border-amber-300/25 bg-amber-300/[0.08] text-amber-100"
+                  ? "border-success/25 bg-success/[0.08] text-success"
+                  : "border-warning/25 bg-warning/[0.08] text-warning"
               }`}
             >
               {snapshot.jobberDataFresh
@@ -308,7 +308,7 @@ export function TechnicianReadinessPanel() {
         {error ? (
           <p
             role="alert"
-            className="mb-4 rounded-xl border border-red-300/25 bg-red-300/[0.07] p-4 text-sm text-red-100"
+            className="mb-4 rounded-xl border border-danger/25 bg-danger/[0.07] p-4 text-sm text-danger"
           >
             {error}
           </p>
@@ -316,7 +316,7 @@ export function TechnicianReadinessPanel() {
         {notice ? (
           <p
             role="status"
-            className="mb-4 rounded-xl border border-emerald-300/25 bg-emerald-300/[0.07] p-4 text-sm text-emerald-100"
+            className="mb-4 rounded-xl border border-success/25 bg-success/[0.07] p-4 text-sm text-success"
           >
             {notice}
           </p>
@@ -324,7 +324,7 @@ export function TechnicianReadinessPanel() {
         {snapshot?.warnings.map((warning) => (
           <p
             key={warning}
-            className="mb-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-4 text-xs leading-relaxed text-amber-100/80"
+            className="mb-3 rounded-xl border border-warning/20 bg-warning/[0.05] p-4 text-xs leading-relaxed text-warning"
           >
             {warning}
           </p>
@@ -340,8 +340,8 @@ export function TechnicianReadinessPanel() {
                   onClick={() => setSelectedTechnicianId(technician.jobberUserId)}
                   className={`min-h-12 shrink-0 rounded-full border px-5 text-sm transition ${
                     selectedTechnicianId === technician.jobberUserId
-                      ? "border-accent/50 bg-accent text-[#07110c]"
-                      : "border-white/10 bg-white/[0.035] text-white/65"
+                      ? "border-accent/50 bg-accent text-[var(--on-accent)]"
+                      : "border-foreground/10 bg-foreground/[0.035] text-foreground/65"
                   }`}
                 >
                   {technician.displayName}
@@ -353,7 +353,7 @@ export function TechnicianReadinessPanel() {
             {selected ? (
               <div className="mt-5">
                 {!selected.mirroredRosterActive ? (
-                  <p className="mb-4 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-4 text-xs text-amber-100/80">
+                  <p className="mb-4 rounded-xl border border-warning/20 bg-warning/[0.05] p-4 text-xs text-warning">
                     This historical technician is not in the current mirrored Jobber
                     roster. Evidence remains visible, but new actions are disabled.
                   </p>
@@ -362,21 +362,21 @@ export function TechnicianReadinessPanel() {
                 <div
                   className={`rounded-[1.4rem] border p-5 ${
                     selected.evidenceCompleteForOwnerDecision
-                      ? "border-emerald-300/30 bg-emerald-300/[0.07]"
-                      : "border-white/10 bg-white/[0.025]"
+                      ? "border-success/30 bg-success/[0.07]"
+                      : "border-foreground/10 bg-foreground/[0.025]"
                   }`}
                 >
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/40">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
                         {selected.displayName} · Owner decision file
                       </p>
-                      <p className="mt-2 text-xl font-semibold text-white">
+                      <p className="mt-2 text-xl font-semibold text-foreground">
                         {selected.evidenceCompleteForOwnerDecision
                           ? "Evidence complete for Noah’s decision"
                           : `${selected.independentCompetencyCount}/8 skills independently observed`}
                       </p>
-                      <p className="mt-2 text-xs leading-relaxed text-white/45">
+                      <p className="mt-2 text-xs leading-relaxed text-muted">
                         Evidence completeness does not automatically approve a route.
                         Noah still owns the safety and staffing decision.
                       </p>
@@ -387,9 +387,9 @@ export function TechnicianReadinessPanel() {
                         [selected.independentHours.toFixed(1), "hours"],
                         [selected.ownerInterventionJobs, "owner assists"],
                       ].map(([value, label]) => (
-                        <div key={label} className="rounded-xl border border-white/10 bg-black/20 p-3">
-                          <p className="text-lg font-semibold text-white">{value}</p>
-                          <p className="mt-1 text-[9px] uppercase tracking-[0.12em] text-white/35">
+                        <div key={label} className="rounded-xl border border-foreground/10 bg-background/60 p-3">
+                          <p className="text-lg font-semibold text-foreground">{value}</p>
+                          <p className="mt-1 text-[9px] uppercase tracking-[0.12em] text-muted">
                             {label}
                           </p>
                         </div>
@@ -403,21 +403,21 @@ export function TechnicianReadinessPanel() {
                         key={gate.id}
                         className={`rounded-xl border p-3 ${
                           gate.passed
-                            ? "border-emerald-300/20 bg-emerald-300/[0.05]"
-                            : "border-white/10 bg-black/15"
+                            ? "border-success/20 bg-success/[0.05]"
+                            : "border-foreground/10 bg-background/60"
                         }`}
                       >
-                        <p className="text-xs font-medium text-white">
+                        <p className="text-xs font-medium text-foreground">
                           {gate.passed ? "✓ " : "○ "}
                           {gate.label}
                         </p>
-                        <p className="mt-1 text-[11px] leading-relaxed text-white/40">
+                        <p className="mt-1 text-[11px] leading-relaxed text-muted">
                           {gate.detail}
                         </p>
                       </div>
                     ))}
                   </div>
-                  <p className="mt-3 text-[11px] text-white/35">
+                  <p className="mt-3 text-[11px] text-muted">
                     Last clean independent visit: {formatDate(selected.lastIndependentServiceDate)}
                     {selected.qualityExceptionJobs > 0
                       ? ` · ${selected.qualityExceptionJobs} quality/exception review${selected.qualityExceptionJobs === 1 ? "" : "s"}`
@@ -426,7 +426,7 @@ export function TechnicianReadinessPanel() {
                 </div>
 
                 <div className="mt-5 grid gap-5 xl:grid-cols-[1.15fr_0.85fr]">
-                  <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-5">
+                  <div className="rounded-[1.4rem] border border-foreground/10 bg-foreground/[0.025] p-5">
                     <p className="text-[10px] uppercase tracking-[0.18em] text-accent/75">
                       Eight observable skills
                     </p>
@@ -441,26 +441,26 @@ export function TechnicianReadinessPanel() {
                             className={`min-h-28 rounded-xl border p-4 text-left ${
                               competency === item.id
                                 ? "border-accent/40 bg-accent/[0.06]"
-                                : "border-white/10 bg-black/15"
+                                : "border-foreground/10 bg-background/60"
                             }`}
                           >
                             <div className="flex items-start justify-between gap-3">
-                              <p className="text-sm font-medium text-white">{item.label}</p>
+                              <p className="text-sm font-medium text-foreground">{item.label}</p>
                               <span
                                 className={`shrink-0 rounded-full border px-2 py-1 text-[9px] uppercase tracking-[0.1em] ${
                                   latest?.rating === "independent"
-                                    ? "border-emerald-300/25 text-emerald-100"
-                                    : "border-white/10 text-white/40"
+                                    ? "border-success/25 text-success"
+                                    : "border-foreground/10 text-muted"
                                 }`}
                               >
                                 {ratingLabel(latest?.rating)}
                               </span>
                             </div>
-                            <p className="mt-2 text-[11px] leading-relaxed text-white/38">
+                            <p className="mt-2 text-[11px] leading-relaxed text-foreground/38">
                               {latest?.evidenceNote ?? item.detail}
                             </p>
                             {latest ? (
-                              <p className="mt-2 text-[9px] text-white/25">
+                              <p className="mt-2 text-[9px] text-muted">
                                 Added {formatDateTime(latest.assessedAt)}
                               </p>
                             ) : null}
@@ -469,20 +469,20 @@ export function TechnicianReadinessPanel() {
                       })}
                     </div>
 
-                    <div className="mt-5 border-t border-white/10 pt-5">
-                      <p className="text-sm font-medium text-white">Add a new observation</p>
-                      <p className="mt-1 text-xs text-white/40">
+                    <div className="mt-5 border-t border-foreground/10 pt-5">
+                      <p className="text-sm font-medium text-foreground">Add a new observation</p>
+                      <p className="mt-1 text-xs text-muted">
                         New evidence becomes current; older evidence remains in the audit history.
                       </p>
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <label className="text-xs text-white/55">
+                        <label className="text-xs text-muted">
                           Skill
                           <select
                             value={competency}
                             onChange={(event) =>
                               setCompetency(event.target.value as TechnicianCompetencyId)
                             }
-                            className="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#111615] px-3 text-sm text-white outline-none focus:border-accent/50"
+                            className="mt-2 min-h-12 w-full rounded-xl border border-foreground/10 bg-surface-elevated px-3 text-sm text-foreground outline-none focus:border-accent/50"
                           >
                             {TECHNICIAN_COMPETENCIES.map((item) => (
                               <option key={item.id} value={item.id}>
@@ -491,7 +491,7 @@ export function TechnicianReadinessPanel() {
                             ))}
                           </select>
                         </label>
-                        <label className="text-xs text-white/55">
+                        <label className="text-xs text-muted">
                           Observed level
                           <select
                             value={rating}
@@ -500,7 +500,7 @@ export function TechnicianReadinessPanel() {
                                 event.target.value as TechnicianCompetencyRating,
                               )
                             }
-                            className="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#111615] px-3 text-sm text-white outline-none focus:border-accent/50"
+                            className="mt-2 min-h-12 w-full rounded-xl border border-foreground/10 bg-surface-elevated px-3 text-sm text-foreground outline-none focus:border-accent/50"
                           >
                             <option value="learning">Learning</option>
                             <option value="supervised">Supervised</option>
@@ -508,7 +508,7 @@ export function TechnicianReadinessPanel() {
                           </select>
                         </label>
                       </div>
-                      <label className="mt-3 block text-xs text-white/55">
+                      <label className="mt-3 block text-xs text-muted">
                         What did you personally observe?
                         <textarea
                           value={evidenceNote}
@@ -516,7 +516,7 @@ export function TechnicianReadinessPanel() {
                           maxLength={1_000}
                           rows={3}
                           placeholder="Example: Loaded the route, confirmed each scope, handled access notes, and closed all three stops without prompting."
-                          className="mt-2 w-full rounded-xl border border-white/10 bg-[#111615] p-3 text-sm text-white outline-none placeholder:text-white/20 focus:border-accent/50"
+                          className="mt-2 w-full rounded-xl border border-foreground/10 bg-surface-elevated p-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50"
                         />
                       </label>
                       <button
@@ -528,7 +528,7 @@ export function TechnicianReadinessPanel() {
                           !selected.mirroredRosterActive ||
                           evidenceNote.trim().length < 10
                         }
-                        className="mt-3 min-h-12 w-full rounded-xl bg-accent px-5 text-sm font-semibold text-[#07110c] disabled:opacity-35"
+                        className="mt-3 min-h-12 w-full rounded-xl bg-accent px-5 text-sm font-semibold text-[var(--on-accent)] disabled:opacity-35"
                       >
                         {busy === "record_competency"
                           ? "Saving evidence…"
@@ -538,28 +538,28 @@ export function TechnicianReadinessPanel() {
                   </div>
 
                   <div className="space-y-5">
-                    <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-5">
+                    <div className="rounded-[1.4rem] border border-foreground/10 bg-foreground/[0.025] p-5">
                       <p className="text-[10px] uppercase tracking-[0.18em] text-accent/75">
                         Schedule the proof
                       </p>
-                      <h3 className="mt-2 text-xl font-semibold text-white">
+                      <h3 className="mt-2 text-xl font-semibold text-foreground">
                         First independent day
                       </h3>
-                      <p className="mt-2 text-xs leading-relaxed text-white/40">
+                      <p className="mt-2 text-xs leading-relaxed text-muted">
                         Plan the date here, then build the real route in Jobber. HomeAtlas
                         will grade every assigned stop—not a sample and not a checkbox.
                       </p>
-                      <label className="mt-4 block text-xs text-white/55">
+                      <label className="mt-4 block text-xs text-muted">
                         Trial date
                         <input
                           type="date"
                           value={trialDate}
                           min={snapshot?.today}
                           onChange={(event) => setTrialDate(event.target.value)}
-                          className="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#111615] px-3 text-sm text-white outline-none focus:border-accent/50"
+                          className="mt-2 min-h-12 w-full rounded-xl border border-foreground/10 bg-surface-elevated px-3 text-sm text-foreground outline-none focus:border-accent/50"
                         />
                       </label>
-                      <label className="mt-3 block text-xs text-white/55">
+                      <label className="mt-3 block text-xs text-muted">
                         Route plan (optional)
                         <textarea
                           value={planNote}
@@ -567,7 +567,7 @@ export function TechnicianReadinessPanel() {
                           maxLength={1_000}
                           rows={3}
                           placeholder="Normal route, stocked vehicle, Noah available by phone for safety escalation only."
-                          className="mt-2 w-full rounded-xl border border-white/10 bg-[#111615] p-3 text-sm text-white outline-none placeholder:text-white/20 focus:border-accent/50"
+                          className="mt-2 w-full rounded-xl border border-foreground/10 bg-surface-elevated p-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/50"
                         />
                       </label>
                       <button
@@ -587,17 +587,17 @@ export function TechnicianReadinessPanel() {
                       </button>
                     </div>
 
-                    <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-5">
+                    <div className="rounded-[1.4rem] border border-foreground/10 bg-foreground/[0.025] p-5">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
                             Trial history
                           </p>
-                          <h3 className="mt-2 text-lg font-semibold text-white">
+                          <h3 className="mt-2 text-lg font-semibold text-foreground">
                             All-stop evidence
                           </h3>
                         </div>
-                        <span className="rounded-full border border-white/10 px-3 py-1 text-[10px] text-white/40">
+                        <span className="rounded-full border border-foreground/10 px-3 py-1 text-[10px] text-muted">
                           {selectedTrials.length}
                         </span>
                       </div>
@@ -610,14 +610,14 @@ export function TechnicianReadinessPanel() {
                             return (
                               <div
                                 key={trial.id}
-                                className="rounded-xl border border-white/10 bg-black/20 p-4"
+                                className="rounded-xl border border-foreground/10 bg-background/60 p-4"
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
-                                    <p className="text-sm font-medium text-white">
+                                    <p className="text-sm font-medium text-foreground">
                                       {formatDate(trial.trialDate)}
                                     </p>
-                                    <p className="mt-1 text-[10px] text-white/35">
+                                    <p className="mt-1 text-[10px] text-muted">
                                       {trial.completedStops}/{trial.scheduledStops} complete · {trial.reviewedStops}/{trial.scheduledStops} reviewed · {trial.qualifyingIndependentStops}/{trial.scheduledStops} clean
                                     </p>
                                   </div>
@@ -627,16 +627,16 @@ export function TechnicianReadinessPanel() {
                                     {outcome.label}
                                   </span>
                                 </div>
-                                <p className="mt-3 text-[11px] leading-relaxed text-white/42">
+                                <p className="mt-3 text-[11px] leading-relaxed text-foreground/42">
                                   {outcome.detail}
                                 </p>
                                 {trial.planNote ? (
-                                  <p className="mt-2 text-[11px] leading-relaxed text-white/32">
+                                  <p className="mt-2 text-[11px] leading-relaxed text-foreground/32">
                                     Plan: {trial.planNote}
                                   </p>
                                 ) : null}
                                 {trial.cancellationReason ? (
-                                  <p className="mt-2 text-[11px] text-white/32">
+                                  <p className="mt-2 text-[11px] text-foreground/32">
                                     Cancelled: {trial.cancellationReason}
                                   </p>
                                 ) : null}
@@ -650,7 +650,7 @@ export function TechnicianReadinessPanel() {
                                         }
                                         maxLength={1_000}
                                         placeholder="Why is this trial changing?"
-                                        className="min-h-11 w-full rounded-xl border border-red-300/20 bg-[#111615] px-3 text-xs text-white outline-none"
+                                        className="min-h-11 w-full rounded-xl border border-danger/20 bg-surface-elevated px-3 text-xs text-foreground outline-none"
                                       />
                                       <div className="mt-2 flex gap-2">
                                         <button
@@ -660,7 +660,7 @@ export function TechnicianReadinessPanel() {
                                             busy !== null ||
                                             cancellationReason.trim().length < 5
                                           }
-                                          className="min-h-11 flex-1 rounded-xl border border-red-300/25 text-xs text-red-100 disabled:opacity-35"
+                                          className="min-h-11 flex-1 rounded-xl border border-danger/25 text-xs text-danger disabled:opacity-35"
                                         >
                                           Confirm cancellation
                                         </button>
@@ -670,7 +670,7 @@ export function TechnicianReadinessPanel() {
                                             setCancelTrialId(null);
                                             setCancellationReason("");
                                           }}
-                                          className="min-h-11 rounded-xl border border-white/10 px-4 text-xs text-white/45"
+                                          className="min-h-11 rounded-xl border border-foreground/10 px-4 text-xs text-muted"
                                         >
                                           Keep
                                         </button>
@@ -680,7 +680,7 @@ export function TechnicianReadinessPanel() {
                                     <button
                                       type="button"
                                       onClick={() => setCancelTrialId(trial.id)}
-                                      className="mt-3 min-h-10 rounded-xl border border-white/10 px-3 text-[11px] text-white/40"
+                                      className="mt-3 min-h-10 rounded-xl border border-foreground/10 px-3 text-[11px] text-muted"
                                     >
                                       Cancel trial
                                     </button>
@@ -691,7 +691,7 @@ export function TechnicianReadinessPanel() {
                           })}
                         </div>
                       ) : (
-                        <p className="mt-4 rounded-xl border border-dashed border-white/10 p-5 text-center text-xs leading-relaxed text-white/35">
+                        <p className="mt-4 rounded-xl border border-dashed border-foreground/10 p-5 text-center text-xs leading-relaxed text-muted">
                           No independent day is planned yet. Build readiness first,
                           then choose one normal route worth proving.
                         </p>
@@ -703,7 +703,7 @@ export function TechnicianReadinessPanel() {
             ) : null}
           </>
         ) : (
-          <p className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/40">
+          <p className="rounded-xl border border-dashed border-foreground/10 p-8 text-center text-sm text-muted">
             Sync a Jobber route with an assigned technician before building a readiness file.
           </p>
         )}

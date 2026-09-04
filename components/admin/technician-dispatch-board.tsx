@@ -19,7 +19,7 @@ const DISPATCH_STATE_COPY: Record<
 > = {
   attention: {
     label: "Needs attention",
-    className: "border-amber-300/30 bg-amber-300/[0.09] text-amber-100",
+    className: "border-warning/30 bg-warning/[0.09] text-warning",
   },
   working: {
     label: "Working",
@@ -31,11 +31,11 @@ const DISPATCH_STATE_COPY: Record<
   },
   done: {
     label: "Route closed",
-    className: "border-emerald-300/30 bg-emerald-300/[0.08] text-emerald-100",
+    className: "border-success/30 bg-success/[0.08] text-success",
   },
   off_route: {
     label: "Off route",
-    className: "border-white/10 bg-white/[0.035] text-white/45",
+    className: "border-foreground/10 bg-foreground/[0.035] text-muted",
   },
 };
 
@@ -45,11 +45,11 @@ const PASS_STATE_COPY: Record<
 > = {
   active: {
     label: "Technician active",
-    className: "border-emerald-300/25 text-emerald-100",
+    className: "border-success/25 text-success",
   },
   expiring: {
     label: "Access needs refresh",
-    className: "border-amber-300/25 text-amber-100",
+    className: "border-warning/25 text-warning",
   },
   pending: {
     label: "Install pending",
@@ -57,15 +57,15 @@ const PASS_STATE_COPY: Record<
   },
   expired: {
     label: "Access expired",
-    className: "border-red-300/25 text-red-100",
+    className: "border-danger/25 text-danger",
   },
   revoked: {
     label: "Access removed",
-    className: "border-red-300/25 text-red-100",
+    className: "border-danger/25 text-danger",
   },
   missing: {
     label: "No Technician Access",
-    className: "border-white/10 text-white/45",
+    className: "border-foreground/10 text-muted",
   },
 };
 
@@ -110,16 +110,16 @@ function DispatchMetric({
     <div
       className={`rounded-2xl border px-4 py-3 ${
         warning
-          ? "border-amber-300/25 bg-amber-300/[0.07]"
-          : "border-white/10 bg-white/[0.035]"
+          ? "border-warning/25 bg-warning/[0.07]"
+          : "border-foreground/10 bg-foreground/[0.035]"
       }`}
     >
-      <p className="text-[9px] uppercase tracking-[0.16em] text-white/40">
+      <p className="text-[9px] uppercase tracking-[0.16em] text-muted">
         {label}
       </p>
       <p
         className={`mt-1.5 text-2xl font-semibold tabular-nums ${
-          warning ? "text-amber-100" : "text-white"
+          warning ? "text-warning" : "text-foreground"
         }`}
       >
         {value}
@@ -157,13 +157,13 @@ function CrewDispatchCard({
       member.fieldPassState === "revoked");
 
   return (
-    <li className="rounded-[1.5rem] border border-white/10 bg-[#111615] p-5 [content-visibility:auto] [contain-intrinsic-size:auto_24rem] sm:p-6">
+    <li className="rounded-[1.5rem] border border-foreground/10 bg-surface-elevated p-5 [content-visibility:auto] [contain-intrinsic-size:auto_24rem] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xl font-semibold text-white">
+          <p className="text-xl font-semibold text-foreground">
             {member.displayName}
           </p>
-          <p className="mt-1 text-xs text-white/40">
+          <p className="mt-1 text-xs text-muted">
             {member.assignedStopCount} stop
             {member.assignedStopCount === 1 ? "" : "s"} · {member.jobberCompleteStopCount}{" "}
             Jobber complete · {member.documentedStopCount} documented
@@ -183,13 +183,13 @@ function CrewDispatchCard({
           {passState.label}
         </span>
         {member.actionRequiredStopCount > 0 ? (
-          <span className="rounded-full border border-amber-300/25 px-3 py-1 text-[10px] text-amber-100">
+          <span className="rounded-full border border-warning/25 px-3 py-1 text-[10px] text-warning">
             {member.actionRequiredStopCount} stop
             {member.actionRequiredStopCount === 1 ? "" : "s"} need action
           </span>
         ) : null}
         {member.portalUpdatedStopCount > 0 ? (
-          <span className="rounded-full border border-emerald-300/20 px-3 py-1 text-[10px] text-emerald-100/80">
+          <span className="rounded-full border border-success/20 px-3 py-1 text-[10px] text-success">
             {member.portalUpdatedStopCount} portal updated
           </span>
         ) : null}
@@ -199,17 +199,17 @@ function CrewDispatchCard({
         <div
           className={`mt-5 rounded-2xl border p-4 ${
             member.attentionStop
-              ? "border-amber-300/25 bg-amber-300/[0.06]"
+              ? "border-warning/25 bg-warning/[0.06]"
               : member.activeStop
                 ? "border-accent/25 bg-accent/[0.055]"
-                : "border-white/10 bg-white/[0.025]"
+                : "border-foreground/10 bg-foreground/[0.025]"
           }`}
         >
           <div className="flex items-center justify-between gap-4">
-            <p className="text-[9px] uppercase tracking-[0.18em] text-white/45">
+            <p className="text-[9px] uppercase tracking-[0.18em] text-muted">
               {focusLabel}
             </p>
-            <p className="text-xs tabular-nums text-white/55">
+            <p className="text-xs tabular-nums text-muted">
               {formatTimeRange(
                 focusStop.scheduledStart,
                 focusStop.scheduledEnd,
@@ -217,10 +217,10 @@ function CrewDispatchCard({
               )}
             </p>
           </div>
-          <p className="mt-2 truncate font-serif text-xl text-white">
+          <p className="mt-2 truncate font-serif text-xl text-foreground">
             {focusStop.clientName}
           </p>
-          <p className="mt-1 truncate text-xs text-white/45">
+          <p className="mt-1 truncate text-xs text-muted">
             {focusStop.serviceLabel}
           </p>
 
@@ -230,12 +230,12 @@ function CrewDispatchCard({
                 <span className="text-accent">
                   {technicianVisitStageLabel(focusStop.fieldStage)}
                 </span>
-                <span className="tabular-nums text-white/40">
+                <span className="tabular-nums text-muted">
                   {progress.completed}/{progress.total}
                 </span>
               </div>
               <div
-                className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10"
+                className="mt-2 h-1.5 overflow-hidden rounded-full bg-foreground/10"
                 role="progressbar"
                 aria-label={`${member.displayName} visit progress`}
                 aria-valuemin={0}
@@ -254,13 +254,13 @@ function CrewDispatchCard({
 
           <Link
             href={focusStop.todayHref}
-            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-white/15 px-4 text-xs text-white/75 transition hover:border-white/30 hover:text-white"
+            className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl border border-foreground/15 px-4 text-xs text-foreground/75 transition hover:border-foreground/30 hover:text-foreground"
           >
             Open exact stop
           </Link>
         </div>
       ) : (
-        <p className="mt-5 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-xs leading-relaxed text-white/40">
+        <p className="mt-5 rounded-2xl border border-foreground/10 bg-foreground/[0.025] p-4 text-xs leading-relaxed text-muted">
           No Jobber stops assigned today.
         </p>
       )}
@@ -268,7 +268,7 @@ function CrewDispatchCard({
       {needsPass ? (
         <a
           href={`#${technicianFieldPassAnchorId(member.jobberUserId)}`}
-          className="mt-4 inline-flex min-h-11 items-center text-xs font-medium text-amber-100 underline decoration-amber-200/30 underline-offset-4"
+          className="mt-4 inline-flex min-h-11 items-center text-xs font-medium text-warning underline decoration-warning/30 underline-offset-4"
         >
           Set up Technician Access
         </a>
@@ -290,7 +290,7 @@ export function TechnicianDispatchBoard({
   return (
     <section
       aria-labelledby="technician-dispatch-heading"
-      className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-black/20 p-5 shadow-[0_28px_90px_rgba(0,0,0,0.24)] sm:p-7"
+      className="mt-8 overflow-hidden rounded-[2rem] border border-foreground/10 bg-background/60 p-5 shadow-[0_28px_90px_rgba(0,0,0,0.24)] sm:p-7"
     >
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-end">
         <div>
@@ -299,16 +299,16 @@ export function TechnicianDispatchBoard({
           </p>
           <h2
             id="technician-dispatch-heading"
-            className="mt-2 font-serif text-3xl font-light text-white sm:text-4xl"
+            className="mt-2 font-serif text-3xl font-light text-foreground sm:text-4xl"
           >
             The field, without the guessing.
           </h2>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/50">
+          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
             Jobber owns assignments. HomeAtlas shows phone access, live route
             stages, service proof, and the exact stop that needs HQ.
           </p>
         </div>
-        <p aria-live="polite" className="text-xs text-white/35">
+        <p aria-live="polite" className="text-xs text-muted">
           Updated {formatTime(board.loadedAt, board.timezone)}
         </p>
       </div>
@@ -327,8 +327,8 @@ export function TechnicianDispatchBoard({
       </div>
 
       {hasOwnerAttention ? (
-        <div className="mt-5 rounded-2xl border border-amber-300/25 bg-amber-300/[0.065] p-4 text-xs leading-relaxed text-amber-100/80">
-          <p className="font-medium text-amber-100">Owner dispatch check</p>
+        <div className="mt-5 rounded-2xl border border-warning/25 bg-warning/[0.065] p-4 text-xs leading-relaxed text-warning">
+          <p className="font-medium text-warning">Owner dispatch check</p>
           <ul className="mt-2 space-y-1">
             {board.summary.crewWithoutUsablePass > 0 ? (
               <li>
@@ -377,7 +377,7 @@ export function TechnicianDispatchBoard({
           ))}
         </ul>
       ) : (
-        <p className="mt-5 rounded-2xl border border-white/10 p-6 text-sm text-white/45">
+        <p className="mt-5 rounded-2xl border border-foreground/10 p-6 text-sm text-muted">
           No mirrored Jobber crew is available yet.
         </p>
       )}

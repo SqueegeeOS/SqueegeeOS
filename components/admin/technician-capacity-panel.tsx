@@ -35,24 +35,24 @@ function stateCopy(week: TechnicianCapacityWeekForecast): {
   if (week.state === "source_unavailable") {
     return {
       label: "Source unavailable",
-      className: "border-red-300/25 bg-red-300/[0.08] text-red-100",
+      className: "border-danger/25 bg-danger/[0.08] text-danger",
     };
   }
   if (week.state === "no_plan") {
     return {
       label: "Capacity not declared",
-      className: "border-amber-300/25 bg-amber-300/[0.08] text-amber-100",
+      className: "border-warning/25 bg-warning/[0.08] text-warning",
     };
   }
   if (week.overCapacity) {
     return {
       label: "Over declared capacity",
-      className: "border-red-300/25 bg-red-300/[0.08] text-red-100",
+      className: "border-danger/25 bg-danger/[0.08] text-danger",
     };
   }
   return {
     label: "Inside declared capacity",
-    className: "border-emerald-300/25 bg-emerald-300/[0.08] text-emerald-100",
+    className: "border-success/25 bg-success/[0.08] text-success",
   };
 }
 
@@ -185,24 +185,24 @@ export function TechnicianCapacityPanel() {
 
   if (loading && !snapshot) {
     return (
-      <section className="mt-8 rounded-[2rem] border border-white/10 bg-black/20 p-8 text-center text-sm text-muted">
+      <section className="mt-8 rounded-[2rem] border border-foreground/10 bg-background/60 p-8 text-center text-sm text-muted">
         Calculating the four-week field runway…
       </section>
     );
   }
 
   return (
-    <section className="mt-8 overflow-hidden rounded-[2rem] border border-white/10 bg-[#0d1211]">
-      <div className="border-b border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(104,196,255,0.12),transparent_45%)] p-5 sm:p-7">
+    <section className="mt-8 overflow-hidden rounded-[var(--radius-card-lg)] border border-border bg-surface-elevated">
+      <div className="border-b border-foreground/10 bg-[radial-gradient(circle_at_top_left,rgba(104,196,255,0.12),transparent_45%)] p-5 sm:p-7">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="max-w-3xl">
             <p className="text-[10px] uppercase tracking-[0.2em] text-sky-200/75">
               Production capacity · Current booked runway
             </p>
-            <h2 className="mt-2 font-serif text-3xl font-light tracking-[-0.03em] text-white sm:text-4xl">
+            <h2 className="mt-2 font-serif text-3xl font-light tracking-[-0.03em] text-foreground sm:text-4xl">
               Book the field team—not Noah by default.
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/55">
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-muted">
               Declare the hours a technician can actually produce, then compare
               them with the current four-week Jobber schedule. HomeAtlas surfaces
               overload and unassigned work; it never schedules Noah as the answer.
@@ -212,7 +212,7 @@ export function TechnicianCapacityPanel() {
             type="button"
             onClick={() => void load()}
             disabled={loading || saving}
-            className="min-h-12 shrink-0 rounded-full border border-white/10 px-5 text-xs text-white/65 disabled:opacity-40"
+            className="min-h-12 shrink-0 rounded-full border border-foreground/10 px-5 text-xs text-foreground/65 disabled:opacity-40"
           >
             {loading ? "Refreshing…" : "Refresh runway"}
           </button>
@@ -223,7 +223,7 @@ export function TechnicianCapacityPanel() {
         {error ? (
           <p
             role="alert"
-            className="mb-4 rounded-xl border border-red-300/25 bg-red-300/[0.07] p-4 text-sm text-red-100"
+            className="mb-4 rounded-xl border border-danger/25 bg-danger/[0.07] p-4 text-sm text-danger"
           >
             {error}
           </p>
@@ -231,7 +231,7 @@ export function TechnicianCapacityPanel() {
         {notice ? (
           <p
             role="status"
-            className="mb-4 rounded-xl border border-emerald-300/25 bg-emerald-300/[0.07] p-4 text-sm text-emerald-100"
+            className="mb-4 rounded-xl border border-success/25 bg-success/[0.07] p-4 text-sm text-success"
           >
             {notice}
           </p>
@@ -239,7 +239,7 @@ export function TechnicianCapacityPanel() {
         {snapshot?.warnings.map((warning) => (
           <p
             key={warning}
-            className="mb-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.05] p-4 text-xs leading-relaxed text-amber-100/80"
+            className="mb-3 rounded-xl border border-warning/20 bg-warning/[0.05] p-4 text-xs leading-relaxed text-warning"
           >
             {warning}
           </p>
@@ -255,37 +255,37 @@ export function TechnicianCapacityPanel() {
                   key={week.weekStart}
                   className={`rounded-[1.2rem] border p-4 ${
                     overloaded
-                      ? "border-red-300/25 bg-red-300/[0.06]"
-                      : "border-white/10 bg-white/[0.025]"
+                      ? "border-danger/25 bg-danger/[0.06]"
+                      : "border-foreground/10 bg-foreground/[0.025]"
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[10px] uppercase tracking-[0.15em] text-white/35">
+                    <p className="text-[10px] uppercase tracking-[0.15em] text-muted">
                       {index === 0 ? "This week" : `Week ${index + 1}`}
                     </p>
-                    <p className="text-xs text-white/55">
+                    <p className="text-xs text-muted">
                       {weekLabel(week.weekStart)}
                     </p>
                   </div>
-                  <p className="mt-3 text-2xl font-semibold text-white">
+                  <p className="mt-3 text-2xl font-semibold text-foreground">
                     {remaining === null
                       ? "Unknown"
                       : overloaded
                         ? `${hours(Math.abs(remaining))} over`
                         : `${hours(remaining)} open`}
                   </p>
-                  <p className="mt-1 text-[11px] text-white/35">
+                  <p className="mt-1 text-[11px] text-muted">
                     {hours(week.scheduledCrewMinutes)} scheduled / {hours(week.declaredCapacityMinutes)} declared
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2 text-[9px] uppercase tracking-[0.1em]">
-                    <span className="rounded-full border border-white/10 px-2 py-1 text-white/40">
+                    <span className="rounded-full border border-foreground/10 px-2 py-1 text-muted">
                       {week.scheduledVisits ?? "?"} visits
                     </span>
                     <span
                       className={`rounded-full border px-2 py-1 ${
                         (week.unassignedStops ?? 0) > 0
-                          ? "border-amber-300/25 text-amber-100"
-                          : "border-white/10 text-white/40"
+                          ? "border-warning/25 text-warning"
+                          : "border-foreground/10 text-muted"
                       }`}
                     >
                       {week.unassignedStops ?? "?"} unassigned
@@ -310,8 +310,8 @@ export function TechnicianCapacityPanel() {
                   }}
                   className={`min-h-12 shrink-0 rounded-full border px-5 text-sm transition ${
                     selectedTechnicianId === technician.jobberUserId
-                      ? "border-sky-200/45 bg-sky-200 text-[#07110c]"
-                      : "border-white/10 bg-white/[0.035] text-white/65"
+                      ? "border-sky-200/45 bg-sky-200 text-[var(--on-accent)]"
+                      : "border-foreground/10 bg-foreground/[0.035] text-foreground/65"
                   }`}
                 >
                   {technician.displayName}
@@ -321,18 +321,18 @@ export function TechnicianCapacityPanel() {
 
             {selected ? (
               <div className="mt-5 grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-                <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-5">
+                <div className="rounded-[1.4rem] border border-foreground/10 bg-foreground/[0.025] p-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-white/35">
+                      <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
                         {selected.displayName} · Four-week booked load
                       </p>
-                      <h3 className="mt-2 text-xl font-semibold text-white">
+                      <h3 className="mt-2 text-xl font-semibold text-foreground">
                         Exact schedule against declared hours
                       </h3>
                     </div>
                     {!selected.mirroredRosterActive ? (
-                      <span className="rounded-full border border-amber-300/20 px-3 py-1 text-[10px] text-amber-100">
+                      <span className="rounded-full border border-warning/20 px-3 py-1 text-[10px] text-warning">
                         Historical · not current roster
                       </span>
                     ) : null}
@@ -344,14 +344,14 @@ export function TechnicianCapacityPanel() {
                       return (
                         <div
                           key={week.weekStart}
-                          className="rounded-xl border border-white/10 bg-black/20 p-4"
+                          className="rounded-xl border border-foreground/10 bg-background/60 p-4"
                         >
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div>
-                              <p className="text-sm font-medium text-white">
+                              <p className="text-sm font-medium text-foreground">
                                 Week of {weekLabel(week.weekStart)}
                               </p>
-                              <p className="mt-1 text-[11px] leading-relaxed text-white/38">
+                              <p className="mt-1 text-[11px] leading-relaxed text-foreground/38">
                                 {week.detail}
                               </p>
                             </div>
@@ -370,17 +370,17 @@ export function TechnicianCapacityPanel() {
                             ].map(([value, label]) => (
                               <div
                                 key={label}
-                                className="rounded-lg border border-white/10 bg-white/[0.025] p-3"
+                                className="rounded-lg border border-foreground/10 bg-foreground/[0.025] p-3"
                               >
-                                <p className="text-sm font-semibold text-white">{value}</p>
-                                <p className="mt-1 text-[9px] uppercase tracking-[0.1em] text-white/30">
+                                <p className="text-sm font-semibold text-foreground">{value}</p>
+                                <p className="mt-1 text-[9px] uppercase tracking-[0.1em] text-muted">
                                   {label}
                                 </p>
                               </div>
                             ))}
                           </div>
                           {week.utilizationPercent !== null ? (
-                            <p className="mt-3 text-[10px] text-white/35">
+                            <p className="mt-3 text-[10px] text-muted">
                               {week.utilizationPercent.toFixed(1)}% of owner-declared capacity currently booked · {week.scheduledStops ?? 0} assigned stops
                             </p>
                           ) : null}
@@ -390,19 +390,19 @@ export function TechnicianCapacityPanel() {
                   </div>
                 </div>
 
-                <div className="rounded-[1.4rem] border border-white/10 bg-white/[0.025] p-5">
+                <div className="rounded-[1.4rem] border border-foreground/10 bg-foreground/[0.025] p-5">
                   <p className="text-[10px] uppercase tracking-[0.18em] text-sky-200/70">
                     Owner planning input
                   </p>
-                  <h3 className="mt-2 text-xl font-semibold text-white">
+                  <h3 className="mt-2 text-xl font-semibold text-foreground">
                     Declare weekly capacity
                   </h3>
-                  <p className="mt-2 text-xs leading-relaxed text-white/40">
+                  <p className="mt-2 text-xs leading-relaxed text-muted">
                     Add a new effective plan instead of rewriting history. Set zero
                     when the technician has no production availability that week.
                   </p>
 
-                  <label className="mt-4 block text-xs text-white/55">
+                  <label className="mt-4 block text-xs text-muted">
                     Effective Monday
                     <select
                       value={effectiveWeekStart}
@@ -410,7 +410,7 @@ export function TechnicianCapacityPanel() {
                         setEffectiveWeekStart(event.target.value);
                         setPendingRequestId(null);
                       }}
-                      className="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#111615] px-3 text-sm text-white outline-none focus:border-sky-200/45"
+                      className="mt-2 min-h-12 w-full rounded-xl border border-foreground/10 bg-surface-elevated px-3 text-sm text-foreground outline-none focus:border-sky-200/45"
                     >
                       {snapshot.weeks.map((week) => (
                         <option key={week.weekStart} value={week.weekStart}>
@@ -419,7 +419,7 @@ export function TechnicianCapacityPanel() {
                       ))}
                     </select>
                   </label>
-                  <label className="mt-3 block text-xs text-white/55">
+                  <label className="mt-3 block text-xs text-muted">
                     Available production hours
                     <input
                       type="number"
@@ -433,10 +433,10 @@ export function TechnicianCapacityPanel() {
                         setPendingRequestId(null);
                       }}
                       placeholder="Example: 32"
-                      className="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#111615] px-3 text-sm text-white outline-none placeholder:text-white/20 focus:border-sky-200/45"
+                      className="mt-2 min-h-12 w-full rounded-xl border border-foreground/10 bg-surface-elevated px-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-sky-200/45"
                     />
                   </label>
-                  <label className="mt-3 block text-xs text-white/55">
+                  <label className="mt-3 block text-xs text-muted">
                     Planning labor cost / hour (optional)
                     <input
                       type="number"
@@ -450,10 +450,10 @@ export function TechnicianCapacityPanel() {
                         setPendingRequestId(null);
                       }}
                       placeholder="Example: 25"
-                      className="mt-2 min-h-12 w-full rounded-xl border border-white/10 bg-[#111615] px-3 text-sm text-white outline-none placeholder:text-white/20 focus:border-sky-200/45"
+                      className="mt-2 min-h-12 w-full rounded-xl border border-foreground/10 bg-surface-elevated px-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-sky-200/45"
                     />
                   </label>
-                  <label className="mt-3 block text-xs text-white/55">
+                  <label className="mt-3 block text-xs text-muted">
                     Planning note (optional)
                     <textarea
                       value={notes}
@@ -464,7 +464,7 @@ export function TechnicianCapacityPanel() {
                       rows={3}
                       maxLength={1_000}
                       placeholder="Example: Four eight-hour production days; Friday reserved for training."
-                      className="mt-2 w-full rounded-xl border border-white/10 bg-[#111615] p-3 text-sm text-white outline-none placeholder:text-white/20 focus:border-sky-200/45"
+                      className="mt-2 w-full rounded-xl border border-foreground/10 bg-surface-elevated p-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-sky-200/45"
                     />
                   </label>
                   <button
@@ -476,13 +476,13 @@ export function TechnicianCapacityPanel() {
                       !selected.mirroredRosterActive ||
                       capacityHours.trim() === ""
                     }
-                    className="mt-4 min-h-12 w-full rounded-xl bg-sky-200 px-5 text-sm font-semibold text-[#07110c] disabled:opacity-35"
+                    className="mt-4 min-h-12 w-full rounded-xl bg-sky-200 px-5 text-sm font-semibold text-[var(--on-accent)] disabled:opacity-35"
                   >
                     {saving ? "Saving plan…" : "Add capacity plan"}
                   </button>
 
-                  <div className="mt-4 rounded-xl border border-white/10 bg-black/20 p-4 text-[11px] leading-relaxed text-white/38">
-                    <p className="font-medium text-white/60">Evidence boundary</p>
+                  <div className="mt-4 rounded-xl border border-foreground/10 bg-background/60 p-4 text-[11px] leading-relaxed text-foreground/38">
+                    <p className="font-medium text-foreground/60">Evidence boundary</p>
                     <p className="mt-1">
                       Hourly cost is a planning assumption—not payroll or loaded
                       labor proof. Booked schedule is not earned revenue. HomeAtlas
@@ -495,7 +495,7 @@ export function TechnicianCapacityPanel() {
             ) : null}
           </>
         ) : (
-          <p className="rounded-xl border border-dashed border-white/10 p-8 text-center text-sm text-white/40">
+          <p className="rounded-xl border border-dashed border-foreground/10 p-8 text-center text-sm text-muted">
             Sync a Jobber route with an assigned technician before declaring capacity.
           </p>
         )}
