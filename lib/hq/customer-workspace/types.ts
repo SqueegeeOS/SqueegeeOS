@@ -2,6 +2,7 @@ import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
 import type { ClosedJob } from "@/lib/admin/closed-jobs-types";
 import type { PaymentSetupEmailState } from "@/lib/membership/payment-setup-email-state";
 import type { MembershipVisitPreference } from "@/lib/membership/visit-preferences";
+import type { TechnicianReferralCredit } from "./technician-referral-credit";
 
 export type CustomerWorkspaceRefType =
   | "lead"
@@ -100,6 +101,7 @@ export interface CustomerWorkspace {
   contact: CustomerWorkspaceContact;
   property: CustomerWorkspaceProperty | null;
   lead: LeadIntakeRecord | null;
+  technicianReferralCredit?: TechnicianReferralCredit | null;
   presentation: CustomerWorkspacePresentation | null;
   membership: CustomerWorkspaceMembership | null;
   agreement: CustomerWorkspaceAgreement | null;

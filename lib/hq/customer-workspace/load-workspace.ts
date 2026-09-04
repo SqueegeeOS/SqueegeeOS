@@ -32,6 +32,8 @@ import {
   AUTHORITATIVE_APPOINTMENT_VERIFICATION_STATE,
 } from "@/lib/care-operations/model";
 import { loadMembershipVisitPreferences } from "@/lib/membership/visit-preferences-server";
+import { technicianReferralCredit } from "./technician-referral-credit";
+import { loadPresentationTechnicianReferralCredit } from "./technician-referral-credit-server";
 
 function stageLabel(stage: CustomerWorkspaceStage): string {
   switch (stage) {
@@ -237,6 +239,10 @@ async function loadPropertyWorkspace(
       };
     }
   }
+
+  const referralCreditPromise = loadPresentationTechnicianReferralCredit(
+    (membership?.presentation_id as string | null) ?? presentation?.id,
+  );
 
   const { data: agreement } = membership?.agreement_id
     ? await supabase
@@ -518,6 +524,8 @@ async function loadPropertyWorkspace(
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   const lead = leadMatch ? mapLeadRow(leadMatch as Record<string, unknown>) : null;
+  // A newer draft or email-matched inquiry must not steal the sold plan's credit.
+  const referralCredit = await referralCreditPromise;
 
   return {
     ref,
@@ -545,6 +553,7 @@ async function loadPropertyWorkspace(
       propertySlug: property.slug as string,
     },
     lead,
+    technicianReferralCredit: referralCredit,
     presentation: presentation
       ? {
           id: presentation.id as string,
@@ -609,7 +618,9 @@ export async function loadCustomerWorkspace(
     const lead = await getLeadIntakeById(id);
     if (!lead) return null;
 
-    const matchedPropertyId = await findPropertyByContact(
+    // Keep the exact referral reachable. An email/address heuristic must not
+    // redirect it to a different inquiry or erase the referring technician.
+    const matchedPropertyId = lead.source === "technician_referral" ? null : await findPropertyByContact(
       lead.name,
       lead.email,
       lead.serviceAddress,
@@ -669,6 +680,7 @@ export async function loadCustomerWorkspace(
       },
       property: null,
       lead,
+      technicianReferralCredit: technicianReferralCredit(lead, linkedPresentation?.id ?? null),
       presentation: linkedPresentation
         ? {
             id: linkedPresentation.id,
@@ -744,6 +756,7 @@ export async function loadCustomerWorkspace(
       },
       property: null,
       lead: null,
+      technicianReferralCredit: await loadPresentationTechnicianReferralCredit(presentation.id),
       presentation: {
         id: presentation.id,
         status: presentation.status,

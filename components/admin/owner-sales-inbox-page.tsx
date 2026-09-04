@@ -1,5 +1,7 @@
 "use client";
 
+import { TechnicianReferralLabel } from "./technician-referral-credit";
+
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
@@ -944,6 +946,7 @@ function InboundTriage({
                         </span>
                       ) : null}
                     </div>
+                    <TechnicianReferralLabel lead={lead} />
                     <p className="mt-1 truncate text-sm text-white/48">
                       {lead.serviceAddress || "Address not provided"}
                     </p>
