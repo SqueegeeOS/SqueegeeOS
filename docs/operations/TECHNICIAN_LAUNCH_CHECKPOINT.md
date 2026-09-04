@@ -336,3 +336,27 @@ described above is the only live SMS sent by this launch phase.
 - Real Tyler device/photo/job run remains unverified; this work does not claim
   that external acceptance test. Do not start a real clock or send another invite
   for a rehearsal. Current native clock history is empty until actual field use.
+
+## 2026-09-04: Legacy write-target scope follow-up
+
+- Previous goal turn was concrete progress: owner history shipped and verified.
+  This acceptance audit found another actionable gap, not an external blockage.
+- Legacy appointment write authorization still trusted mirrored Jobber staffing
+  after HomeAtlas had assigned that visit natively. Added one joined staffing read
+  to the common write guard; any native assignment now requires its native job card.
+  Missing relation/read errors fail closed. Legacy Jobber-only work and explicit
+  owner authority are preserved. No schema, customer or provider writes changed.
+- Reproduced seven failing checks before repair. Added eleven regressions including
+  real clock/event/upload/closeout route handlers with mocked persistence, all
+  rejecting stale targets before side effects. Full 1,534 tests / 325 files passed;
+  lint zero errors and production build/TypeScript passed. Re-ran the four existing
+  desktop/mobile browser fixtures; all passed. Local unauthenticated tech entry
+  correctly redirects to access; browser closed.
+- Live read-only audit: Tyler active, eight future assigned jobs, zero native clocks
+  and closeouts. Grant/assignment/clock/closeout tables have RLS and no public reads.
+  Security advisor has only the existing leaked-password-protection warning above
+  informational private-table policy entries. No access was resent or changed.
+- See TECHNICIAN_LAUNCH_ACCEPTANCE.md for requirement-by-requirement evidence and
+  the remaining real-device and cross-legacy/native concurrency checks. Do not
+  treat this application preflight as proof of database commit serialization.
+- CI, deployment and canonical follow-up pending.

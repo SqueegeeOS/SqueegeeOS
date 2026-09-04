@@ -23,6 +23,7 @@ interface AppointmentAssignmentRow {
 interface ProjectionAssignmentRow {
   scheduled_start: string | null;
   raw_payload: unknown;
+  native_assignment: { id: string } | Array<{ id: string }> | null;
 }
 
 export function isVisitAssignedToTechnician(
@@ -147,7 +148,7 @@ export async function assertTechnicianAssignedToAppointment(
 
   const projectionResult = await supabase
     .from("jobber_visit_projections")
-    .select("scheduled_start, raw_payload")
+    .select("scheduled_start, raw_payload, native_assignment:homeatlas_technician_visit_assignments(id)")
     .eq("connection_id", JOBBER_CONNECTION_ID)
     .eq("external_visit_id", appointment.external_id)
     .maybeSingle();
@@ -156,6 +157,17 @@ export async function assertTechnicianAssignedToAppointment(
   }
 
   const projection = projectionResult.data as ProjectionAssignmentRow;
+  // Match the board's native-assignment precedence at the write boundary too.
+  // Never create a parallel legacy clock/closeout for a natively assigned visit,
+  // even if the mirrored Jobber crew still lists this technician. Both staffing
+  // sources are read in one database snapshot; an omitted relation is unknown.
+  if (projection.native_assignment === undefined) {
+    throw new Error("Could not verify current HomeAtlas staffing. Try again.");
+  }
+  if (projection.native_assignment !== null &&
+      (!Array.isArray(projection.native_assignment) || projection.native_assignment.length > 0)) {
+    throw new Error("This appointment is not available to this Field Pass. Open the current HomeAtlas job card.");
+  }
   const assignment = readJobberTodayVisitAssignment(projection.raw_payload);
   if (
     assignment.assignmentReadState !== "available" ||
