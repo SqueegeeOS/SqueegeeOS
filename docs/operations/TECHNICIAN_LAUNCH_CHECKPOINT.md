@@ -315,5 +315,48 @@ described above is the only live SMS sent by this launch phase.
   closeout, clock-out, issue resolution, and clock-led history after removal of
   the synthetic visit. ROLLBACK left zero fixture technicians and zero job clocks.
   No real customer/provider state was changed. No schema migration required.
-- Release/CI/canonical verification pending. Real Tyler device/photo/job run
-  remains unverified; this work does not claim that external acceptance test.
+- PR #172 merged `b10004bc2402ccd51e380ad53881654b3706336d`; CI
+  `33929523724` passed in 2m23s. Production `dpl_HhgrZ11jn3ZR7cKzXDJtidViq39b`
+  / `squeegee-jfd84d1zc-squeegee-os.vercel.app` is Ready and canonically aliased
+  after approximately two minutes. Feature commit `5ab2648`.
+- Canonical Today -> Job history click passed in the authenticated owner browser;
+  current September and previous August resolved to honest empty states, no load
+  failure/alert or horizontal overflow. Back to Today works; owner left there.
+  Live database has zero native clocks and zero persisted rehearsal fixtures.
+- Direct browser navigation to the authenticated history API with a synthetic
+  cursor was blocked by the browser client; stopped that path without bypassing
+  the restriction. The normal supported HQ history UI succeeds. Populated live
+  pagination therefore remains unverified; unit, local browser, and SQL checks
+  cover it. The optional local unmocked API probe returned 503 because this local
+  worktree lacks Supabase env variables; production UI confirms its live read.
+- Re-ran technician workday fixtures at 390/1440: activation, private photo,
+  closeout retry, single commit and clock-out passed; Jobber completion unchanged.
+  Production deployment-specific 15-minute error scan returned no rows. Drains
+  and monitoring configuration were not re-audited in this release.
+- Real Tyler device/photo/job run remains unverified; this work does not claim
+  that external acceptance test. Do not start a real clock or send another invite
+  for a rehearsal. Current native clock history is empty until actual field use.
+
+## 2026-09-04: Legacy write-target scope follow-up
+
+- Previous goal turn was concrete progress: owner history shipped and verified.
+  This acceptance audit found another actionable gap, not an external blockage.
+- Legacy appointment write authorization still trusted mirrored Jobber staffing
+  after HomeAtlas had assigned that visit natively. Added one joined staffing read
+  to the common write guard; any native assignment now requires its native job card.
+  Missing relation/read errors fail closed. Legacy Jobber-only work and explicit
+  owner authority are preserved. No schema, customer or provider writes changed.
+- Reproduced seven failing checks before repair. Added eleven regressions including
+  real clock/event/upload/closeout route handlers with mocked persistence, all
+  rejecting stale targets before side effects. Full 1,534 tests / 325 files passed;
+  lint zero errors and production build/TypeScript passed. Re-ran the four existing
+  desktop/mobile browser fixtures; all passed. Local unauthenticated tech entry
+  correctly redirects to access; browser closed.
+- Live read-only audit: Tyler active, eight future assigned jobs, zero native clocks
+  and closeouts. Grant/assignment/clock/closeout tables have RLS and no public reads.
+  Security advisor has only the existing leaked-password-protection warning above
+  informational private-table policy entries. No access was resent or changed.
+- See TECHNICIAN_LAUNCH_ACCEPTANCE.md for requirement-by-requirement evidence and
+  the remaining real-device and cross-legacy/native concurrency checks. Do not
+  treat this application preflight as proof of database commit serialization.
+- CI, deployment and canonical follow-up pending.
