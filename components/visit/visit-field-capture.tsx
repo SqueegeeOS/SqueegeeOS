@@ -834,7 +834,7 @@ export function VisitFieldCapture({
           />
           {lockedTechnicianName ? (
             <span className="mt-1 block text-[11px] text-[#9be2bd]/70">
-              Verified by this device&apos;s Field Pass
+              Verified by this technician&apos;s active access
             </span>
           ) : null}
         </label>

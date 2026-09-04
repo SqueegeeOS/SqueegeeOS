@@ -35,10 +35,12 @@ function unauthorized() {
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 }
 
-function leadCreatorLabel(source: "request_form" | "facebook_lead_ad"): string {
-  return source === "facebook_lead_ad"
-    ? "HQ · Facebook lead"
-    : "HQ · Website request";
+function leadCreatorLabel(
+  source: "request_form" | "facebook_lead_ad" | "technician_referral",
+): string {
+  if (source === "facebook_lead_ad") return "HQ · Facebook lead";
+  if (source === "technician_referral") return "HQ · Technician referral";
+  return "HQ · Website request";
 }
 
 export async function GET(req: NextRequest) {

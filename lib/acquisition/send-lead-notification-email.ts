@@ -65,6 +65,11 @@ export async function sendLeadNotificationEmail(
 
   const services = record.servicesInterested.join(", ");
   const notes = record.notes.trim() || "—";
+  const sourceLabel = record.source === "facebook_lead_ad"
+    ? "New Facebook lead"
+    : record.source === "technician_referral"
+      ? `New technician referral${record.referredByTechnicianName ? ` · ${record.referredByTechnicianName}` : ""}`
+      : "New Home Care request";
 
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
@@ -75,7 +80,7 @@ export async function sendLeadNotificationEmail(
     body: JSON.stringify({
       from,
       to: recipients,
-      subject: `${record.source === "facebook_lead_ad" ? "New Facebook lead" : "New Home Care request"} — ${record.name}`,
+      subject: `${sourceLabel} — ${record.name}`,
       html: `
         <div style="font-family: Georgia, serif; max-width: 640px; margin: 0 auto; color: #1a1a1a;">
           <h2>New request from ${escapeHtml(record.name)}</h2>
@@ -86,6 +91,11 @@ export async function sendLeadNotificationEmail(
             <tr><td style="padding: 8px 0; color: #666;">Address</td><td style="padding: 8px 0;">${escapeHtml(record.serviceAddress)}</td></tr>
             <tr><td style="padding: 8px 0; color: #666;">Services</td><td style="padding: 8px 0;">${escapeHtml(services)}</td></tr>
             <tr><td style="padding: 8px 0; color: #666;">Contact via</td><td style="padding: 8px 0;">${escapeHtml(record.preferredContactMethod)}</td></tr>
+            ${
+              record.source === "technician_referral"
+                ? `<tr><td style="padding: 8px 0; color: #666;">Referral credit</td><td style="padding: 8px 0;"><strong>${escapeHtml(record.referredByTechnicianName ?? "Technician")}</strong> · pending close and collected payment</td></tr>`
+                : ""
+            }
             ${
               record.preferredStartWindow
                 ? `<tr><td style="padding: 8px 0; color: #666;">Start window</td><td style="padding: 8px 0;">${escapeHtml(record.preferredStartWindow)}</td></tr>`

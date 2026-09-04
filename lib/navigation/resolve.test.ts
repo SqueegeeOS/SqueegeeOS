@@ -22,6 +22,8 @@ describe("getNavigationMode", () => {
   it("lets dedicated field workspaces own their phone chrome", () => {
     expect(getNavigationMode("/david")).toBe("hidden");
     expect(getNavigationMode("/sales/alex")).toBe("hidden");
+    expect(getNavigationMode("/tech")).toBe("hidden");
+    expect(getNavigationMode("/tech/properties")).toBe("hidden");
   });
 
   it("lets Atlas own the promoted homepage chrome", () => {

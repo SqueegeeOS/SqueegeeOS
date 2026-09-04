@@ -18,7 +18,7 @@ export interface FloatingBackConfig {
   bottomClass?: string;
 }
 
-const EMPLOYEE_PREFIXES = ["/employee", "/properties", "/presentations", "/tech"];
+const EMPLOYEE_PREFIXES = ["/employee", "/properties", "/presentations"];
 const HIDDEN_PREFIXES = [
   "/hq",
   "/admin",
@@ -27,6 +27,7 @@ const HIDDEN_PREFIXES = [
   "/david",
   "/sales",
   "/atlas-glass",
+  "/tech",
 ];
 
 function matchesPathPrefix(pathname: string, prefix: string): boolean {

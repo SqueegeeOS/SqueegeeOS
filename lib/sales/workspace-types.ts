@@ -74,7 +74,8 @@ export type SalesLeadSource =
   | "event"
   | "manual"
   | "request_form"
-  | "facebook_lead_ad";
+  | "facebook_lead_ad"
+  | "technician_referral";
 
 export interface SalesRepLead {
   id: string;

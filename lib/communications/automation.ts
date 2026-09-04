@@ -76,7 +76,7 @@ export interface LeadFirstTouchSmsInput {
   preferredChannel: ContactPreferenceInput;
   smsConsent: SmsConsent;
   quietHours?: QuietHours;
-  source?: "request_form" | "facebook_lead_ad";
+  source?: "request_form" | "facebook_lead_ad" | "technician_referral";
 }
 
 export interface AppointmentReminderInput {

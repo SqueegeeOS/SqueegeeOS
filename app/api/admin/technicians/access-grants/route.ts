@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Could not create Field Pass.",
+          error instanceof Error ? error.message : "Could not create Technician Access.",
       },
       { status: 400, headers: { "Cache-Control": "private, no-store" } },
     );
@@ -73,7 +73,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json(
       {
         error:
-          error instanceof Error ? error.message : "Could not revoke Field Pass.",
+          error instanceof Error ? error.message : "Could not remove Technician Access.",
       },
       { status: 400, headers: { "Cache-Control": "private, no-store" } },
     );

@@ -947,14 +947,14 @@ export function TechnicianTodayWorkspace({
   }, []);
 
   return (
-    <AmbientStage className="min-h-[100svh] bg-[#080b0a] px-4 py-6 text-white sm:px-6 sm:py-10">
+    <AmbientStage className="min-h-[100svh] bg-[#080b0a] px-4 py-6 pb-28 text-white sm:px-6 sm:py-10 sm:pb-28">
       <div className="mx-auto max-w-3xl">
         <nav className="flex items-center justify-between gap-3">
           <Link
             href="/"
             className="text-[10px] uppercase tracking-[0.22em] text-white/45"
           >
-            HomeAtlas · Field
+            HomeAtlas · Crew
           </Link>
           <div className="flex gap-2">
             <Link
@@ -993,10 +993,10 @@ export function TechnicianTodayWorkspace({
 
         <header className="pb-7 pt-10">
           <p className="text-[10px] uppercase tracking-[0.24em] text-[#9be2bd]">
-            {technicianSession ? "Technician command" : "Owner field mode"}
+            {technicianSession ? "Technician workspace" : "Owner field preview"}
           </p>
           <h1 className="mt-3 text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl">
-            {technicianSession ? "Field Run" : "Run Today"}
+            {technicianSession ? `Ready, ${actorDisplayName.split(" ")[0]}?` : "Run Today"}
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
             {technicianSession
@@ -1005,7 +1005,7 @@ export function TechnicianTodayWorkspace({
           </p>
           {technicianSession ? (
             <p className="mt-4 inline-flex min-h-10 items-center rounded-full border border-[#9be2bd]/25 bg-[#9be2bd]/[0.07] px-4 text-xs text-[#c9f3dc]">
-              Field Pass · {actorDisplayName}
+               Technician · {actorDisplayName}
             </p>
           ) : null}
         </header>
@@ -1185,7 +1185,7 @@ export function TechnicianTodayWorkspace({
                     {data.visits.length > 0
                       ? "No stops match this crew lens. Choose All to see the full route."
                       : technicianSession
-                        ? "No Jobber stops are assigned to this Field Pass today."
+                        ? "No stops are assigned to you today."
                         : "The route is clear. Check All homes for property memory."}
                   </p>
                 </div>

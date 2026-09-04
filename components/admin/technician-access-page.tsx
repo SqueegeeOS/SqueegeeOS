@@ -63,7 +63,7 @@ function statusCopy(
     return {
       label: "Active",
       className: "border-emerald-300/30 bg-emerald-300/[0.08] text-emerald-100",
-      detail: `Phone session expires ${formatDateTime(grant.sessionExpiresAt)}.`,
+      detail: `Active until removed by HQ · safety renewal ${formatDateTime(grant.sessionExpiresAt)}.`,
     };
   }
   if (state === "expiring") {
@@ -205,7 +205,7 @@ export function TechnicianAccessPage() {
         !body.inviteExpiresAt ||
         !body.claimPath
       ) {
-        throw new Error(body?.error ?? "Could not create the Field Pass.");
+        throw new Error(body?.error ?? "Could not create Technician Access.");
       }
       setIssuedPass({
         grantId: body.grantId,
@@ -218,7 +218,7 @@ export function TechnicianAccessPage() {
       setError(
         issueError instanceof Error
           ? issueError.message
-          : "Could not create the Field Pass.",
+          : "Could not create Technician Access.",
       );
     } finally {
       setWorkingUserId(null);
@@ -240,14 +240,14 @@ export function TechnicianAccessPage() {
         | { error?: string }
         | null;
       if (!response.ok) {
-        throw new Error(body?.error ?? "Could not revoke the Field Pass.");
+        throw new Error(body?.error ?? "Could not revoke Technician Access.");
       }
       await load();
     } catch (revokeError) {
       setError(
         revokeError instanceof Error
           ? revokeError.message
-          : "Could not revoke the Field Pass.",
+          : "Could not revoke Technician Access.",
       );
     } finally {
       setWorkingUserId(null);
@@ -279,9 +279,9 @@ export function TechnicianAccessPage() {
             Give the field a key—not the building.
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
-            Field Passes are tied to the exact Jobber user HomeAtlas has already
-            observed. A technician sees only their assigned route and can save
-            service proof. Billing, Inbox, David, and founder controls stay private.
+            Technician Access is a private HomeAtlas role—not a shared Jobber
+            login. A technician gets a clean workday, property memory, and a
+            referral lane. Billing, Inbox, sales, and founder controls stay private.
           </p>
         </header>
 
@@ -298,7 +298,7 @@ export function TechnicianAccessPage() {
             role="alert"
             className="mt-4 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-4 text-sm text-amber-100"
           >
-            Dispatch board unavailable: {dispatchError} Field Pass controls remain
+            Dispatch board unavailable: {dispatchError} Technician Access controls remain
             available below.
           </p>
         ) : null}
@@ -310,8 +310,8 @@ export function TechnicianAccessPage() {
         <section className="mt-8 grid gap-3 sm:grid-cols-3">
           {[
             ["1", "Create one-time link", "Shown once and valid for 24 hours."],
-            ["2", "Install on phone", "Becomes a private 30-day Field Pass."],
-            ["3", "Revoke instantly", "The next field request fails closed."],
+            ["2", "Activate workspace", "Stays active while they remain on your team."],
+            ["3", "Remove instantly", "The very next technician request fails closed."],
           ].map(([step, title, detail]) => (
             <div key={step} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
               <p className="text-[10px] uppercase tracking-[0.18em] text-accent/70">
@@ -336,7 +336,7 @@ export function TechnicianAccessPage() {
               <input
                 readOnly
                 value={issuedPass.installUrl}
-                aria-label="One-time Field Pass install link"
+                aria-label="One-time Technician Access install link"
                 className="min-h-12 min-w-0 flex-1 rounded-xl border border-emerald-200/20 bg-black/25 px-4 text-sm text-emerald-50 outline-none"
                 onFocus={(event) => event.currentTarget.select()}
               />
@@ -365,7 +365,7 @@ export function TechnicianAccessPage() {
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-[10px] uppercase tracking-[0.18em] text-muted">
-                Mirrored from Jobber
+                HomeAtlas crew
               </p>
               <h2 className="mt-2 text-2xl font-semibold">Field roster</h2>
             </div>
@@ -394,7 +394,9 @@ export function TechnicianAccessPage() {
                       <div>
                         <p className="text-xl font-semibold text-white">{member.displayName}</p>
                         <p className="mt-1 text-xs text-white/35">
-                          {member.observedStopCount > 0
+                          {member.source === "homeatlas"
+                            ? "HomeAtlas technician · no extra Jobber seat required"
+                            : member.observedStopCount > 0
                             ? `${member.observedStopCount} mirrored stop${member.observedStopCount === 1 ? "" : "s"}`
                             : "No recent mirrored stops · revoke if off roster"}
                           {member.latestObservedAt
@@ -417,8 +419,8 @@ export function TechnicianAccessPage() {
                         {working
                           ? "Working…"
                           : member.currentGrant
-                            ? "Replace Field Pass"
-                            : "Create Field Pass"}
+                            ? "Replace access"
+                            : "Create access"}
                       </button>
                       {member.currentGrant ? (
                         <button
@@ -441,8 +443,8 @@ export function TechnicianAccessPage() {
             </div>
           ) : (
             <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.05] p-6 text-sm leading-relaxed text-amber-100/80">
-              No Jobber users have been observed on a mirrored visit yet. Run a
-              Jobber sync after assigning a crew member, then refresh this page.
+              No active technicians are available yet. Add a HomeAtlas technician
+              or sync a Jobber crew member, then refresh this page.
             </div>
           )}
         </section>

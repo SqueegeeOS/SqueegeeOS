@@ -13,7 +13,10 @@ export type LeadIntakeStatus =
   | "booked"
   | "archived";
 export type SmsConsentStatus = "unknown" | "opted_in" | "opted_out";
-export type LeadIntakeSource = "request_form" | "facebook_lead_ad";
+export type LeadIntakeSource =
+  | "request_form"
+  | "facebook_lead_ad"
+  | "technician_referral";
 
 export const SMS_CONSENT_DISCLOSURE_VERSION =
   "request-form-transactional-v1";
@@ -55,6 +58,9 @@ export interface LeadIntakeRecord {
   sourceAdsetName: string | null;
   sourceAdId: string | null;
   sourceAdName: string | null;
+  referredByTechnicianKey?: string | null;
+  referredByTechnicianName?: string | null;
+  referralPermissionConfirmedAt?: string | null;
 }
 
 export interface CreateLeadIntakeInput {
@@ -85,4 +91,7 @@ export interface CreateLeadIntakeInput {
   sourceAdsetName?: string | null;
   sourceAdId?: string | null;
   sourceAdName?: string | null;
+  referredByTechnicianKey?: string | null;
+  referredByTechnicianName?: string | null;
+  referralPermissionConfirmedAt?: string | null;
 }

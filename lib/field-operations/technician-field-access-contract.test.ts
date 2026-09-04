@@ -8,6 +8,9 @@ function read(relativePath: string): string {
 const migration = read(
   "../persistence/supabase/migrations/057_technician_field_access.sql",
 );
+const persistentMigration = read(
+  "../persistence/supabase/migrations/20260904000542_persistent_technician_access.sql",
+);
 const proxy = read("../../proxy.ts");
 const access = read("./field-access.ts");
 const scope = read("./field-scope.ts");
@@ -98,5 +101,11 @@ describe("technician Field Pass security contract", () => {
   it("adds the new identity table to HomeAtlas privacy posture", () => {
     expect(migration).toContain("('technician_access_grants')");
     expect(migration).toContain("create or replace function public.homeatlas_security_posture()");
+  });
+
+  it("allows private HomeAtlas technician identities without sharing a Jobber seat", () => {
+    expect(persistentMigration).toContain("public.homeatlas_technicians");
+    expect(access).toContain("homeatlas:");
+    expect(access).toContain("Choose an active HomeAtlas technician");
   });
 });

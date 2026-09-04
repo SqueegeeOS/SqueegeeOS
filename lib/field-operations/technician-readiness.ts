@@ -286,11 +286,11 @@ export function deriveTechnicianReadiness(input: {
   const evidenceGates: TechnicianReadinessGate[] = [
     {
       id: "field_pass",
-      label: "Field Pass ready",
+      label: "Technician Access ready",
       passed: fieldPassReady,
       detail: fieldPassReady
         ? "A usable assignment-bounded phone session exists."
-        : "Activate a Field Pass before an owner-independent route.",
+        : "Activate Technician Access before an owner-independent route.",
     },
     {
       id: "competency_evidence",

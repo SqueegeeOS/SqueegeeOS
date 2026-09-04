@@ -34,6 +34,9 @@ interface LeadIntakeRow {
   source_adset_name?: string | null;
   source_ad_id?: string | null;
   source_ad_name?: string | null;
+  referred_by_technician_key?: string | null;
+  referred_by_technician_name?: string | null;
+  referral_permission_confirmed_at?: string | null;
 }
 
 function newLeadId(): string {
@@ -65,7 +68,11 @@ function rowToRecord(row: LeadIntakeRow): LeadIntakeRecord {
     status: row.status as LeadIntakeRecord["status"],
     submittedAt: row.submitted_at,
     source:
-      row.source === "facebook_lead_ad" ? "facebook_lead_ad" : "request_form",
+      row.source === "facebook_lead_ad"
+        ? "facebook_lead_ad"
+        : row.source === "technician_referral"
+          ? "technician_referral"
+          : "request_form",
     clientSubmissionId: row.client_submission_id ?? null,
     externalLeadId: row.external_lead_id ?? null,
     sourcePageId: row.source_page_id ?? null,
@@ -76,6 +83,10 @@ function rowToRecord(row: LeadIntakeRow): LeadIntakeRecord {
     sourceAdsetName: row.source_adset_name ?? null,
     sourceAdId: row.source_ad_id ?? null,
     sourceAdName: row.source_ad_name ?? null,
+    referredByTechnicianKey: row.referred_by_technician_key ?? null,
+    referredByTechnicianName: row.referred_by_technician_name ?? null,
+    referralPermissionConfirmedAt:
+      row.referral_permission_confirmed_at ?? null,
   };
 }
 
@@ -129,6 +140,10 @@ function inputToRow(
     source_adset_name: input.sourceAdsetName ?? null,
     source_ad_id: input.sourceAdId ?? null,
     source_ad_name: input.sourceAdName ?? null,
+    referred_by_technician_key: input.referredByTechnicianKey ?? null,
+    referred_by_technician_name: input.referredByTechnicianName ?? null,
+    referral_permission_confirmed_at:
+      input.referralPermissionConfirmedAt ?? null,
   };
 }
 
@@ -270,6 +285,10 @@ export async function createLeadIntake(
     sourceAdsetName: input.sourceAdsetName ?? null,
     sourceAdId: input.sourceAdId ?? null,
     sourceAdName: input.sourceAdName ?? null,
+    referredByTechnicianKey: input.referredByTechnicianKey ?? null,
+    referredByTechnicianName: input.referredByTechnicianName ?? null,
+    referralPermissionConfirmedAt:
+      input.referralPermissionConfirmedAt ?? null,
   };
 
   if (isCloudPersistenceConnected()) {
@@ -278,7 +297,7 @@ export async function createLeadIntake(
       const existing = await supabase
         .from("lead_intakes")
         .select("*")
-        .eq("source", "request_form")
+        .eq("source", input.source ?? "request_form")
         .eq("client_submission_id", input.clientSubmissionId.trim())
         .maybeSingle();
       if (existing.error) {
@@ -321,7 +340,7 @@ export async function createLeadIntake(
         const raced = await supabase
           .from("lead_intakes")
           .select("*")
-          .eq("source", "request_form")
+          .eq("source", input.source ?? "request_form")
           .eq("client_submission_id", input.clientSubmissionId.trim())
           .maybeSingle();
         if (raced.data) {
