@@ -187,6 +187,17 @@ described above is the only live SMS sent by this launch phase.
   Mobile completed-job screenshot inspected; no horizontal overflow or page errors.
   Access entry also inspected with agent-browser. Work APIs/storage are fixtures,
   not a real Tyler device or customer job run.
-- Release CI and canonical production verification are pending for this phase.
+- PR #169 merged as `9fdff48`; CI `33925003327` passed in 2m36s.
+  Production `dpl_EykkmGo94Q9a1TLpK7WpgLgefHkv` /
+  `squeegee-922s2tjb0-squeegee-os.vercel.app` reached Ready after about 100s.
+- Canonical production owner preview loaded 17 upcoming direction links, all
+  using the fixed Google Maps directions endpoint with comma-separated actual
+  addresses. No alerts or horizontal overflow. This was owner preview, not Tyler's
+  private session; assignment privacy was separately regression-tested.
+- Canonical HQ Today has the compact responsive summary, no alerts/overflow and
+  a valid empty-day state. No live jobs today: invoice/job-card behavior was tested
+  in desktop/mobile fixtures, not by changing a production job.
+- Deployment-specific 15-minute error scan returned no rows. Monitoring/drain
+  configuration was not changed or re-audited. Returned owner's tab to HQ Today.
 - Remaining bottlenecks: an owner resolution workflow for native exception flags,
   and a real technician-device/photo/full job run. Keep the launch goal active.
