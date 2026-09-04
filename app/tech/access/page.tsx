@@ -41,9 +41,9 @@ export default async function FieldAccessPage({
           Your workday, without the clutter.
         </h1>
         <p className="mt-4 text-sm leading-relaxed text-white/55">
-          Technician Access opens only the stops assigned to you. Track time,
-          review the service, add photos and notes, and close out the visit—never
-          billing, customer messaging, sales tools, or owner controls.
+          Technician Access opens only your work. Track time, review assigned
+          stops, add photos and notes, close out visits, and send warm referrals
+          to HQ—never billing, customer messaging, or owner controls.
         </p>
 
         {error ? (
@@ -70,7 +70,7 @@ export default async function FieldAccessPage({
           </form>
         ) : (
           <div className="mt-7 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] p-4 text-sm leading-relaxed text-amber-100">
-            Open the one-time link HQ created for your Jobber crew account. If
+            Open the one-time link HQ created for your technician profile. If
             you need a new link, ask HQ to open Team in HomeAtlas.
           </div>
         )}
