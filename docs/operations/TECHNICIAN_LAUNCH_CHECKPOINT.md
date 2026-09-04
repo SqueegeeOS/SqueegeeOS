@@ -83,3 +83,19 @@ described above is the only live SMS sent by this launch phase.
   token recovery, hostile/opaque origin rejection, ordered header override, and a
   local native-form browser reproduction with JavaScript enabled and disabled.
 - No replacement invite or second SMS is required for a pending valid invitation.
+
+## Native workday control audit
+
+- A technician-role browser rehearsal exposed an extra `Add visit memory` action
+  after the native closeout was saved, although storage permits only one closeout
+  per assignment. Native capture now requires a running clock and zero saved records.
+- A saved-record notice now directs the technician to pack up and clock out; it
+  does not imply their timer stopped when they saved work.
+- `scripts/verify-technician-workday.mjs` runs a real local claim/cookie/role journey
+  against a narrowly scoped synthetic database adapter. Workday APIs and storage
+  uploads are browser fixtures. It checks HQ isolation, native-only request targets
+  even for member-linked jobs, clock-in, private photo upload, failed-save recovery,
+  stable retry record ID, one photo upload, one successful commit, clock-out, no
+  extra capture controls, unchanged Jobber completion and mobile/desktop overflow.
+- This adds browser evidence for the technician controls, not proof of Tyler's
+  physical-device upload, live storage signing or completion of his real jobs.

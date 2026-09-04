@@ -24,6 +24,7 @@ import {
   type TechnicianVisitEventType,
 } from "@/lib/field-operations/technician-visit-events";
 import {
+  canCreateNativeJobCloseout,
   technicianJobClockElapsedSeconds,
   type TechnicianJobClockAction,
 } from "@/lib/field-operations/technician-job-clock";
@@ -241,7 +242,10 @@ function TechnicianVisitCard({
     technicianSession ? hasJobTarget : !fieldAssignmentId && propertyId && appointmentId,
   );
   const canCapture = Boolean(
-    fieldRecordStatusAvailable && canOperate,
+    fieldRecordStatusAvailable && canOperate &&
+      (!fieldAssignmentId || canCreateNativeJobCloseout(
+        visit.homeAtlasJobClock.state, visit.homeAtlasFieldRecordCount,
+      )),
   );
   const canAdvanceRoute = Boolean(
     fieldEventStatusAvailable && propertyId && appointmentId,
@@ -409,7 +413,9 @@ function TechnicianVisitCard({
     setCaptureOpen(false);
     setRouteError(null);
     setRouteNotice(
-      result.routeEventRecorded === false
+      fieldAssignmentId
+        ? "Work saved for HQ. After cleanup and pack-up, clock out to finish your visit."
+        : result.routeEventRecorded === false
         ? (result.routeEventWarning ??
             "Closeout saved. Refresh and retry the route status.")
         : result.routeEventRecorded
@@ -595,17 +601,17 @@ function TechnicianVisitCard({
                   type="button"
                   disabled={clockPending}
                   onClick={() => void updateJobClock("finish")}
-                  className="flex min-h-20 w-full items-center justify-between gap-4 bg-rose-300/[0.09] px-4 text-left text-rose-100 active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex min-h-20 w-full items-center justify-between gap-4 bg-accent/[0.09] px-4 text-left text-foreground active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>
                     <span className="block text-base font-semibold">
                       {clockPending ? "Clocking out…" : "Clock out & complete"}
                     </span>
-                    <span className="mt-1 block text-xs font-normal text-rose-100/65">
+                    <span className="mt-1 block text-xs font-normal text-muted">
                       Tap after cleanup, inspection, and pack-up are complete.
                     </span>
                   </span>
-                  <span className="rounded-full border border-rose-200/30 px-3 py-1 text-xs">
+                  <span className="rounded-full border border-accent/30 px-3 py-1 text-xs">
                     3 of 3
                   </span>
                 </button>
