@@ -16,6 +16,7 @@ const access = read("./field-access.ts");
 const scope = read("./field-scope.ts");
 const techHome = read("../../app/tech/page.tsx");
 const techProperties = read("../../app/tech/properties/page.tsx");
+const techProperty = read("../../app/tech/properties/[id]/page.tsx");
 const fieldToday = read("../../app/api/field/today/route.ts");
 const fieldCommit = read("../../app/api/field/field-records/route.ts");
 const fieldUploads = read(
@@ -58,7 +59,9 @@ describe("technician Field Pass security contract", () => {
     expect(proxy).toContain("FIELD_SESSION_COOKIE_NAME");
     expect(proxy).not.toContain("createServiceRoleSupabaseClient");
     expect(techHome).toContain("requireFieldPageActor");
-    expect(techProperties).toContain("listFieldActorPropertyIds");
+    expect(techProperties).toContain('redirect("/tech")');
+    expect(techProperties).not.toContain("listTechnicianProperties");
+    expect(techProperty).toContain("requireFieldPropertyPageActor");
     expect(fieldToday).toContain("authorizeFieldRequest(request.headers)");
     expect(fieldCommit).toContain("authorizeFieldRequest(request.headers)");
     expect(fieldUploads).toContain("authorizeFieldRequest(request.headers)");

@@ -12,6 +12,7 @@ const fieldRun = read(
 const hqToday = read("../../components/admin/today-workspace-page.tsx");
 const technicianHome = read("../../app/tech/page.tsx");
 const propertyDirectory = read("../../app/tech/properties/page.tsx");
+const portalDock = read("../../components/field/technician-portal-dock.tsx");
 const todayRoute = read(
   "../../app/api/field/today/route.ts",
 );
@@ -38,10 +39,12 @@ describe("technician field run contract", () => {
     );
   });
 
-  it("makes the live field run primary while preserving the full property memory", () => {
+  it("keeps customer memory behind an exact assigned stop instead of a directory", () => {
     expect(technicianHome).toContain("TechnicianTodayWorkspace");
-    expect(propertyDirectory).toContain("listTechnicianProperties");
-    expect(fieldRun).toContain('href="/tech/properties"');
+    expect(propertyDirectory).toContain('redirect("/tech")');
+    expect(propertyDirectory).not.toContain("listTechnicianProperties");
+    expect(portalDock).not.toContain('href: "/tech/properties"');
+    expect(fieldRun).not.toContain('href="/tech/properties"');
     expect(fieldRun).toContain(
       "href={`/tech/properties/${propertyId}`}",
     );
