@@ -59,7 +59,7 @@ try {
     let initialRecordId;
     let clock = { state: "not_started", startedAt: null, endedAt: null, durationSeconds: null, startedByDisplayName: null, finishedByDisplayName: null };
     const visit = () => ({ projectionId: "rehearsal-projection", externalVisitId: "rehearsal-visit", clientName: "Internal Test Household", title: "Window cleaning", jobNumber: 1, visitStatus: "SCHEDULED", jobStatus: "ACTIVE", scheduledStart: now, scheduledEnd: null, isComplete: false,
-      assignedUsers: [], assignmentReadState: "available", scopeItems: [{ id: "glass", name: "Exterior glass", quantity: 1 }], scopeReadState: "available", propertyLabel: "1 Test Street", jobberPropertyWebUri: null, jobberClientWebUri: null,
+      assignedUsers: [], assignmentReadState: "available", scopeItems: [{ id: "glass", name: "Exterior glass", quantity: 1 }], scopeReadState: "available", propertyLabel: "House nickname", propertyAddress: "1 Test Street, Chico, CA", jobberPropertyWebUri: null, jobberClientWebUri: null,
       homeAtlasPropertyId: "33333333-3333-4333-8333-333333333333", homeAtlasAppointmentId: "44444444-4444-4444-8444-444444444444", homeAtlasMembershipId: null, homeAtlasPortalPath: null,
       homeAtlasFieldAssignmentId: assignmentId, homeAtlasAssignedTechnicianId: technicianId, homeAtlasAssignedTechnicianName: "Internal Rehearsal Tech", homeAtlasFieldRecordCount: recorded ? 1 : 0,
       homeAtlasLatestFieldRecordAt: recorded ? now : null, homeAtlasLatestFieldRecordBy: recorded ? "Internal Rehearsal Tech" : null, homeAtlasCustomerVisibleRecordCount: 0, homeAtlasOpenFollowUpCount: 0,
@@ -113,6 +113,8 @@ try {
     await page.goto(`${base}/tech/access?token=${"a".repeat(43)}`);
     await page.getByRole("button", { name: "Activate my workspace" }).click();
     await page.getByRole("button", { name: /I’m here · Start job/ }).waitFor({ timeout: 30000 });
+    const directions = new URL(await page.getByRole("link", { name: "Navigate to job", exact: true }).getAttribute("href"));
+    assert.equal(directions.searchParams.get("destination"), "1 Test Street, Chico, CA");
     assert.ok((await context.cookies()).some(c => c.name === "homeatlas-field-session" && c.httpOnly));
     assert.equal(await page.getByRole("link", { name: "HQ view", exact: true }).count(), 0);
     const ownerPage = await context.request.get(`${base}/hq/technicians`, { maxRedirects: 0 });

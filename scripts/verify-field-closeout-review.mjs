@@ -11,7 +11,7 @@ const now = new Date().toISOString();
 const clock = { state: "finished", startedAt: now, endedAt: now, durationSeconds: 3600, startedByDisplayName: "Internal test tech", finishedByDisplayName: "Internal test tech" };
 const visit = { projectionId: "fixture-projection", externalVisitId: "fixture-visit", clientName: "Internal test household", title: "Window cleaning", jobNumber: 1,
   visitStatus: "SCHEDULED", jobStatus: "ACTIVE", scheduledStart: now, scheduledEnd: null, isComplete: false, assignedUsers: [], assignmentReadState: "available", scopeItems: [], scopeReadState: "available",
-  propertyLabel: "Internal test property", jobberPropertyWebUri: null, jobberClientWebUri: null, homeAtlasPropertyId: null, homeAtlasAppointmentId: null, homeAtlasMembershipId: null, homeAtlasPortalPath: null,
+  propertyLabel: "Internal test property", propertyAddress: "123 Test Street, Chico, CA", jobberInvoiceStatus: "paid", jobberPropertyWebUri: null, jobberClientWebUri: null, homeAtlasPropertyId: null, homeAtlasAppointmentId: null, homeAtlasMembershipId: null, homeAtlasPortalPath: null,
   homeAtlasFieldAssignmentId: assignmentId, homeAtlasAssignedTechnicianId: "homeatlas:test", homeAtlasAssignedTechnicianName: "Internal test tech",
   homeAtlasFieldRecordCount: 1, homeAtlasLatestFieldRecordAt: now, homeAtlasLatestFieldRecordBy: "Internal test tech", homeAtlasCustomerVisibleRecordCount: 0, homeAtlasOpenFollowUpCount: 1,
   homeAtlasFieldCustomerSummary: "Exterior glass cleaned.", homeAtlasFieldInternalNote: "Inspect the gate latch.", homeAtlasFieldScopeException: "Side window inaccessible.", homeAtlasFieldPhotoCount: 1,
@@ -59,6 +59,13 @@ try {
     });
     await page.getByText("HomeAtlas technician · Internal test tech", { exact: true }).waitFor();
     await page.getByText("Actual job time", { exact: true }).waitFor();
+    await page.getByText("Paid in Jobber", { exact: true }).waitFor();
+    const jobSummary = page.locator('[aria-label="Today\'s job summary"]');
+    const summaryBox = await jobSummary.boundingBox();
+    assert.ok(summaryBox && summaryBox.height < 800, "Mobile summary must not bury the route beneath nine stacked cards");
+    if (width === 390) assert.equal(await jobSummary.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").length), 2);
+    await page.getByRole("link", { name: "Go to jobs", exact: true }).click();
+    assert.equal(new URL(page.url()).hash, "#today-route");
     assert.equal(evidenceReads, 0, "Evidence should load only on request");
     await button.focus();
     await page.keyboard.press("Enter");
@@ -75,10 +82,12 @@ try {
     await page.getByText("Inspect the gate latch.", { exact: true }).waitFor();
     await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-evidence-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);
-    ownerBoard = { ...board, visits: [{ ...visit, isComplete: true }],
+    ownerBoard = { ...board, visits: [{ ...visit, isComplete: true, jobberInvoiceStatus: "NONE" }],
       summary: { ...board.summary, complete: 1, remaining: 0, jobberCompletionPending: 0 } };
     await page.reload();
     await page.getByRole("button", { name: "Review technician notes + photos" }).waitFor();
+    await page.getByText("No invoice attached", { exact: true }).waitFor();
+    assert.equal(await page.getByText("Paid in Jobber", { exact: true }).count(), 0, "Completed work is not payment evidence");
     assert.equal(await page.getByText("Customer portal update needed", { exact: true }).count(), 0, "Native private evidence is a valid closeout");
     assert.equal(await page.getByText("Close this visit in Jobber", { exact: true }).count(), 0, "Completed Jobber visits require no further completion");
     await page.getByRole("link", { name: "Optional customer portal pairing" }).waitFor();
@@ -97,12 +106,18 @@ try {
     await page.getByRole("heading", { name: "Internal test household", exact: true }).waitFor();
     assert.equal(await nativeCrewLens.getAttribute("aria-pressed"), "true");
     assert.equal(await page.getByText("Unassigned in Jobber", { exact: true }).count(), 0);
+    const destination = new URL(await page.getByRole("link", { name: "Navigate to job", exact: true }).getAttribute("href"));
+    assert.equal(destination.searchParams.get("destination"), visit.propertyAddress);
+    assert.equal(destination.pathname, "/maps/dir/");
+    assert.equal(await page.getByText("Paid in Jobber", { exact: true }).count(), 0, "Technician job UI does not show owner invoice data");
     const techAccent = await page.locator(".atlas-role-shell").first().evaluate(el => getComputedStyle(el).getPropertyValue("--accent").trim());
     const upcoming = page.getByRole("button", { name: /Upcoming jobs/ });
     await upcoming.focus();
     await page.keyboard.press("Enter");
     await page.getByText("Future assigned household", { exact: true }).waitFor();
     await page.getByText("Exterior glass and screens", { exact: true }).waitFor();
+    const futureDirections = page.getByRole("link", { name: "Directions to Future assigned household", exact: true });
+    assert.equal(new URL(await futureDirections.getAttribute("href")).searchParams.get("destination"), "1 Test Street");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Upcoming schedule must fit mobile");
     failUpcoming = true;
     await page.getByRole("button", { name: "Refresh upcoming jobs" }).click();

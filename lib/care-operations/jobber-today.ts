@@ -1,4 +1,5 @@
 import "server-only";
+import { formatJobberVisitAddress } from "./jobber-visit-address";
 
 import {
   COMPANY_BUSINESS_TIMEZONE,
@@ -65,6 +66,8 @@ interface StoredVisitRow {
   scheduled_end: string | null;
   is_complete: boolean;
   raw_payload: unknown;
+  property_address?: unknown;
+  visit_invoice_status?: string | null;
 }
 
 interface StoredClientRow {
@@ -110,7 +113,7 @@ interface StoredVisibleAssetRow {
 }
 
 const TODAY_VISIT_SELECT =
-  "id, external_visit_id, external_client_id, external_property_id, jobber_property_web_uri, job_number, title, client_name, visit_status, job_status, scheduled_start, scheduled_end, is_complete, raw_payload";
+  "id, external_visit_id, external_client_id, external_property_id, jobber_property_web_uri, property_address, visit_invoice_status, job_number, title, client_name, visit_status, job_status, scheduled_start, scheduled_end, is_complete, raw_payload";
 
 function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -182,6 +185,8 @@ export function toTodayVisit(
     ...readJobberTodayVisitAssignment(row.raw_payload),
     ...readJobberTodayVisitScope(row.raw_payload),
     propertyLabel: property?.name ?? null,
+    propertyAddress: formatJobberVisitAddress(row.property_address),
+    jobberInvoiceStatus: row.visit_invoice_status ?? null,
     jobberPropertyWebUri:
       row.jobber_property_web_uri ?? property?.jobberWebUri ?? null,
     jobberClientWebUri: client?.jobber_web_uri ?? null,

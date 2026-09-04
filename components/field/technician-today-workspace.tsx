@@ -8,6 +8,7 @@ import { StatePanel } from "@/components/craft/state-panel";
 import { StatusNotice } from "@/components/craft/status-notice";
 import { TechnicianUpcoming } from "@/components/field/technician-upcoming";
 import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
+import { jobDirectionsHref } from "@/lib/care-operations/jobber-visit-address";
 import {
   classifyJobberTodayVisit,
   hasNativeJobberVisitAssignment,
@@ -466,6 +467,9 @@ function TechnicianVisitCard({
         {visit.propertyLabel ? (
           <p className="mt-1 text-sm text-muted">{visit.propertyLabel}</p>
         ) : null}
+        {visit.propertyAddress && visit.propertyAddress !== visit.propertyLabel ? (
+          <p className="mt-1 text-sm text-muted">{visit.propertyAddress}</p>
+        ) : null}
 
         <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.025] px-4 py-3 text-xs">
           <span className="uppercase tracking-[0.15em] text-muted">Crew</span>
@@ -790,16 +794,16 @@ function TechnicianVisitCard({
         ) : null}
 
         <div className="mt-5 grid grid-cols-2 gap-2">
-          {visit.propertyLabel ? (
+          {jobDirectionsHref(visit.propertyAddress) ? (
             <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(visit.propertyLabel)}`}
+              href={jobDirectionsHref(visit.propertyAddress)!}
               target="_blank"
               rel="noreferrer"
               className="col-span-2 inline-flex min-h-12 items-center justify-center rounded-[var(--radius-control)] border border-accent/35 bg-accent/[0.09] px-3 text-center text-sm font-medium text-foreground active:scale-[0.99]"
             >
               Navigate to job
             </a>
-          ) : null}
+          ) : <p className="col-span-2 text-sm text-warning">Street address unavailable. Ask HQ before traveling.</p>}
           {propertyId ? (
             <Link
               href={`/tech/properties/${propertyId}`}

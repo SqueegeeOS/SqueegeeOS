@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { StatusNotice } from "@/components/craft/status-notice";
 import type { FieldUpcomingVisit } from "@/lib/field-operations/field-upcoming";
+import { jobDirectionsHref } from "@/lib/care-operations/jobber-visit-address";
 
 export function TechnicianUpcoming() {
   const [open, setOpen] = useState(false);
@@ -32,6 +33,10 @@ export function TechnicianUpcoming() {
           <h3 className="mt-2 text-base font-semibold text-foreground">{visit.clientName}</h3>
           <p className="mt-1 break-words text-sm leading-relaxed text-muted">{visit.service}</p>
           {visit.address ? <p className="mt-2 text-sm text-muted">{visit.address}</p> : null}
+          {jobDirectionsHref(visit.address) ? <a href={jobDirectionsHref(visit.address)!} target="_blank" rel="noreferrer"
+            className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent underline underline-offset-4"
+            aria-label={`Directions to ${visit.clientName}`}>Directions</a>
+            : <p className="mt-2 text-sm text-warning">Street address unavailable. Ask HQ before traveling.</p>}
         </li>)}
       </ul> : <p className="rounded-xl border border-border p-4 text-sm text-muted">No future jobs assigned in the next 45 days. New assignments from HQ will appear here.</p>}
       <button type="button" onClick={() => void load()} disabled={loading} className="min-h-11 text-sm text-accent underline underline-offset-4 disabled:opacity-50">Refresh upcoming jobs</button>

@@ -72,6 +72,7 @@ export function scopeTodayBoardToTechnician(
       homeAtlasMembershipId: null,
       homeAtlasPortalPath: null,
       homeAtlasIndependenceReview: null,
+      jobberInvoiceStatus: null,
     }));
   return {
     ...board,

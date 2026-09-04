@@ -8,10 +8,10 @@ const execution: HomeAtlasFieldExecutionSnapshot = {
   fieldRecordCount: 1, latestFieldRecordAt: "2026-09-04T19:00:00Z", latestFieldRecordBy: "Tyler Germany",
   customerVisibleRecordCount: 0, openFollowUpCount: 1, customerSummary: "Glass cleaned.", internalNote: "Gate loose.", scopeException: null, photoCount: 2,
 };
-function mapped(native: HomeAtlasFieldExecutionSnapshot | undefined, hasAssignment = true) {
+function mapped(native: HomeAtlasFieldExecutionSnapshot | undefined, hasAssignment = true, visitData: { property_address?: unknown; visit_invoice_status?: string | null } = {}) {
   return toTodayVisit({ id: "projection", external_visit_id: "visit", external_client_id: "client", external_property_id: "external-property",
     jobber_property_web_uri: null, job_number: 10, title: "Windows", client_name: "Test Household", visit_status: "SCHEDULED", job_status: null,
-    scheduled_start: "2026-09-04T18:00:00Z", scheduled_end: null, is_complete: false, raw_payload: {},
+    scheduled_start: "2026-09-04T18:00:00Z", scheduled_end: null, is_complete: false, raw_payload: {}, ...visitData,
   }, undefined,
   [{ externalPropertyId: "external-property", propertyId: "property", membershipId: "member" }],
   [{ externalVisitId: "visit", propertyId: "property", appointmentId: "appointment" }],
@@ -24,6 +24,13 @@ function mapped(native: HomeAtlasFieldExecutionSnapshot | undefined, hasAssignme
 }
 
 describe("member-linked native field truth", () => {
+  it("keeps exact visit address and invoice observation even without a mirrored client record", () => {
+    expect(mapped(undefined, true, {
+      property_address: { street1: "123 Main St", city: "Chico", province: "CA", postalCode: "95928" },
+      visit_invoice_status: "paid",
+    })).toMatchObject({ propertyLabel: null, propertyAddress: "123 Main St, Chico, CA, 95928", jobberInvoiceStatus: "paid", isComplete: false });
+    expect(mapped(undefined)).toMatchObject({ propertyAddress: null, jobberInvoiceStatus: null });
+  });
   it("does not let legacy empty records or clocks hide the current assigned technician's work", () => {
     expect(mapped(execution)).toMatchObject({ homeAtlasFieldRecordCount: 1, homeAtlasLatestFieldRecordBy: "Tyler Germany",
       homeAtlasFieldStage: "service_completed", homeAtlasOpenFollowUpCount: 1, homeAtlasCustomerVisibleRecordCount: 0,

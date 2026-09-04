@@ -16,5 +16,5 @@ export function fieldUpcomingVisits(visits: JobberTodayVisit[], tomorrow: Date):
     .sort((a, b) => Date.parse(a.scheduledStart) - Date.parse(b.scheduledStart))
     .map(visit => ({ id: visit.projectionId, clientName: visit.clientName,
       service: visit.title || "Scheduled service", scheduledStart: visit.scheduledStart,
-      scheduledEnd: visit.scheduledEnd, address: visit.propertyLabel }));
+      scheduledEnd: visit.scheduledEnd, address: visit.propertyAddress ?? null }));
 }
