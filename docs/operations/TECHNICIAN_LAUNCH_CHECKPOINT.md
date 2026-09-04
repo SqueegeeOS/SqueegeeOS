@@ -294,3 +294,26 @@ described above is the only live SMS sent by this launch phase.
   visits and disallows earlier months; it does not expose the shared private closeout
   review. Add a coherent owner history entry without changing dispatch scheduling
   semantics, then prepare the concise real-device first-job handoff.
+
+## 2026-09-04: Owner technician history, fewer review dead ends
+
+- Added Today -> Job history, a clock-led, owner-only monthly read surface.
+  Dispatch remains future/open jobs; no provider scheduling semantics changed.
+  Past/removed visits retain their recorded time and private closeout evidence.
+- Reuses the existing private notes/photos/owner-resolution component. Jobber
+  completion and last-synced invoice status are separate from clock-out; no
+  payment, customer publishing, payroll or Jobber completion is triggered.
+- Stable 25-row keyset pages preserve timestamp microseconds and UUID ordering.
+  Pacific month boundaries handle DST. Failed reads stay unavailable, never
+  falsely complete; failed refreshes preserve visible last-loaded records.
+- Added 22 regression tests. Full suite: 1,523 tests / 324 files passed, lint
+  zero errors, production build/TypeScript passed. Local production UI rehearsal
+  passed at 390/1440: month switch, pagination, failed refresh/retry, keyboard
+  evidence review, owner issue resolution without reload, no overflow/page errors.
+  Re-ran existing owner closeout/issue/upcoming/invite fixtures at both widths.
+- Live transaction-only SQL rehearsal passed through assignment, clock-in,
+  closeout, clock-out, issue resolution, and clock-led history after removal of
+  the synthetic visit. ROLLBACK left zero fixture technicians and zero job clocks.
+  No real customer/provider state was changed. No schema migration required.
+- Release/CI/canonical verification pending. Real Tyler device/photo/job run
+  remains unverified; this work does not claim that external acceptance test.

@@ -88,7 +88,23 @@ begin
     blocked := true;
   end;
   if not blocked then raise exception 'Resolution history mutable'; end if;
+  -- History is clock-led, not filtered by Dispatch's future/open schedule.
+  -- Only this transaction's synthetic visit is moved; everything rolls back.
+  update public.jobber_visit_projections set scheduled_start=now()-interval '1 month', visit_status='REMOVED'
+  where id=projection_id;
+  set local role service_role;
+  if not exists (
+    select 1 from public.homeatlas_technician_job_clocks c
+    join public.homeatlas_technician_visit_assignments a on a.id=c.assignment_id
+    join public.jobber_visit_projections v on v.id=a.projection_id
+    join public.homeatlas_technician_job_closeouts o on o.assignment_id=a.id
+    where c.assignment_id=rehearsal.assignment_id and c.ended_at is not null
+      and c.started_at >= (date_trunc('month',now() at time zone 'America/Los_Angeles') at time zone 'America/Los_Angeles')
+      and c.started_at < ((date_trunc('month',now() at time zone 'America/Los_Angeles') + interval '1 month') at time zone 'America/Los_Angeles')
+      and v.visit_status='REMOVED' and not v.is_complete and o.field_record_id=record_id
+  ) then raise exception 'Past removed visit or saved closeout missing from clock-led history'; end if;
+  reset role;
 end;
 $$;
-select 'assignment, scope denial, clock-in replay, finish guard, closeout, clock-out, closeout replay, issue queue, resolution replay/conflict/isolation/privacy/immutability passed; fixtures rolled back' as rehearsal;
+select 'assignment, scope denial, clock-in replay, finish guard, closeout, clock-out, closeout replay, issue queue, resolution replay/conflict/isolation/privacy/immutability, clock-led removed-visit history passed; fixtures rolled back' as rehearsal;
 rollback;
