@@ -957,12 +957,6 @@ export function TechnicianTodayWorkspace({
             HomeAtlas · Crew
           </Link>
           <div className="flex gap-2">
-            <Link
-              href="/tech/properties"
-              className="inline-flex min-h-11 items-center rounded-full border border-white/10 px-4 text-xs text-white/65"
-            >
-              {technicianSession ? "My homes" : "All homes"}
-            </Link>
             {technicianSession ? (
               <form action="/api/field/access/logout" method="post">
                 <button
@@ -1000,7 +994,7 @@ export function TechnicianTodayWorkspace({
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
             {technicianSession
-              ? "The real Jobber route, property memory, and required customer proof in one phone-first workspace."
+              ? "Only your assigned Jobber stops, required job details, and customer proof in one phone-first workspace."
               : "Work each Jobber stop from arrival through customer proof, portal verification, and owner-approved payment review."}
           </p>
           {technicianSession ? (

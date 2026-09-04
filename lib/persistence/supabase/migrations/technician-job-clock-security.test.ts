@@ -4,7 +4,9 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync(
   new URL("./20260901052357_technician_job_clock.sql", import.meta.url),
   "utf8",
-).toLowerCase();
+)
+  .replace(/\r\n/g, "\n")
+  .toLowerCase();
 
 describe("technician job clock migration", () => {
   it("keeps time records private and routes writes through one service RPC", () => {
