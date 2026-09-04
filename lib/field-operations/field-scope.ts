@@ -26,12 +26,18 @@ interface ProjectionAssignmentRow {
 }
 
 export function isVisitAssignedToTechnician(
-  visit: Pick<JobberTodayVisit, "assignedUsers" | "assignmentReadState">,
+  visit: Pick<
+    JobberTodayVisit,
+    | "assignedUsers"
+    | "assignmentReadState"
+    | "homeAtlasAssignedTechnicianId"
+  >,
   jobberUserId: string,
 ): boolean {
   return (
-    visit.assignmentReadState === "available" &&
-    visit.assignedUsers.some((user) => user.id === jobberUserId)
+    visit.homeAtlasAssignedTechnicianId === jobberUserId ||
+    (visit.assignmentReadState === "available" &&
+      visit.assignedUsers.some((user) => user.id === jobberUserId))
   );
 }
 
@@ -58,6 +64,7 @@ export function scopeTodayBoardToTechnician(
       ...visit,
       // Portal paths contain bearer access and HQ follow-up records can contain
       // private owner notes. Neither belongs in a technician DTO.
+      jobberPropertyWebUri: null,
       jobberClientWebUri: null,
       homeAtlasMembershipId: null,
       homeAtlasPortalPath: null,
@@ -149,6 +156,58 @@ export async function assertTechnicianAssignedToAppointment(
     !assignment.assignedUsers.some((user) => user.id === actor.jobberUserId)
   ) {
     throw new Error("This Jobber stop is not assigned to this Field Pass.");
+  }
+  if (!isFieldWriteTimeAllowed(projection.scheduled_start, now)) {
+    throw new Error(
+      "This stop is outside the safe field-closeout window. Ask HQ to document it.",
+    );
+  }
+}
+
+export async function assertTechnicianAssignedToFieldAssignment(
+  actor: FieldActor,
+  assignmentId: string,
+  now = new Date(),
+): Promise<void> {
+  if (actor.kind === "admin") return;
+  const supabase = createServiceRoleSupabaseClient();
+  const result = await supabase
+    .from("homeatlas_technician_visit_assignments")
+    .select("id, technician_id, technician_display_name, jobber_visit_projections!inner(scheduled_start, is_complete, visit_status)")
+    .eq("id", assignmentId)
+    .maybeSingle();
+  if (result.error || !result.data) {
+    throw new Error("This HomeAtlas assignment is not available to this Field Pass.");
+  }
+  const row = result.data as unknown as {
+    technician_id: string;
+    technician_display_name: string;
+    jobber_visit_projections:
+      | {
+          scheduled_start: string | null;
+          is_complete: boolean;
+          visit_status: string;
+        }
+      | Array<{
+          scheduled_start: string | null;
+          is_complete: boolean;
+          visit_status: string;
+        }>;
+  };
+  if (
+    actor.jobberUserId !== `homeatlas:${row.technician_id}` ||
+    actor.displayName !== row.technician_display_name
+  ) {
+    throw new Error("This Jobber stop is not assigned to this Field Pass.");
+  }
+  const projection = Array.isArray(row.jobber_visit_projections)
+    ? row.jobber_visit_projections[0]
+    : row.jobber_visit_projections;
+  if (!projection) {
+    throw new Error("This HomeAtlas assignment no longer has a Jobber stop.");
+  }
+  if (projection.is_complete || projection.visit_status === "REMOVED") {
+    throw new Error("This Jobber stop is no longer active.");
   }
   if (!isFieldWriteTimeAllowed(projection.scheduled_start, now)) {
     throw new Error(

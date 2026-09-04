@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  technicianCanDocumentVisit,
+  technicianCanFinishJob,
   technicianJobClockElapsedSeconds,
   technicianJobClockState,
   validateTechnicianJobClockRequest,
@@ -66,5 +68,38 @@ describe("technician job clock", () => {
         new Date("2026-08-31T17:59:00.000Z"),
       ),
     ).toBe(0);
+  });
+
+  it("accepts one native field assignment target and rejects ambiguous targets", () => {
+    const fieldAssignmentId = "99999999-9999-4999-8999-999999999999";
+    expect(
+      validateTechnicianJobClockRequest({
+        actionId: VALID_REQUEST.actionId,
+        fieldAssignmentId,
+        action: "start",
+      }),
+    ).toBeNull();
+    expect(
+      validateTechnicianJobClockRequest({
+        ...VALID_REQUEST,
+        fieldAssignmentId,
+      }),
+    ).toContain("one valid HomeAtlas job target");
+  });
+
+  it("requires an arrival clock before proof and a closeout before clock-out", () => {
+    expect(technicianCanDocumentVisit("not_started")).toBe(false);
+    expect(technicianCanDocumentVisit("running")).toBe(true);
+    expect(technicianCanDocumentVisit("finished")).toBe(true);
+
+    expect(
+      technicianCanFinishJob({ state: "running", hasFieldRecord: false }),
+    ).toBe(false);
+    expect(
+      technicianCanFinishJob({ state: "running", hasFieldRecord: true }),
+    ).toBe(true);
+    expect(
+      technicianCanFinishJob({ state: "not_started", hasFieldRecord: true }),
+    ).toBe(false);
   });
 });

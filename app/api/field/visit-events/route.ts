@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeFieldRequest } from "@/lib/field-operations/field-access";
 import { assertFieldActorCanWriteAppointment } from "@/lib/field-operations/field-scope";
 import { recordTechnicianVisitEvent } from "@/lib/field-operations/technician-visit-event-server";
+import { assertTechnicianCanFinishJob } from "@/lib/field-operations/technician-job-clock-server";
 import {
   validateTechnicianVisitEventRequest,
   type TechnicianVisitEventRequest,
@@ -24,6 +25,9 @@ export async function POST(request: Request) {
       submitted.propertyId,
       submitted.appointmentId,
     );
+    if (actor.kind === "technician" && submitted.eventType === "departed") {
+      await assertTechnicianCanFinishJob(submitted.appointmentId);
+    }
     const event = await recordTechnicianVisitEvent({
       request: submitted,
       actor,

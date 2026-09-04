@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildFieldAssignmentPhotoStoragePath,
   buildVisitPhotoStoragePath,
   classifyVisitFieldFollowUp,
   MAX_VISIT_PHOTO_BYTES,
@@ -38,6 +39,31 @@ describe("visit field record validation", () => {
     expect(path).toBe(
       `${visitPhotoStoragePrefix({ propertyId, appointmentId, fieldRecordId })}55555555-5555-4555-8555-555555555555.jpg`,
     );
+  });
+
+  it("supports a private photo path for an exact HomeAtlas field assignment", () => {
+    const fieldAssignmentId = "66666666-6666-4666-8666-666666666666";
+    const storagePath = buildFieldAssignmentPhotoStoragePath({
+      fieldAssignmentId,
+      fieldRecordId,
+      objectId: "55555555-5555-4555-8555-555555555555",
+      mimeType: "image/jpeg",
+    });
+    expect(
+      validateVisitFieldRecordCommit({
+        fieldRecordId,
+        fieldAssignmentId,
+        technicianName: "Tyler Germany",
+        visitDate: "2026-09-04",
+        customerSummary: "Service completed and inspected.",
+        internalNote: "",
+        followUpNeeded: false,
+        scopeReadState: "available",
+        serviceScope: [],
+        scopeException: "",
+        photos: [{ ...photo, storagePath }],
+      }),
+    ).toBeNull();
   });
 
   it("accepts a customer update with a correctly scoped uploaded photo", () => {

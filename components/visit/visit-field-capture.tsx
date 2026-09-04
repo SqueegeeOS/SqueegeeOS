@@ -106,6 +106,7 @@ function createUploadClient() {
 export function VisitFieldCapture({
   propertyId,
   appointmentId,
+  fieldAssignmentId,
   clientName,
   serviceLabel,
   scopeItems,
@@ -113,6 +114,7 @@ export function VisitFieldCapture({
   apiRoutePrefix = "/api/admin",
   lockedTechnicianName,
   completionIntent = "visit_update",
+  requiresClockOutAfterSave = false,
   portalPath,
   billingReviewHref,
   aftercareHref,
@@ -120,8 +122,9 @@ export function VisitFieldCapture({
   onSaved,
   onDraftStateChange,
 }: {
-  propertyId: string;
-  appointmentId: string;
+  propertyId?: string | null;
+  appointmentId?: string | null;
+  fieldAssignmentId?: string | null;
   clientName: string;
   serviceLabel: string;
   scopeItems: Array<Omit<VisitServiceScopeItemCompletion, "completed">>;
@@ -129,6 +132,7 @@ export function VisitFieldCapture({
   apiRoutePrefix?: "/api/admin" | "/api/field";
   lockedTechnicianName?: string;
   completionIntent?: "visit_update" | "finish_visit";
+  requiresClockOutAfterSave?: boolean;
   portalPath?: string | null;
   billingReviewHref?: string | null;
   aftercareHref?: string | null;
@@ -136,10 +140,15 @@ export function VisitFieldCapture({
   onSaved?: (result: VisitFieldSaveResult) => void;
   onDraftStateChange?: (hasDraft: boolean) => void;
 }) {
+  const draftPropertyId = propertyId ?? fieldAssignmentId!;
+  const draftAppointmentId = appointmentId ?? fieldAssignmentId!;
   const [initialDraft] = useState(() =>
     typeof window === "undefined"
       ? null
-      : readVisitFieldDraft(window.localStorage, { propertyId, appointmentId }),
+      : readVisitFieldDraft(window.localStorage, {
+          propertyId: draftPropertyId,
+          appointmentId: draftAppointmentId,
+        }),
   );
   const [fieldRecordId, setFieldRecordId] = useState(
     () => initialDraft?.fieldRecordId ?? newClientId(),
@@ -222,7 +231,10 @@ export function VisitFieldCapture({
 
   useEffect(() => {
     if (saved) {
-      clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+      clearVisitFieldDraft(window.localStorage, {
+        propertyId: draftPropertyId,
+        appointmentId: draftAppointmentId,
+      });
       onDraftStateChange?.(false);
       return;
     }
@@ -236,15 +248,18 @@ export function VisitFieldCapture({
       restoredPhotoCount > 0 ||
       photos.length > 0;
     if (!hasMeaningfulDraft) {
-      clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+      clearVisitFieldDraft(window.localStorage, {
+        propertyId: draftPropertyId,
+        appointmentId: draftAppointmentId,
+      });
       onDraftStateChange?.(false);
       return;
     }
 
     const draftStored = writeVisitFieldDraft(window.localStorage, {
       version: 1,
-      propertyId,
-      appointmentId,
+      propertyId: draftPropertyId,
+      appointmentId: draftAppointmentId,
       fieldRecordId,
       technicianName,
       visitDate,
@@ -258,7 +273,7 @@ export function VisitFieldCapture({
     });
     onDraftStateChange?.(draftStored);
   }, [
-    appointmentId,
+    draftAppointmentId,
     completedScopeItemIds,
     customerSummary,
     fieldRecordId,
@@ -266,7 +281,7 @@ export function VisitFieldCapture({
     internalNote,
     onDraftStateChange,
     photos.length,
-    propertyId,
+    draftPropertyId,
     restoredPhotoCount,
     saved,
     scopeException,
@@ -406,6 +421,7 @@ export function VisitFieldCapture({
               fieldRecordId,
               propertyId,
               appointmentId,
+              fieldAssignmentId,
               photos: pendingPhotos.map((photo) => ({
                 clientId: photo.clientId,
                 fileName: photo.file.name,
@@ -473,6 +489,7 @@ export function VisitFieldCapture({
           fieldRecordId,
           propertyId,
           appointmentId,
+          fieldAssignmentId,
           technicianName,
           visitDate,
           customerSummary,
@@ -492,7 +509,10 @@ export function VisitFieldCapture({
       }
 
       rememberTechnicianName(technicianName.trim());
-      clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+      clearVisitFieldDraft(window.localStorage, {
+        propertyId: draftPropertyId,
+        appointmentId: draftAppointmentId,
+      });
       onDraftStateChange?.(false);
       setSaved({
         photoCount: commitBody.photoCount ?? photos.length,
@@ -527,7 +547,10 @@ export function VisitFieldCapture({
   }
 
   function startAnotherRecord() {
-    clearVisitFieldDraft(window.localStorage, { propertyId, appointmentId });
+    clearVisitFieldDraft(window.localStorage, {
+      propertyId: draftPropertyId,
+      appointmentId: draftAppointmentId,
+    });
     onDraftStateChange?.(false);
     for (const photo of photos) {
       URL.revokeObjectURL(photo.previewUrl);
@@ -567,7 +590,11 @@ export function VisitFieldCapture({
     return (
       <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] p-5">
         <p className="text-sm font-medium text-emerald-200">
-          {visitFinished ? "Visit finished." : "Visit record saved."}
+          {visitFinished
+            ? requiresClockOutAfterSave
+              ? "Work documented."
+              : "Visit finished."
+            : "Visit record saved."}
         </p>
         <p className="mt-2 text-xs leading-relaxed text-emerald-100/70">
           {saved.photoCount} photo{saved.photoCount === 1 ? "" : "s"} stored
@@ -593,6 +620,11 @@ export function VisitFieldCapture({
         {visitFinished ? (
           <div className="mt-4 space-y-2 border-t border-emerald-300/20 pt-4 text-xs leading-relaxed">
             <p className="text-emerald-100">✓ Property history updated</p>
+            {requiresClockOutAfterSave ? (
+              <p className="text-amber-100">
+                Pack up, then tap Clock out &amp; complete on the job card
+              </p>
+            ) : null}
             <p className={portalPublished ? "text-emerald-100" : "text-amber-100"}>
               {portalPublished
                 ? "✓ Customer portal update published"
@@ -664,7 +696,9 @@ export function VisitFieldCapture({
         <p className="mt-2 text-sm text-foreground/75">{serviceLabel}</p>
         <p className="mt-1 text-xs text-muted">
           {completionIntent === "finish_visit"
-            ? "One finish action connects proof, property memory, the customer portal, and the owner review queue."
+            ? requiresClockOutAfterSave
+              ? "Save the proof first. After cleanup and pack-up, clock out on the job card."
+              : "One finish action connects proof, property memory, the customer portal, and the owner review queue."
             : "One save connects the visit, team memory, and customer portal."}
         </p>
       </div>
@@ -1015,7 +1049,9 @@ export function VisitFieldCapture({
             ? "Finishing visit…"
             : "Saving one connected record…"
           : completionIntent === "finish_visit"
-            ? "Finish Visit"
+            ? requiresClockOutAfterSave
+              ? "Save work & continue"
+              : "Finish Visit"
             : "Save visit record"}
       </button>
     </form>

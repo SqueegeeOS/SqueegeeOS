@@ -81,6 +81,18 @@ function visitDuration(visit: OwnerDispatchVisit): number {
   );
 }
 
+function visitCrew(visit: OwnerDispatchVisit) {
+  return visit.homeAtlasAssignedTechnician
+    ? [visit.homeAtlasAssignedTechnician]
+    : visit.assignedUsers;
+}
+
+function visitIsUnassigned(visit: OwnerDispatchVisit): boolean {
+  return !visit.homeAtlasAssignedTechnician &&
+    visit.assignmentReadState === "available" &&
+    visit.assignedUsers.length === 0;
+}
+
 function Metric({ label, value, detail, warning = false }: {
   label: string;
   value: string | number;
@@ -122,7 +134,7 @@ function CalendarStrip({ month, visits, selectedDay, onSelectDay }: {
           const day = `${month}-${String(dayNumber).padStart(2, '0')}`;
           const dayVisits = grouped.get(day) ?? [];
           const active = selectedDay === day;
-          const unassigned = dayVisits.filter((visit) => visit.assignmentReadState === 'available' && visit.assignedUsers.length === 0).length;
+          const unassigned = dayVisits.filter(visitIsUnassigned).length;
           return (
             <button
               type="button"
@@ -217,8 +229,8 @@ export function OwnerDispatchPage() {
     return (payload?.visits ?? []).filter((visit) => {
       if (selectedDay && dateKey(visit.scheduledStart) !== selectedDay) return false;
       if (technician === "unassigned") {
-        if (visit.assignmentReadState !== "available" || visit.assignedUsers.length !== 0) return false;
-      } else if (technician !== "all" && !visit.assignedUsers.some((user) => user.id === technician)) return false;
+        if (!visitIsUnassigned(visit)) return false;
+      } else if (technician !== "all" && !visitCrew(visit).some((user) => user.id === technician)) return false;
       if (city !== "all" && visit.city !== city) return false;
       if (!needle) return true;
       return [visit.clientName, visit.serviceLabel, visit.address ?? "", ...visit.scopeItems.map((item) => item.name)].join(" ").toLowerCase().includes(needle);
@@ -226,7 +238,7 @@ export function OwnerDispatchPage() {
   }, [city, payload?.visits, query, selectedDay, technician]);
 
   const selectedVisit = useMemo(() => filteredVisits.find((visit) => visit.projectionId === selectedVisitId) ?? filteredVisits[0] ?? null, [filteredVisits, selectedVisitId]);
-  const unassignedVisits = (payload?.visits ?? []).filter((visit) => visit.assignmentReadState === "available" && visit.assignedUsers.length === 0 && !visit.isComplete);
+  const unassignedVisits = (payload?.visits ?? []).filter((visit) => visitIsUnassigned(visit) && !visit.isComplete);
 
   const selectVisit = (projectionId: string) => {
     setSelectedVisitId(projectionId);
@@ -253,6 +265,8 @@ export function OwnerDispatchPage() {
           expectedAssignedUserIds: selectedVisit.assignedUsers.map(
             (user) => user.id,
           ),
+          expectedHomeAtlasTechnicianId:
+            selectedVisit.homeAtlasAssignedTechnician?.id ?? null,
           clientRequestId: crypto.randomUUID(),
         }),
       });
@@ -265,7 +279,11 @@ export function OwnerDispatchPage() {
       }
       const assignedName = body.assignedUsers[0]?.name ?? "Technician";
       await load();
-      setAssignmentSuccess(`${assignedName} is confirmed on this visit in Jobber.`);
+      setAssignmentSuccess(
+        assignmentTechnicianId.startsWith("homeatlas:")
+          ? `${assignedName} is assigned in HomeAtlas. Jobber still owns the visit schedule.`
+          : `${assignedName} is confirmed on this visit in Jobber.`,
+      );
     } catch (assignmentFailure) {
       setAssignmentError(
         assignmentFailure instanceof Error
@@ -307,9 +325,9 @@ export function OwnerDispatchPage() {
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             <Metric label="Upcoming" value={payload?.summary.total ?? 0} detail="Future visits only" />
-            <Metric label="Crew ready" value={payload?.summary.assigned ?? 0} detail="Assigned in Jobber" />
+            <Metric label="Crew ready" value={payload?.summary.assigned ?? 0} detail="Jobber or HomeAtlas staffed" />
             <Metric label="Unassigned" value={payload?.summary.assignmentUnknown ? "—" : (payload?.summary.unassigned ?? 0)} detail={payload?.summary.assignmentUnknown ? "Visibility incomplete" : "Needs Jobber crew"} warning={Boolean(payload?.summary.unassigned || payload?.summary.assignmentUnknown)} />
-            <Metric label="Technicians" value={payload?.assignableUsers.length ?? 0} detail="Schedulable in Jobber" />
+            <Metric label="Technicians" value={payload?.assignableUsers.length ?? 0} detail="Available field crew" />
             <Metric label="Mapped" value={payload?.summary.mapped ?? 0} detail="Route-ready pins" />
             <Metric label="Crew hours" value={formatDuration(payload?.summary.scheduledMinutes ?? 0)} detail="Scheduled duration" />
           </div>
@@ -334,7 +352,7 @@ export function OwnerDispatchPage() {
           <OwnerDispatchMap visits={filteredVisits} selectedVisitId={selectedVisit?.projectionId ?? null} onSelect={selectVisit} />
           <div className="rounded-[1.6rem] border border-white/10 bg-[#111615] p-5 sm:p-6">
             <div className="flex items-center justify-between gap-3"><div><p className={craftEyebrow}>Unassigned queue</p><h2 className="mt-2 font-serif text-3xl font-light">Close the gaps.</h2></div><span className="rounded-full border border-amber-300/25 px-3 py-1.5 text-sm tabular-nums text-amber-100">{unassignedVisits.length}</span></div>
-            <p className="mt-3 text-xs leading-5 text-white/45">Pick a visit below, then assign a schedulable Jobber technician directly from its detail card.</p>
+            <p className="mt-3 text-xs leading-5 text-white/45">Pick a visit below, then place either Jobber crew or a HomeAtlas technician without buying another Jobber seat.</p>
             <div className="mt-5 max-h-[25rem] space-y-3 overflow-y-auto pr-1">
               {unassignedVisits.length ? unassignedVisits.map((visit) => (
                 <button key={visit.projectionId} type="button" onClick={() => selectVisit(visit.projectionId)} className="w-full rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-left hover:border-amber-300/25">
@@ -354,7 +372,7 @@ export function OwnerDispatchPage() {
                 <h2 className="mt-3 font-serif text-3xl font-light sm:text-4xl">{selectedVisit.clientName}</h2>
                 <p className="mt-2 text-sm text-white/55">{selectedVisit.serviceLabel} · {TIME_FORMAT.format(new Date(selectedVisit.scheduledStart))}{selectedVisit.scheduledEnd ? `–${TIME_FORMAT.format(new Date(selectedVisit.scheduledEnd))}` : ""}</p>
                 <p className="mt-2 text-sm text-white/45">{selectedVisit.address ?? "Address not available in the current Jobber projection"}</p>
-                <div className="mt-4 flex flex-wrap gap-2">{selectedVisit.assignedUsers.length ? selectedVisit.assignedUsers.map((user) => <span key={user.id} className="rounded-full border border-emerald-300/20 px-3 py-1.5 text-xs text-emerald-100">{user.name}</span>) : selectedVisit.assignmentReadState === "available" ? <span className="rounded-full border border-amber-300/25 px-3 py-1.5 text-xs text-amber-100">Unassigned in Jobber</span> : <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/55">Saved crew not visible · assignment will verify live</span>}<span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/50">{formatDuration(visitDuration(selectedVisit))}</span></div>
+                <div className="mt-4 flex flex-wrap gap-2">{visitCrew(selectedVisit).length ? visitCrew(selectedVisit).map((user) => <span key={user.id} className="rounded-full border border-emerald-300/20 px-3 py-1.5 text-xs text-emerald-100">{user.name}{selectedVisit.homeAtlasAssignedTechnician?.id === user.id ? " · HomeAtlas" : " · Jobber"}</span>) : selectedVisit.assignmentReadState === "available" ? <span className="rounded-full border border-amber-300/25 px-3 py-1.5 text-xs text-amber-100">Unassigned</span> : <span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/55">Saved crew not visible · assignment will verify live</span>}<span className="rounded-full border border-white/10 px-3 py-1.5 text-xs text-white/50">{formatDuration(visitDuration(selectedVisit))}</span></div>
                 {selectedVisit.scopeItems.length ? <ul className="mt-5 grid gap-2 sm:grid-cols-2">{selectedVisit.scopeItems.map((item) => <li key={item.id} className="rounded-xl border border-white/[0.07] bg-black/15 px-3 py-2 text-xs text-white/60">{item.name}{item.quantity !== 1 ? ` × ${item.quantity}` : ""}</li>)}</ul> : null}
               </div>
               <div className="flex min-w-[13rem] flex-col gap-2">
@@ -368,7 +386,7 @@ export function OwnerDispatchPage() {
                 >
                   <option value="">Choose technician</option>
                   {(payload?.assignableUsers ?? []).map((user) => (
-                    <option key={user.id} value={user.id}>{user.name}</option>
+                    <option key={user.id} value={user.id}>{user.name} · {user.source === "homeatlas" ? "HomeAtlas tech" : "Jobber"}</option>
                   ))}
                 </select>
                 <button
@@ -381,9 +399,9 @@ export function OwnerDispatchPage() {
                   onClick={() => void assignTechnician()}
                   className={craftPrimaryButton}
                 >
-                  {assigning ? "Confirming with Jobber…" : "Assign in Jobber"}
+                  {assigning ? "Confirming assignment…" : "Assign technician"}
                 </button>
-                <p className="text-[11px] leading-5 text-white/38">This sets this visit&apos;s Jobber crew to the one technician you choose.</p>
+                <p className="text-[11px] leading-5 text-white/38">HomeAtlas tech assignments do not require another Jobber seat. The date, time, and job itself remain controlled by Jobber.</p>
                 {payload?.assignmentMessage ? (
                   <p className="rounded-xl border border-amber-300/20 bg-amber-300/[0.06] p-3 text-xs leading-5 text-amber-100">
                     {payload.assignmentMessage}{" "}

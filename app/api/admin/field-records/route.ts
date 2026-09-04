@@ -20,8 +20,8 @@ export async function POST(request: Request) {
       await recordTechnicianVisitEvent({
         request: {
           eventId: input.fieldRecordId,
-          propertyId: input.propertyId,
-          appointmentId: input.appointmentId,
+          propertyId: input.propertyId!,
+          appointmentId: input.appointmentId!,
           eventType: "service_completed",
         },
         actor: {

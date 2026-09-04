@@ -27,6 +27,7 @@ import {
   technicianVisitStageLabel,
   technicianVisitStageProgress,
 } from "@/lib/field-operations/technician-visit-events";
+import { technicianJobClockElapsedSeconds } from "@/lib/field-operations/technician-job-clock";
 import {
   jobberTodayVisitAnchorId,
   visitFieldFollowUpAnchorId,
@@ -120,6 +121,16 @@ function formatTime(value: string, timezone: string): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function formatJobDuration(totalSeconds: number | null): string {
+  if (totalSeconds === null) return "Not started";
+  const minutes = Math.max(0, Math.round(totalSeconds / 60));
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  return hours > 0
+    ? `${hours}h ${remainingMinutes.toString().padStart(2, "0")}m`
+    : `${minutes}m`;
 }
 
 function formatTimeRange(visit: JobberTodayVisit, timezone: string): string {
@@ -302,6 +313,10 @@ function JobberVisitCard({
   const fieldStageProgress = technicianVisitStageProgress(
     visit.homeAtlasFieldStage,
   );
+  const clockDuration = technicianJobClockElapsedSeconds(
+    visit.homeAtlasJobClock,
+    now,
+  );
   const moment = classifyJobberTodayVisit(visit, now);
   const style = MOMENT_STYLES[moment];
   const service = visit.title?.trim() || "Scheduled Jobber visit";
@@ -473,6 +488,26 @@ function JobberVisitCard({
                 The assigned technician has not started this stop in Field Run.
               </p>
             )}
+          </div>
+        ) : null}
+
+        {appointmentId ? (
+          <div className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-border/70 bg-foreground/[0.025] px-4 py-3">
+            <div>
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+                Actual job time
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {visit.homeAtlasJobClock.state === "running"
+                  ? "Clock running now"
+                  : visit.homeAtlasJobClock.state === "finished"
+                    ? `Saved by ${visit.homeAtlasJobClock.finishedByDisplayName ?? "field team"}`
+                    : "Technician has not clocked in"}
+              </p>
+            </div>
+            <span className="rounded-full border border-border px-3 py-1.5 text-sm font-medium tabular-nums text-foreground">
+              {formatJobDuration(clockDuration)}
+            </span>
           </div>
         ) : null}
 

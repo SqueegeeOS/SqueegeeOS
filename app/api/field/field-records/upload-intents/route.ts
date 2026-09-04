@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { authorizeFieldRequest } from "@/lib/field-operations/field-access";
-import { assertFieldActorCanWriteAppointment } from "@/lib/field-operations/field-scope";
-import { createVisitPhotoUploadIntents } from "@/lib/field-records/visit-field-record-server";
+import {
+  assertFieldActorCanWriteAppointment,
+  assertTechnicianAssignedToFieldAssignment,
+} from "@/lib/field-operations/field-scope";
+import {
+  createFieldAssignmentPhotoUploadIntents,
+  createVisitPhotoUploadIntents,
+} from "@/lib/field-records/visit-field-record-server";
 import {
   validateVisitPhotoUploadRequest,
   type VisitPhotoUploadRequest,
@@ -19,12 +25,18 @@ export async function POST(request: Request) {
     const input = (await request.json()) as VisitPhotoUploadRequest;
     const validationError = validateVisitPhotoUploadRequest(input);
     if (validationError) throw new Error(validationError);
-    await assertFieldActorCanWriteAppointment(
-      actor,
-      input.propertyId,
-      input.appointmentId,
-    );
-    const result = await createVisitPhotoUploadIntents(input);
+    if (input.fieldAssignmentId) {
+      await assertTechnicianAssignedToFieldAssignment(actor, input.fieldAssignmentId);
+    } else {
+      await assertFieldActorCanWriteAppointment(
+        actor,
+        input.propertyId!,
+        input.appointmentId!,
+      );
+    }
+    const result = input.fieldAssignmentId
+      ? await createFieldAssignmentPhotoUploadIntents(input)
+      : await createVisitPhotoUploadIntents(input);
     return NextResponse.json(result, {
       headers: { "Cache-Control": "private, no-store" },
     });

@@ -30,6 +30,8 @@ export interface OwnerDispatchVisit {
   scheduledEnd: string | null;
   isComplete: boolean;
   assignedUsers: JobberTodayAssignedUser[];
+  homeAtlasAssignedTechnician: JobberTodayAssignedUser | null;
+  homeAtlasFieldAssignmentId: string | null;
   assignmentReadState: JobberTodayAssignmentReadState;
   scopeItems: JobberTodayScopeItem[];
   address: string | null;
@@ -49,6 +51,7 @@ export interface OwnerDispatchCrewMember {
 export interface OwnerDispatchAssignableUser {
   id: string;
   name: string;
+  source: "jobber" | "homeatlas";
   availableForScheduling: boolean;
   isAccountOwner: boolean;
   isAccountAdmin: boolean;
@@ -184,6 +187,10 @@ export function buildOwnerDispatchPayload(input: {
   lastSyncedAt: string | null;
   projections: OwnerDispatchProjectionRow[];
   geocodes: OwnerDispatchGeocodeRow[];
+  homeAtlasAssignments?: Map<
+    string,
+    { id: string; technicianIdentityKey: string; technicianDisplayName: string }
+  >;
   assignableUsers?: OwnerDispatchAssignableUser[];
   assignmentCapability?: OwnerDispatchAssignmentCapability;
   assignmentMessage?: string | null;
@@ -202,6 +209,9 @@ export function buildOwnerDispatchPayload(input: {
       scheduledStartMs > generatedAtMs;
   }).map((row): OwnerDispatchVisit => {
     const assignment = readJobberTodayVisitAssignment(row.raw_payload);
+    const homeAtlasAssignment = input.homeAtlasAssignments?.get(
+      row.external_visit_id,
+    );
     const scope = readJobberTodayVisitScope(row.raw_payload);
     const property = readPropertyAddress(row.property_address);
     const geocode = geocodeByPropertyId.get(row.external_property_id);
@@ -224,6 +234,13 @@ export function buildOwnerDispatchPayload(input: {
       scheduledEnd: row.scheduled_end,
       isComplete: row.is_complete,
       assignedUsers: assignment.assignedUsers,
+      homeAtlasAssignedTechnician: homeAtlasAssignment
+        ? {
+            id: homeAtlasAssignment.technicianIdentityKey,
+            name: homeAtlasAssignment.technicianDisplayName,
+          }
+        : null,
+      homeAtlasFieldAssignmentId: homeAtlasAssignment?.id ?? null,
       assignmentReadState: assignment.assignmentReadState,
       scopeItems: scope.scopeItems,
       address: geocode?.formatted_address ?? property.address,
@@ -237,7 +254,10 @@ export function buildOwnerDispatchPayload(input: {
   const crewTotals = new Map<string, OwnerDispatchCrewMember>();
   for (const visit of visits) {
     const minutes = scheduledMinutes(visit.scheduledStart, visit.scheduledEnd);
-    for (const user of visit.assignedUsers) {
+    const staffedUsers = visit.homeAtlasAssignedTechnician
+      ? [visit.homeAtlasAssignedTechnician]
+      : visit.assignedUsers;
+    for (const user of staffedUsers) {
       const existing = crewTotals.get(user.id);
       crewTotals.set(user.id, {
         jobberUserId: user.id,
@@ -250,13 +270,13 @@ export function buildOwnerDispatchPayload(input: {
 
   const assigned = visits.filter(
     (visit) =>
-      visit.assignmentReadState === "available" &&
-      visit.assignedUsers.length > 0,
+      Boolean(visit.homeAtlasAssignedTechnician) ||
+      (visit.assignmentReadState === "available" && visit.assignedUsers.length > 0),
   ).length;
   const unassigned = visits.filter(
     (visit) =>
-      visit.assignmentReadState === "available" &&
-      visit.assignedUsers.length === 0,
+      !visit.homeAtlasAssignedTechnician &&
+      visit.assignmentReadState === "available" && visit.assignedUsers.length === 0,
   ).length;
   const assignmentUnknown = visits.filter(
     (visit) => visit.assignmentReadState !== "available",

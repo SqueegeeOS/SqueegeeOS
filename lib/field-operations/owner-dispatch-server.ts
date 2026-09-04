@@ -4,6 +4,8 @@ import { readJobberConnectionStatus } from "@/lib/care-operations/jobber-connect
 import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { chunkItems } from "@/lib/care-operations/jobber-sync-utils";
+import { loadHomeAtlasFieldAssignments } from "./homeatlas-field-assignment-server";
+import { homeAtlasTechnicianIdentityKey } from "./homeatlas-field-assignment";
 import { JobberAssignmentError } from "@/lib/care-operations/jobber-visit-assignment";
 import { loadOwnerDispatchAssignableUsers } from "./owner-dispatch-assignment-server";
 import {
@@ -65,6 +67,9 @@ export async function loadOwnerDispatchMonth(
   if (latestSyncResult.error) throw new Error(latestSyncResult.error.message);
 
   const projections = (visitsResult.data ?? []) as unknown as OwnerDispatchProjectionRow[];
+  const homeAtlasAssignments = await loadHomeAtlasFieldAssignments(
+    projections.map((visit) => visit.external_visit_id),
+  );
   const propertyIds = [
     ...new Set(projections.map((visit) => visit.external_property_id)),
   ];
@@ -97,7 +102,10 @@ export async function loadOwnerDispatchMonth(
     : "Reconnect Jobber before assigning technicians.";
   if (connection.connected) {
     try {
-      assignableUsers = await loadOwnerDispatchAssignableUsers();
+      assignableUsers = (await loadOwnerDispatchAssignableUsers()).map((user) => ({
+        ...user,
+        source: "jobber" as const,
+      }));
       assignmentCapability = "available";
       assignmentMessage = assignableUsers.length
         ? null
@@ -115,6 +123,34 @@ export async function loadOwnerDispatchMonth(
       }
     }
   }
+  const nativeResult = await supabase
+    .from("homeatlas_technicians")
+    .select("id, display_name")
+    .eq("status", "active")
+    .order("display_name", { ascending: true });
+  if (nativeResult.error) throw new Error(nativeResult.error.message);
+  assignableUsers.push(
+    ...((nativeResult.data ?? []) as Array<{id:string; display_name:string}>).map(
+      (technician) => ({
+        id: homeAtlasTechnicianIdentityKey(technician.id),
+        name: technician.display_name,
+        source: "homeatlas" as const,
+        availableForScheduling: true,
+        isAccountOwner: false,
+        isAccountAdmin: false,
+      }),
+    ),
+  );
+  if (assignableUsers.some((user) => user.source === "homeatlas")) {
+    if (homeAtlasAssignments.available) {
+      assignmentCapability = "available";
+      assignmentMessage = null;
+    } else {
+      assignmentCapability = "unavailable";
+      assignmentMessage =
+        "HomeAtlas technician assignments are waiting on the latest database migration.";
+    }
+  }
   return buildOwnerDispatchPayload({
     month,
     connected: connection.connected,
@@ -123,6 +159,7 @@ export async function loadOwnerDispatchMonth(
     lastSyncedAt: latestSync?.source_observed_at ?? null,
     projections,
     geocodes,
+    homeAtlasAssignments: homeAtlasAssignments.byExternalVisitId,
     assignableUsers,
     assignmentCapability,
     assignmentMessage,
