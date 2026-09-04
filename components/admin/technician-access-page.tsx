@@ -97,6 +97,8 @@ export function TechnicianAccessPage() {
   const [workingUserId, setWorkingUserId] = useState<string | null>(null);
   const [issuedPass, setIssuedPass] = useState<IssuedPass | null>(null);
   const [copied, setCopied] = useState(false);
+  const [smsBusy, setSmsBusy] = useState(false);
+  const [smsReceipt, setSmsReceipt] = useState<string | null>(null);
 
   const load = useCallback(async (silent = false) => {
     if (!unlocked) return;
@@ -178,6 +180,7 @@ export function TechnicianAccessPage() {
   const referenceDate = today ? new Date(today.loadedAt) : new Date();
 
   async function issue(member: TechnicianRosterMember) {
+    setSmsReceipt(null);
     setWorkingUserId(member.jobberUserId);
     setIssuedPass(null);
     setCopied(false);
@@ -223,6 +226,20 @@ export function TechnicianAccessPage() {
     } finally {
       setWorkingUserId(null);
     }
+  }
+
+  async function textInstallLink() {
+    if (!issuedPass || smsBusy || smsReceipt) return;
+    setSmsBusy(true);
+    try {
+      const response = await fetch(`/api/admin/technicians/access-grants/${issuedPass.grantId}/sms`, {
+        method: "POST", headers: getAdminRequestHeaders(),
+        body: JSON.stringify({ inviteToken: new URL(issuedPass.installUrl).searchParams.get("token") }),
+      });
+      const body = await response.json();
+      setSmsReceipt(response.ok ? `Text status: ${body.status}${body.destinationEnding ? ` · phone ending ${body.destinationEnding}` : ""}.` : body.error || "Text not confirmed. Check delivery before retrying.");
+    } catch { setSmsReceipt("Text not confirmed. Check delivery before creating another invitation."); }
+    finally { setSmsBusy(false); }
   }
 
   async function revoke(member: TechnicianRosterMember) {
@@ -348,6 +365,11 @@ export function TechnicianAccessPage() {
                 {copied ? "Copied" : "Copy link"}
               </button>
             </div>
+            <button type="button" onClick={() => void textInstallLink()} disabled={smsBusy || !!smsReceipt}
+              className="mt-4 min-h-12 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-semibold text-accent disabled:opacity-50">
+              {smsBusy ? "Sending invitation…" : "Text invite to registered phone"}
+            </button>
+            {smsReceipt ? <p role="status" className="mt-3 text-sm text-foreground">{smsReceipt}</p> : null}
             <p className="mt-3 text-xs text-emerald-100/55">
               Expires {formatDateTime(issuedPass.inviteExpiresAt)}. Creating a new
               pass revokes the old one.

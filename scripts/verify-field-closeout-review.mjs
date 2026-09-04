@@ -32,9 +32,12 @@ try {
     let failEvidence = false;
     let evidenceReads = 0;
     let failUpcoming = false;
+    let inviteSends = 0;
     await page.route("**/api/**", async route => {
       const path = new URL(route.request().url()).pathname;
       if (path === "/api/admin/unlock") return route.fulfill({ json: { mode: "pin" } });
+      if (path === "/api/admin/technicians/access-grants") return route.fulfill({ json: route.request().method() === "POST" ? { grantId: assignmentId, inviteExpiresAt: now, claimPath: "/tech/access?token=" + "a".repeat(43) } : { crew: [{ jobberUserId: "homeatlas:" + assignmentId, displayName: "Internal Test", source: "homeatlas", observedStopCount: 0, latestObservedAt: null, currentGrant: null }], grants: [] } });
+      if (path === `/api/admin/technicians/access-grants/${assignmentId}/sms`) { inviteSends++; return route.fulfill({ json: { status: "queued", destinationEnding: "0199", receiptSaved: true } }); }
       if (path === "/api/admin/care-operations/jobber/today") return route.fulfill({ json: board });
       if (path === "/api/field/today") return route.fulfill({ json: board });
       if (path === "/api/field/upcoming") return route.fulfill(failUpcoming ? { status: 503, json: { error: "Schedule temporarily unavailable" } } : { json: { visits: [{ id: "future-1", clientName: "Future assigned household", service: "Exterior glass and screens", scheduledStart: "2026-09-15T16:00:00Z", scheduledEnd: null, address: "1 Test Street" }] } });
@@ -87,6 +90,15 @@ try {
     await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-upcoming-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ width, upcomingSchedule: "passed", keyboard: "passed", scheduleRetry: "passed" }));
+    await page.goto(`${base}/hq/technicians`);
+    await page.getByRole("button", { name: "Create access", exact: true }).click();
+    const textInvite = page.getByRole("button", { name: "Text invite to registered phone", exact: true });
+    await textInvite.click();
+    await page.getByText("Text status: queued · phone ending 0199.", { exact: true }).waitFor();
+    assert.equal(await textInvite.isEnabled(), false);
+    assert.equal(inviteSends, 1);
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ width, invitationUI: "passed", duplicateSendPrevented: true }));
     console.log(JSON.stringify({ width, evidenceReads, keyboard: "passed", notes: "passed", storageError: "passed", retry: "passed", overflow: "none", pageErrors: 0 }));
     await context.close();
   }

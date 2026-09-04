@@ -23,8 +23,13 @@
   finish-before-proof rejection, save closeout, finish, retry closeout, no duplicate
   clocks/closeouts, Jobber completion unchanged.
 - Verified zero synthetic technician/visit rows remained after rollback; no real assignments created.
-- Final local checks: 1,441 tests in 313 files passed; lint 0 errors/84 existing
-  warnings; TypeScript passed; production build generated all 155 pages.
+- Final local checks: 1,447 tests in 314 files passed; lint 0 errors/84 existing
+  warnings; TypeScript passed; production build verification recorded in CI.
+- Added owner-only invite SMS delivery to the active technician's registered phone,
+  using the existing Twilio sender. No arbitrary message/destination is accepted.
+  A private grant-row reservation prevents duplicate sends and unsafe timeout retries.
+  SQL rehearsal verified first reservation succeeds, second is rejected, and rollback
+  leaves no synthetic grants. Public table privileges remain denied.
 - Added a read-only next-six-weeks schedule, scoped server-side to the technician's
   assignments. Mobile/desktop fixtures cover upcoming work, keyboard opening, error/retry.
 - Owner has assigned Tyler six real upcoming visits. No assignment changes were made by this release.
