@@ -10,7 +10,7 @@ function visit(id: string, days: number, tech = "homeatlas:tyler"): JobberTodayV
   return { projectionId: id, clientName: `Household ${id}`, title: "Window cleaning",
     scheduledStart: new Date(Date.now() + days * 86400000).toISOString(), scheduledEnd: null,
     propertyLabel: "1 Test Street", isComplete: false, visitStatus: "SCHEDULED",
-    homeAtlasAssignedTechnicianId: tech, assignedUsers: [], assignmentReadState: "available",
+    homeAtlasFieldAssignmentId: `assignment-${id}`, homeAtlasAssignedTechnicianId: tech, assignedUsers: [], assignmentReadState: "available",
     homeAtlasFieldInternalNote: "Private owner information", homeAtlasPortalPath: "/private-token",
   } as unknown as JobberTodayVisit;
 }
@@ -40,6 +40,13 @@ describe("upcoming technician schedule", () => {
   it("allows owners to preview all future assignments", async () => {
     mocks.authorize.mockResolvedValue({ kind: "admin" });
     expect((await (await request()).json()).visits).toHaveLength(3);
+  });
+  it("does not expose a native job through a stale Jobber crew entry", async () => {
+    const reassigned = visit("reassigned", 2, "homeatlas:other");
+    reassigned.assignedUsers = [{ id: "homeatlas:tyler", name: "Previous assignment" }];
+    const incomplete = { ...visit("incomplete", 2), homeAtlasFieldAssignmentId: null };
+    mocks.board.mockResolvedValue({ visits: [reassigned, incomplete, visit("mine", 3)] });
+    expect((await (await request()).json()).visits.map((row: { id: string }) => row.id)).toEqual(["mine"]);
   });
   it("excludes completed, removed, invalid, and earlier dates without mutating the board", () => {
     const visits = [visit("complete", 2), visit("removed", 2), visit("bad", 2), visit("valid", 3)];

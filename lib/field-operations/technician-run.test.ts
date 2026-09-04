@@ -198,4 +198,19 @@ describe("technician run automation", () => {
     ).toEqual(["three"]);
     expect(filterTechnicianVisits(visits, TECHNICIAN_ALL_CREW)).toBe(visits);
   });
+
+  it("keeps native assigned jobs out of the unassigned lens and in their own crew lens", () => {
+    const native = {
+      id: "native", homeAtlasFieldAssignmentId: "assignment-1",
+      homeAtlasAssignedTechnicianId: "homeatlas:tyler", homeAtlasAssignedTechnicianName: "Tyler",
+      assignedUsers: [{ id: "old-jobber-user", name: "Old assignment" }],
+      assignmentReadState: "available" as const,
+    };
+    const hidden = { ...native, id: "hidden", assignmentReadState: "permission_hidden" as const, assignedUsers: [] };
+    expect(listTechnicianCrew([native, hidden])).toEqual([{ id: "homeatlas:tyler", name: "Tyler", stopCount: 2 }]);
+    expect(filterTechnicianVisits([native, hidden], technicianCrewSelection("homeatlas:tyler"))).toEqual([native, hidden]);
+    expect(filterTechnicianVisits([native, hidden], technicianCrewSelection("old-jobber-user"))).toEqual([]);
+    expect(filterTechnicianVisits([native, hidden], TECHNICIAN_UNASSIGNED_CREW)).toEqual([]);
+    expect(listTechnicianCrew([{ ...hidden, homeAtlasAssignedTechnicianId: null }])).toEqual([]);
+  });
 });

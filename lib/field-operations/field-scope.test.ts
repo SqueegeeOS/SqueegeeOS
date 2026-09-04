@@ -66,6 +66,22 @@ function visit(
 }
 
 describe("technician field scope", () => {
+  it("rejects stale Jobber crew and incomplete native identity after a HomeAtlas assignment", () => {
+    const native = {
+      ...visit("native", "available", [{ id: "old-jobber-tech", name: "Old crew" }]),
+      homeAtlasFieldAssignmentId: "native-assignment", homeAtlasAssignedTechnicianId: "homeatlas:tyler",
+    };
+    expect(isVisitAssignedToTechnician(native, "homeatlas:tyler")).toBe(true);
+    expect(isVisitAssignedToTechnician(native, "old-jobber-tech")).toBe(false);
+    expect(isVisitAssignedToTechnician({ ...native, assignmentReadState: "permission_hidden" }, "homeatlas:tyler")).toBe(true);
+    for (const incomplete of [
+      { ...native, homeAtlasFieldAssignmentId: null },
+      { ...native, homeAtlasAssignedTechnicianId: null },
+    ]) {
+      expect(isVisitAssignedToTechnician(incomplete, "homeatlas:tyler")).toBe(false);
+      expect(isVisitAssignedToTechnician(incomplete, "old-jobber-tech")).toBe(false);
+    }
+  });
   it("fails closed unless Jobber assignment visibility is exact", () => {
     const assigned = visit("assigned", "available", [
       { id: "jobber-alex", name: "Alex" },
@@ -86,6 +102,15 @@ describe("technician field scope", () => {
     const alex = visit("alex", "available", [
       { id: "jobber-alex", name: "Alex" },
     ]);
+    alex.homeAtlasIndependenceReview = {
+      id: "owner-review", appointmentId: "appointment-alex", propertyId: "property-alex",
+      externalVisitId: "external-alex", serviceDate: "2026-08-14",
+      technicianJobberUserId: "jobber-alex", technicianDisplayName: "Alex",
+      jobClass: "normal", ownerInvolvement: "remote_guidance", ownerMinutes: 5,
+      qualityOutcome: "follow_up", productionMinutes: 60, durationSource: "field_events",
+      sourceVerifiedAt: null, reviewedBy: "Noah", reviewNote: "Private owner performance assessment",
+      reviewedAt: "2026-08-14T18:00:00Z",
+    };
     const sam = visit("sam", "available", [
       { id: "jobber-sam", name: "Sam" },
     ]);
@@ -157,6 +182,10 @@ describe("technician field scope", () => {
     expect(scoped.visits[0]?.jobberClientWebUri).toBeNull();
     expect(scoped.visits[0]?.homeAtlasMembershipId).toBeNull();
     expect(scoped.visits[0]?.homeAtlasPortalPath).toBeNull();
+    expect(scoped.visits[0]?.homeAtlasIndependenceReview).toBeNull();
+    expect(scoped.independenceReviewStatusAvailable).toBe(false);
+    expect(JSON.stringify(scoped)).not.toContain("Private owner performance assessment");
+    expect(alex.homeAtlasIndependenceReview.reviewNote).toBe("Private owner performance assessment");
     expect(scoped.summary.total).toBe(1);
     expect(scoped.summary.assigned).toBe(1);
   });

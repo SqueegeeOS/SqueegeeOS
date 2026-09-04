@@ -31,14 +31,17 @@ export function isVisitAssignedToTechnician(
     | "assignedUsers"
     | "assignmentReadState"
     | "homeAtlasAssignedTechnicianId"
-  >,
+  > & Partial<Pick<JobberTodayVisit, "homeAtlasFieldAssignmentId">>,
   jobberUserId: string,
 ): boolean {
-  return (
-    visit.homeAtlasAssignedTechnicianId === jobberUserId ||
-    (visit.assignmentReadState === "available" &&
-      visit.assignedUsers.some((user) => user.id === jobberUserId))
-  );
+  // A native assignment supersedes mirrored Jobber staffing. Never let a stale
+  // Jobber crew entry reveal the newly assigned technician's customer/work notes.
+  if (visit.homeAtlasFieldAssignmentId || visit.homeAtlasAssignedTechnicianId) {
+    return Boolean(visit.homeAtlasFieldAssignmentId) &&
+      visit.homeAtlasAssignedTechnicianId === jobberUserId;
+  }
+  return visit.assignmentReadState === "available" &&
+    visit.assignedUsers.some((user) => user.id === jobberUserId);
 }
 
 export function isFieldWriteTimeAllowed(
@@ -68,10 +71,12 @@ export function scopeTodayBoardToTechnician(
       jobberClientWebUri: null,
       homeAtlasMembershipId: null,
       homeAtlasPortalPath: null,
+      homeAtlasIndependenceReview: null,
     }));
   return {
     ...board,
     visits,
+    independenceReviewStatusAvailable: false,
     summary: summarizeJobberTodayVisits(visits),
     fieldFollowUps: [],
   };

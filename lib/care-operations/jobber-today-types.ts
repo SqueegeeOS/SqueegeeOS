@@ -222,6 +222,25 @@ export interface JobberTodaySummary {
   assignmentUnknown: number;
 }
 
+type NativeJobberVisitAssignment = Partial<
+  Pick<JobberTodayVisit, "homeAtlasFieldAssignmentId" | "homeAtlasAssignedTechnicianId">
+>;
+
+export function hasNativeJobberVisitAssignment(visit: NativeJobberVisitAssignment): boolean {
+  return Boolean(visit.homeAtlasFieldAssignmentId && visit.homeAtlasAssignedTechnicianId);
+}
+
+// Native technician evidence is private by design. Only the legacy portal
+// closeout flow requires a customer-visible update; owners may publish separately.
+export function jobberVisitNeedsCustomerPortalUpdate(
+  visit: Pick<JobberTodayVisit,
+    "isComplete" | "homeAtlasFieldRecordCount" | "homeAtlasCustomerVisibleRecordCount"
+  > & Partial<Pick<JobberTodayVisit, "homeAtlasFieldAssignmentId">>,
+): boolean {
+  return !visit.homeAtlasFieldAssignmentId && visit.isComplete &&
+    visit.homeAtlasFieldRecordCount > 0 && visit.homeAtlasCustomerVisibleRecordCount === 0;
+}
+
 export function summarizeJobberTodayVisits(
   visits: Array<
     Pick<
@@ -232,7 +251,7 @@ export function summarizeJobberTodayVisits(
       | "homeAtlasFieldStage"
       | "assignedUsers"
       | "assignmentReadState"
-    >
+    > & NativeJobberVisitAssignment
   >,
 ): JobberTodaySummary {
   const complete = visits.filter((visit) => visit.isComplete).length;
@@ -245,28 +264,23 @@ export function summarizeJobberTodayVisits(
   const portalUpdated = visits.filter(
     (visit) => visit.homeAtlasCustomerVisibleRecordCount > 0,
   ).length;
-  const completedWithPrivateOnlyRecord = visits.filter(
-    (visit) =>
-      visit.isComplete &&
-      visit.homeAtlasFieldRecordCount > 0 &&
-      visit.homeAtlasCustomerVisibleRecordCount === 0,
-  ).length;
+  const completedWithPrivateOnlyRecord = visits.filter(jobberVisitNeedsCustomerPortalUpdate).length;
   const jobberCompletionPending = visits.filter(
     (visit) =>
       !visit.isComplete && visit.homeAtlasFieldStage === "departed",
   ).length;
   const assigned = visits.filter(
     (visit) =>
-      visit.assignmentReadState === "available" &&
-      visit.assignedUsers.length > 0,
+      hasNativeJobberVisitAssignment(visit) ||
+      (visit.assignmentReadState === "available" && visit.assignedUsers.length > 0),
   ).length;
   const unassigned = visits.filter(
     (visit) =>
-      visit.assignmentReadState === "available" &&
+      !hasNativeJobberVisitAssignment(visit) && visit.assignmentReadState === "available" &&
       visit.assignedUsers.length === 0,
   ).length;
   const assignmentUnknown = visits.filter(
-    (visit) => visit.assignmentReadState !== "available",
+    (visit) => !hasNativeJobberVisitAssignment(visit) && visit.assignmentReadState !== "available",
   ).length;
   return {
     total: visits.length,
