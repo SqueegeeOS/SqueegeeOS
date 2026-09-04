@@ -315,5 +315,24 @@ described above is the only live SMS sent by this launch phase.
   closeout, clock-out, issue resolution, and clock-led history after removal of
   the synthetic visit. ROLLBACK left zero fixture technicians and zero job clocks.
   No real customer/provider state was changed. No schema migration required.
-- Release/CI/canonical verification pending. Real Tyler device/photo/job run
-  remains unverified; this work does not claim that external acceptance test.
+- PR #172 merged `b10004bc2402ccd51e380ad53881654b3706336d`; CI
+  `33929523724` passed in 2m23s. Production `dpl_HhgrZ11jn3ZR7cKzXDJtidViq39b`
+  / `squeegee-jfd84d1zc-squeegee-os.vercel.app` is Ready and canonically aliased
+  after approximately two minutes. Feature commit `5ab2648`.
+- Canonical Today -> Job history click passed in the authenticated owner browser;
+  current September and previous August resolved to honest empty states, no load
+  failure/alert or horizontal overflow. Back to Today works; owner left there.
+  Live database has zero native clocks and zero persisted rehearsal fixtures.
+- Direct browser navigation to the authenticated history API with a synthetic
+  cursor was blocked by the browser client; stopped that path without bypassing
+  the restriction. The normal supported HQ history UI succeeds. Populated live
+  pagination therefore remains unverified; unit, local browser, and SQL checks
+  cover it. The optional local unmocked API probe returned 503 because this local
+  worktree lacks Supabase env variables; production UI confirms its live read.
+- Re-ran technician workday fixtures at 390/1440: activation, private photo,
+  closeout retry, single commit and clock-out passed; Jobber completion unchanged.
+  Production deployment-specific 15-minute error scan returned no rows. Drains
+  and monitoring configuration were not re-audited in this release.
+- Real Tyler device/photo/job run remains unverified; this work does not claim
+  that external acceptance test. Do not start a real clock or send another invite
+  for a rehearsal. Current native clock history is empty until actual field use.
