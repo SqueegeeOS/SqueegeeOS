@@ -4,7 +4,9 @@ import { randomUUID } from "node:crypto";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { readJobberTodayVisitScope } from "@/lib/care-operations/jobber-today-types";
 import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
+import type { FieldActor } from "@/lib/field-operations/field-access";
 import {
+  buildFieldAssignmentPhotoStoragePath,
   buildVisitPhotoStoragePath,
   type VisitFieldRecordCommitInput,
   type VisitPhotoUploadIntent,
@@ -129,14 +131,14 @@ export async function createVisitPhotoUploadIntents(
   const validationError = validateVisitPhotoUploadRequest(input);
   if (validationError) throw new Error(validationError);
 
-  await assertVisitScope(input.propertyId, input.appointmentId);
+  await assertVisitScope(input.propertyId!, input.appointmentId!);
   const supabase = createServiceRoleSupabaseClient();
   const uploads: VisitPhotoUploadIntent[] = [];
 
   for (const photo of input.photos) {
     const storagePath = buildVisitPhotoStoragePath({
-      propertyId: input.propertyId,
-      appointmentId: input.appointmentId,
+      propertyId: input.propertyId!,
+      appointmentId: input.appointmentId!,
       fieldRecordId: input.fieldRecordId,
       objectId: randomUUID(),
       mimeType: photo.mimeType as VisitPhotoMimeType,
@@ -154,6 +156,35 @@ export async function createVisitPhotoUploadIntents(
     });
   }
 
+  return { bucket: VISIT_MEDIA_BUCKET, uploads };
+}
+
+export async function createFieldAssignmentPhotoUploadIntents(
+  input: VisitPhotoUploadRequest,
+): Promise<{ bucket: string; uploads: VisitPhotoUploadIntent[] }> {
+  const validationError = validateVisitPhotoUploadRequest(input);
+  if (validationError) throw new Error(validationError);
+  if (!input.fieldAssignmentId) {
+    throw new Error("Choose a valid HomeAtlas field assignment.");
+  }
+
+  const supabase = createServiceRoleSupabaseClient();
+  const uploads: VisitPhotoUploadIntent[] = [];
+  for (const photo of input.photos) {
+    const storagePath = buildFieldAssignmentPhotoStoragePath({
+      fieldAssignmentId: input.fieldAssignmentId,
+      fieldRecordId: input.fieldRecordId,
+      objectId: randomUUID(),
+      mimeType: photo.mimeType as VisitPhotoMimeType,
+    });
+    const signed = await supabase.storage
+      .from(VISIT_MEDIA_BUCKET)
+      .createSignedUploadUrl(storagePath, { upsert: false });
+    if (signed.error || !signed.data?.token) {
+      throw new Error("Could not prepare private photo upload.");
+    }
+    uploads.push({ ...photo, storagePath, token: signed.data.token });
+  }
   return { bucket: VISIT_MEDIA_BUCKET, uploads };
 }
 
@@ -182,7 +213,7 @@ export async function commitVisitFieldRecord(
   const validationError = validateVisitFieldRecordCommit(input);
   if (validationError) throw new Error(validationError);
 
-  const scope = await assertVisitScope(input.propertyId, input.appointmentId);
+  const scope = await assertVisitScope(input.propertyId!, input.appointmentId!);
   await assertMirroredJobberServiceScope(input, scope.appointment);
   await assertUploadedPhotosExist(input.photos);
 
@@ -190,8 +221,8 @@ export async function commitVisitFieldRecord(
   const result = await supabase
     .rpc("commit_visit_field_record", {
       p_field_record_id: input.fieldRecordId,
-      p_property_id: input.propertyId,
-      p_appointment_id: input.appointmentId,
+      p_property_id: input.propertyId!,
+      p_appointment_id: input.appointmentId!,
       p_technician_name: input.technicianName.trim(),
       p_visit_date: input.visitDate,
       p_customer_note: input.customerSummary.trim(),
@@ -225,6 +256,109 @@ export async function commitVisitFieldRecord(
   return {
     fieldRecordId: input.fieldRecordId,
     assessmentId: row.assessment_id,
+    photoCount: Number(row.asset_count),
+  };
+}
+
+async function assertFieldAssignmentJobberServiceScope(
+  input: VisitFieldRecordCommitInput,
+): Promise<void> {
+  const supabase = createServiceRoleSupabaseClient();
+  const result = await supabase
+    .from("homeatlas_technician_visit_assignments")
+    .select("jobber_visit_projections!inner(raw_payload)")
+    .eq("id", input.fieldAssignmentId!)
+    .maybeSingle();
+  if (result.error || !result.data) {
+    throw new Error("HomeAtlas field assignment not found.");
+  }
+  const relation = (
+    result.data as unknown as {
+      jobber_visit_projections:
+        | { raw_payload: unknown }
+        | Array<{ raw_payload: unknown }>;
+    }
+  ).jobber_visit_projections;
+  const projection = Array.isArray(relation) ? relation[0] : relation;
+  const mirrored = readJobberTodayVisitScope(projection?.raw_payload);
+  if (mirrored.scopeReadState !== input.scopeReadState) {
+    throw new Error("Jobber service-scope visibility changed. Refresh Today.");
+  }
+  const submittedById = new Map(input.serviceScope.map((item) => [item.id, item]));
+  if (submittedById.size !== mirrored.scopeItems.length) {
+    throw new Error("The Jobber service scope changed. Refresh Today.");
+  }
+  for (const source of mirrored.scopeItems) {
+    const submitted = submittedById.get(source.id);
+    if (
+      !submitted ||
+      submitted.name.trim() !== source.name ||
+      (submitted.description?.trim() || null) !== source.description ||
+      submitted.quantity !== source.quantity ||
+      (submitted.category?.trim() || null) !== source.category
+    ) {
+      throw new Error("The Jobber service scope changed. Refresh Today.");
+    }
+  }
+}
+
+export async function commitFieldAssignmentCloseout(input: {
+  record: VisitFieldRecordCommitInput;
+  actor: FieldActor;
+}): Promise<{
+  fieldRecordId: string;
+  assessmentId: string;
+  photoCount: number;
+}> {
+  const validationError = validateVisitFieldRecordCommit(input.record);
+  if (validationError) throw new Error(validationError);
+  if (!input.record.fieldAssignmentId) {
+    throw new Error("Choose a valid HomeAtlas field assignment.");
+  }
+  await assertFieldAssignmentJobberServiceScope(input.record);
+  await assertUploadedPhotosExist(input.record.photos);
+
+  const result = await createServiceRoleSupabaseClient()
+    .rpc("commit_homeatlas_technician_job_closeout", {
+      p_field_record_id: input.record.fieldRecordId,
+      p_assignment_id: input.record.fieldAssignmentId,
+      p_grant_id: input.actor.grantId,
+      p_technician_name: input.record.technicianName.trim(),
+      p_visit_date: input.record.visitDate,
+      p_customer_summary: input.record.customerSummary.trim(),
+      p_internal_note: input.record.internalNote.trim(),
+      p_follow_up_needed: input.record.followUpNeeded,
+      p_scope_read_state: input.record.scopeReadState,
+      p_service_scope: input.record.serviceScope.map((item) => ({
+        id: item.id,
+        name: item.name.trim(),
+        description: item.description?.trim() || null,
+        quantity: item.quantity,
+        category: item.category?.trim() || null,
+        completed: item.completed,
+      })),
+      p_scope_exception: input.record.scopeException.trim(),
+      p_assets: input.record.photos.map((photo) => ({
+        clientId: photo.clientId,
+        storagePath: photo.storagePath,
+        mimeType: photo.mimeType,
+        sizeBytes: photo.sizeBytes,
+        captureType: photo.captureType,
+        customerVisible: photo.customerVisible,
+      })),
+    })
+    .single();
+  if (result.error || !result.data) {
+    throw new Error(result.error?.message ?? "Could not save the job closeout.");
+  }
+  const row = result.data as {
+    field_record_id: string;
+    closeout_id: string;
+    asset_count: number | string;
+  };
+  return {
+    fieldRecordId: row.field_record_id,
+    assessmentId: row.closeout_id,
     photoCount: Number(row.asset_count),
   };
 }

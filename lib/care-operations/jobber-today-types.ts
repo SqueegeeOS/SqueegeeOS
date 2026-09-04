@@ -157,6 +157,9 @@ export interface JobberTodayVisit {
   jobberClientWebUri: string | null;
   homeAtlasPropertyId: string | null;
   homeAtlasAppointmentId: string | null;
+  homeAtlasFieldAssignmentId: string | null;
+  homeAtlasAssignedTechnicianId: string | null;
+  homeAtlasAssignedTechnicianName: string | null;
   homeAtlasMembershipId: string | null;
   homeAtlasPortalPath: string | null;
   homeAtlasFieldRecordCount: number;
@@ -164,6 +167,10 @@ export interface JobberTodayVisit {
   homeAtlasLatestFieldRecordBy: string | null;
   homeAtlasCustomerVisibleRecordCount: number;
   homeAtlasOpenFollowUpCount: number;
+  homeAtlasFieldCustomerSummary: string | null;
+  homeAtlasFieldInternalNote: string | null;
+  homeAtlasFieldScopeException: string | null;
+  homeAtlasFieldPhotoCount: number;
   homeAtlasFieldStage: TechnicianVisitStage;
   homeAtlasFieldStageAt: string | null;
   homeAtlasFieldStageBy: string | null;

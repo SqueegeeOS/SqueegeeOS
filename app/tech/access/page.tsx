@@ -77,7 +77,7 @@ export default async function FieldAccessPage({
 
         <Link
           href="/hq"
-          className="mt-6 inline-flex min-h-11 items-center text-xs text-white/40 hover:text-white/65"
+          className="mt-6 inline-flex min-h-11 items-center text-xs text-white/65 hover:text-white/85"
         >
           Founder sign-in →
         </Link>

@@ -24,6 +24,7 @@ const todayTypes = read("../care-operations/jobber-today-types.ts");
 const fieldRun = read(
   "../../components/field/technician-today-workspace.tsx",
 );
+const jobClockRoute = read("../../app/api/field/job-clock/route.ts");
 const hqToday = read("../../components/admin/today-workspace-page.tsx");
 
 describe("technician visit automation contract", () => {
@@ -80,10 +81,9 @@ describe("technician visit automation contract", () => {
   });
 
   it("never rolls back a saved closeout when route advancement needs retry", () => {
+    expect(fieldRecordRoute).toContain("await commitFieldAssignmentCloseout");
+    expect(fieldRecordRoute).toContain("await commitVisitFieldRecord(input)");
     for (const source of [fieldRecordRoute, adminFieldRecordRoute]) {
-      expect(source).toContain(
-        "const result = await commitVisitFieldRecord(input)",
-      );
       expect(source).toContain("routeEventRecorded = false");
       expect(source).toContain(
         "Closeout saved, but route status needs a retry",
@@ -91,8 +91,8 @@ describe("technician visit automation contract", () => {
       expect(source).toContain('eventType: "service_completed"');
       expect(source).toContain("return NextResponse.json(");
     }
-    expect(fieldRecordRoute).not.toContain(
-      'if (actor.kind === "technician")',
+    expect(fieldRecordRoute.indexOf("await commitVisitFieldRecord(input)")).toBeLessThan(
+      fieldRecordRoute.indexOf("await recordTechnicianVisitEvent({"),
     );
   });
 
@@ -107,5 +107,15 @@ describe("technician visit automation contract", () => {
     expect(fieldRun).toContain("sent until messaging approval");
     expect(hqToday).toContain("Live field status");
     expect(hqToday).toContain("fieldEventStatusAvailable");
+  });
+
+  it("keeps the technician interaction to arrival, proof, and final clock-out", () => {
+    expect(jobClockRoute).toContain("START_LIFECYCLE");
+    expect(jobClockRoute).toContain('"en_route"');
+    expect(jobClockRoute).toContain('"arrived"');
+    expect(jobClockRoute).toContain('"service_started"');
+    expect(jobClockRoute).toContain('"service_completed"');
+    expect(jobClockRoute).toContain('"departed"');
+    expect(fieldRun).toContain("!technicianSession && fieldEventStatusAvailable");
   });
 });

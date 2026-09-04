@@ -228,8 +228,16 @@ function TechnicianVisitCard({
   const readinessStyle = READINESS_STYLE[readiness];
   const propertyId = visit.homeAtlasPropertyId;
   const appointmentId = visit.homeAtlasAppointmentId;
+  const fieldAssignmentId = visit.homeAtlasFieldAssignmentId;
+  const technicianSession = Boolean(fieldActorName);
+  const hasJobTarget = Boolean(
+    (propertyId && appointmentId) || fieldAssignmentId,
+  );
+  const canOperate = Boolean(
+    (propertyId && appointmentId) || (technicianSession && fieldAssignmentId),
+  );
   const canCapture = Boolean(
-    fieldRecordStatusAvailable && propertyId && appointmentId,
+    fieldRecordStatusAvailable && canOperate,
   );
   const canAdvanceRoute = Boolean(
     fieldEventStatusAvailable && propertyId && appointmentId,
@@ -244,11 +252,12 @@ function TechnicianVisitCard({
         jobberComplete: visit.isComplete,
       })
     : null;
-  const showStandaloneCaptureButton =
-    !fieldEventStatusAvailable ||
-    (hasDraft && routeAction?.kind !== "closeout") ||
-    visit.homeAtlasFieldStage === "service_completed" ||
-    visit.homeAtlasFieldStage === "departed";
+  const showStandaloneCaptureButton = technicianSession
+    ? jobClockStatusAvailable && visit.homeAtlasJobClock.state !== "not_started"
+    : !fieldEventStatusAvailable ||
+      (hasDraft && routeAction?.kind !== "closeout") ||
+      visit.homeAtlasFieldStage === "service_completed" ||
+      visit.homeAtlasFieldStage === "departed";
   const ownerCheckoutReady = Boolean(
     ownerSession &&
       (visit.homeAtlasFieldStage === "service_completed" ||
@@ -289,19 +298,21 @@ function TechnicianVisitCard({
   );
 
   useEffect(() => {
-    if (!propertyId || !appointmentId) return;
+    const draftPropertyId = propertyId ?? fieldAssignmentId;
+    const draftAppointmentId = appointmentId ?? fieldAssignmentId;
+    if (!draftPropertyId || !draftAppointmentId) return;
     const timer = window.setTimeout(() => {
       setHasDraft(
         Boolean(
           readVisitFieldDraft(window.localStorage, {
-            propertyId,
-            appointmentId,
+            propertyId: draftPropertyId,
+            appointmentId: draftAppointmentId,
           }),
         ),
       );
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [appointmentId, propertyId]);
+  }, [appointmentId, fieldAssignmentId, propertyId]);
 
   useEffect(() => {
     if (jobClock.state !== "running") return;
@@ -310,7 +321,7 @@ function TechnicianVisitCard({
   }, [jobClock.state]);
 
   async function updateJobClock(action: TechnicianJobClockAction) {
-    if (!propertyId || !appointmentId || clockPending) return;
+    if (!canOperate || clockPending) return;
     setClockPending(true);
     setRouteError(null);
     setRouteNotice(null);
@@ -322,6 +333,7 @@ function TechnicianVisitCard({
           actionId: crypto.randomUUID(),
           propertyId,
           appointmentId,
+          fieldAssignmentId,
           action,
         }),
       });
@@ -333,8 +345,8 @@ function TechnicianVisitCard({
       }
       setRouteNotice(
         action === "start"
-          ? "Job clock started. Finish it after cleanup and pack-up."
-          : "Job clock finished. Actual on-site time is saved.",
+          ? "Arrival saved. Your job clock is running."
+          : "Visit complete. Your time, closeout, and departure are saved.",
       );
       setClockNow(new Date());
       onSaved();
@@ -503,7 +515,7 @@ function TechnicianVisitCard({
           </p>
         </div>
 
-        {propertyId && appointmentId ? (
+        {hasJobTarget ? (
           <section className="mt-3 overflow-hidden rounded-2xl border border-white/12 bg-black/25">
             <div className="flex items-center justify-between gap-4 border-b border-white/10 px-4 py-3">
               <div>
@@ -533,6 +545,10 @@ function TechnicianVisitCard({
               <p className="px-4 py-4 text-xs leading-relaxed text-amber-100">
                 The job clock is waiting for its private time-ledger migration.
               </p>
+            ) : jobClock.state === "not_started" && !canOperate ? (
+              <p className="px-4 py-4 text-xs leading-relaxed text-white/55">
+                Assigned technician starts and completes this job from their private Field Pass.
+              </p>
             ) : jobClock.state === "not_started" ? (
               <button
                 type="button"
@@ -542,35 +558,56 @@ function TechnicianVisitCard({
               >
                 <span>
                   <span className="block text-base font-semibold">
-                    {clockPending ? "Starting job…" : "Start job"}
+                    {clockPending ? "Starting job…" : "I’m here · Start job"}
                   </span>
                   <span className="mt-1 block text-xs font-normal text-[#bff1d5]/65">
-                    Tap once you have arrived at the property.
+                    Saves arrival and starts your on-site timer.
                   </span>
                 </span>
                 <span className="rounded-full border border-[#9be2bd]/35 px-3 py-1 text-xs">
-                  1 of 2
+                  1 of 3
                 </span>
               </button>
             ) : jobClock.state === "running" ? (
-              <button
-                type="button"
-                disabled={clockPending}
-                onClick={() => void updateJobClock("finish")}
-                className="flex min-h-20 w-full items-center justify-between gap-4 bg-rose-300/[0.09] px-4 text-left text-rose-100 active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span>
-                  <span className="block text-base font-semibold">
-                    {clockPending ? "Finishing job…" : "Finish job"}
+              visit.homeAtlasFieldRecordCount === 0 ? (
+                <button
+                  type="button"
+                  disabled={!canCapture}
+                  onClick={() => setCaptureOpen(true)}
+                  className="flex min-h-20 w-full items-center justify-between gap-4 bg-[#9be2bd]/[0.08] px-4 text-left text-[#d5f8e4] active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span>
+                    <span className="block text-base font-semibold">
+                      Document finished work
+                    </span>
+                    <span className="mt-1 block text-xs font-normal text-[#bff1d5]/65">
+                      Check the scope, add notes and photos, then save.
+                    </span>
                   </span>
-                  <span className="mt-1 block text-xs font-normal text-rose-100/65">
-                    Tap after cleanup, inspection, and pack-up are complete.
+                  <span className="rounded-full border border-[#9be2bd]/35 px-3 py-1 text-xs">
+                    2 of 3
                   </span>
-                </span>
-                <span className="rounded-full border border-rose-200/30 px-3 py-1 text-xs">
-                  2 of 2
-                </span>
-              </button>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={clockPending}
+                  onClick={() => void updateJobClock("finish")}
+                  className="flex min-h-20 w-full items-center justify-between gap-4 bg-rose-300/[0.09] px-4 text-left text-rose-100 active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <span>
+                    <span className="block text-base font-semibold">
+                      {clockPending ? "Clocking out…" : "Clock out & complete"}
+                    </span>
+                    <span className="mt-1 block text-xs font-normal text-rose-100/65">
+                      Tap after cleanup, inspection, and pack-up are complete.
+                    </span>
+                  </span>
+                  <span className="rounded-full border border-rose-200/30 px-3 py-1 text-xs">
+                    3 of 3
+                  </span>
+                </button>
+              )
             ) : (
               <div className="px-4 py-4 text-xs leading-relaxed text-white/55">
                 Started {formatTime(jobClock.startedAt!, timezone)}
@@ -585,7 +622,7 @@ function TechnicianVisitCard({
           </section>
         ) : null}
 
-        {fieldEventStatusAvailable && propertyId && appointmentId ? (
+        {!technicianSession && fieldEventStatusAvailable && propertyId && appointmentId ? (
           <section className="mt-3 rounded-2xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.055] p-4">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -663,7 +700,7 @@ function TechnicianVisitCard({
               sent until messaging approval and consent checks are live.
             </p>
           </section>
-        ) : propertyId && appointmentId ? (
+        ) : !technicianSession && propertyId && appointmentId ? (
           <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.07] px-4 py-3 text-xs leading-relaxed text-amber-100">
             Automated route status is waiting on migration 058. Visit closeouts
             still save normally.
@@ -742,6 +779,16 @@ function TechnicianVisitCard({
         ) : null}
 
         <div className="mt-5 grid grid-cols-2 gap-2">
+          {visit.propertyLabel ? (
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(visit.propertyLabel)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="col-span-2 inline-flex min-h-12 items-center justify-center rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.09] px-3 text-center text-sm font-medium text-[#d5f8e4] active:scale-[0.99]"
+            >
+              Navigate to job
+            </a>
+          ) : null}
           {propertyId ? (
             <Link
               href={`/tech/properties/${propertyId}`}
@@ -749,6 +796,10 @@ function TechnicianVisitCard({
             >
               Property memory
             </Link>
+          ) : fieldActorName && fieldAssignmentId ? (
+            <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-emerald-300/25 bg-emerald-300/[0.06] px-3 text-center text-sm text-emerald-100">
+              Jobber-backed field record
+            </span>
           ) : fieldActorName ? (
             <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-amber-300/25 bg-amber-300/[0.06] px-3 text-center text-sm text-amber-100">
               HQ pairing needed
@@ -761,7 +812,7 @@ function TechnicianVisitCard({
               Ask HQ to pair
             </Link>
           )}
-          {visit.jobberPropertyWebUri ? (
+          {ownerSession && visit.jobberPropertyWebUri ? (
             <a
               href={visit.jobberPropertyWebUri}
               target="_blank"
@@ -770,14 +821,14 @@ function TechnicianVisitCard({
             >
               Open in Jobber
             </a>
-          ) : (
+          ) : ownerSession ? (
             <span className="inline-flex min-h-12 items-center justify-center rounded-xl border border-white/10 px-3 text-center text-sm text-white/35">
               Jobber link missing
             </span>
-          )}
+          ) : null}
         </div>
 
-        {canCapture && propertyId && appointmentId ? (
+        {canCapture ? (
           <div className="mt-3">
             {showStandaloneCaptureButton ? (
               <button
@@ -802,6 +853,7 @@ function TechnicianVisitCard({
                 <VisitFieldCapture
                   propertyId={propertyId}
                   appointmentId={appointmentId}
+                  fieldAssignmentId={fieldAssignmentId}
                   clientName={visit.clientName}
                   serviceLabel={serviceLabel(visit)}
                   scopeItems={visit.scopeItems}
@@ -809,6 +861,9 @@ function TechnicianVisitCard({
                   apiRoutePrefix="/api/field"
                   lockedTechnicianName={fieldActorName ?? undefined}
                   completionIntent={completionIntent}
+                  requiresClockOutAfterSave={
+                    technicianSession && jobClock.state === "running"
+                  }
                   portalPath={ownerSession ? visit.homeAtlasPortalPath : null}
                   billingReviewHref={billingReviewHref}
                   aftercareHref={ownerSession ? "/hq/aftercare" : null}
@@ -1180,7 +1235,7 @@ export function TechnicianTodayWorkspace({
                       ? "No stops match this crew lens. Choose All to see the full route."
                       : technicianSession
                         ? "No stops are assigned to you today."
-                        : "The route is clear. Check All homes for property memory."}
+                        : "The route is clear. Future work stays in Dispatch."}
                   </p>
                 </div>
               )}

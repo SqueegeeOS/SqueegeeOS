@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import { authorizeFieldRequest } from "@/lib/field-operations/field-access";
-import { assertFieldActorCanWriteAppointment } from "@/lib/field-operations/field-scope";
+import {
+  assertFieldActorCanWriteAppointment,
+  assertTechnicianAssignedToFieldAssignment,
+} from "@/lib/field-operations/field-scope";
 import { recordTechnicianVisitEvent } from "@/lib/field-operations/technician-visit-event-server";
-import { commitVisitFieldRecord } from "@/lib/field-records/visit-field-record-server";
+import { assertTechnicianCanDocumentVisit } from "@/lib/field-operations/technician-job-clock-server";
+import {
+  commitFieldAssignmentCloseout,
+  commitVisitFieldRecord,
+} from "@/lib/field-records/visit-field-record-server";
 import {
   validateVisitFieldRecordCommit,
   type VisitFieldRecordCommitInput,
@@ -24,20 +31,39 @@ export async function POST(request: Request) {
         : submitted;
     const validationError = validateVisitFieldRecordCommit(input);
     if (validationError) throw new Error(validationError);
-    await assertFieldActorCanWriteAppointment(
-      actor,
-      input.propertyId,
-      input.appointmentId,
-    );
-    const result = await commitVisitFieldRecord(input);
+    if (input.fieldAssignmentId) {
+      await assertTechnicianAssignedToFieldAssignment(actor, input.fieldAssignmentId);
+    } else {
+      await assertFieldActorCanWriteAppointment(
+        actor,
+        input.propertyId!,
+        input.appointmentId!,
+      );
+      if (actor.kind === "technician") {
+        await assertTechnicianCanDocumentVisit(input.appointmentId!);
+      }
+    }
+    const result = input.fieldAssignmentId
+      ? await commitFieldAssignmentCloseout({ record: input, actor })
+      : await commitVisitFieldRecord(input);
     let routeEventRecorded: boolean | null = null;
     let routeEventWarning: string | null = null;
     try {
+      if (input.fieldAssignmentId) {
+        routeEventRecorded = true;
+        return NextResponse.json(
+          { ...result, routeEventRecorded, routeEventWarning },
+          {
+            status: 201,
+            headers: { "Cache-Control": "private, no-store" },
+          },
+        );
+      }
       await recordTechnicianVisitEvent({
         request: {
           eventId: input.fieldRecordId,
-          propertyId: input.propertyId,
-          appointmentId: input.appointmentId,
+          propertyId: input.propertyId!,
+          appointmentId: input.appointmentId!,
           eventType: "service_completed",
         },
         actor,
@@ -70,7 +96,7 @@ export async function POST(request: Request) {
     );
     const status = forbidden
       ? 403
-      : /not found|does not belong|valid|must|Add|photo|Enter|Refresh/i.test(
+        : /not found|does not belong|valid|must|Add|photo|Enter|Refresh|Start the job clock/i.test(
             message,
           )
         ? 400

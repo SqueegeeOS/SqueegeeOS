@@ -10,8 +10,9 @@ export type TechnicianJobClockState =
 
 export interface TechnicianJobClockRequest {
   actionId: string;
-  propertyId: string;
-  appointmentId: string;
+  propertyId?: string | null;
+  appointmentId?: string | null;
+  fieldAssignmentId?: string | null;
   action: TechnicianJobClockAction;
 }
 
@@ -54,11 +55,20 @@ export function validateTechnicianJobClockRequest(
   if (!UUID_PATTERN.test(input.actionId ?? "")) {
     return "The job clock action needs a valid action ID.";
   }
-  if (!UUID_PATTERN.test(input.propertyId ?? "")) {
-    return "Choose a valid HomeAtlas property.";
+  const hasMemberVisit = Boolean(input.propertyId && input.appointmentId);
+  const hasFieldAssignment = Boolean(input.fieldAssignmentId);
+  if (hasMemberVisit === hasFieldAssignment) {
+    return "Choose one valid HomeAtlas job target.";
   }
-  if (!UUID_PATTERN.test(input.appointmentId ?? "")) {
+  if (
+    hasMemberVisit &&
+    (!UUID_PATTERN.test(input.propertyId ?? "") ||
+      !UUID_PATTERN.test(input.appointmentId ?? ""))
+  ) {
     return "Choose a valid HomeAtlas appointment.";
+  }
+  if (hasFieldAssignment && !UUID_PATTERN.test(input.fieldAssignmentId ?? "")) {
+    return "Choose a valid HomeAtlas field assignment.";
   }
   if (!isTechnicianJobClockAction(input.action)) {
     return "Choose start or finish for this job clock.";
@@ -84,6 +94,19 @@ export function technicianJobClockElapsedSeconds(
   const endedAt = clock.endedAt ? Date.parse(clock.endedAt) : now.getTime();
   if (!Number.isFinite(startedAt) || !Number.isFinite(endedAt)) return null;
   return Math.max(0, Math.floor((endedAt - startedAt) / 1_000));
+}
+
+export function technicianCanDocumentVisit(
+  state: TechnicianJobClockState,
+): boolean {
+  return state === "running" || state === "finished";
+}
+
+export function technicianCanFinishJob(input: {
+  state: TechnicianJobClockState;
+  hasFieldRecord: boolean;
+}): boolean {
+  return input.state === "running" && input.hasFieldRecord;
 }
 
 export function isMissingTechnicianJobClockSchema(error: {

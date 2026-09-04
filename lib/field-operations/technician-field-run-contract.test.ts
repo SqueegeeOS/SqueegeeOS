@@ -17,6 +17,8 @@ const todayRoute = read(
   "../../app/api/field/today/route.ts",
 );
 const fieldCapture = read("../../components/visit/visit-field-capture.tsx");
+const jobClockRoute = read("../../app/api/field/job-clock/route.ts");
+const fieldRecordRoute = read("../../app/api/field/field-records/route.ts");
 
 describe("technician field run contract", () => {
   it("keeps technician surfaces behind a revocable field or owner session", () => {
@@ -55,6 +57,23 @@ describe("technician field run contract", () => {
     expect(fieldRun).toContain('label: "Portal update needed"');
     expect(fieldRun).toContain('label: "Closed out"');
     expect(fieldRun).toContain("Saved on this device");
+    expect(fieldRun).toContain("I’m here · Start job");
+    expect(fieldRun).toContain("Document finished work");
+    expect(fieldRun).toContain("Clock out & complete");
+    expect(fieldRun).toContain("Navigate to job");
+    expect(fieldRun).not.toContain(
+      "The route is clear. Check All homes for property memory.",
+    );
+  });
+
+  it("prevents a false finish when arrival or closeout proof is missing", () => {
+    expect(fieldRecordRoute).toContain("assertTechnicianCanDocumentVisit");
+    expect(jobClockRoute).toContain("assertTechnicianCanFinishJob");
+    expect(jobClockRoute).toContain('target:');
+    expect(jobClockRoute).toContain('"service_started" : "departed"');
+    expect(fieldCapture).toContain("requiresClockOutAfterSave");
+    expect(fieldCapture).toContain("Save work & continue");
+    expect(fieldCapture).toContain("Clock out &amp; complete");
   });
 
   it("mirrors Jobber crew coverage without inventing a second schedule", () => {

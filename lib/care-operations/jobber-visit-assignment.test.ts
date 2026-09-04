@@ -105,9 +105,9 @@ describe("Jobber visit assignments", () => {
       accessToken: "token",
       visitId: "visit-1",
       assignedUserIds: ["tech-1"],
-    })).rejects.toMatchObject<JobberAssignmentError>({
+    })).rejects.toMatchObject({
       code: "provider_rejected",
-    });
+    } satisfies Partial<JobberAssignmentError>);
   });
 
   it("surfaces missing Jobber scopes as a reconnect action", async () => {
@@ -115,8 +115,8 @@ describe("Jobber visit assignments", () => {
       errors: [{ message: "Access denied due to permissions" }],
     })));
 
-    await expect(fetchJobberAssignableUsers("token")).rejects.toMatchObject<
-      JobberAssignmentError
-    >({ code: "permission_required" });
+    await expect(fetchJobberAssignableUsers("token")).rejects.toMatchObject({
+      code: "permission_required",
+    } satisfies Partial<JobberAssignmentError>);
   });
 });

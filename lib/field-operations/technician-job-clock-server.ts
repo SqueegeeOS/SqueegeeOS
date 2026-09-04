@@ -5,6 +5,8 @@ import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/clie
 import type { FieldActor } from "./field-access";
 import {
   isMissingTechnicianJobClockSchema,
+  technicianCanDocumentVisit,
+  technicianCanFinishJob,
   technicianJobClockState,
   validateTechnicianJobClockRequest,
   type TechnicianJobClockRequest,
@@ -17,6 +19,53 @@ interface StoredTechnicianJobClockRow {
   ended_at: string | null;
   started_by_display_name: string;
   finished_by_display_name: string | null;
+}
+
+export async function assertTechnicianCanDocumentVisit(
+  appointmentId: string,
+): Promise<void> {
+  const clocks = await loadTechnicianJobClockSnapshots([appointmentId]);
+  if (!clocks.available) {
+    throw new Error("The technician job clock is not ready yet.");
+  }
+  const clock = clocks.byAppointmentId.get(appointmentId);
+  if (!clock || !technicianCanDocumentVisit(clock.state)) {
+    throw new Error("Start the job clock at the property before documenting this visit.");
+  }
+}
+
+export async function assertTechnicianCanFinishJob(
+  appointmentId: string,
+): Promise<void> {
+  const [clocks, closeoutResult] = await Promise.all([
+    loadTechnicianJobClockSnapshots([appointmentId]),
+    createServiceRoleSupabaseClient()
+      .from("property_assessments")
+      .select("field_record_id")
+      .eq("visit_id", appointmentId)
+      .not("field_record_id", "is", null)
+      .limit(1),
+  ]);
+  if (!clocks.available) {
+    throw new Error("The technician job clock is not ready yet.");
+  }
+  if (closeoutResult.error) {
+    throw new Error("Could not verify the HomeAtlas closeout.");
+  }
+  const clock = clocks.byAppointmentId.get(appointmentId);
+  if (
+    !clock ||
+    !technicianCanFinishJob({
+      state: clock.state,
+      hasFieldRecord: Boolean(closeoutResult.data?.length),
+    })
+  ) {
+    if (!clock || clock.state === "not_started") {
+      throw new Error("Start the job clock before finishing this visit.");
+    }
+    if (clock.state === "finished") return;
+    throw new Error("Save the HomeAtlas closeout before clocking out.");
+  }
 }
 
 interface TechnicianJobClockRpcRow {
@@ -106,11 +155,31 @@ export async function recordTechnicianJobClockAction(input: {
   if (validationError) throw new Error(validationError);
 
   const supabase = createServiceRoleSupabaseClient();
+  if (input.request.fieldAssignmentId) {
+    const result = await supabase
+      .rpc("record_homeatlas_technician_job_clock_action", {
+        p_action_id: input.request.actionId,
+        p_assignment_id: input.request.fieldAssignmentId,
+        p_grant_id: input.actor.grantId,
+        p_actor_display_name: input.actor.displayName,
+        p_action: input.request.action,
+      })
+      .single();
+    if (result.error || !result.data) {
+      throw new Error(result.error?.message ?? "Could not update the job clock.");
+    }
+    const row = result.data as TechnicianJobClockRpcRow;
+    return {
+      entryId: row.entry_id,
+      clock: toSnapshot(row),
+      replayed: Boolean(row.replayed),
+    };
+  }
   const result = await supabase
     .rpc("record_technician_job_clock_action", {
       p_action_id: input.request.actionId,
-      p_property_id: input.request.propertyId,
-      p_appointment_id: input.request.appointmentId,
+      p_property_id: input.request.propertyId!,
+      p_appointment_id: input.request.appointmentId!,
       p_grant_id: input.actor.grantId,
       p_jobber_user_id: input.actor.jobberUserId,
       p_actor_display_name: input.actor.displayName,

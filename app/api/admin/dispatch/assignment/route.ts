@@ -4,6 +4,7 @@ import {
   assignOwnerDispatchVisit,
   OwnerDispatchAssignmentError,
 } from "@/lib/field-operations/owner-dispatch-assignment-server";
+import { assignHomeAtlasTechnicianVisit } from "@/lib/field-operations/homeatlas-field-assignment-server";
 
 export const runtime = "nodejs";
 
@@ -27,8 +28,21 @@ export async function POST(request: Request) {
       projectionId?: string;
       jobberUserId?: string;
       expectedAssignedUserIds?: string[];
+      expectedHomeAtlasTechnicianId?: string | null;
       clientRequestId?: string;
     };
+    if (body.jobberUserId?.startsWith("homeatlas:")) {
+      return NextResponse.json(
+        await assignHomeAtlasTechnicianVisit({
+          projectionId: body.projectionId ?? "",
+          technicianIdentityKey: body.jobberUserId,
+          expectedTechnicianIdentityKey:
+            body.expectedHomeAtlasTechnicianId ?? null,
+          clientRequestId: body.clientRequestId ?? "",
+        }),
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
     return NextResponse.json(
       await assignOwnerDispatchVisit({
         projectionId: body.projectionId ?? "",
@@ -46,15 +60,32 @@ export async function POST(request: Request) {
       code: known ? error.code : "internal_error",
       message: error instanceof Error ? error.message : "unknown",
     });
+    const message = error instanceof Error ? error.message : "unknown";
+    const homeAtlasConflict = /changed this visit after Dispatch loaded/i.test(message);
+    const homeAtlasInvalid = /valid future visit|active HomeAtlas technician/i.test(message);
     return NextResponse.json(
       {
         error: known
           ? error.message
-          : "HomeAtlas could not finish that Jobber assignment.",
-        code: known ? error.code : "internal_error",
+          : message === "unknown"
+            ? "HomeAtlas could not finish that technician assignment."
+            : message,
+        code: known
+          ? error.code
+          : homeAtlasConflict
+            ? "conflict"
+            : homeAtlasInvalid
+              ? "invalid_request"
+              : "internal_error",
       },
       {
-        status: known ? STATUS_BY_CODE[error.code] : 500,
+        status: known
+          ? STATUS_BY_CODE[error.code]
+          : homeAtlasConflict
+            ? 409
+            : homeAtlasInvalid
+              ? 400
+              : 500,
         headers: { "Cache-Control": "private, no-store" },
       },
     );

@@ -32,8 +32,9 @@ export interface VisitPhotoUploadIntent extends VisitPhotoDescriptor {
 
 export interface VisitPhotoUploadRequest {
   fieldRecordId: string;
-  propertyId: string;
-  appointmentId: string;
+  propertyId?: string | null;
+  appointmentId?: string | null;
+  fieldAssignmentId?: string | null;
   photos: VisitPhotoDescriptor[];
 }
 
@@ -54,8 +55,9 @@ export interface VisitServiceScopeItemCompletion {
 
 export interface VisitFieldRecordCommitInput {
   fieldRecordId: string;
-  propertyId: string;
-  appointmentId: string;
+  propertyId?: string | null;
+  appointmentId?: string | null;
+  fieldAssignmentId?: string | null;
   technicianName: string;
   visitDate: string;
   customerSummary: string;
@@ -166,6 +168,50 @@ export function visitPhotoStoragePrefix(input: {
   return `properties/${input.propertyId}/visits/${input.appointmentId}/records/${input.fieldRecordId}/`;
 }
 
+export function buildFieldAssignmentPhotoStoragePath(input: {
+  fieldAssignmentId: string;
+  fieldRecordId: string;
+  objectId: string;
+  mimeType: VisitPhotoMimeType;
+}): string {
+  return [
+    "assignments",
+    input.fieldAssignmentId,
+    "records",
+    input.fieldRecordId,
+    `${input.objectId}.${extensionForVisitPhotoMimeType(input.mimeType)}`,
+  ].join("/");
+}
+
+export function fieldAssignmentPhotoStoragePrefix(input: {
+  fieldAssignmentId: string;
+  fieldRecordId: string;
+}): string {
+  return `assignments/${input.fieldAssignmentId}/records/${input.fieldRecordId}/`;
+}
+
+function validateJobTarget(input: {
+  propertyId?: string | null;
+  appointmentId?: string | null;
+  fieldAssignmentId?: string | null;
+}): string | null {
+  const hasMemberVisit = Boolean(input.propertyId && input.appointmentId);
+  const hasFieldAssignment = Boolean(input.fieldAssignmentId);
+  if (hasMemberVisit === hasFieldAssignment) {
+    return "Choose one valid HomeAtlas job target.";
+  }
+  if (
+    hasMemberVisit &&
+    (!isUuid(input.propertyId) || !isUuid(input.appointmentId))
+  ) {
+    return "Choose a valid HomeAtlas appointment.";
+  }
+  if (hasFieldAssignment && !isUuid(input.fieldAssignmentId)) {
+    return "Choose a valid HomeAtlas field assignment.";
+  }
+  return null;
+}
+
 export function validateVisitPhotoDescriptors(
   photos: VisitPhotoDescriptor[],
 ): string | null {
@@ -209,8 +255,8 @@ export function validateVisitPhotoUploadRequest(
   input: VisitPhotoUploadRequest,
 ): string | null {
   if (!isUuid(input.fieldRecordId)) return "fieldRecordId must be a UUID.";
-  if (!isUuid(input.propertyId)) return "propertyId must be a UUID.";
-  if (!isUuid(input.appointmentId)) return "appointmentId must be a UUID.";
+  const targetError = validateJobTarget(input);
+  if (targetError) return targetError;
   if (!Array.isArray(input.photos) || input.photos.length === 0) {
     return "Choose at least one photo to upload.";
   }
@@ -244,8 +290,8 @@ export function validateVisitFieldRecordCommit(
   input: VisitFieldRecordCommitInput,
 ): string | null {
   if (!isUuid(input.fieldRecordId)) return "fieldRecordId must be a UUID.";
-  if (!isUuid(input.propertyId)) return "propertyId must be a UUID.";
-  if (!isUuid(input.appointmentId)) return "appointmentId must be a UUID.";
+  const targetError = validateJobTarget(input);
+  if (targetError) return targetError;
   if (!input.technicianName?.trim()) return "Enter who documented the visit.";
   if (input.technicianName.trim().length > 80) {
     return "Technician name must be 80 characters or fewer.";
@@ -336,7 +382,16 @@ export function validateVisitFieldRecordCommit(
     return "Add a customer update, an internal note, or at least one photo.";
   }
 
-  const requiredPrefix = visitPhotoStoragePrefix(input);
+  const requiredPrefix = input.fieldAssignmentId
+    ? fieldAssignmentPhotoStoragePrefix({
+        fieldAssignmentId: input.fieldAssignmentId,
+        fieldRecordId: input.fieldRecordId,
+      })
+    : visitPhotoStoragePrefix({
+        propertyId: input.propertyId!,
+        appointmentId: input.appointmentId!,
+        fieldRecordId: input.fieldRecordId,
+      });
   for (const photo of input.photos) {
     if (!photo.storagePath?.startsWith(requiredPrefix)) {
       return "A photo path does not belong to this visit record.";

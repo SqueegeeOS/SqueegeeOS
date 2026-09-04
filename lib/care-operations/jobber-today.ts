@@ -16,6 +16,14 @@ import {
 } from "@/lib/field-operations/technician-job-clock";
 import { loadFieldIndependenceReviews } from "@/lib/field-operations/independence-review-server";
 import type { FieldIndependenceReview } from "@/lib/field-operations/independence-review";
+import {
+  loadHomeAtlasFieldAssignments,
+  loadHomeAtlasFieldExecution,
+} from "@/lib/field-operations/homeatlas-field-assignment-server";
+import type {
+  HomeAtlasFieldAssignmentSnapshot,
+  HomeAtlasFieldExecutionSnapshot,
+} from "@/lib/field-operations/homeatlas-field-assignment";
 import { readJobberConnectionStatus } from "./jobber-connection-store";
 import { JOBBER_CONNECTION_ID } from "./jobber-oauth-config";
 import { chunkItems } from "./jobber-sync-utils";
@@ -135,6 +143,8 @@ function toTodayVisit(
   jobClocksByAppointment: Map<string, TechnicianJobClockSnapshot>,
   independenceReviewsByAppointment: Map<string, FieldIndependenceReview>,
   portalPathByMembershipId: Map<string, string>,
+  fieldAssignmentsByVisit: Map<string, HomeAtlasFieldAssignmentSnapshot>,
+  fieldExecutionByAssignment: Map<string, HomeAtlasFieldExecutionSnapshot>,
 ): JobberTodayVisit {
   const property = readClientProperties(client?.properties).find(
     (candidate) => candidate.id === row.external_property_id,
@@ -154,6 +164,10 @@ function toTodayVisit(
   const jobClock = homeAtlas.homeAtlasAppointmentId
     ? jobClocksByAppointment.get(homeAtlas.homeAtlasAppointmentId)
     : undefined;
+  const fieldAssignment = fieldAssignmentsByVisit.get(row.external_visit_id);
+  const fieldExecution = fieldAssignment
+    ? fieldExecutionByAssignment.get(fieldAssignment.id)
+    : undefined;
   return {
     projectionId: row.id,
     externalVisitId: row.external_visit_id,
@@ -172,20 +186,43 @@ function toTodayVisit(
       row.jobber_property_web_uri ?? property?.jobberWebUri ?? null,
     jobberClientWebUri: client?.jobber_web_uri ?? null,
     ...homeAtlas,
+    homeAtlasFieldAssignmentId: fieldAssignment?.id ?? null,
+    homeAtlasAssignedTechnicianId:
+      fieldAssignment?.technicianIdentityKey ?? null,
+    homeAtlasAssignedTechnicianName:
+      fieldAssignment?.technicianDisplayName ?? null,
     homeAtlasPortalPath: homeAtlas.homeAtlasMembershipId
       ? (portalPathByMembershipId.get(homeAtlas.homeAtlasMembershipId) ?? null)
       : null,
-    homeAtlasFieldRecordCount: fieldRecord?.count ?? 0,
-    homeAtlasLatestFieldRecordAt: fieldRecord?.latestFieldRecordAt ?? null,
-    homeAtlasLatestFieldRecordBy: fieldRecord?.latestTechnicianName ?? null,
+    homeAtlasFieldRecordCount:
+      fieldRecord?.count ?? fieldExecution?.fieldRecordCount ?? 0,
+    homeAtlasLatestFieldRecordAt:
+      fieldRecord?.latestFieldRecordAt ?? fieldExecution?.latestFieldRecordAt ?? null,
+    homeAtlasLatestFieldRecordBy:
+      fieldRecord?.latestTechnicianName ?? fieldExecution?.latestFieldRecordBy ?? null,
     homeAtlasCustomerVisibleRecordCount:
-      fieldRecord?.customerVisibleCount ?? 0,
-    homeAtlasOpenFollowUpCount: fieldRecord?.openFollowUpCount ?? 0,
-    homeAtlasFieldStage: fieldEvent?.stage ?? "not_started",
-    homeAtlasFieldStageAt: fieldEvent?.occurredAt ?? null,
-    homeAtlasFieldStageBy: fieldEvent?.actorDisplayName ?? null,
+      fieldRecord?.customerVisibleCount ?? fieldExecution?.customerVisibleRecordCount ?? 0,
+    homeAtlasOpenFollowUpCount:
+      fieldRecord?.openFollowUpCount ?? fieldExecution?.openFollowUpCount ?? 0,
+    homeAtlasFieldCustomerSummary: fieldExecution?.customerSummary ?? null,
+    homeAtlasFieldInternalNote: fieldExecution?.internalNote ?? null,
+    homeAtlasFieldScopeException: fieldExecution?.scopeException ?? null,
+    homeAtlasFieldPhotoCount: fieldExecution?.photoCount ?? 0,
+    homeAtlasFieldStage: fieldEvent?.stage ?? (
+      fieldExecution?.clock.state === "finished"
+        ? "departed"
+        : fieldExecution?.fieldRecordCount
+          ? "service_completed"
+          : fieldExecution?.clock.state === "running"
+            ? "service_started"
+            : "not_started"
+    ),
+    homeAtlasFieldStageAt:
+      fieldEvent?.occurredAt ?? fieldExecution?.latestFieldRecordAt ?? fieldExecution?.clock.endedAt ?? fieldExecution?.clock.startedAt ?? null,
+    homeAtlasFieldStageBy:
+      fieldEvent?.actorDisplayName ?? fieldExecution?.latestFieldRecordBy ?? fieldExecution?.clock.finishedByDisplayName ?? fieldExecution?.clock.startedByDisplayName ?? null,
     homeAtlasFieldEventCount: fieldEvent?.eventCount ?? 0,
-    homeAtlasJobClock: jobClock ?? EMPTY_TECHNICIAN_JOB_CLOCK,
+    homeAtlasJobClock: jobClock ?? fieldExecution?.clock ?? EMPTY_TECHNICIAN_JOB_CLOCK,
     homeAtlasIndependenceReview: homeAtlas.homeAtlasAppointmentId
       ? (independenceReviewsByAppointment.get(
           homeAtlas.homeAtlasAppointmentId,
@@ -313,6 +350,11 @@ export async function loadJobberTodayBoard(
     );
   }
 
+  const fieldAssignments = await loadHomeAtlasFieldAssignments(externalVisitIds);
+  const fieldExecution = await loadHomeAtlasFieldExecution(
+    [...fieldAssignments.byExternalVisitId.values()].map((assignment) => assignment.id),
+  );
+
   const storedFieldRecordRows: StoredFieldRecordRow[] = [];
   let fieldRecordStatusAvailable = true;
   const appointmentIds = appointmentLinks.map((link) => link.appointmentId);
@@ -402,6 +444,8 @@ export async function loadJobberTodayBoard(
       jobClocks.byAppointmentId,
       independenceReviews.byAppointmentId,
       portalPathByMembershipId,
+      fieldAssignments.byExternalVisitId,
+      fieldExecution.byAssignmentId,
     ),
   );
   const latestSync = latestSyncResult.data as {
@@ -419,9 +463,11 @@ export async function loadJobberTodayBoard(
     accountName: connection.accountName,
     lastSyncedAt: latestSync?.source_observed_at ?? null,
     loadedAt: new Date().toISOString(),
-    fieldRecordStatusAvailable,
+    fieldRecordStatusAvailable:
+      fieldRecordStatusAvailable && fieldExecution.available,
     fieldEventStatusAvailable: fieldEvents.available,
-    jobClockStatusAvailable: jobClocks.available,
+    jobClockStatusAvailable:
+      jobClocks.available && fieldExecution.available,
     independenceReviewStatusAvailable: independenceReviews.available,
     summary: summarizeJobberTodayVisits(visits),
     visits,
