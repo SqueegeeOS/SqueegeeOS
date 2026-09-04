@@ -58,6 +58,12 @@ const nextConfig: NextConfig = {
         headers: privateRouteHeaders,
       })),
       {
+        source: "/tech/access",
+        // no-referrer also suppresses Origin on native POST navigation. Preserve
+        // the origin for the claim route's CSRF check, never the private token URL.
+        headers: [{ key: "Referrer-Policy", value: "strict-origin" }],
+      },
+      {
         source: "/brand/homeatlas-member-loader-v3.webp",
         headers: [
           {
