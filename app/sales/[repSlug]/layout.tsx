@@ -25,5 +25,9 @@ export const viewport: Viewport = {
 };
 
 export default function SalesRepLayout({ children }: { children: ReactNode }) {
-  return children;
+  return (
+    <div className="atlas-role-shell min-h-[100svh]" data-atlas-theme="lux">
+      {children}
+    </div>
+  );
 }

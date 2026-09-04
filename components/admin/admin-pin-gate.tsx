@@ -6,6 +6,7 @@ import { GlassCard } from "@/components/craft/glass-card";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { ADMIN_PIN_ARCHITECTURE_NOTE } from "@/lib/admin/config";
 import { craftInput, craftLabel, craftPrimaryButton } from "@/lib/craft/tokens";
+import { StatusNotice } from "@/components/craft/status-notice";
 import { markAdminUnlocked } from "@/lib/admin/pin";
 import { ROUTES } from "@/lib/navigation/config";
 import { materialize } from "@/lib/motion/system";
@@ -122,18 +123,14 @@ export function AdminPinGate({ onUnlock }: AdminPinGateProps) {
             />
           </div>
 
-          {error && (
-            <p className="text-sm text-red-300/90" role="alert">
-              {error}
-            </p>
-          )}
+          {error ? <StatusNotice tone="danger">{error}</StatusNotice> : null}
 
           <button
             type="submit"
             disabled={submitting}
             className={`w-full ${craftPrimaryButton}`}
           >
-            {submitting ? "Verifyingâ€¦" : "Unlock headquarters"}
+            {submitting ? "Verifying…" : "Unlock headquarters"}
           </button>
         </form>
 

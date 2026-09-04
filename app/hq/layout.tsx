@@ -14,7 +14,7 @@ export default function HeadquartersLayout({
   return (
     <>
       <PreloadPortalLoadingArtwork />
-      <div className="hq-mobile-shell min-w-0 max-w-full overflow-x-clip">
+      <div className="hq-mobile-shell atlas-role-shell min-w-0 max-w-full overflow-x-clip">
         {children}
       </div>
     </>

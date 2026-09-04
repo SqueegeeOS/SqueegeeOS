@@ -100,7 +100,7 @@ export default async function TechPropertyPage({ params }: TechPropertyPageProps
           </Link>
         </>
       ) : (
-        <div className="mb-10 rounded-2xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.06] p-4 text-sm leading-relaxed text-[#c9f3dc]">
+        <div className="mb-10 rounded-[var(--radius-inset)] border border-accent/25 bg-accent/[0.06] p-4 text-sm leading-relaxed text-accent">
           Return to Field Run to save today&apos;s verified Jobber checklist,
           photos, and customer update for this home.
         </div>

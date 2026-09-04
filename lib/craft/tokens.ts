@@ -9,11 +9,11 @@ export const craftEyebrowAccent =
 
 /** Form and field labels — label above value. */
 export const craftLabel =
-  "mb-2 block text-[10px] uppercase tracking-[0.24em] text-muted";
+  "mb-2 block text-sm font-medium tracking-[-0.01em] text-foreground/72";
 
 /** Read-only field label in workspace rows. */
 export const craftFieldLabel =
-  "text-[10px] uppercase tracking-[0.16em] text-muted/80";
+  "text-sm font-medium text-foreground/68";
 
 /** Metric and date values — tabular, foreground. */
 export const craftValue =
@@ -21,13 +21,13 @@ export const craftValue =
 
 /** Table header type — <th>/<tr> typography only; borders stay per-table. */
 export const craftTableHead =
-  "text-[10px] uppercase tracking-[0.2em] text-muted";
+  "text-sm font-medium text-foreground/62";
 
 export const craftHeading =
   "font-serif font-light tracking-[-0.015em] text-foreground [text-wrap:balance]";
 
 export const craftBody =
-  "text-sm leading-relaxed text-foreground/75 sm:text-[0.9375rem] sm:leading-[1.65]";
+  "text-base leading-relaxed text-foreground/75 sm:leading-[1.65]";
 
 export const craftInput =
   "w-full rounded-[1.1rem] border border-white/[0.07] bg-white/[0.03] px-4 py-3 text-sm text-foreground outline-none backdrop-blur-sm placeholder:text-muted/45 transition-[border-color,box-shadow,background-color] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] focus:border-accent/35 focus:bg-white/[0.045] focus:shadow-[0_0_0_1px_rgba(201,184,150,0.1),0_8px_24px_rgba(0,0,0,0.18)]";
@@ -51,3 +51,15 @@ export const craftGlassElevated =
   "craft-glass-elevated rounded-[var(--radius-card-lg)] shadow-[var(--shadow-lift)]";
 
 export const craftGlassInset = "craft-glass-inset";
+
+export const craftPage =
+  "atlas-role-shell min-h-[100svh] px-4 py-6 text-foreground sm:px-6 sm:py-10 lg:px-8";
+
+export const craftOperationalLabel =
+  "text-sm font-medium leading-5 text-foreground/68";
+
+export const craftControl =
+  "min-h-11 rounded-[var(--radius-control)] border border-[var(--border-strong)] bg-[var(--control-bg)] transition-[transform,border-color,background-color,box-shadow] duration-[var(--motion-standard)] ease-[var(--ease-premium)] hover:border-accent/25 hover:bg-[var(--control-bg-hover)] active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100";
+
+export const craftStatePanel =
+  "atlas-status px-4 py-3 text-sm leading-relaxed";
