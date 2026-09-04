@@ -111,6 +111,8 @@ describe("technician field scope", () => {
       sourceVerifiedAt: null, reviewedBy: "Noah", reviewNote: "Private owner performance assessment",
       reviewedAt: "2026-08-14T18:00:00Z",
     };
+    alex.jobberInvoiceStatus = "awaiting_payment";
+    alex.propertyAddress = "1 Test Street, Chico, CA";
     const sam = visit("sam", "available", [
       { id: "jobber-sam", name: "Sam" },
     ]);
@@ -183,6 +185,9 @@ describe("technician field scope", () => {
     expect(scoped.visits[0]?.homeAtlasMembershipId).toBeNull();
     expect(scoped.visits[0]?.homeAtlasPortalPath).toBeNull();
     expect(scoped.visits[0]?.homeAtlasIndependenceReview).toBeNull();
+    expect(scoped.visits[0]?.jobberInvoiceStatus).toBeNull();
+    expect(scoped.visits[0]?.propertyAddress).toBe("1 Test Street, Chico, CA");
+    expect(alex.jobberInvoiceStatus).toBe("awaiting_payment");
     expect(scoped.independenceReviewStatusAvailable).toBe(false);
     expect(JSON.stringify(scoped)).not.toContain("Private owner performance assessment");
     expect(alex.homeAtlasIndependenceReview.reviewNote).toBe("Private owner performance assessment");

@@ -9,7 +9,7 @@ import { GET } from "@/app/api/field/upcoming/route";
 function visit(id: string, days: number, tech = "homeatlas:tyler"): JobberTodayVisit {
   return { projectionId: id, clientName: `Household ${id}`, title: "Window cleaning",
     scheduledStart: new Date(Date.now() + days * 86400000).toISOString(), scheduledEnd: null,
-    propertyLabel: "1 Test Street", isComplete: false, visitStatus: "SCHEDULED",
+    propertyLabel: "House nickname", propertyAddress: "1 Test Street, Chico, CA", isComplete: false, visitStatus: "SCHEDULED",
     homeAtlasFieldAssignmentId: `assignment-${id}`, homeAtlasAssignedTechnicianId: tech, assignedUsers: [], assignmentReadState: "available",
     homeAtlasFieldInternalNote: "Private owner information", homeAtlasPortalPath: "/private-token",
   } as unknown as JobberTodayVisit;
@@ -34,6 +34,8 @@ describe("upcoming technician schedule", () => {
     expect(Object.keys(body.visits[0]).sort()).toEqual(["id", "clientName", "service", "scheduledStart", "scheduledEnd", "address"].sort());
     expect(JSON.stringify(body)).not.toContain("Private owner information");
     expect(JSON.stringify(body)).not.toContain("private-token");
+    expect(body.visits[0].address).toBe("1 Test Street, Chico, CA");
+    expect(JSON.stringify(body)).not.toContain("House nickname");
     const [start, end] = mocks.board.mock.calls[0];
     expect(end.getTime() - start.getTime()).toBe(45 * 86400000);
   });
@@ -56,6 +58,9 @@ describe("upcoming technician schedule", () => {
   });
   it("does not silently discard assignments after the twentieth job", () => {
     expect(fieldUpcomingVisits(Array.from({ length: 25 }, (_, i) => visit(String(i), 2)), new Date())).toHaveLength(25);
+  });
+  it("does not turn a property nickname into a navigation address", () => {
+    expect(fieldUpcomingVisits([{ ...visit("missing-address", 2), propertyAddress: null }], new Date())[0].address).toBeNull();
   });
   it("reports load failures without leaking provider details", async () => {
     mocks.board.mockRejectedValue(new Error("secret database detail"));

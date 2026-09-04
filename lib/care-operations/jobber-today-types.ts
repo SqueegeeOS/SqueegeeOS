@@ -153,6 +153,9 @@ export interface JobberTodayVisit {
   scopeItems: JobberTodayScopeItem[];
   scopeReadState: JobberTodayScopeReadState;
   propertyLabel: string | null;
+  propertyAddress?: string | null;
+  /** Owner-only provider observation. Removed from technician responses. */
+  jobberInvoiceStatus?: string | null;
   jobberPropertyWebUri: string | null;
   jobberClientWebUri: string | null;
   homeAtlasPropertyId: string | null;

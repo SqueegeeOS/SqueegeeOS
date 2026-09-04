@@ -37,6 +37,7 @@ import {
 } from "@/lib/care-operations/jobber-today-links";
 import { jobberTodayPairingHref } from "@/lib/care-operations/jobber-handoff-navigation";
 import { billingTodayReviewHref } from "@/lib/admin/billing-workspace-links";
+import { jobberInvoiceDisplay } from "@/lib/care-operations/jobber-invoice-status";
 
 const VisitFieldCapture = dynamic(
   () =>
@@ -311,6 +312,7 @@ function JobberVisitCard({
 }) {
   const propertyId = visit.homeAtlasPropertyId;
   const appointmentId = visit.homeAtlasAppointmentId;
+  const invoice = jobberInvoiceDisplay(visit.jobberInvoiceStatus);
   const [fieldCaptureOpen, setFieldCaptureOpen] = useState(false);
   const [hasFieldDraft, setHasFieldDraft] = useState(false);
   const fieldStageProgress = technicianVisitStageProgress(
@@ -405,6 +407,9 @@ function JobberVisitCard({
             <p className="mt-2 text-sm leading-relaxed text-muted">{service}</p>
             {visit.propertyLabel ? (
               <p className="mt-1 text-xs text-muted/80">{visit.propertyLabel}</p>
+            ) : null}
+            {visit.propertyAddress && visit.propertyAddress !== visit.propertyLabel ? (
+              <p className="mt-1 text-xs text-muted/80">{visit.propertyAddress}</p>
             ) : null}
             <p
               className={`mt-3 text-xs ${
@@ -512,6 +517,12 @@ function JobberVisitCard({
             </span>
           </div>
         ) : null}
+
+        <section aria-label="Jobber invoice status" className="mt-5 rounded-xl border border-border bg-foreground/[0.025] px-4 py-3">
+          <p className="text-[10px] uppercase tracking-[0.15em] text-muted">Jobber invoice</p>
+          <p className={`mt-1 text-sm font-medium ${invoice.tone === "success" ? "text-success" : invoice.tone === "warning" ? "text-warning" : "text-foreground"}`}>{invoice.label}</p>
+          <p className="mt-1 text-xs leading-relaxed text-muted">{invoice.detail}</p>
+        </section>
 
         <div className="mt-6 flex flex-col gap-3 border-t border-border/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs text-muted">
@@ -756,7 +767,7 @@ function MetricCard({
       ? "text-accent"
       : "text-foreground";
   return (
-    <div className={`rounded-2xl border p-4 ${cardClassName}`}>
+    <div className={`min-w-0 rounded-2xl border p-3 sm:p-4 ${cardClassName}`}>
       <p className="text-[9px] uppercase tracking-[0.17em] text-muted">{label}</p>
       <p className={`mt-2 text-2xl ${valueClassName}`}>
         {value}
@@ -924,6 +935,11 @@ function TodayWorkspaceContent({
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
+              {data && data.visits.length > 0 ? (
+                <a href="#today-route" className="inline-flex min-h-11 items-center rounded-full border border-accent/40 bg-accent/10 px-5 py-3 text-sm text-accent">
+                  Go to jobs
+                </a>
+              ) : null}
               <button
                 type="button"
                 onClick={onOpenOwnerFieldMode}
@@ -972,7 +988,7 @@ function TodayWorkspaceContent({
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div aria-label="Today's job summary" className="mt-5 grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
               <MetricCard
                 label="Today's jobs"
                 value={data.summary.total}
@@ -1215,7 +1231,7 @@ function TodayWorkspaceContent({
             </p>
           </div>
         ) : data ? (
-          <section className="space-y-4">
+          <section id="today-route" tabIndex={-1} className="scroll-mt-24 space-y-4">
             <div className="flex items-end justify-between gap-4 px-1">
               <div>
                 <p className={craftEyebrow}>Route order</p>

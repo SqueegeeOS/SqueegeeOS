@@ -138,7 +138,16 @@ described above is the only live SMS sent by this launch phase.
 - Separate technician-role rehearsal passed activation, save retry, one private
   upload/commit, clock-out and unchanged Jobber completion at both viewport sizes.
   Browser APIs/storage remain synthetic; this is not a real customer job.
-- Local access entry was also inspected with agent-browser. CI/production pending.
+- Local access entry was also inspected with agent-browser. PR #168 merged as
+  `148cbc7`; final CI run `33923716398` passed tests/lint/build in 2m34s.
+  Production `dpl_AUqWa5Nv8K7ELiEmpVNeQSVLgT91` /
+  `squeegee-poqg9739j-squeegee-os.vercel.app` is Ready (about two minutes).
+- Canonical production browser verified corrected HQ assignment/Dispatch copy,
+  no alerts or horizontal overflow, technician owner preview, and expanded
+  Upcoming schedule loaded. Returned the owner's tab to HQ Today. Today still
+  has no jobs; completed-native interactive evidence remains a local fixture.
+- Deployment-specific error log scan after these browser checks returned no rows.
+  Broad monitoring/drain configuration was not changed or re-audited in this pass.
 - Remaining owner audit: native exception resolution (not merely viewing flags),
   and payment visibility. Jobber sync already observes invoice/invoiceReadState;
   HQ Today currently omits that from its DTO. Inspect source-specific payment
@@ -149,3 +158,35 @@ described above is the only live SMS sent by this launch phase.
 - Owner's current design direction: fewer clicks, streamlined actions and visible
   bottlenecks. Observed HQ mobile friction: nine metrics stack before the route.
   Compact that summary and improve direct next actions in a subsequent UI pass.
+- Next priority: navigation currently uses `propertyLabel`, populated from an
+  optional Jobber client property name, rather than `property_address`. A live
+  read-only count found eight future Tyler assignments, all eight with street1
+  but only one with property_name. Add an actual address DTO from the exact visit
+  projection and use it in today's directions/upcoming. Do not geocode names.
+- Recheck the shared technician DTO allowlist before adding invoice fields;
+  owner billing details and owner independence reviews must stay owner-only.
+
+## Streamlined navigation and owner invoice visibility
+
+- HQ Today now has a direct Go to jobs anchor and a two-column compact mobile
+  summary instead of nine single-column metric cards above the route.
+- Today and Upcoming directions now use the exact Jobber visit's structured
+  street address, never a client/property nickname. Missing street or city shows
+  an explicit Ask HQ warning rather than navigating to a guess.
+- Read-only production audit: all eight future Tyler assignments have both
+  street1 and city. No geocoding, schedule writes, or customer changes were made.
+- HQ displays the invoice status observed at the last Jobber sync. Paid is
+  source-qualified; no invoice is not a zero-balance assertion; unavailable
+  status remains unknown. No charge or Stripe settlement is inferred.
+- Invoice status is stripped from technician responses. Assigned technicians
+  retain their job address; existing native assignment authorization is intact.
+- Local validation: 1,468 tests / 318 files, lint and production build passed.
+  Owner and technician browser rehearsals passed at 390px and 1440px, including
+  actual-address direction links, compact grid, jump to jobs, owner-only invoice
+  visibility, save retry, private upload, clock-out, and unchanged Jobber status.
+  Mobile completed-job screenshot inspected; no horizontal overflow or page errors.
+  Access entry also inspected with agent-browser. Work APIs/storage are fixtures,
+  not a real Tyler device or customer job run.
+- Release CI and canonical production verification are pending for this phase.
+- Remaining bottlenecks: an owner resolution workflow for native exception flags,
+  and a real technician-device/photo/full job run. Keep the launch goal active.
