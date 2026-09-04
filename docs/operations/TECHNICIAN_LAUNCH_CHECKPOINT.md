@@ -68,3 +68,18 @@
 No customer messages, charges, billing arming, production deletes, or Jobber
 schedule/completion writes were performed. The authorized technician invitation
 described above is the only live SMS sent by this launch phase.
+
+## Activation incident — September 4
+
+- Tyler reported an inert activation button, then the exact `Invalid origin` error.
+- Production logs confirmed repeated POST `/api/field/access/claim` responses with
+  status 403. His grant stayed pending and unconsumed.
+- Reproduced in a real local browser: the blanket private-page `no-referrer` policy
+  generated `Origin: null` for native form navigation, rejected by the CSRF check.
+- Narrow correction: `/tech/access` overrides the referrer policy to `strict-origin`.
+  The browser sends only the site origin, never the token path/query. All other
+  private pages keep `no-referrer`; cross-origin and opaque-origin rejection remain.
+- Regression coverage includes successful mocked claim/cookie redirect, invalid
+  token recovery, hostile/opaque origin rejection, ordered header override, and a
+  local native-form browser reproduction with JavaScript enabled and disabled.
+- No replacement invite or second SMS is required for a pending valid invitation.

@@ -18,6 +18,9 @@ export async function POST(request: Request) {
   const requestUrl = new URL(request.url);
   const origin = request.headers.get("origin");
   if (origin && origin !== requestUrl.origin) {
+    console.warn("[field-access-claim] origin rejected", {
+      originKind: origin === "null" ? "opaque" : "mismatch",
+    });
     return NextResponse.json({ error: "Invalid origin" }, { status: 403 });
   }
 
