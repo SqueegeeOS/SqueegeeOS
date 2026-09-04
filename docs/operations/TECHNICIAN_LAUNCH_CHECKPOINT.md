@@ -201,3 +201,37 @@ described above is the only live SMS sent by this launch phase.
   configuration was not changed or re-audited. Returned owner's tab to HQ Today.
 - Remaining bottlenecks: an owner resolution workflow for native exception flags,
   and a real technician-device/photo/full job run. Keep the launch goal active.
+
+## Native technician issue resolution
+
+- Added an owner-only unresolved issue queue in HQ Today. It includes prior visits,
+  follow-up checkboxes and nonempty service exceptions; shows oldest 50 with a
+  truthful overflow notice. A failed read is not presented as an empty queue.
+- Owner opens the original notes/photos, enters a short resolution, and saves.
+  An immutable separate record stores the note, server-owned HQ actor label and
+  database timestamp. Original technician notes/flags/photos, clocks, customer
+  publication and Jobber completion remain unchanged. No messages or charges.
+- Exact assignment plus viewed field-record ID prevent stale/cross-job resolution.
+  Assignment row lock serializes saves. Same-note retry returns the existing row;
+  conflicting replacement returns 409, never overwrites history. Unknown state fails
+  closed. Service exceptions count as open even without the follow-up checkbox.
+- Mutation is owner-authorized with exact Origin validation; no technician/public
+  access to issue notes or queue. New table has RLS, no public grants/policies,
+  and service-role-only invoker RPCs. No security-definer escalation was added.
+- Migration `20260904222625_native_field_issue_resolution.sql` applied. Transaction
+  rehearsal passed before and after application: assignment, clock/closeout replay,
+  owner queue, resolution/retry/conflict/cross-target denial, immutability, permission
+  denial, and unchanged original flag/Jobber completion. Fixtures rolled back;
+  verified 0 closeouts, 0 resolutions, 0 rehearsal technicians afterward.
+- Security advisor's only new-object notice is INFO RLS enabled without policy,
+  intentional for server-only tables with public grants revoked. Existing project
+  warning: leaked-password protection disabled. Auth settings were not changed.
+- 1,487 tests / 320 files, lint, standalone TypeScript and production build passed.
+  Corrected a pre-existing test fixture's null stage to the supported not_started.
+- Owner and tech-role browser rehearsals passed 390/1440, including error retries
+  retaining notes, resolving an older visit on an empty Today schedule, no duplicate
+  resolution, queue read failure, private evidence, original work summary, unchanged
+  Jobber completion, upcoming navigation, referrals, keyboard and no overflow/errors.
+  Inspected mobile saved-resolution screenshot; agent-browser checked entry screen.
+- CI/release/canonical production verification pending. Real Tyler phone/photo/job
+  run remains unverified; do not claim full launch completion from synthetic work.
