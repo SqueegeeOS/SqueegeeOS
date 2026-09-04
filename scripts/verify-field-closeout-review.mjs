@@ -75,6 +75,7 @@ try {
     await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-evidence-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);
     await page.goto(`${base}/tech`);
+    const techAccent = await page.locator(".atlas-role-shell").first().evaluate(el => getComputedStyle(el).getPropertyValue("--accent").trim());
     const upcoming = page.getByRole("button", { name: /Upcoming jobs/ });
     await upcoming.focus();
     await page.keyboard.press("Enter");
@@ -91,15 +92,26 @@ try {
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ width, upcomingSchedule: "passed", keyboard: "passed", scheduleRetry: "passed" }));
     await page.goto(`${base}/hq/technicians`);
+    const hqAccent = await page.getByRole("button", { name: "Create access", exact: true }).evaluate(el => getComputedStyle(el).getPropertyValue("--accent").trim());
+    assert.ok(techAccent, "Technician accent token must exist");
+    assert.equal(techAccent, hqAccent, "Technician and HQ must inherit the same accent palette");
     await page.getByRole("button", { name: "Create access", exact: true }).click();
     const textInvite = page.getByRole("button", { name: "Text invite to registered phone", exact: true });
     await textInvite.click();
     await page.getByText("Text status: queued · phone ending 0199.", { exact: true }).waitFor();
     assert.equal(await textInvite.isEnabled(), false);
     assert.equal(inviteSends, 1);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Invitation controls must fit mobile");
+    await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-team-${width}.png`, fullPage: true });
     assert.deepEqual(errors, []);
     console.log(JSON.stringify({ width, invitationUI: "passed", duplicateSendPrevented: true }));
     console.log(JSON.stringify({ width, evidenceReads, keyboard: "passed", notes: "passed", storageError: "passed", retry: "passed", overflow: "none", pageErrors: 0 }));
+    await page.goto(`${base}/tech/refer`);
+    await page.getByRole("button", { name: /Preview referral handoff|Send referral to HQ/i }).waitFor();
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, "Referral form must fit mobile");
+    await page.screenshot({ path: `${process.env.TEMP || "/tmp"}/homeatlas-referral-${width}.png`, fullPage: true });
+    assert.deepEqual(errors, []);
+    console.log(JSON.stringify({ width, sharedPalette: techAccent, referralLayout: "passed" }));
     await context.close();
   }
 } finally { await browser.close(); }

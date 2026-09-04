@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { craftInput, craftPrimaryButton } from "@/lib/craft/tokens";
 import { createLeadSubmissionId } from "@/lib/acquisition/lead-submission-id";
 import { serviceOptions, type ServiceOption } from "@/lib/acquisition/types";
 
@@ -9,8 +10,7 @@ interface TechnicianReferralFormProps {
   previewOnly: boolean;
 }
 
-const inputClass =
-  "min-h-12 w-full rounded-2xl border border-white/10 bg-white/[0.045] px-4 text-base text-white outline-none placeholder:text-white/25 focus:border-[#d9bd82]/55 focus:bg-white/[0.065]";
+const inputClass = `${craftInput} min-h-12 text-base`;
 
 export function TechnicianReferralForm({
   technicianName,
@@ -78,26 +78,26 @@ export function TechnicianReferralForm({
   return (
     <form onSubmit={submit} className="mt-8 space-y-6">
       <div className="grid gap-4">
-        <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-white/55">
+        <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-muted">
           Customer name
           <input name="name" required autoComplete="name" className={inputClass} placeholder="First and last name" />
         </label>
-        <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-white/55">
+        <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-muted">
           Mobile number
           <input name="phone" required inputMode="tel" autoComplete="tel" className={inputClass} placeholder="(555) 555-5555" />
         </label>
-        <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-white/55">
-          Email <span className="normal-case tracking-normal text-white/25">optional</span>
+        <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-muted">
+          Email <span className="normal-case tracking-normal text-muted">optional</span>
           <input name="email" type="email" autoComplete="email" className={inputClass} placeholder="name@example.com" />
         </label>
-        <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-white/55">
-          Service address <span className="normal-case tracking-normal text-white/25">if known</span>
+        <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-muted">
+          Service address <span className="normal-case tracking-normal text-muted">if known</span>
           <input name="serviceAddress" autoComplete="street-address" className={inputClass} placeholder="Street, city" />
         </label>
       </div>
 
       <fieldset>
-        <legend className="text-xs uppercase tracking-[0.16em] text-white/55">What are they interested in?</legend>
+        <legend className="text-xs uppercase tracking-[0.16em] text-muted">What are they interested in?</legend>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {serviceOptions.map((service) => {
             const selected = services.includes(service);
@@ -109,8 +109,8 @@ export function TechnicianReferralForm({
                 onClick={() => toggleService(service)}
                 className={`min-h-14 rounded-2xl border px-3 text-left text-sm transition-colors ${
                   selected
-                    ? "border-[#d9bd82]/50 bg-[#d9bd82]/12 text-[#f5deb0]"
-                    : "border-white/10 bg-white/[0.035] text-white/60"
+                    ? "border-accent/50 bg-accent/12 text-accent"
+                    : "border-foreground/10 bg-foreground/[0.035] text-foreground/60"
                 }`}
               >
                 {service}
@@ -120,33 +120,33 @@ export function TechnicianReferralForm({
         </div>
       </fieldset>
 
-      <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-white/55">
-        Helpful context <span className="normal-case tracking-normal text-white/25">optional</span>
+      <label className="grid gap-2 text-xs uppercase tracking-[0.16em] text-muted">
+        Helpful context <span className="normal-case tracking-normal text-muted">optional</span>
         <textarea name="notes" rows={4} className={`${inputClass} py-3`} placeholder="How you know them, best time to call, or what they mentioned." />
       </label>
 
-      <label className="flex min-h-16 cursor-pointer gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 text-sm leading-relaxed text-white/65">
+      <label className="flex min-h-16 cursor-pointer gap-3 rounded-2xl border border-foreground/10 bg-foreground/[0.035] p-4 text-sm leading-relaxed text-foreground/65">
         <input
           type="checkbox"
           checked={permissionConfirmed}
           onChange={(event) => setPermissionConfirmed(event.target.checked)}
           required
-          className="mt-1 size-4 accent-[#d9bd82]"
+          className="mt-1 size-4 accent-accent"
         />
         <span>They asked Squeegee King to contact them about this service.</span>
       </label>
 
-      {error ? <p role="alert" className="rounded-2xl border border-red-300/25 bg-red-300/[0.08] p-4 text-sm text-red-100">{error}</p> : null}
-      {success ? <p role="status" className="rounded-2xl border border-emerald-300/25 bg-emerald-300/[0.08] p-4 text-sm text-emerald-100">{success}</p> : null}
+      {error ? <p role="alert" className="rounded-2xl border border-danger/25 bg-danger/[0.08] p-4 text-sm text-danger">{error}</p> : null}
+      {success ? <p role="status" className="rounded-2xl border border-success/25 bg-success/[0.08] p-4 text-sm text-success">{success}</p> : null}
 
       <button
         type="submit"
         disabled={working || services.length === 0 || !permissionConfirmed}
-        className="min-h-14 w-full rounded-2xl bg-[#e4c98d] px-5 text-sm font-semibold text-[#102018] shadow-[0_16px_50px_rgba(217,189,130,0.15)] disabled:cursor-not-allowed disabled:opacity-40"
+        className={`${craftPrimaryButton} w-full`}
       >
         {working ? "Sending to HQ…" : previewOnly ? "Preview referral handoff" : "Send referral to HQ"}
       </button>
-      <p className="text-center text-xs leading-relaxed text-white/35">
+      <p className="text-center text-xs leading-relaxed text-muted">
         Credit: {technicianName} · Commission unlocks only after a closed sale and collected payment.
       </p>
     </form>

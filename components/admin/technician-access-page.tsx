@@ -7,6 +7,7 @@ import { TechnicianDispatchBoard } from "@/components/admin/technician-dispatch-
 import { TechnicianReadinessPanel } from "@/components/admin/technician-readiness-panel";
 import { TechnicianCapacityPanel } from "@/components/admin/technician-capacity-panel";
 import { AmbientStage } from "@/components/craft/ambient-stage";
+import { craftPrimaryButton, craftSecondaryButton, craftInput } from "@/lib/craft/tokens";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import type {
@@ -55,34 +56,34 @@ function statusCopy(
   if (!grant || state === "missing") {
     return {
       label: "No pass",
-      className: "border-white/10 bg-white/[0.035] text-white/50",
+      className: "border-foreground/10 bg-foreground/[0.035] text-muted",
       detail: "Create a one-time phone install link when this technician is ready.",
     };
   }
   if (state === "active") {
     return {
       label: "Active",
-      className: "border-emerald-300/30 bg-emerald-300/[0.08] text-emerald-100",
+      className: "border-success/30 bg-success/[0.08] text-success",
       detail: `Active until removed by HQ · safety renewal ${formatDateTime(grant.sessionExpiresAt)}.`,
     };
   }
   if (state === "expiring") {
     return {
       label: "Expiring",
-      className: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+      className: "border-warning/30 bg-warning/[0.08] text-warning",
       detail: `Replace before ${formatDateTime(grant?.sessionExpiresAt ?? null)} to avoid field interruption.`,
     };
   }
   if (state === "expired" || state === "revoked") {
     return {
       label: state === "revoked" ? "Revoked" : "Expired",
-      className: "border-red-300/25 bg-red-300/[0.07] text-red-100",
+      className: "border-danger/25 bg-danger/[0.07] text-danger",
       detail: "Create a replacement before this technician returns to the field.",
     };
   }
   return {
     label: "Invite pending",
-    className: "border-amber-300/30 bg-amber-300/[0.08] text-amber-100",
+    className: "border-warning/30 bg-warning/[0.08] text-warning",
     detail: `One-time link expires ${formatDateTime(grant.inviteExpiresAt)}.`,
   };
 }
@@ -305,7 +306,7 @@ export function TechnicianAccessPage() {
         {dispatchBoard ? (
           <TechnicianDispatchBoard board={dispatchBoard} />
         ) : loading ? (
-          <section className="mt-8 rounded-[2rem] border border-white/10 bg-black/20 p-10 text-center text-sm text-muted">
+          <section className="mt-8 rounded-[2rem] border border-foreground/10 bg-background/60 p-10 text-center text-sm text-muted">
             Building today&apos;s dispatch board…
           </section>
         ) : null}
@@ -313,7 +314,7 @@ export function TechnicianAccessPage() {
         {dispatchError ? (
           <p
             role="alert"
-            className="mt-4 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-4 text-sm text-amber-100"
+            className="mt-4 rounded-xl border border-warning/25 bg-warning/[0.06] p-4 text-sm text-warning"
           >
             Dispatch board unavailable: {dispatchError} Technician Access controls remain
             available below.
@@ -330,7 +331,7 @@ export function TechnicianAccessPage() {
             ["2", "Activate workspace", "Stays active while they remain on your team."],
             ["3", "Remove instantly", "The very next technician request fails closed."],
           ].map(([step, title, detail]) => (
-            <div key={step} className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
+            <div key={step} className="rounded-2xl border border-foreground/10 bg-foreground/[0.035] p-4">
               <p className="text-[10px] uppercase tracking-[0.18em] text-accent/70">
                 Step {step}
               </p>
@@ -341,11 +342,11 @@ export function TechnicianAccessPage() {
         </section>
 
         {issuedPass ? (
-          <section className="mt-6 rounded-[1.5rem] border border-emerald-300/30 bg-emerald-300/[0.07] p-5 sm:p-6">
-            <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-200">
+          <section className="mt-6 rounded-[var(--radius-card-lg)] border border-accent/25 bg-surface-elevated p-5 sm:p-6">
+            <p className="text-[10px] uppercase tracking-[0.18em] text-accent">
               Show once · {issuedPass.displayName}
             </p>
-            <p className="mt-2 text-sm leading-relaxed text-emerald-50/80">
+            <p className="mt-2 text-sm leading-relaxed text-foreground/75">
               Send or open this link on the technician&apos;s phone. HomeAtlas stores
               only its hash, so this exact link cannot be recovered later.
             </p>
@@ -354,23 +355,23 @@ export function TechnicianAccessPage() {
                 readOnly
                 value={issuedPass.installUrl}
                 aria-label="One-time Technician Access install link"
-                className="min-h-12 min-w-0 flex-1 rounded-xl border border-emerald-200/20 bg-black/25 px-4 text-sm text-emerald-50 outline-none"
+                className={`${craftInput} min-h-12 min-w-0 flex-1`}
                 onFocus={(event) => event.currentTarget.select()}
               />
               <button
                 type="button"
                 onClick={() => void copyInstallLink()}
-                className="min-h-12 rounded-xl border border-emerald-200/25 bg-emerald-200 px-5 text-sm font-semibold text-[#07110c] active:scale-[0.99]"
+                className={craftSecondaryButton}
               >
                 {copied ? "Copied" : "Copy link"}
               </button>
             </div>
             <button type="button" onClick={() => void textInstallLink()} disabled={smsBusy || !!smsReceipt}
-              className="mt-4 min-h-12 rounded-xl border border-accent/30 bg-accent/10 px-5 text-sm font-semibold text-accent disabled:opacity-50">
+              className={`mt-4 ${craftPrimaryButton}`}>
               {smsBusy ? "Sending invitation…" : "Text invite to registered phone"}
             </button>
             {smsReceipt ? <p role="status" className="mt-3 text-sm text-foreground">{smsReceipt}</p> : null}
-            <p className="mt-3 text-xs text-emerald-100/55">
+            <p className="mt-3 text-xs leading-relaxed text-muted">
               Expires {formatDateTime(issuedPass.inviteExpiresAt)}. Creating a new
               pass revokes the old one.
             </p>
@@ -378,7 +379,7 @@ export function TechnicianAccessPage() {
         ) : null}
 
         {error ? (
-          <p role="alert" className="mt-6 rounded-xl border border-red-300/25 bg-red-300/[0.07] p-4 text-sm text-red-100">
+          <p role="alert" className="mt-6 rounded-xl border border-danger/25 bg-danger/[0.07] p-4 text-sm text-danger">
             {error}
           </p>
         ) : null}
@@ -395,7 +396,7 @@ export function TechnicianAccessPage() {
               type="button"
               onClick={() => void load()}
               disabled={loading}
-              className="min-h-11 rounded-full border border-white/10 px-4 text-xs text-muted disabled:opacity-50"
+              className="min-h-11 rounded-full border border-foreground/10 px-4 text-xs text-muted disabled:opacity-50"
             >
               {loading ? "Refreshing…" : "Refresh"}
             </button>
@@ -410,12 +411,12 @@ export function TechnicianAccessPage() {
                   <li
                     id={technicianFieldPassAnchorId(member.jobberUserId)}
                     key={member.jobberUserId}
-                    className="scroll-mt-24 rounded-[1.4rem] border border-white/10 bg-[#111615] p-5 target:ring-2 target:ring-accent/50"
+                    className="scroll-mt-24 rounded-[1.4rem] border border-foreground/10 bg-surface-elevated p-5 target:ring-2 target:ring-accent/50"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-xl font-semibold text-white">{member.displayName}</p>
-                        <p className="mt-1 text-xs text-white/35">
+                        <p className="text-xl font-semibold text-foreground">{member.displayName}</p>
+                        <p className="mt-1 text-xs text-muted">
                           {member.source === "homeatlas"
                             ? "HomeAtlas technician · no extra Jobber seat required"
                             : member.observedStopCount > 0
@@ -430,13 +431,13 @@ export function TechnicianAccessPage() {
                         {status.label}
                       </span>
                     </div>
-                    <p className="mt-4 text-xs leading-relaxed text-white/45">{status.detail}</p>
+                    <p className="mt-4 text-xs leading-relaxed text-muted">{status.detail}</p>
                     <div className="mt-5 flex flex-wrap gap-2">
                       <button
                         type="button"
                         disabled={working}
                         onClick={() => void issue(member)}
-                        className="min-h-12 rounded-xl border border-[#9be2bd]/35 bg-[#9be2bd]/[0.1] px-5 text-sm font-medium text-[#c9f3dc] disabled:opacity-50"
+                        className={craftPrimaryButton}
                       >
                         {working
                           ? "Working…"
@@ -449,7 +450,7 @@ export function TechnicianAccessPage() {
                           type="button"
                           disabled={working}
                           onClick={() => void revoke(member)}
-                          className="min-h-12 rounded-xl border border-red-300/20 px-5 text-sm text-red-200 disabled:opacity-50"
+                          className="min-h-12 rounded-xl border border-danger/20 px-5 text-sm text-danger disabled:opacity-50"
                         >
                           Revoke
                         </button>
@@ -460,11 +461,11 @@ export function TechnicianAccessPage() {
               })}
             </ul>
           ) : loading ? (
-            <div className="mt-4 rounded-2xl border border-white/10 p-10 text-center text-sm text-muted">
+            <div className="mt-4 rounded-2xl border border-foreground/10 p-10 text-center text-sm text-muted">
               Reading the mirrored Jobber crew…
             </div>
           ) : (
-            <div className="mt-4 rounded-2xl border border-amber-300/20 bg-amber-300/[0.05] p-6 text-sm leading-relaxed text-amber-100/80">
+            <div className="mt-4 rounded-2xl border border-warning/20 bg-warning/[0.05] p-6 text-sm leading-relaxed text-warning">
               No active technicians are available yet. Add a HomeAtlas technician
               or sync a Jobber crew member, then refresh this page.
             </div>
