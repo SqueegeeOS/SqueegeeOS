@@ -936,6 +936,7 @@ function TodayWorkspaceContent({
               </p>
             </div>
             <div className="flex flex-wrap gap-3">
+              <Link href="/hq/technician-history" className="inline-flex min-h-11 items-center rounded-full border border-border px-5 py-3 text-sm text-accent">Job history</Link>
               {data && data.visits.length > 0 ? (
                 <a href="#today-route" className="inline-flex min-h-11 items-center rounded-full border border-accent/40 bg-accent/10 px-5 py-3 text-sm text-accent">
                   Go to jobs
