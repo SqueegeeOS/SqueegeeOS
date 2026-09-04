@@ -133,7 +133,7 @@ function readClientProperties(value: unknown): StoredClientProperty[] {
   });
 }
 
-function toTodayVisit(
+export function toTodayVisit(
   row: StoredVisitRow,
   client: StoredClientRow | undefined,
   propertyLinks: JobberTodayPropertyLink[],
@@ -195,20 +195,20 @@ function toTodayVisit(
       ? (portalPathByMembershipId.get(homeAtlas.homeAtlasMembershipId) ?? null)
       : null,
     homeAtlasFieldRecordCount:
-      fieldRecord?.count ?? fieldExecution?.fieldRecordCount ?? 0,
+      fieldAssignment ? fieldExecution?.fieldRecordCount ?? 0 : fieldRecord?.count ?? 0,
     homeAtlasLatestFieldRecordAt:
-      fieldRecord?.latestFieldRecordAt ?? fieldExecution?.latestFieldRecordAt ?? null,
+      fieldAssignment ? fieldExecution?.latestFieldRecordAt ?? null : fieldRecord?.latestFieldRecordAt ?? null,
     homeAtlasLatestFieldRecordBy:
-      fieldRecord?.latestTechnicianName ?? fieldExecution?.latestFieldRecordBy ?? null,
+      fieldAssignment ? fieldExecution?.latestFieldRecordBy ?? null : fieldRecord?.latestTechnicianName ?? null,
     homeAtlasCustomerVisibleRecordCount:
-      fieldRecord?.customerVisibleCount ?? fieldExecution?.customerVisibleRecordCount ?? 0,
+      fieldRecord?.customerVisibleCount ?? 0,
     homeAtlasOpenFollowUpCount:
-      fieldRecord?.openFollowUpCount ?? fieldExecution?.openFollowUpCount ?? 0,
+      (fieldRecord?.openFollowUpCount ?? 0) + (fieldExecution?.openFollowUpCount ?? 0),
     homeAtlasFieldCustomerSummary: fieldExecution?.customerSummary ?? null,
     homeAtlasFieldInternalNote: fieldExecution?.internalNote ?? null,
     homeAtlasFieldScopeException: fieldExecution?.scopeException ?? null,
     homeAtlasFieldPhotoCount: fieldExecution?.photoCount ?? 0,
-    homeAtlasFieldStage: fieldEvent?.stage ?? (
+    homeAtlasFieldStage: fieldAssignment ? (
       fieldExecution?.clock.state === "finished"
         ? "departed"
         : fieldExecution?.fieldRecordCount
@@ -216,13 +216,13 @@ function toTodayVisit(
           : fieldExecution?.clock.state === "running"
             ? "service_started"
             : "not_started"
-    ),
+    ) : fieldEvent?.stage ?? "not_started",
     homeAtlasFieldStageAt:
-      fieldEvent?.occurredAt ?? fieldExecution?.latestFieldRecordAt ?? fieldExecution?.clock.endedAt ?? fieldExecution?.clock.startedAt ?? null,
+      fieldAssignment ? fieldExecution?.clock.endedAt ?? fieldExecution?.latestFieldRecordAt ?? fieldExecution?.clock.startedAt ?? null : fieldEvent?.occurredAt ?? null,
     homeAtlasFieldStageBy:
-      fieldEvent?.actorDisplayName ?? fieldExecution?.latestFieldRecordBy ?? fieldExecution?.clock.finishedByDisplayName ?? fieldExecution?.clock.startedByDisplayName ?? null,
+      fieldAssignment ? fieldExecution?.clock.finishedByDisplayName ?? fieldExecution?.latestFieldRecordBy ?? fieldExecution?.clock.startedByDisplayName ?? null : fieldEvent?.actorDisplayName ?? null,
     homeAtlasFieldEventCount: fieldEvent?.eventCount ?? 0,
-    homeAtlasJobClock: jobClock ?? fieldExecution?.clock ?? EMPTY_TECHNICIAN_JOB_CLOCK,
+    homeAtlasJobClock: fieldAssignment ? fieldExecution?.clock ?? EMPTY_TECHNICIAN_JOB_CLOCK : jobClock ?? EMPTY_TECHNICIAN_JOB_CLOCK,
     homeAtlasIndependenceReview: homeAtlas.homeAtlasAppointmentId
       ? (independenceReviewsByAppointment.get(
           homeAtlas.homeAtlasAppointmentId,
@@ -233,12 +233,14 @@ function toTodayVisit(
 
 export async function loadJobberTodayBoard(
   reference: Date = new Date(),
+  rangeEndReference: Date = reference,
 ): Promise<JobberTodayData> {
   const supabase = createServiceRoleSupabaseClient();
-  const { startUtc, endUtc } = getBusinessCalendarDayUtcBounds(
+  const { startUtc } = getBusinessCalendarDayUtcBounds(
     reference,
     COMPANY_BUSINESS_TIMEZONE,
   );
+  const { endUtc } = getBusinessCalendarDayUtcBounds(rangeEndReference, COMPANY_BUSINESS_TIMEZONE);
 
   const [connection, visitsResult, latestSyncResult, fieldFollowUps] =
     await Promise.all([

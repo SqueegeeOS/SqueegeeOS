@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { businessTodayIsoDate } from "@/lib/admin/company-business-timezone";
+import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
 import {
   clearVisitFieldDraft,
   readVisitFieldDraft,
@@ -140,8 +141,8 @@ export function VisitFieldCapture({
   onSaved?: (result: VisitFieldSaveResult) => void;
   onDraftStateChange?: (hasDraft: boolean) => void;
 }) {
-  const draftPropertyId = propertyId ?? fieldAssignmentId!;
-  const draftAppointmentId = appointmentId ?? fieldAssignmentId!;
+  const draftPropertyId = fieldAssignmentId ?? propertyId!;
+  const draftAppointmentId = fieldAssignmentId ?? appointmentId!;
   const [initialDraft] = useState(() =>
     typeof window === "undefined"
       ? null
@@ -314,7 +315,7 @@ export function VisitFieldCapture({
         clientId: newClientId(),
         file,
         captureType,
-        customerVisible: true,
+        customerVisible: !fieldAssignmentId,
         previewUrl,
       });
     }
@@ -378,10 +379,12 @@ export function VisitFieldCapture({
     if (
       completionIntent === "finish_visit" &&
       !customerSummary.trim() &&
-      !photos.some((photo) => photo.customerVisible)
+      !photos.some((photo) => fieldAssignmentId || photo.customerVisible)
     ) {
       setError(
-        "Finish the visit with a customer update or at least one portal-visible photo.",
+        fieldAssignmentId
+          ? "Add a work summary or at least one photo for HQ before finishing."
+          : "Finish the visit with a customer update or at least one portal-visible photo.",
       );
       return;
     }
@@ -419,9 +422,7 @@ export function VisitFieldCapture({
             headers: getAdminRequestHeaders(),
             body: JSON.stringify({
               fieldRecordId,
-              propertyId,
-              appointmentId,
-              fieldAssignmentId,
+              ...fieldJobTarget({ propertyId, appointmentId, fieldAssignmentId }),
               photos: pendingPhotos.map((photo) => ({
                 clientId: photo.clientId,
                 fileName: photo.file.name,
@@ -487,9 +488,7 @@ export function VisitFieldCapture({
         headers: getAdminRequestHeaders(),
         body: JSON.stringify({
           fieldRecordId,
-          propertyId,
-          appointmentId,
-          fieldAssignmentId,
+          ...fieldJobTarget({ propertyId, appointmentId, fieldAssignmentId }),
           technicianName,
           visitDate,
           customerSummary,
@@ -573,7 +572,7 @@ export function VisitFieldCapture({
   if (saved) {
     const visitFinished = completionIntent === "finish_visit";
     const portalPublished =
-      saved.customerSummaryVisible || saved.customerVisibleCount > 0;
+      !fieldAssignmentId && (saved.customerSummaryVisible || saved.customerVisibleCount > 0);
     const readyForBillingReview = Boolean(
       visitFinished &&
         portalPublished &&
@@ -598,9 +597,7 @@ export function VisitFieldCapture({
         </p>
         <p className="mt-2 text-xs leading-relaxed text-emerald-100/70">
           {saved.photoCount} photo{saved.photoCount === 1 ? "" : "s"} stored
-          privately. {saved.customerVisibleCount} portal-visible photo
-          {saved.customerVisibleCount === 1 ? " is" : "s are"} attached to this
-          exact visit.
+          privately. {fieldAssignmentId ? "HQ can review them with your notes on this exact job." : `${saved.customerVisibleCount} portal-visible photos attached to this exact visit.`}
         </p>
         {saved.scopeTotal > 0 ? (
           <p className="mt-2 text-xs leading-relaxed text-emerald-100/70">
@@ -619,14 +616,14 @@ export function VisitFieldCapture({
         ) : null}
         {visitFinished ? (
           <div className="mt-4 space-y-2 border-t border-emerald-300/20 pt-4 text-xs leading-relaxed">
-            <p className="text-emerald-100">✓ Property history updated</p>
+            <p className="text-emerald-100">{fieldAssignmentId ? "✓ Job evidence saved for HQ review" : "✓ Property history updated"}</p>
             {requiresClockOutAfterSave ? (
               <p className="text-amber-100">
                 Pack up, then tap Clock out &amp; complete on the job card
               </p>
             ) : null}
             <p className={portalPublished ? "text-emerald-100" : "text-amber-100"}>
-              {portalPublished
+              {fieldAssignmentId ? "Private to HQ · not published to the customer portal" : portalPublished
                 ? "✓ Customer portal update published"
                 : "Customer portal still needs a visible update"}
             </p>
@@ -887,7 +884,7 @@ export function VisitFieldCapture({
 
       <label className="block">
         <span className="text-[10px] uppercase tracking-[0.15em] text-muted">
-          Customer update
+          {fieldAssignmentId ? "Work summary for HQ" : "Customer update"}
         </span>
         <textarea
           value={customerSummary}
@@ -898,7 +895,7 @@ export function VisitFieldCapture({
           className="mt-2 w-full rounded-xl border border-border bg-background/80 px-4 py-3 text-base leading-relaxed text-foreground outline-none focus:border-accent/60"
         />
         <span className="mt-1 block text-[11px] text-emerald-300/80">
-          Shown in the customer portal
+          {fieldAssignmentId ? "Private to HQ for owner review" : "Shown in the customer portal"}
         </span>
       </label>
 
@@ -926,7 +923,7 @@ export function VisitFieldCapture({
               Visit photos
             </p>
             <p className="mt-1 text-xs text-muted">
-              Stored privately; choose portal visibility per photo.
+              {fieldAssignmentId ? "Private job evidence for owner review." : "Stored privately; choose portal visibility per photo."}
             </p>
           </div>
           <span className="text-xs text-muted">
@@ -993,7 +990,7 @@ export function VisitFieldCapture({
                     Remove
                   </button>
                 </div>
-                <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-3">
+                {!fieldAssignmentId ? <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-3">
                   <span className="text-xs text-foreground/75">Show in portal</span>
                   <input
                     type="checkbox"
@@ -1001,7 +998,7 @@ export function VisitFieldCapture({
                     onChange={() => togglePhotoVisibility(photo.clientId)}
                     className="h-4 w-4 accent-emerald-500"
                   />
-                </label>
+                </label> : null}
               </div>
             </li>
           ))}

@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { StatePanel } from "@/components/craft/state-panel";
 import { StatusNotice } from "@/components/craft/status-notice";
+import { TechnicianUpcoming } from "@/components/field/technician-upcoming";
+import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
 import {
   classifyJobberTodayVisit,
   isJobberTodayDataStale,
@@ -58,12 +60,12 @@ const READINESS_STYLE: Record<
 > = {
   ready: {
     label: "Ready",
-    detail: "Property memory and visit record are connected.",
+    detail: "This exact Jobber stop is ready for field work.",
     className: "border-emerald-300/35 bg-emerald-300/10 text-emerald-100",
   },
   complete: {
     label: "Closed out",
-    detail: "Jobber is complete and the customer portal has an update.",
+    detail: "Jobber is complete and the HomeAtlas work record is saved.",
     className: "border-emerald-300/35 bg-emerald-300/10 text-emerald-100",
   },
   closeout_required: {
@@ -236,7 +238,7 @@ function TechnicianVisitCard({
     (propertyId && appointmentId) || fieldAssignmentId,
   );
   const canOperate = Boolean(
-    (propertyId && appointmentId) || (technicianSession && fieldAssignmentId),
+    technicianSession ? hasJobTarget : !fieldAssignmentId && propertyId && appointmentId,
   );
   const canCapture = Boolean(
     fieldRecordStatusAvailable && canOperate,
@@ -300,8 +302,8 @@ function TechnicianVisitCard({
   );
 
   useEffect(() => {
-    const draftPropertyId = propertyId ?? fieldAssignmentId;
-    const draftAppointmentId = appointmentId ?? fieldAssignmentId;
+    const draftPropertyId = fieldAssignmentId ?? propertyId;
+    const draftAppointmentId = fieldAssignmentId ?? appointmentId;
     if (!draftPropertyId || !draftAppointmentId) return;
     const timer = window.setTimeout(() => {
       setHasDraft(
@@ -333,9 +335,7 @@ function TechnicianVisitCard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           actionId: crypto.randomUUID(),
-          propertyId,
-          appointmentId,
-          fieldAssignmentId,
+          ...fieldJobTarget({ propertyId, appointmentId, fieldAssignmentId }),
           action,
         }),
       });
@@ -1051,7 +1051,7 @@ export function TechnicianTodayWorkspace({
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/55">
             {technicianSession
-              ? "Only your assigned Jobber stops, required job details, and customer proof in one phone-first workspace."
+              ? "Your jobs, your time, and your work notes. Everything you need on site, with no owner controls in the way."
               : "Work each Jobber stop from arrival through customer proof, portal verification, and owner-approved payment review."}
           </p>
           {technicianSession ? (
@@ -1060,6 +1060,8 @@ export function TechnicianTodayWorkspace({
             </p>
           ) : null}
         </header>
+
+        <TechnicianUpcoming />
 
         {error ? <StatusNotice tone="danger" className="mb-5">{error}</StatusNotice> : null}
 
