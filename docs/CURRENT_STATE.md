@@ -2,7 +2,7 @@
 
 **Status:** Operational index
 **Last verified:** July 10, 2026
-**Authority:** This document records what the repository can prove today. Product law remains in the Engineering Bible; membership truth remains in `operations/MEMBERSHIP_SOURCE_OF_TRUTH.md`; execution remains in `wargames/014-stabilization-master-plan.md`.
+**Authority:** This document records what the repository can prove today. Product law remains in the Engineering Bible; cohesion and sequencing remain in `COHESION_MAP.md`; membership truth remains in `operations/MEMBERSHIP_SOURCE_OF_TRUTH.md`.
 
 ## One operating objective
 
@@ -32,7 +32,7 @@ The React effect rule is temporarily warning-level so the inherited migration ba
 |---|---|
 | Product and engineering law | `docs/ENGINEERING_BIBLE.md` |
 | Product module map | `docs/ARCHITECTURE.md` |
-| Stabilization order | `wargames/014-stabilization-master-plan.md` |
+| Cohesion and stabilization order | `docs/COHESION_MAP.md` |
 | Membership lifecycle | `lib/membership/membership-lifecycle-resolver.ts` |
 | Membership ownership map | `docs/operations/MEMBERSHIP_SOURCE_OF_TRUTH.md` |
 | Customer and property identity | Supabase `homeowners` and `properties` |
