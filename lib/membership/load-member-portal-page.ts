@@ -20,6 +20,10 @@ export interface MemberPortalPageModel {
   portalHousehold: PortalHouseholdSnapshot | null;
 }
 
+function portalAgreementAccessPath(token: string): string {
+  return `/api/portal/agreement?token=${encodeURIComponent(token)}`;
+}
+
 export async function loadMemberPortalPageBySlugs(
   homeownerSlug: string,
   propertySlug: string,
@@ -87,12 +91,28 @@ export async function loadMemberPortalPageByToken(
   );
   if (!model) return null;
 
+  // Never serialize an expiring Supabase Storage URL into a long-lived portal
+  // page. The customer-facing link verifies the portal token and signs the
+  // membership's original agreement only when the button is clicked.
+  const tokenScopedModel: MemberPortalPageModel = model.portalData?.agreement
+    ? {
+        ...model,
+        portalData: {
+          ...model.portalData,
+          agreement: {
+            ...model.portalData.agreement,
+            pdfUrl: portalAgreementAccessPath(access.portalAccessToken),
+          },
+        },
+      }
+    : model;
+
   try {
     const { loadPortalHouseholdSnapshot } = await import(
       "@/lib/persistence/queries/portal-household"
     );
     return {
-      ...model,
+      ...tokenScopedModel,
       portalHousehold: await loadPortalHouseholdSnapshot(access),
     };
   } catch (error) {
@@ -100,6 +120,6 @@ export async function loadMemberPortalPageByToken(
       membershipId: access.membershipId,
       reason: error instanceof Error ? error.message : "unknown",
     });
-    return model;
+    return tokenScopedModel;
   }
 }
