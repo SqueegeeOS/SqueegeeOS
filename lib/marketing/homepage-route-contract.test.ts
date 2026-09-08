@@ -1,5 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import {
+  NOAH_PERSONAL_NOTE,
+  SQUEEGEEKING_FOUNDERS,
+  SQUEEGEEKING_TEAM_LEADS,
+  foundersAsPlanTeam,
+} from "../team/founders";
 
 function projectUrl(path: string): URL {
   return new URL(`../../${path}`, import.meta.url);
@@ -77,12 +83,61 @@ describe("public homepage route contract", () => {
 
   it("keeps the promoted homepage personal and tied to the real founding team", () => {
     const atlas = readProjectFile("app/atlas-glass/atlas-glass.tsx");
+    const leadership = readProjectFile("app/atlas-glass/atlas-leadership.tsx");
 
-    expect(atlas).toContain("SQUEEGEEKING_FOUNDERS");
+    expect(atlas).toContain('import { AtlasLeadership } from "./atlas-leadership"');
+    expect(atlas).toContain("<AtlasLeadership />");
+    expect(atlas).toContain('id="founders"');
+    expect(leadership).toContain('from "@/lib/team/founders"');
+    expect(leadership).toContain("SQUEEGEEKING_FOUNDERS.map");
+    expect(leadership).toContain("SQUEEGEEKING_TEAM_LEADS.map");
     expect(atlas).toContain("MEMBER_ORBIT_FEATURES");
     expect(atlas).toContain("RainBlock treatment");
     expect(atlas).toContain("Built in Chico.");
     expect(atlas).toContain("Kept human.");
     expect(atlas).not.toContain("The Bennett Home");
+  });
+
+  it("uses the approved executive and team-lead identities without changing the founder API", () => {
+    expect(SQUEEGEEKING_FOUNDERS.map(({ name, role }) => ({ name, role }))).toEqual([
+      { name: "Noah Thomas", role: "Founder & CEO" },
+      { name: "Dasan Gramps", role: "Chief Operating Officer" },
+    ]);
+    expect(SQUEEGEEKING_TEAM_LEADS.map(({ name, role }) => ({ name, role }))).toEqual([
+      { name: "David", role: "Head of Sales" },
+      { name: "Tyler", role: "Lead Technician" },
+    ]);
+    expect(NOAH_PERSONAL_NOTE.title).toBe("Founder & CEO");
+    expect(foundersAsPlanTeam().map(({ id }) => id)).toEqual(
+      SQUEEGEEKING_FOUNDERS.map(({ id }) => id),
+    );
+    const people = [...SQUEEGEEKING_FOUNDERS, ...SQUEEGEEKING_TEAM_LEADS];
+    expect(new Set(people.map(({ id }) => id)).size).toBe(4);
+    for (const member of SQUEEGEEKING_TEAM_LEADS) {
+      expect(member.portraitPlaceholder).toBe("team");
+      expect(member.quote).toBeUndefined();
+    }
+  });
+
+  it("keeps team leads in a separate compact group across the homepage and care plans", () => {
+    const leadership = readProjectFile("app/atlas-glass/atlas-leadership.tsx");
+    const sharedTeam = readProjectFile("components/team/meet-the-founders.tsx");
+    const carePlanTeam = readProjectFile("components/home-care-plan/sections/meet-your-team.tsx");
+    const teamCss = readProjectFile("app/atlas-glass/atlas-team.module.css");
+
+    for (const source of [leadership, sharedTeam]) {
+      expect(source).toContain('aria-label="Company leadership"');
+      expect(source).toContain('aria-label="Team leads"');
+      expect(source).toContain("SQUEEGEEKING_TEAM_LEADS");
+      expect(source).toContain("compact");
+      expect(source.indexOf('aria-label="Company leadership"')).toBeLessThan(
+        source.indexOf('aria-label="Team leads"'),
+      );
+    }
+    expect(sharedTeam).toContain("teamLeads = SQUEEGEEKING_TEAM_LEADS");
+    expect(carePlanTeam).toContain("<MeetTheFounders");
+    expect(teamCss).toContain("width: 88%");
+    expect(teamCss).toContain("grid-template-columns: minmax(0, 1fr)");
+    expect(teamCss).toContain(".hierarchy .leadCard");
   });
 });
