@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Day2ReviewsWall } from "@/components/marketing/day2-reviews-wall";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { CUSTOMER_CONTACT } from "@/lib/brand/customer";
-import { SQUEEGEEKING_FOUNDERS } from "@/lib/team/founders";
+import { AtlasLeadership } from "./atlas-leadership";
 import heroHouse from "@/public/atlas-glass/hero-house-wide.png";
 import styles from "./atlas-glass.module.css";
 
@@ -414,7 +414,7 @@ export function AtlasGlass() {
         </ul>
       </section>
 
-      <section className={styles.humanSection} aria-labelledby="human-title">
+      <section id="founders" className={styles.humanSection} aria-labelledby="human-title">
         <div className={styles.humanSignal} aria-hidden="true">
           <span>LOCAL CARE</span><i /><span>PROPERTY MEMORY</span><i /><span>HUMAN FOLLOW-THROUGH</span>
         </div>
@@ -434,34 +434,7 @@ export function AtlasGlass() {
             </div>
           </div>
 
-          <div className={styles.founderGrid}>
-            {SQUEEGEEKING_FOUNDERS.map((founder, index) => {
-              const initials = founder.name
-                .split(/\s+/)
-                .map((part) => part[0])
-                .join("")
-                .slice(0, 2)
-                .toUpperCase();
-
-              return (
-                <article key={founder.id} className={styles.founderCard}>
-                  <div className={styles.founderCardTop}>
-                    <div className={styles.founderOrb} aria-hidden="true">
-                      <i /><span>{initials}</span><b />
-                    </div>
-                    <span className={styles.founderNumber}>{String(index + 1).padStart(2, "0")}</span>
-                  </div>
-                  <div className={styles.founderIdentity}>
-                    <small>{founder.role}</small>
-                    <h3>{founder.name}</h3>
-                  </div>
-                  <p>{founder.bio}</p>
-                  {founder.quote ? <blockquote>“{founder.quote}”</blockquote> : null}
-                  <span className={styles.founderStatus}><i aria-hidden="true" />Building your care system</span>
-                </article>
-              );
-            })}
-          </div>
+          <AtlasLeadership />
         </div>
       </section>
 
