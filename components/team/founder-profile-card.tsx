@@ -4,23 +4,29 @@ import { FounderPortrait } from "./founder-portrait";
 interface FounderProfileCardProps {
   founder: FounderProfile;
   priority?: boolean;
+  compact?: boolean;
 }
 
 export function FounderProfileCard({
   founder,
   priority = false,
+  compact = false,
 }: FounderProfileCardProps) {
   return (
     <article className="overflow-hidden rounded-[1.5rem] border border-border bg-surface sm:rounded-3xl">
       <FounderPortrait founder={founder} layout="card" priority={priority} />
-      <div className="p-6 sm:p-8">
+      <div className={compact ? "p-5 sm:p-6" : "p-6 sm:p-8"}>
         <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-accent">
           {founder.role}
         </p>
-        <h3 className="mt-3 font-serif text-2xl font-light tracking-tight text-foreground sm:text-3xl">
+        <h3
+          className={`mt-3 font-serif font-light tracking-tight text-foreground ${compact ? "text-xl sm:text-2xl" : "text-2xl sm:text-3xl"}`}
+        >
           {founder.name}
         </h3>
-        <p className="mt-4 text-sm leading-relaxed text-muted sm:text-base">
+        <p
+          className={`mt-4 text-sm leading-relaxed text-muted ${compact ? "" : "sm:text-base"}`}
+        >
           {founder.bio}
         </p>
         {founder.quote && (
