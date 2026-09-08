@@ -1,5 +1,5 @@
 /**
- * Squeegeeking leadership — single source of truth for all founder content.
+ * Squeegeeking leadership — single source of truth for founder and team-lead content.
  *
  * POLICY: All customer-facing people must be real Squeegeeking team members
  * or clearly marked portrait placeholders. Never use stock photos or fictional names.
@@ -20,7 +20,7 @@ export const SQUEEGEEKING_FOUNDERS: FounderProfile[] = [
     id: "noah-thomas",
     slug: "noah-thomas",
     name: "Noah Thomas",
-    role: "Founder & Visionary",
+    role: "Founder & CEO",
     bio: "SqueegeeKing was founded to raise the standard of exterior home care. Noah focuses on customer experience, systems, technology, long-term relationships, and building a company homeowners genuinely trust.",
     quote:
       "We don't just clean windows. We help homeowners care for their property year after year.",
@@ -32,7 +32,7 @@ export const SQUEEGEEKING_FOUNDERS: FounderProfile[] = [
     id: "dasan-gramps",
     slug: "dasan-gramps",
     name: "Dasan Gramps",
-    role: "Co-Founder & Chief Operations Officer",
+    role: "Chief Operating Officer",
     bio: "Dasan has been one of Noah's closest friends since high school and later joined SqueegeeKing to help build the company. He leads daily operations, crew standards, quality control, and helps ensure every customer receives a premium experience.",
     quote: "Do it right. Keep improving. Take care of the customer.",
     portraitPlaceholder: "team",
@@ -41,9 +41,33 @@ export const SQUEEGEEKING_FOUNDERS: FounderProfile[] = [
   },
 ];
 
+/** Team leads remain separate from the founders and their existing lookup/plan APIs. */
+export const SQUEEGEEKING_TEAM_LEADS: FounderProfile[] = [
+  {
+    id: "david",
+    slug: "david",
+    name: "David",
+    role: "Head of Sales",
+    bio: "Helping homeowners build the right ongoing care plan for their property.",
+    portraitPlaceholder: "team",
+    socialLinks: {},
+    signaturePath: null,
+  },
+  {
+    id: "tyler",
+    slug: "tyler",
+    name: "Tyler",
+    role: "Lead Technician",
+    bio: "Leading field service, quality control, and consistent care across every visit.",
+    portraitPlaceholder: "team",
+    socialLinks: {},
+    signaturePath: null,
+  },
+];
+
 export const NOAH_PERSONAL_NOTE = {
   signoff: "Noah",
-  title: "Founder & Visionary",
+  title: "Founder & CEO",
   company: "SqueegeeKing",
 } as const;
 
