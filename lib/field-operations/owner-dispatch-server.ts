@@ -4,6 +4,13 @@ import { readJobberConnectionStatus } from "@/lib/care-operations/jobber-connect
 import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { chunkItems } from "@/lib/care-operations/jobber-sync-utils";
+import { getGoogleMapsApiKey } from "@/lib/reviews/config";
+import {
+  formatJobberServiceAddress,
+  geocodeJobberServiceAddress,
+  territoryAddressHash,
+  type JobberServiceAddress,
+} from "@/lib/sales/territory-geocoding";
 import { loadHomeAtlasFieldAssignments } from "./homeatlas-field-assignment-server";
 import { homeAtlasTechnicianIdentityKey } from "./homeatlas-field-assignment";
 import { JobberAssignmentError } from "@/lib/care-operations/jobber-visit-assignment";
@@ -32,7 +39,119 @@ const DISPATCH_VISIT_SELECT = [
   "scheduled_end",
   "is_complete",
   "raw_payload",
+  "source_observed_at",
 ].join(", ");
+
+const DISPATCH_GEOCODE_BATCH_SIZE = 24;
+const DISPATCH_GEOCODE_CONCURRENCY = 6;
+
+interface DispatchProjectionRow extends OwnerDispatchProjectionRow {
+  source_observed_at: string;
+}
+
+interface CachedDispatchGeocodeRow extends OwnerDispatchGeocodeRow {
+  source_address_hash: string;
+}
+
+function readDispatchAddress(value: unknown): JobberServiceAddress | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<JobberServiceAddress>;
+  if (
+    typeof candidate.street1 !== "string" ||
+    candidate.street1.trim().length < 3 ||
+    typeof candidate.city !== "string" ||
+    typeof candidate.province !== "string" ||
+    typeof candidate.postalCode !== "string" ||
+    typeof candidate.country !== "string"
+  ) {
+    return null;
+  }
+  return {
+    street1: candidate.street1,
+    street2: typeof candidate.street2 === "string" ? candidate.street2 : null,
+    city: candidate.city,
+    province: candidate.province,
+    postalCode: candidate.postalCode,
+    country: candidate.country,
+  };
+}
+
+async function hydrateUpcomingDispatchGeocodes(
+  supabase: ReturnType<typeof createServiceRoleSupabaseClient>,
+  projections: DispatchProjectionRow[],
+  geocodes: CachedDispatchGeocodeRow[],
+): Promise<void> {
+  const apiKey = getGoogleMapsApiKey();
+  if (!apiKey) return;
+
+  const geocodeByPropertyId = new Map(
+    geocodes.map((row) => [row.external_property_id, row]),
+  );
+  const seenPropertyIds = new Set<string>();
+  const candidates = projections.flatMap((projection) => {
+    if (seenPropertyIds.has(projection.external_property_id)) return [];
+    seenPropertyIds.add(projection.external_property_id);
+
+    const address = readDispatchAddress(projection.property_address);
+    if (!address) return [];
+    const addressText = formatJobberServiceAddress(address);
+    const addressHash = territoryAddressHash(addressText);
+    const cached = geocodeByPropertyId.get(projection.external_property_id);
+    if (
+      cached?.source_address_hash === addressHash &&
+      (cached.geocode_status === "resolved" || cached.geocode_status === "not_found")
+    ) {
+      return [];
+    }
+    return [{
+      projection,
+      address,
+      addressText,
+      addressHash,
+    }];
+  }).slice(0, DISPATCH_GEOCODE_BATCH_SIZE);
+
+  for (const batch of chunkItems(candidates, DISPATCH_GEOCODE_CONCURRENCY)) {
+    const results = await Promise.all(
+      batch.map(async (candidate) => ({
+        candidate,
+        result: await geocodeJobberServiceAddress(candidate.address, apiKey),
+      })),
+    );
+    const rows = results.map(({ candidate, result }) => ({
+      connection_id: JOBBER_CONNECTION_ID,
+      external_property_id: candidate.projection.external_property_id,
+      source_address: candidate.addressText,
+      source_address_hash: candidate.addressHash,
+      formatted_address: result.formattedAddress,
+      latitude: result.latitude,
+      longitude: result.longitude,
+      geocode_status: result.status,
+      provider: "google_places_text_search",
+      provider_place_id: result.placeId,
+      source_observed_at: candidate.projection.source_observed_at,
+      last_geocoded_at: new Date().toISOString(),
+    }));
+    const saveResult = await supabase
+      .from("jobber_territory_geocodes")
+      .upsert(rows, { onConflict: "connection_id,external_property_id" })
+      .select(
+        "external_property_id, source_address_hash, formatted_address, latitude, longitude, geocode_status",
+      );
+    if (saveResult.error) {
+      console.warn("[owner-dispatch] geocode save failed", saveResult.error.message);
+      continue;
+    }
+    for (const row of (saveResult.data ?? []) as CachedDispatchGeocodeRow[]) {
+      geocodeByPropertyId.set(row.external_property_id, row);
+      const index = geocodes.findIndex(
+        (existing) => existing.external_property_id === row.external_property_id,
+      );
+      if (index >= 0) geocodes[index] = row;
+      else geocodes.push(row);
+    }
+  }
+}
 
 export async function loadOwnerDispatchMonth(
   month: string,
@@ -66,19 +185,19 @@ export async function loadOwnerDispatchMonth(
   if (visitsResult.error) throw new Error(visitsResult.error.message);
   if (latestSyncResult.error) throw new Error(latestSyncResult.error.message);
 
-  const projections = (visitsResult.data ?? []) as unknown as OwnerDispatchProjectionRow[];
+  const projections = (visitsResult.data ?? []) as unknown as DispatchProjectionRow[];
   const homeAtlasAssignments = await loadHomeAtlasFieldAssignments(
     projections.map((visit) => visit.external_visit_id),
   );
   const propertyIds = [
     ...new Set(projections.map((visit) => visit.external_property_id)),
   ];
-  const geocodes: OwnerDispatchGeocodeRow[] = [];
+  const geocodes: CachedDispatchGeocodeRow[] = [];
   for (const propertyIdChunk of chunkItems(propertyIds)) {
     const geocodeResult = await supabase
       .from("jobber_territory_geocodes")
       .select(
-        "external_property_id, formatted_address, latitude, longitude, geocode_status",
+        "external_property_id, source_address_hash, formatted_address, latitude, longitude, geocode_status",
       )
       .eq("connection_id", JOBBER_CONNECTION_ID)
       .in("external_property_id", propertyIdChunk);
@@ -88,7 +207,16 @@ export async function loadOwnerDispatchMonth(
       }
       throw new Error(geocodeResult.error.message);
     }
-    geocodes.push(...((geocodeResult.data ?? []) as OwnerDispatchGeocodeRow[]));
+    geocodes.push(...((geocodeResult.data ?? []) as CachedDispatchGeocodeRow[]));
+  }
+
+  try {
+    await hydrateUpcomingDispatchGeocodes(supabase, projections, geocodes);
+  } catch (error) {
+    console.warn(
+      "[owner-dispatch] upcoming geocoding failed",
+      error instanceof Error ? error.message : "unknown",
+    );
   }
 
   const latestSync = latestSyncResult.data as {
