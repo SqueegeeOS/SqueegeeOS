@@ -1,0 +1,87 @@
+/* Keep the live homepage's glass cards and initial orbs; only adjust hierarchy. */
+.hierarchy {
+  min-width: 0;
+}
+
+.executiveGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 18px;
+}
+
+.hierarchy .executiveCard {
+  min-width: 0;
+  min-height: 0;
+  padding: clamp(24px, 2.4vw, 34px);
+}
+
+.hierarchy .executiveCard h3 {
+  font-size: clamp(1.9rem, 2.8vw, 2.7rem);
+  line-height: 1.05;
+}
+
+.hierarchy .leadGroup {
+  width: 88%;
+  margin: 32px auto 0;
+  padding-top: 26px;
+  border-top: 1px solid rgba(244, 239, 228, .13);
+}
+
+.leadLabel {
+  margin: 0;
+  color: var(--gold);
+  font-family: var(--font-mono), monospace;
+  font-size: .62rem;
+  letter-spacing: .2em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.leadIntro {
+  margin: 12px auto 22px;
+  color: rgba(244, 239, 228, .68);
+  font-size: .82rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.leadGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+.hierarchy .leadCard {
+  min-width: 0;
+  min-height: 0;
+  padding: 22px;
+  border-radius: 24px;
+}
+
+.hierarchy .leadOrb {
+  width: 58px;
+  height: 58px;
+}
+
+.hierarchy .leadCard h3 {
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  line-height: 1.1;
+}
+
+.hierarchy .leadCard > p {
+  margin-top: 16px;
+  font-size: .82rem;
+}
+
+@media (min-width: 560px) {
+  .leadGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 700px) {
+  .executiveGrid {
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 1fr);
+  }
+}
