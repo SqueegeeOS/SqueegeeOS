@@ -266,27 +266,43 @@ async function assertFieldAssignmentJobberServiceScope(
   const supabase = createServiceRoleSupabaseClient();
   const result = await supabase
     .from("homeatlas_technician_visit_assignments")
-    .select("jobber_visit_projections!inner(raw_payload)")
+    .select(
+      "source_kind, sync_state, live_service_scope, jobber_visit_projections(raw_payload)",
+    )
     .eq("id", input.fieldAssignmentId!)
     .maybeSingle();
   if (result.error || !result.data) {
     throw new Error("HomeAtlas field assignment not found.");
   }
-  const relation = (
-    result.data as unknown as {
-      jobber_visit_projections:
-        | { raw_payload: unknown }
-        | Array<{ raw_payload: unknown }>;
-    }
-  ).jobber_visit_projections;
+  const row = result.data as unknown as {
+    source_kind: "jobber" | "live";
+    sync_state: "pending_sync" | "verified";
+    live_service_scope: unknown;
+    jobber_visit_projections:
+      | { raw_payload: unknown }
+      | Array<{ raw_payload: unknown }>
+      | null;
+  };
+  const relation = row.jobber_visit_projections;
   const projection = Array.isArray(relation) ? relation[0] : relation;
-  const mirrored = readJobberTodayVisitScope(projection?.raw_payload);
+  const mirrored = projection
+    ? readJobberTodayVisitScope(projection.raw_payload)
+    : row.source_kind === "live" && row.sync_state === "pending_sync"
+      ? readJobberTodayVisitScope({
+          scopeItems: Array.isArray(row.live_service_scope)
+            ? row.live_service_scope
+            : [],
+        })
+      : null;
+  if (!mirrored) {
+    throw new Error("This HomeAtlas assignment no longer has a service scope.");
+  }
   if (mirrored.scopeReadState !== input.scopeReadState) {
-    throw new Error("Jobber service-scope visibility changed. Refresh Today.");
+    throw new Error("Service-scope visibility changed. Refresh Today.");
   }
   const submittedById = new Map(input.serviceScope.map((item) => [item.id, item]));
   if (submittedById.size !== mirrored.scopeItems.length) {
-    throw new Error("The Jobber service scope changed. Refresh Today.");
+    throw new Error("The service scope changed. Refresh Today.");
   }
   for (const source of mirrored.scopeItems) {
     const submitted = submittedById.get(source.id);
@@ -297,7 +313,7 @@ async function assertFieldAssignmentJobberServiceScope(
       submitted.quantity !== source.quantity ||
       (submitted.category?.trim() || null) !== source.category
     ) {
-      throw new Error("The Jobber service scope changed. Refresh Today.");
+      throw new Error("The service scope changed. Refresh Today.");
     }
   }
 }
