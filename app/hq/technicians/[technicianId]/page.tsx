@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { TechnicianEvidenceOverlay } from "@/components/admin/technician-evidence-overlay";
 import { TechnicianLiveDispatchOverlay } from "@/components/admin/technician-live-dispatch-overlay";
 import { TechnicianProfilePage } from "@/components/admin/technician-profile-page";
 
@@ -18,6 +19,7 @@ export default async function HqTechnicianProfileRoute({
     <>
       <TechnicianProfilePage technicianId={technicianId} />
       <TechnicianLiveDispatchOverlay technicianId={technicianId} />
+      <TechnicianEvidenceOverlay technicianId={technicianId} />
     </>
   );
 }
