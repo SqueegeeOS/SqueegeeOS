@@ -50,6 +50,61 @@ function validateInput(input: {
   return null;
 }
 
+function overlaps(
+  entry: { started_at: string; ended_at: string | null },
+  startMs: number,
+  endMs: number,
+): boolean {
+  const entryStart = new Date(entry.started_at).getTime();
+  const entryEnd = entry.ended_at ? new Date(entry.ended_at).getTime() : Number.POSITIVE_INFINITY;
+  return Number.isFinite(entryStart) && entryStart < endMs && entryEnd > startMs;
+}
+
+async function assertNoVerifiedClockOverlap(input: {
+  technicianId: string;
+  startedAt: Date;
+  endedAt: Date;
+}): Promise<void> {
+  const supabase = createServiceRoleSupabaseClient();
+  const assignmentResult = await supabase
+    .from("homeatlas_technician_visit_assignments")
+    .select("id")
+    .eq("technician_id", input.technicianId)
+    .limit(5_000);
+  if (assignmentResult.error) throw new Error("Could not verify native technician clocks.");
+  const assignmentIds = (assignmentResult.data ?? []).map((row) => (row as { id: string }).id);
+
+  const nativeResult = assignmentIds.length
+    ? await supabase
+        .from("homeatlas_technician_job_clocks")
+        .select("started_at, ended_at")
+        .in("assignment_id", assignmentIds)
+        .lt("started_at", input.endedAt.toISOString())
+        .limit(5_000)
+    : { data: [], error: null };
+  if (nativeResult.error) throw new Error("Could not verify native technician clocks.");
+
+  const legacyResult = await supabase
+    .from("technician_job_time_entries")
+    .select("started_at, ended_at")
+    .eq("started_by_jobber_user_id", `homeatlas:${input.technicianId}`)
+    .lt("started_at", input.endedAt.toISOString())
+    .limit(5_000);
+  if (legacyResult.error) throw new Error("Could not verify technician clock history.");
+
+  const startMs = input.startedAt.getTime();
+  const endMs = input.endedAt.getTime();
+  const verifiedEntries = [
+    ...((nativeResult.data ?? []) as Array<{ started_at: string; ended_at: string | null }>),
+    ...((legacyResult.data ?? []) as Array<{ started_at: string; ended_at: string | null }>),
+  ];
+  if (verifiedEntries.some((entry) => overlaps(entry, startMs, endMs))) {
+    throw new Error(
+      "This overlaps verified technician clock time. Owner-entered time stays separate so recorded hours cannot double-count.",
+    );
+  }
+}
+
 export async function recordTechnicianManualTime(input: {
   technicianId: string;
   assignmentId?: string | null;
@@ -133,6 +188,8 @@ export async function recordTechnicianManualTime(input: {
       throw new Error("That job already has a technician clock. Keep manual time separate from verified clock evidence.");
     }
   }
+
+  await assertNoVerifiedClockOverlap({ technicianId: input.technicianId, startedAt, endedAt });
 
   const overlappingResult = await supabase
     .from("homeatlas_technician_manual_time_entries")
