@@ -39,6 +39,11 @@ export interface TechnicianProfileActivity {
   scopeExceptionCloseouts: number;
   visitEvents: number;
   lastActivityAt: string | null;
+  todayAssignments: number;
+  todayCloseouts: number;
+  todayClockedMinutes: number;
+  pendingSyncJobs: number;
+  liveSoldAmountCentsToday: number;
 }
 
 export interface TechnicianProfileRecentCloseout {
@@ -49,6 +54,28 @@ export interface TechnicianProfileRecentCloseout {
   scopeReadState: string;
   scopeException: string | null;
   createdAt: string;
+}
+
+export interface TechnicianProfileLiveJob {
+  assignmentId: string;
+  externalVisitId: string;
+  clientName: string;
+  serviceTitle: string;
+  propertyAddress: string | null;
+  scheduledStart: string;
+  soldAmountCents: number | null;
+  syncState: "pending_sync" | "verified";
+  reconciledAt: string | null;
+  clockState: "not_started" | "running" | "finished";
+  clockStartedAt: string | null;
+  clockEndedAt: string | null;
+  closeoutSaved: boolean;
+}
+
+export interface TechnicianProfileFreshness {
+  homeAtlasLiveAt: string;
+  jobberLastSyncedAt: string | null;
+  jobberDataFresh: boolean;
 }
 
 export interface TechnicianOperationalProfile {
@@ -67,6 +94,8 @@ export interface TechnicianOperationalProfile {
   capacity: TechnicianCapacityView | null;
   trials: IndependentDayTrial[];
   activity: TechnicianProfileActivity;
+  freshness: TechnicianProfileFreshness;
+  liveJobs: TechnicianProfileLiveJob[];
   recentCloseouts: TechnicianProfileRecentCloseout[];
   warnings: string[];
 }
