@@ -5,6 +5,7 @@ import {
   OwnerDispatchAssignmentError,
 } from "@/lib/field-operations/owner-dispatch-assignment-server";
 import { assignHomeAtlasTechnicianVisit } from "@/lib/field-operations/homeatlas-field-assignment-server";
+import { reconcilePendingLiveDispatchJobs } from "@/lib/field-operations/live-dispatch-server";
 
 export const runtime = "nodejs";
 
@@ -32,6 +33,12 @@ export async function POST(request: Request) {
       clientRequestId?: string;
     };
     if (body.jobberUserId?.startsWith("homeatlas:")) {
+      // If this visit began as a HomeAtlas-live same-day job, attach that
+      // existing assignment before creating any new native assignment.
+      await reconcilePendingLiveDispatchJobs().catch(() => ({
+        reconciled: 0,
+        warnings: ["Live reconciliation is temporarily unavailable."],
+      }));
       return NextResponse.json(
         await assignHomeAtlasTechnicianVisit({
           projectionId: body.projectionId ?? "",

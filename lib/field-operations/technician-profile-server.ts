@@ -1,11 +1,17 @@
 import "server-only";
 
+import {
+  COMPANY_BUSINESS_TIMEZONE,
+  formatBusinessCalendarDate,
+  getBusinessCalendarDayUtcBounds,
+} from "@/lib/admin/company-business-timezone";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { SQUEEGEEKING_TEAM_LEADS } from "@/lib/team/founders";
 import {
   HOMEATLAS_TECHNICIAN_PREFIX,
   type TechnicianAccessGrantView,
 } from "./field-access";
+import { reconcilePendingLiveDispatchJobs } from "./live-dispatch-server";
 import { loadTechnicianCapacitySnapshot } from "./technician-capacity-server";
 import { resolveTechnicianFieldPassState } from "./technician-dispatch";
 import {
@@ -13,6 +19,7 @@ import {
   TYLER_GERMANY_TECHNICIAN_ID,
   isTechnicianProfileId,
   type TechnicianOperationalProfile,
+  type TechnicianProfileLiveJob,
   type TechnicianProfileRecentCloseout,
 } from "./technician-profile";
 import { loadTechnicianReadinessSnapshot } from "./technician-readiness-server";
@@ -38,11 +45,26 @@ interface AccessGrantRow {
 }
 
 interface AssignmentRow {
+  id: string;
+  external_visit_id: string;
   assigned_at: string;
+  source_kind: "jobber" | "live";
+  sync_state: "pending_sync" | "verified";
+  live_client_name: string | null;
+  live_service_title: string | null;
+  live_property_address: string | null;
+  live_scheduled_start: string | null;
+  live_sold_amount_cents: number | null;
+  reconciled_at: string | null;
+  jobber_visit_projections:
+    | { scheduled_start: string | null }
+    | Array<{ scheduled_start: string | null }>
+    | null;
 }
 
 interface CloseoutRow {
   id: string;
+  assignment_id: string;
   external_visit_id: string;
   visit_date: string;
   follow_up_needed: boolean;
@@ -54,6 +76,10 @@ interface CloseoutRow {
 interface TimeEntryRow {
   started_at: string;
   ended_at: string | null;
+}
+
+interface NativeClockRow extends TimeEntryRow {
+  assignment_id: string;
 }
 
 interface VisitEventRow {
@@ -70,6 +96,33 @@ function latestTimestamp(values: Array<string | null | undefined>): string | nul
     if (!latest || time > latest.time) latest = { value, time };
   }
   return latest?.value ?? null;
+}
+
+function durationMinutes(entry: TimeEntryRow): number {
+  if (!entry.ended_at) return 0;
+  const start = new Date(entry.started_at).getTime();
+  const end = new Date(entry.ended_at).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return 0;
+  return Math.round((end - start) / 60_000);
+}
+
+function withinUtcWindow(value: string | null, start: Date, end: Date): boolean {
+  if (!value) return false;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) && time >= start.getTime() && time < end.getTime();
+}
+
+function assignmentScheduledAt(row: AssignmentRow): string | null {
+  if (row.live_scheduled_start) return row.live_scheduled_start;
+  const projection = Array.isArray(row.jobber_visit_projections)
+    ? row.jobber_visit_projections[0]
+    : row.jobber_visit_projections;
+  return projection?.scheduled_start ?? null;
+}
+
+function nativeClockState(row: NativeClockRow | undefined): TechnicianProfileLiveJob["clockState"] {
+  if (!row) return "not_started";
+  return row.ended_at ? "finished" : "running";
 }
 
 function roleTitleForTechnician(technicianId: string): string {
@@ -104,6 +157,13 @@ export async function loadTechnicianOperationalProfile(
     throw new Error("Choose a valid HomeAtlas technician.");
   }
 
+  const reconciliation = await reconcilePendingLiveDispatchJobs(reference).catch(
+    () => ({
+      reconciled: 0,
+      warnings: ["Live jobs could not be checked against Jobber yet."],
+    }),
+  );
+
   const supabase = createServiceRoleSupabaseClient();
   const technicianResult = await supabase
     .from("homeatlas_technicians")
@@ -123,13 +183,16 @@ export async function loadTechnicianOperationalProfile(
   );
   const sinceIso = since.toISOString();
   const sinceDate = sinceIso.slice(0, 10);
+  const today = formatBusinessCalendarDate(reference);
+  const { startUtc: todayStart, endUtc: todayEnd } =
+    getBusinessCalendarDayUtcBounds(reference, COMPANY_BUSINESS_TIMEZONE);
 
   const [readinessSettled, capacitySettled] = await Promise.allSettled([
     loadTechnicianReadinessSnapshot(reference),
     loadTechnicianCapacitySnapshot(reference),
   ]);
 
-  const [accessResult, assignmentsResult, closeoutsResult, timeResult, eventsResult] =
+  const [accessResult, assignmentsResult, closeoutsResult, legacyTimeResult, eventsResult] =
     await Promise.all([
       supabase
         .from("technician_access_grants")
@@ -141,7 +204,9 @@ export async function loadTechnicianOperationalProfile(
         .limit(50),
       supabase
         .from("homeatlas_technician_visit_assignments")
-        .select("assigned_at")
+        .select(
+          "id, external_visit_id, assigned_at, source_kind, sync_state, live_client_name, live_service_title, live_property_address, live_scheduled_start, live_sold_amount_cents, reconciled_at, jobber_visit_projections(scheduled_start)",
+        )
         .eq("technician_id", technician.id)
         .gte("assigned_at", sinceIso)
         .order("assigned_at", { ascending: false })
@@ -149,7 +214,7 @@ export async function loadTechnicianOperationalProfile(
       supabase
         .from("homeatlas_technician_job_closeouts")
         .select(
-          "id, external_visit_id, visit_date, follow_up_needed, scope_read_state, scope_exception, created_at",
+          "id, assignment_id, external_visit_id, visit_date, follow_up_needed, scope_read_state, scope_exception, created_at",
         )
         .eq("technician_id", technician.id)
         .gte("visit_date", sinceDate)
@@ -172,7 +237,19 @@ export async function loadTechnicianOperationalProfile(
         .limit(5_000),
     ]);
 
-  const warnings: string[] = [];
+  const assignments = (assignmentsResult.data ?? []) as AssignmentRow[];
+  const assignmentIds = assignments.map((row) => row.id);
+  const nativeClockResult = assignmentIds.length
+    ? await supabase
+        .from("homeatlas_technician_job_clocks")
+        .select("assignment_id, started_at, ended_at")
+        .in("assignment_id", assignmentIds)
+        .gte("started_at", sinceIso)
+        .order("started_at", { ascending: false })
+        .limit(5_000)
+    : { data: [], error: null };
+
+  const warnings: string[] = [...reconciliation.warnings];
   if (readinessSettled.status === "rejected") {
     warnings.push("Readiness evidence could not be loaded for this profile.");
   }
@@ -183,7 +260,8 @@ export async function loadTechnicianOperationalProfile(
     ["Field access", accessResult],
     ["Assignments", assignmentsResult],
     ["Closeouts", closeoutsResult],
-    ["Job clock", timeResult],
+    ["Legacy job clock", legacyTimeResult],
+    ["Native job clock", nativeClockResult],
     ["Visit events", eventsResult],
   ] as const) {
     if (result.error) warnings.push(`${label} data is temporarily unavailable.`);
@@ -217,17 +295,60 @@ export async function loadTechnicianOperationalProfile(
   const grantView = currentAccessRow ? toGrantView(currentAccessRow) : null;
   const accessState = resolveTechnicianFieldPassState(grantView, reference);
 
-  const assignments = (assignmentsResult.data ?? []) as AssignmentRow[];
   const closeouts = (closeoutsResult.data ?? []) as CloseoutRow[];
-  const timeEntries = (timeResult.data ?? []) as TimeEntryRow[];
+  const legacyTimeEntries = (legacyTimeResult.data ?? []) as TimeEntryRow[];
+  const nativeClocks = (nativeClockResult.data ?? []) as NativeClockRow[];
   const visitEvents = (eventsResult.data ?? []) as VisitEventRow[];
-  const clockedMinutes = timeEntries.reduce((total, entry) => {
-    if (!entry.ended_at) return total;
-    const start = new Date(entry.started_at).getTime();
-    const end = new Date(entry.ended_at).getTime();
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return total;
-    return total + Math.round((end - start) / 60_000);
-  }, 0);
+  const nativeClockByAssignment = new Map(
+    nativeClocks.map((row) => [row.assignment_id, row]),
+  );
+  const closeoutByAssignment = new Map(
+    closeouts.map((row) => [row.assignment_id, row]),
+  );
+
+  const allClockedMinutes =
+    nativeClocks.reduce((total, entry) => total + durationMinutes(entry), 0) +
+    legacyTimeEntries.reduce((total, entry) => total + durationMinutes(entry), 0);
+  const todayClockedMinutes =
+    nativeClocks
+      .filter((entry) => withinUtcWindow(entry.started_at, todayStart, todayEnd))
+      .reduce((total, entry) => total + durationMinutes(entry), 0) +
+    legacyTimeEntries
+      .filter((entry) => withinUtcWindow(entry.started_at, todayStart, todayEnd))
+      .reduce((total, entry) => total + durationMinutes(entry), 0);
+
+  const todayAssignments = assignments.filter((assignment) =>
+    withinUtcWindow(assignmentScheduledAt(assignment), todayStart, todayEnd),
+  );
+  const liveAssignments = assignments.filter(
+    (assignment) => assignment.source_kind === "live",
+  );
+  const liveJobs: TechnicianProfileLiveJob[] = liveAssignments
+    .filter(
+      (assignment) =>
+        assignment.live_client_name &&
+        assignment.live_service_title &&
+        assignment.live_scheduled_start,
+    )
+    .slice(0, 20)
+    .map((assignment) => {
+      const clock = nativeClockByAssignment.get(assignment.id);
+      return {
+        assignmentId: assignment.id,
+        externalVisitId: assignment.external_visit_id,
+        clientName: assignment.live_client_name!,
+        serviceTitle: assignment.live_service_title!,
+        propertyAddress: assignment.live_property_address,
+        scheduledStart: assignment.live_scheduled_start!,
+        soldAmountCents: assignment.live_sold_amount_cents,
+        syncState: assignment.sync_state,
+        reconciledAt: assignment.reconciled_at,
+        clockState: nativeClockState(clock),
+        clockStartedAt: clock?.started_at ?? null,
+        clockEndedAt: clock?.ended_at ?? null,
+        closeoutSaved: closeoutByAssignment.has(assignment.id),
+      };
+    });
 
   const recentCloseouts: TechnicianProfileRecentCloseout[] = closeouts
     .slice(0, 12)
@@ -241,8 +362,14 @@ export async function loadTechnicianOperationalProfile(
       createdAt: row.created_at,
     }));
 
+  const generatedAt = new Date().toISOString();
+  const jobberLastSyncedAt =
+    readinessSnapshot?.lastJobberSyncAt ??
+    capacitySnapshot?.lastJobberSyncAt ??
+    null;
+
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     technician: {
       id: technician.id,
       identityKey,
@@ -266,8 +393,10 @@ export async function loadTechnicianOperationalProfile(
       windowDays: TECHNICIAN_PROFILE_ACTIVITY_DAYS,
       assignments: assignments.length,
       closeouts: closeouts.length,
-      clockedMinutes,
-      activeClocks: timeEntries.filter((entry) => !entry.ended_at).length,
+      clockedMinutes: allClockedMinutes,
+      activeClocks:
+        nativeClocks.filter((entry) => !entry.ended_at).length +
+        legacyTimeEntries.filter((entry) => !entry.ended_at).length,
       followUpCloseouts: closeouts.filter((row) => row.follow_up_needed).length,
       scopeExceptionCloseouts: closeouts.filter(
         (row) => Boolean(row.scope_exception?.trim()),
@@ -276,10 +405,31 @@ export async function loadTechnicianOperationalProfile(
       lastActivityAt: latestTimestamp([
         assignments[0]?.assigned_at,
         closeouts[0]?.created_at,
-        timeEntries[0]?.ended_at ?? timeEntries[0]?.started_at,
+        nativeClocks[0]?.ended_at ?? nativeClocks[0]?.started_at,
+        legacyTimeEntries[0]?.ended_at ?? legacyTimeEntries[0]?.started_at,
         visitEvents[0]?.occurred_at,
       ]),
+      todayAssignments: todayAssignments.length,
+      todayCloseouts: closeouts.filter((row) => row.visit_date === today).length,
+      todayClockedMinutes,
+      pendingSyncJobs: liveAssignments.filter(
+        (assignment) => assignment.sync_state === "pending_sync",
+      ).length,
+      liveSoldAmountCentsToday: todayAssignments
+        .filter((assignment) => assignment.source_kind === "live")
+        .reduce(
+          (sum, assignment) => sum + (assignment.live_sold_amount_cents ?? 0),
+          0,
+        ),
     },
+    freshness: {
+      homeAtlasLiveAt: generatedAt,
+      jobberLastSyncedAt,
+      jobberDataFresh: Boolean(
+        readinessSnapshot?.jobberDataFresh ?? capacitySnapshot?.jobberDataFresh,
+      ),
+    },
+    liveJobs,
     recentCloseouts,
     warnings: [...new Set(warnings)],
   };
