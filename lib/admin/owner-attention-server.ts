@@ -13,6 +13,8 @@ import { loadJobberTodayBoard } from "@/lib/care-operations/jobber-today";
 import { loadCommunicationsLaunchReadiness } from "@/lib/communications/integration-launch-readiness";
 import { loadTechnicianReadinessSnapshot } from "@/lib/field-operations/technician-readiness-server";
 import { loadTechnicianCapacitySnapshot } from "@/lib/field-operations/technician-capacity-server";
+import { HOMEATLAS_TECHNICIAN_PREFIX } from "@/lib/field-operations/field-access";
+import { TYLER_GERMANY_TECHNICIAN_ID } from "@/lib/field-operations/technician-profile";
 import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
 import { loadReferralAttentionSnapshot } from "@/lib/referrals/attention-server";
 import { loadSalesRetentionAttentionSnapshot } from "@/lib/sales/attribution-lifecycle-server";
@@ -71,7 +73,7 @@ export async function loadOwnerAttentionQueue(
     captureSource({
       id: "owner_leverage",
       unavailableDetail:
-        "Atlas could not verify field independence and Growth Hours. Apply migration 061 before trusting the buyback ladder.",
+        "Atlas could not verify independent production and Growth Hours. Apply migration 061 before trusting the production-to-growth ledger.",
       load: async () => {
         const snapshot = await loadOwnerLeverageSnapshot(reference);
         if (!snapshot.schemaAvailable) {
@@ -83,7 +85,7 @@ export async function loadOwnerAttentionQueue(
     captureSource({
       id: "technician_readiness",
       unavailableDetail:
-        "Atlas could not verify technician readiness and independent-day evidence. Apply migrations 061 and 062 before trusting the first owner-free route.",
+        "Atlas could not verify technician training and quality evidence. Apply migrations 061 and 062 before using the historical readiness ledger.",
       load: async () => {
         const snapshot = await loadTechnicianReadinessSnapshot(reference);
         if (!snapshot.schemaAvailable) {
@@ -91,7 +93,16 @@ export async function loadOwnerAttentionQueue(
             snapshot.warnings[0] ?? "Technician readiness is unavailable.",
           );
         }
-        return snapshot;
+        const tylerIdentity = `${HOMEATLAS_TECHNICIAN_PREFIX}${TYLER_GERMANY_TECHNICIAN_ID}`;
+        return {
+          ...snapshot,
+          technicians: snapshot.technicians.filter(
+            (technician) => technician.jobberUserId !== tylerIdentity,
+          ),
+          trials: snapshot.trials.filter(
+            (trial) => trial.jobberUserId !== tylerIdentity,
+          ),
+        };
       },
     }),
     captureSource({
