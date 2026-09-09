@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { TechnicianAccessPage } from "@/components/admin/technician-access-page";
+import { TechnicianHubPage } from "@/components/admin/technician-hub-page";
 
 export const metadata: Metadata = {
   title: "Technicians | HomeAtlas HQ",
-  description: "Manage persistent, least-privilege HomeAtlas technician access.",
+  description: "Manage persistent, least-privilege HomeAtlas technician access and operational staff profiles.",
   robots: { index: false, follow: false },
 };
 
 export default function HqTechniciansPage() {
-  return <TechnicianAccessPage />;
+  return <TechnicianHubPage />;
 }
