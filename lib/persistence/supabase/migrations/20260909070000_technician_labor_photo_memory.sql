@@ -49,6 +49,8 @@ create index if not exists homeatlas_technician_manual_time_assignment_idx
   where assignment_id is not null;
 create index if not exists homeatlas_technician_photo_publication_photo_idx
   on public.homeatlas_technician_photo_publication_events(photo_id, occurred_at desc);
+create index if not exists homeatlas_technician_photo_publication_technician_idx
+  on public.homeatlas_technician_photo_publication_events(technician_id, occurred_at desc);
 create index if not exists homeatlas_technician_photo_publication_property_idx
   on public.homeatlas_technician_photo_publication_events(property_id, occurred_at desc)
   where property_id is not null;
