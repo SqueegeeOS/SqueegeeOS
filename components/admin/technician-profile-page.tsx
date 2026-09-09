@@ -9,23 +9,30 @@ import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { useAdminUnlockedState } from "@/lib/admin/use-admin-unlocked-state";
 import type { TechnicianOperationalProfile } from "@/lib/field-operations/technician-profile";
 
-function formatDate(value: string | null): string {
+function formatCalendarDate(value: string | null): string {
   if (!value) return "—";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const date = match
+    ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]), 12)
+    : new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function formatDateTime(value: string | null): string {
   if (!value) return "—";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "—";
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(date);
 }
 
 function formatHours(minutes: number): string {
@@ -37,37 +44,27 @@ function labelize(value: string): string {
   return value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 }
 
-function MetricCard({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
-  return (
-    <div className="rounded-[1.25rem] border border-foreground/10 bg-foreground/[0.035] p-4 sm:p-5">
-      <p className="text-[9px] uppercase tracking-[0.2em] text-muted">{label}</p>
-      <p className="mt-2 font-serif text-3xl font-light tracking-[-0.03em] text-foreground">
-        {value}
-      </p>
-      <p className="mt-2 text-xs leading-relaxed text-muted">{detail}</p>
-    </div>
-  );
-}
-
 function stateClass(value: string): string {
-  if (value === "active" || value === "independent" || value === "verified") {
+  if (["active", "independent", "verified", "ready"].includes(value)) {
     return "border-success/30 bg-success/[0.08] text-success";
   }
-  if (value === "pending" || value === "expiring" || value === "supervised") {
+  if (["pending", "expiring", "supervised", "planned", "in_progress"].includes(value)) {
     return "border-warning/30 bg-warning/[0.08] text-warning";
   }
-  if (value === "revoked" || value === "expired" || value === "learning") {
+  if (["revoked", "expired", "learning", "did_not_verify"].includes(value)) {
     return "border-danger/25 bg-danger/[0.07] text-danger";
   }
   return "border-foreground/10 bg-foreground/[0.035] text-muted";
+}
+
+function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-[1.25rem] border border-foreground/10 bg-foreground/[0.035] p-4 sm:p-5">
+      <p className="text-[9px] uppercase tracking-[0.2em] text-muted">{label}</p>
+      <p className="mt-2 font-serif text-3xl font-light tracking-[-0.03em] text-foreground">{value}</p>
+      <p className="mt-2 text-xs leading-relaxed text-muted">{detail}</p>
+    </div>
+  );
 }
 
 export function TechnicianProfilePage({ technicianId }: { technicianId: string }) {
@@ -93,11 +90,7 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
       }
       setProfile(body.profile);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "Technician profile could not load.",
-      );
+      setError(loadError instanceof Error ? loadError.message : "Technician profile could not load.");
     } finally {
       setLoading(false);
     }
@@ -127,26 +120,16 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
         <HqFounderNav />
 
         <div className="mt-7 flex items-center justify-between gap-3">
-          <Link
-            href="/hq/technicians"
-            className="inline-flex min-h-11 items-center rounded-full border border-foreground/10 px-4 text-xs text-muted transition hover:text-foreground"
-          >
+          <Link href="/hq/technicians" className="inline-flex min-h-11 items-center rounded-full border border-foreground/10 px-4 text-xs text-muted hover:text-foreground">
             ← Team control
           </Link>
-          <button
-            type="button"
-            onClick={() => void load()}
-            disabled={loading}
-            className="min-h-11 rounded-full border border-foreground/10 px-4 text-xs text-muted disabled:opacity-50"
-          >
+          <button type="button" onClick={() => void load()} disabled={loading} className="min-h-11 rounded-full border border-foreground/10 px-4 text-xs text-muted disabled:opacity-50">
             {loading ? "Refreshing…" : "Refresh data"}
           </button>
         </div>
 
         {error ? (
-          <p role="alert" className="mt-6 rounded-2xl border border-danger/25 bg-danger/[0.07] p-5 text-sm text-danger">
-            {error}
-          </p>
+          <p role="alert" className="mt-6 rounded-2xl border border-danger/25 bg-danger/[0.07] p-5 text-sm text-danger">{error}</p>
         ) : null}
 
         {!profile && loading ? (
@@ -160,67 +143,37 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
             <header className="mt-8 rounded-[2rem] border border-foreground/10 bg-surface-elevated p-5 sm:p-8">
               <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-4 sm:gap-5">
-                  <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-accent/25 bg-accent/[0.07] font-serif text-2xl text-accent sm:h-20 sm:w-20 sm:text-3xl">
-                    {initials}
-                  </div>
+                  <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-accent/25 bg-accent/[0.07] font-serif text-2xl text-accent sm:h-20 sm:w-20 sm:text-3xl">{initials}</div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-accent">
-                      HQ · Technician backend
-                    </p>
-                    <h1 className="mt-2 font-serif text-4xl font-light tracking-[-0.04em] sm:text-5xl">
-                      {profile.technician.displayName}
-                    </h1>
-                    <p className="mt-2 text-sm text-muted">
-                      {profile.technician.roleTitle} · HomeAtlas-native technician
-                    </p>
+                    <p className="text-[10px] uppercase tracking-[0.22em] text-accent">HQ · Technician backend</p>
+                    <h1 className="mt-2 font-serif text-4xl font-light tracking-[-0.04em] sm:text-5xl">{profile.technician.displayName}</h1>
+                    <p className="mt-2 text-sm text-muted">{profile.technician.roleTitle} · HomeAtlas-native technician</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 sm:justify-end">
-                  <span className={`rounded-full border px-3 py-1.5 text-[11px] ${stateClass(profile.technician.status)}`}>
-                    Staff {profile.technician.status}
-                  </span>
-                  <span className={`rounded-full border px-3 py-1.5 text-[11px] ${stateClass(profile.access.state)}`}>
-                    Access {profile.access.state}
-                  </span>
+                  <span className={`rounded-full border px-3 py-1.5 text-[11px] ${stateClass(profile.technician.status)}`}>Staff {profile.technician.status}</span>
+                  <span className={`rounded-full border px-3 py-1.5 text-[11px] ${stateClass(profile.access.state)}`}>Access {profile.access.state}</span>
                 </div>
               </div>
               <p className="mt-6 text-xs leading-relaxed text-muted">
-                Live operational profile generated {formatDateTime(profile.generatedAt)}. This page reads existing field, readiness, capacity, and access data; it does not expose customer-facing controls.
+                Live operational profile generated {formatDateTime(profile.generatedAt)}. It reads existing field, readiness, capacity, and access data without exposing billing or customer controls.
               </p>
             </header>
 
-            {profile.warnings.length > 0 ? (
+            {profile.warnings.length ? (
               <section className="mt-5 rounded-[1.5rem] border border-warning/20 bg-warning/[0.05] p-5">
                 <p className="text-[10px] uppercase tracking-[0.18em] text-warning">Data notes</p>
                 <ul className="mt-3 space-y-2 text-xs leading-relaxed text-warning/90">
-                  {profile.warnings.map((warning) => (
-                    <li key={warning}>• {warning}</li>
-                  ))}
+                  {profile.warnings.map((warning) => <li key={warning}>• {warning}</li>)}
                 </ul>
               </section>
             ) : null}
 
             <section className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
-              <MetricCard
-                label="Readiness"
-                value={`${profile.readiness?.independentCompetencyCount ?? 0}/${profile.readiness?.competencies.length ?? 8}`}
-                detail={profile.readiness?.evidenceCompleteForOwnerDecision ? "Evidence complete for an owner decision." : "Competency evidence is still being built."}
-              />
-              <MetricCard
-                label="Independent work"
-                value={`${profile.readiness?.independentJobs ?? 0}`}
-                detail={`${profile.readiness?.independentHours ?? 0} verified independent hours.`}
-              />
-              <MetricCard
-                label="30-day closeouts"
-                value={`${profile.activity.closeouts}`}
-                detail={`${profile.activity.followUpCloseouts} flagged for follow-up.`}
-              />
-              <MetricCard
-                label="30-day clock"
-                value={formatHours(profile.activity.clockedMinutes)}
-                detail={`${profile.activity.activeClocks} job clock${profile.activity.activeClocks === 1 ? "" : "s"} currently open.`}
-              />
+              <Metric label="Readiness" value={`${profile.readiness?.independentCompetencyCount ?? 0}/${profile.readiness?.competencies.length ?? 8}`} detail={profile.readiness?.evidenceCompleteForOwnerDecision ? "Evidence complete for an owner decision." : "Competency evidence is still being built."} />
+              <Metric label="Independent work" value={`${profile.readiness?.independentJobs ?? 0}`} detail={`${profile.readiness?.independentHours ?? 0} verified independent hours.`} />
+              <Metric label="30-day closeouts" value={`${profile.activity.closeouts}`} detail={`${profile.activity.followUpCloseouts} flagged for follow-up.`} />
+              <Metric label="30-day clock" value={formatHours(profile.activity.clockedMinutes)} detail={`${profile.activity.activeClocks} job clock${profile.activity.activeClocks === 1 ? "" : "s"} currently open.`} />
             </section>
 
             <section className="mt-7 rounded-[2rem] border border-foreground/10 bg-surface-elevated p-5 sm:p-7">
@@ -229,13 +182,8 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
                   <p className="text-[10px] uppercase tracking-[0.2em] text-accent">Readiness ledger</p>
                   <h2 className="mt-2 text-2xl font-semibold">Eight field competencies</h2>
                 </div>
-                {profile.readiness ? (
-                  <span className="text-xs text-muted">
-                    Last independent service {formatDate(profile.readiness.lastIndependentServiceDate)}
-                  </span>
-                ) : null}
+                <span className="text-xs text-muted">Last independent service {formatCalendarDate(profile.readiness?.lastIndependentServiceDate ?? null)}</span>
               </div>
-
               {profile.readiness ? (
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {profile.readiness.competencies.map((competency) => {
@@ -247,31 +195,23 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
                             <p className="text-sm font-medium text-foreground">{competency.label}</p>
                             <p className="mt-1 text-xs leading-relaxed text-muted">{competency.detail}</p>
                           </div>
-                          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] ${stateClass(rating)}`}>
-                            {labelize(rating)}
-                          </span>
+                          <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] ${stateClass(rating)}`}>{labelize(rating)}</span>
                         </div>
                         {competency.latestAssessment ? (
                           <div className="mt-3 border-t border-foreground/10 pt-3">
-                            <p className="text-xs leading-relaxed text-foreground/75">
-                              {competency.latestAssessment.evidenceNote}
-                            </p>
-                            <p className="mt-2 text-[10px] text-muted">
-                              Assessed {formatDateTime(competency.latestAssessment.assessedAt)}
-                            </p>
+                            <p className="text-xs leading-relaxed text-foreground/75">{competency.latestAssessment.evidenceNote}</p>
+                            <p className="mt-2 text-[10px] text-muted">Assessed {formatDateTime(competency.latestAssessment.assessedAt)}</p>
                           </div>
                         ) : null}
                       </article>
                     );
                   })}
                 </div>
-              ) : (
-                <p className="mt-5 text-sm text-muted">No readiness snapshot is available yet.</p>
-              )}
+              ) : <p className="mt-5 text-sm text-muted">No readiness snapshot is available yet.</p>}
             </section>
 
             <section className="mt-7 rounded-[2rem] border border-foreground/10 bg-surface-elevated p-5 sm:p-7">
-              <p className="text-[10px] uppercase tracking-[0.2em] text-accent">Operational activity</p>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-accent">Operational activity · rolling {profile.activity.windowDays} days</p>
               <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 {[
                   ["Assignments", profile.activity.assignments],
@@ -287,26 +227,20 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
                   </div>
                 ))}
               </div>
-              <p className="mt-4 text-xs text-muted">
-                Rolling {profile.activity.windowDays}-day window · latest backend activity {formatDateTime(profile.activity.lastActivityAt)}.
-              </p>
+              <p className="mt-4 text-xs text-muted">Latest backend activity {formatDateTime(profile.activity.lastActivityAt)}.</p>
             </section>
 
             <section className="mt-7 rounded-[2rem] border border-foreground/10 bg-surface-elevated p-5 sm:p-7">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.2em] text-accent">Capacity</p>
-                  <h2 className="mt-2 text-2xl font-semibold">Upcoming production load</h2>
-                </div>
-              </div>
+              <p className="text-[10px] uppercase tracking-[0.2em] text-accent">Capacity</p>
+              <h2 className="mt-2 text-2xl font-semibold">Upcoming production load</h2>
               {profile.capacity ? (
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {profile.capacity.weeks.slice(0, 4).map((week) => (
                     <article key={week.weekStart} className="rounded-[1.2rem] border border-foreground/10 bg-background/30 p-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="text-sm font-medium">Week of {formatDate(week.weekStart)}</p>
-                          <p className="mt-1 text-xs text-muted">{week.detail}</p>
+                          <p className="text-sm font-medium">Week of {formatCalendarDate(week.weekStart)}</p>
+                          <p className="mt-1 text-xs leading-relaxed text-muted">{week.detail}</p>
                         </div>
                         <span className={`rounded-full border px-2.5 py-1 text-[10px] ${week.overCapacity ? "border-danger/25 bg-danger/[0.07] text-danger" : stateClass(week.state)}`}>
                           {week.utilizationPercent == null ? labelize(week.state) : `${Math.round(week.utilizationPercent)}%`}
@@ -320,20 +254,18 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
                     </article>
                   ))}
                 </div>
-              ) : (
-                <p className="mt-5 text-sm text-muted">No capacity snapshot is available yet.</p>
-              )}
+              ) : <p className="mt-5 text-sm text-muted">No capacity snapshot is available yet.</p>}
             </section>
 
             <section className="mt-7 grid gap-5 lg:grid-cols-[1.1fr_.9fr]">
               <div className="rounded-[2rem] border border-foreground/10 bg-surface-elevated p-5 sm:p-7">
                 <p className="text-[10px] uppercase tracking-[0.2em] text-accent">Recent closeouts</p>
                 <div className="mt-4 space-y-3">
-                  {profile.recentCloseouts.length > 0 ? profile.recentCloseouts.map((closeout) => (
+                  {profile.recentCloseouts.length ? profile.recentCloseouts.map((closeout) => (
                     <article key={closeout.id} className="rounded-[1.15rem] border border-foreground/10 bg-background/30 p-4">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <p className="text-sm font-medium">{formatDate(closeout.visitDate)}</p>
+                          <p className="text-sm font-medium">{formatCalendarDate(closeout.visitDate)}</p>
                           <p className="mt-1 font-mono text-[10px] text-muted">Visit {closeout.externalVisitId}</p>
                         </div>
                         <span className={`rounded-full border px-2.5 py-1 text-[10px] ${closeout.followUpNeeded ? "border-warning/30 bg-warning/[0.08] text-warning" : "border-success/30 bg-success/[0.08] text-success"}`}>
@@ -341,9 +273,7 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
                         </span>
                       </div>
                       <p className="mt-3 text-xs text-muted">Scope read: {labelize(closeout.scopeReadState)}</p>
-                      {closeout.scopeException ? (
-                        <p className="mt-2 text-xs leading-relaxed text-warning">Exception: {closeout.scopeException}</p>
-                      ) : null}
+                      {closeout.scopeException ? <p className="mt-2 text-xs leading-relaxed text-warning">Exception: {closeout.scopeException}</p> : null}
                     </article>
                   )) : <p className="text-sm text-muted">No HomeAtlas closeouts in this 30-day window yet.</p>}
                 </div>
@@ -362,10 +292,10 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
                 <section className="rounded-[2rem] border border-foreground/10 bg-surface-elevated p-5 sm:p-7">
                   <p className="text-[10px] uppercase tracking-[0.2em] text-accent">Independent-day trials</p>
                   <div className="mt-4 space-y-3">
-                    {profile.trials.length > 0 ? profile.trials.slice(0, 5).map((trial) => (
+                    {profile.trials.length ? profile.trials.slice(0, 5).map((trial) => (
                       <div key={trial.id} className="rounded-xl border border-foreground/10 bg-background/30 p-3">
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-medium">{formatDate(trial.trialDate)}</p>
+                          <p className="text-sm font-medium">{formatCalendarDate(trial.trialDate)}</p>
                           <span className={`rounded-full border px-2 py-1 text-[10px] ${stateClass(trial.outcome)}`}>{labelize(trial.outcome)}</span>
                         </div>
                         <p className="mt-2 text-xs text-muted">{trial.completedStops}/{trial.scheduledStops} stops complete · {trial.qualifyingIndependentStops} qualifying independent.</p>
