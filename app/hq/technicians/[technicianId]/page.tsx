@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { TechnicianEvidenceOverlay } from "@/components/admin/technician-evidence-overlay";
 import { TechnicianLiveDispatchOverlay } from "@/components/admin/technician-live-dispatch-overlay";
+import { TechnicianOperatingStatusBanner } from "@/components/admin/technician-operating-status-banner";
 import { TechnicianProfilePage } from "@/components/admin/technician-profile-page";
 
 export const metadata: Metadata = {
@@ -17,6 +18,7 @@ export default async function HqTechnicianProfileRoute({
   const { technicianId } = await params;
   return (
     <>
+      <TechnicianOperatingStatusBanner technicianId={technicianId} />
       <TechnicianProfilePage technicianId={technicianId} />
       <TechnicianLiveDispatchOverlay technicianId={technicianId} />
       <TechnicianEvidenceOverlay technicianId={technicianId} />
