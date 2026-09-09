@@ -10,6 +10,10 @@ import {
 } from "@/lib/care-operations/jobber-today-types";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import type { FieldActor, TechnicianFieldActor } from "./field-access";
+import {
+  loadPendingLiveFieldVisits,
+  reconcilePendingLiveDispatchJobs,
+} from "./live-dispatch-server";
 
 export const FIELD_WRITE_PAST_WINDOW_MS = 7 * 24 * 60 * 60 * 1_000;
 export const FIELD_WRITE_FUTURE_WINDOW_MS = 2 * 24 * 60 * 60 * 1_000;
@@ -87,10 +91,30 @@ export function scopeTodayBoardToTechnician(
 export async function loadFieldTodayBoard(
   actor: FieldActor,
 ): Promise<JobberTodayData> {
-  const board = await loadJobberTodayBoard();
-  return actor.kind === "admin"
-    ? board
-    : scopeTodayBoardToTechnician(board, actor.jobberUserId);
+  const reference = new Date();
+  // Reconciliation is best-effort. An ambiguous or unavailable Jobber source
+  // must never hide the HomeAtlas-live job the technician is already working.
+  await reconcilePendingLiveDispatchJobs(reference).catch(() => ({
+    reconciled: 0,
+    warnings: ["Live jobs remain pending Jobber sync."],
+  }));
+
+  const board = await loadJobberTodayBoard(reference);
+  const base =
+    actor.kind === "admin"
+      ? board
+      : scopeTodayBoardToTechnician(board, actor.jobberUserId);
+  const liveVisits = await loadPendingLiveFieldVisits(actor, reference);
+  if (!liveVisits.length) return base;
+
+  const visits = [...base.visits, ...liveVisits].sort((left, right) =>
+    left.scheduledStart.localeCompare(right.scheduledStart),
+  );
+  return {
+    ...base,
+    visits,
+    summary: summarizeJobberTodayVisits(visits),
+  };
 }
 
 export async function listFieldActorPropertyIds(
@@ -191,7 +215,9 @@ export async function assertTechnicianAssignedToFieldAssignment(
   const supabase = createServiceRoleSupabaseClient();
   const result = await supabase
     .from("homeatlas_technician_visit_assignments")
-    .select("id, technician_id, technician_display_name, jobber_visit_projections!inner(scheduled_start, is_complete, visit_status)")
+    .select(
+      "id, technician_id, technician_display_name, source_kind, sync_state, live_scheduled_start, jobber_visit_projections(scheduled_start, is_complete, visit_status)",
+    )
     .eq("id", assignmentId)
     .maybeSingle();
   if (result.error || !result.data) {
@@ -200,6 +226,9 @@ export async function assertTechnicianAssignedToFieldAssignment(
   const row = result.data as unknown as {
     technician_id: string;
     technician_display_name: string;
+    source_kind: "jobber" | "live";
+    sync_state: "pending_sync" | "verified";
+    live_scheduled_start: string | null;
     jobber_visit_projections:
       | {
           scheduled_start: string | null;
@@ -210,27 +239,37 @@ export async function assertTechnicianAssignedToFieldAssignment(
           scheduled_start: string | null;
           is_complete: boolean;
           visit_status: string;
-        }>;
+        }>
+      | null;
   };
   if (
     actor.jobberUserId !== `homeatlas:${row.technician_id}` ||
     actor.displayName !== row.technician_display_name
   ) {
-    throw new Error("This Jobber stop is not assigned to this Field Pass.");
+    throw new Error("This job is not assigned to this Field Pass.");
   }
+
   const projection = Array.isArray(row.jobber_visit_projections)
     ? row.jobber_visit_projections[0]
     : row.jobber_visit_projections;
-  if (!projection) {
-    throw new Error("This HomeAtlas assignment no longer has a Jobber stop.");
+  if (projection) {
+    if (projection.visit_status === "REMOVED") {
+      throw new Error("This Jobber stop is no longer active.");
+    }
+    if (!isFieldWriteTimeAllowed(projection.scheduled_start, now)) {
+      throw new Error(
+        "This stop is outside the safe field-closeout window. Ask HQ to document it.",
+      );
+    }
+    return;
   }
-  if (projection.is_complete || projection.visit_status === "REMOVED") {
-    throw new Error("This Jobber stop is no longer active.");
-  }
-  if (!isFieldWriteTimeAllowed(projection.scheduled_start, now)) {
-    throw new Error(
-      "This stop is outside the safe field-closeout window. Ask HQ to document it.",
-    );
+
+  if (
+    row.source_kind !== "live" ||
+    row.sync_state !== "pending_sync" ||
+    !isFieldWriteTimeAllowed(row.live_scheduled_start, now)
+  ) {
+    throw new Error("This HomeAtlas live job is no longer active.");
   }
 }
 
