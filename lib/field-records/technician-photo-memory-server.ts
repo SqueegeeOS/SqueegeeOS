@@ -28,6 +28,8 @@ interface PhotoRow {
   id: string;
   field_record_id: string;
   storage_path: string;
+  mime_type: string;
+  size_bytes: number;
   capture_type: "before" | "after" | "detail";
   customer_visible: boolean;
   created_at: string;
@@ -53,12 +55,19 @@ interface AssignmentRow {
     | null;
 }
 
+interface PropertyContext {
+  propertyId: string | null;
+  homeownerId: string | null;
+  propertyName: string | null;
+  membershipId: string | null;
+}
+
 async function propertyContext(input: {
   connectionId: string;
   externalPropertyId: string | null;
-}): Promise<{ propertyId: string | null; propertyName: string | null; membershipId: string | null }> {
+}): Promise<PropertyContext> {
   if (!input.externalPropertyId) {
-    return { propertyId: null, propertyName: null, membershipId: null };
+    return { propertyId: null, homeownerId: null, propertyName: null, membershipId: null };
   }
   const supabase = createServiceRoleSupabaseClient();
   const linkResult = await supabase
@@ -69,11 +78,11 @@ async function propertyContext(input: {
     .eq("link_state", "active")
     .maybeSingle();
   if (linkResult.error || !linkResult.data) {
-    return { propertyId: null, propertyName: null, membershipId: null };
+    return { propertyId: null, homeownerId: null, propertyName: null, membershipId: null };
   }
   const propertyId = (linkResult.data as { property_id: string }).property_id;
   const [propertyResult, membershipResult] = await Promise.all([
-    supabase.from("properties").select("name").eq("id", propertyId).maybeSingle(),
+    supabase.from("properties").select("name, homeowner_id").eq("id", propertyId).maybeSingle(),
     supabase
       .from("memberships")
       .select("id")
@@ -83,12 +92,11 @@ async function propertyContext(input: {
       .limit(1)
       .maybeSingle(),
   ]);
+  const property = propertyResult.data as { name?: string; homeowner_id?: string } | null;
   return {
     propertyId,
-    propertyName:
-      propertyResult.data && "name" in propertyResult.data
-        ? String((propertyResult.data as { name: string }).name)
-        : null,
+    homeownerId: property?.homeowner_id ?? null,
+    propertyName: property?.name ?? null,
     membershipId:
       membershipResult.data && "id" in membershipResult.data
         ? String((membershipResult.data as { id: string }).id)
@@ -121,10 +129,7 @@ async function loadPhotoEvidenceByRows(
   const assignments = (assignmentResult.data ?? []) as unknown as AssignmentRow[];
   const assignmentById = new Map(assignments.map((row) => [row.id, row]));
 
-  const propertyContextByAssignment = new Map<
-    string,
-    { propertyId: string | null; propertyName: string | null; membershipId: string | null }
-  >();
+  const propertyContextByAssignment = new Map<string, PropertyContext>();
   await Promise.all(
     assignments.map(async (assignment) => {
       const projection = Array.isArray(assignment.jobber_visit_projections)
@@ -151,6 +156,7 @@ async function loadPhotoEvidenceByRows(
         : assignment.jobber_visit_projections;
       const context = propertyContextByAssignment.get(assignment.id) ?? {
         propertyId: null,
+        homeownerId: null,
         propertyName: null,
         membershipId: null,
       };
@@ -202,12 +208,91 @@ export async function loadTechnicianPhotoEvidence(
   if (!recordIds.length) return [];
   const photoResult = await supabase
     .from("homeatlas_technician_job_photos")
-    .select("id, field_record_id, storage_path, capture_type, customer_visible, created_at")
+    .select("id, field_record_id, storage_path, mime_type, size_bytes, capture_type, customer_visible, created_at")
     .in("field_record_id", recordIds)
     .order("created_at", { ascending: false })
     .limit(limit);
   if (photoResult.error) throw new Error("Technician photos could not be loaded.");
   return loadPhotoEvidenceByRows(technicianId, (photoResult.data ?? []) as PhotoRow[]);
+}
+
+async function syncPublishedPropertyAsset(input: {
+  photo: PhotoRow;
+  evidence: TechnicianPhotoEvidence;
+  customerVisible: boolean;
+}): Promise<void> {
+  if (!input.evidence.propertyId) return;
+  const supabase = createServiceRoleSupabaseClient();
+  const propertyResult = await supabase
+    .from("properties")
+    .select("homeowner_id")
+    .eq("id", input.evidence.propertyId)
+    .maybeSingle();
+  if (propertyResult.error || !propertyResult.data) {
+    throw new Error("Member property could not be verified for photo publication.");
+  }
+  const homeownerId = (propertyResult.data as { homeowner_id: string }).homeowner_id;
+  const existingResult = await supabase
+    .from("property_assets")
+    .select("id, is_primary")
+    .eq("storage_bucket", VISIT_MEDIA_BUCKET)
+    .eq("storage_path", input.photo.storage_path)
+    .maybeSingle();
+  if (existingResult.error) throw new Error("Could not verify existing property photo memory.");
+
+  if (!input.customerVisible) {
+    if (existingResult.data) {
+      const hidden = await supabase
+        .from("property_assets")
+        .update({ customer_visible: false, is_primary: false })
+        .eq("id", (existingResult.data as { id: string }).id);
+      if (hidden.error) throw new Error("Could not hide the member property photo.");
+    }
+    return;
+  }
+
+  const primaryResult = await supabase
+    .from("property_assets")
+    .select("id")
+    .eq("property_id", input.evidence.propertyId)
+    .eq("kind", "photo")
+    .eq("is_primary", true)
+    .limit(1);
+  if (primaryResult.error) throw new Error("Could not verify the member property cover photo.");
+  const makePrimary =
+    input.photo.capture_type === "after" && (primaryResult.data ?? []).length === 0;
+  const values = {
+    property_id: input.evidence.propertyId,
+    homeowner_id: homeownerId,
+    kind: "photo",
+    category: "visit",
+    title:
+      input.photo.capture_type === "after"
+        ? "After service"
+        : input.photo.capture_type === "before"
+          ? "Before service"
+          : "Service detail",
+    description: `${input.evidence.serviceTitle} · ${input.evidence.visitDate}`,
+    storage_path: input.photo.storage_path,
+    storage_bucket: VISIT_MEDIA_BUCKET,
+    mime_type: input.photo.mime_type,
+    file_size_bytes: input.photo.size_bytes,
+    photo_source: "our_team",
+    capture_type: input.photo.capture_type,
+    customer_visible: true,
+    captured_by: input.evidence.technicianName,
+    field_record_id: input.evidence.fieldRecordId,
+    captured_at: input.photo.created_at,
+    is_primary:
+      makePrimary || Boolean(existingResult.data && (existingResult.data as { is_primary?: boolean }).is_primary),
+  };
+  const write = existingResult.data
+    ? await supabase
+        .from("property_assets")
+        .update(values)
+        .eq("id", (existingResult.data as { id: string }).id)
+    : await supabase.from("property_assets").insert(values);
+  if (write.error) throw new Error("Could not add this proof to the member property history.");
 }
 
 export async function setTechnicianPhotoCustomerVisibility(input: {
@@ -219,17 +304,23 @@ export async function setTechnicianPhotoCustomerVisibility(input: {
   const supabase = createServiceRoleSupabaseClient();
   const photoResult = await supabase
     .from("homeatlas_technician_job_photos")
-    .select("id, field_record_id, storage_path, capture_type, customer_visible, created_at")
+    .select("id, field_record_id, storage_path, mime_type, size_bytes, capture_type, customer_visible, created_at")
     .eq("id", input.photoId)
     .maybeSingle();
   if (photoResult.error || !photoResult.data) throw new Error("Technician photo not found.");
-  const current = (await loadPhotoEvidenceByRows(input.technicianId, [photoResult.data as PhotoRow]))[0];
+  const photo = photoResult.data as PhotoRow;
+  const current = (await loadPhotoEvidenceByRows(input.technicianId, [photo]))[0];
   if (!current) throw new Error("That photo does not belong to this technician.");
   if (input.customerVisible && !current.memberLinked) {
     throw new Error("Link this Jobber property to a HomeAtlas member before publishing the photo.");
   }
   if (current.customerVisible === input.customerVisible) return current;
 
+  await syncPublishedPropertyAsset({
+    photo,
+    evidence: current,
+    customerVisible: input.customerVisible,
+  });
   const updateResult = await supabase
     .from("homeatlas_technician_job_photos")
     .update({ customer_visible: input.customerVisible })
@@ -252,81 +343,44 @@ export async function loadNativePortalPropertyPhotos(
   limit = 24,
 ): Promise<PropertyPhotoView[]> {
   const supabase = createServiceRoleSupabaseClient();
-  const linksResult = await supabase
-    .from("jobber_property_links")
-    .select("connection_id, external_property_id")
+  const result = await supabase
+    .from("property_assets")
+    .select("id, field_record_id, storage_path, title, capture_type, captured_by, is_primary, captured_at, created_at")
     .eq("property_id", propertyId)
-    .eq("link_state", "active");
-  if (linksResult.error || !linksResult.data?.length) return [];
-
-  const projectionIds: string[] = [];
-  for (const link of linksResult.data as Array<{ connection_id: string; external_property_id: string }>) {
-    const projectionResult = await supabase
-      .from("jobber_visit_projections")
-      .select("id")
-      .eq("connection_id", link.connection_id)
-      .eq("external_property_id", link.external_property_id)
-      .order("scheduled_start", { ascending: false })
-      .limit(100);
-    if (!projectionResult.error) {
-      projectionIds.push(...(projectionResult.data ?? []).map((row) => (row as { id: string }).id));
-    }
-  }
-  if (!projectionIds.length) return [];
-  const assignmentResult = await supabase
-    .from("homeatlas_technician_visit_assignments")
-    .select("id")
-    .in("projection_id", [...new Set(projectionIds)]);
-  if (assignmentResult.error || !assignmentResult.data?.length) return [];
-  const assignmentIds = assignmentResult.data.map((row) => (row as { id: string }).id);
-  const closeoutResult = await supabase
-    .from("homeatlas_technician_job_closeouts")
-    .select("field_record_id, technician_display_name, visit_date, created_at")
-    .in("assignment_id", assignmentIds)
-    .order("created_at", { ascending: false })
-    .limit(100);
-  if (closeoutResult.error || !closeoutResult.data?.length) return [];
-  const closeoutByRecord = new Map(
-    (closeoutResult.data as Array<{
-      field_record_id: string;
-      technician_display_name: string;
-      visit_date: string;
-      created_at: string;
-    }>).map((row) => [row.field_record_id, row]),
-  );
-  const recordIds = [...closeoutByRecord.keys()];
-  const photoResult = await supabase
-    .from("homeatlas_technician_job_photos")
-    .select("id, field_record_id, storage_path, capture_type, customer_visible, created_at")
-    .in("field_record_id", recordIds)
+    .eq("kind", "photo")
+    .eq("category", "visit")
     .eq("customer_visible", true)
-    .order("created_at", { ascending: false })
+    .eq("storage_bucket", VISIT_MEDIA_BUCKET)
+    .order("captured_at", { ascending: false })
     .limit(limit);
-  if (photoResult.error) return [];
-
+  if (result.error) return [];
   const mapped = await Promise.all(
-    ((photoResult.data ?? []) as PhotoRow[]).map(async (photo): Promise<PropertyPhotoView | null> => {
-      const closeout = closeoutByRecord.get(photo.field_record_id);
-      if (!closeout) return null;
+    (result.data ?? []).map(async (row): Promise<PropertyPhotoView | null> => {
+      const photo = row as {
+        id: string;
+        field_record_id: string | null;
+        storage_path: string;
+        title: string;
+        capture_type: "before" | "after" | "detail" | null;
+        captured_by: string | null;
+        is_primary: boolean;
+        captured_at: string | null;
+        created_at: string;
+      };
       const signed = await supabase.storage
         .from(VISIT_MEDIA_BUCKET)
         .createSignedUrl(photo.storage_path, 60 * 60);
       if (signed.error || !signed.data?.signedUrl) return null;
       return {
-        id: `native-${photo.id}`,
+        id: photo.id,
         fieldRecordId: photo.field_record_id,
         source: "our_team",
         url: signed.data.signedUrl,
-        caption:
-          photo.capture_type === "after"
-            ? "Finished result"
-            : photo.capture_type === "before"
-              ? "Before service"
-              : "Service detail",
-        isPrimary: false,
-        uploadedAt: photo.created_at,
+        caption: photo.title,
+        isPrimary: photo.is_primary,
+        uploadedAt: photo.captured_at ?? photo.created_at,
         captureType: photo.capture_type,
-        capturedBy: closeout.technician_display_name,
+        capturedBy: photo.captured_by,
       };
     }),
   );
