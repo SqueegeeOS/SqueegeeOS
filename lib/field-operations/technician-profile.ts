@@ -33,7 +33,12 @@ export interface TechnicianProfileActivity {
   windowDays: number;
   assignments: number;
   closeouts: number;
+  /** Verified technician clock minutes only. */
   clockedMinutes: number;
+  /** Audited HQ-entered minutes that never overwrite clock evidence. */
+  manualMinutes: number;
+  /** Clock + active manual time. */
+  recordedMinutes: number;
   activeClocks: number;
   followUpCloseouts: number;
   scopeExceptionCloseouts: number;
@@ -42,8 +47,14 @@ export interface TechnicianProfileActivity {
   todayAssignments: number;
   todayCloseouts: number;
   todayClockedMinutes: number;
+  todayManualMinutes: number;
+  todayRecordedMinutes: number;
   pendingSyncJobs: number;
   liveSoldAmountCentsToday: number;
+  missingTimeJobs: number;
+  photoPairsCompleteToday: number;
+  photoPairsMissingToday: number;
+  memberPublishReadyPhotos: number;
 }
 
 export interface TechnicianProfileRecentCloseout {
@@ -78,6 +89,70 @@ export interface TechnicianProfileFreshness {
   jobberDataFresh: boolean;
 }
 
+export interface TechnicianManualTimeEntryView {
+  id: string;
+  assignmentId: string | null;
+  workDate: string;
+  startedAt: string;
+  endedAt: string;
+  minutes: number;
+  reason: "missed_clock" | "pre_atlas" | "owner_correction";
+  note: string;
+  enteredBy: string;
+  enteredAt: string;
+}
+
+export interface TechnicianTimeRepairCandidate {
+  assignmentId: string;
+  visitDate: string;
+  scheduledStart: string | null;
+  clientName: string;
+  serviceTitle: string;
+  closeoutAt: string;
+}
+
+export interface TechnicianProfilePhotoEvidence {
+  id: string;
+  fieldRecordId: string;
+  assignmentId: string;
+  technicianId: string;
+  technicianName: string;
+  captureType: "before" | "after" | "detail";
+  customerVisible: boolean;
+  createdAt: string;
+  signedUrl: string | null;
+  clientName: string;
+  serviceTitle: string;
+  visitDate: string;
+  propertyId: string | null;
+  propertyName: string | null;
+  membershipId: string | null;
+  memberLinked: boolean;
+  jobberBacked: boolean;
+}
+
+export interface TechnicianWorkdayIntegrityJob {
+  assignmentId: string;
+  clientName: string;
+  serviceTitle: string;
+  scheduledStart: string | null;
+  syncState: "pending_sync" | "verified";
+  closeoutSaved: boolean;
+  timeSource: "clock" | "manual" | "missing";
+  beforePhotos: number;
+  afterPhotos: number;
+  photoPairComplete: boolean;
+  checksPassed: number;
+  checksTotal: number;
+}
+
+export interface TechnicianWorkdayIntegrity {
+  checksPassed: number;
+  checksTotal: number;
+  percent: number;
+  jobs: TechnicianWorkdayIntegrityJob[];
+}
+
 export interface TechnicianOperationalProfile {
   generatedAt: string;
   technician: {
@@ -97,5 +172,9 @@ export interface TechnicianOperationalProfile {
   freshness: TechnicianProfileFreshness;
   liveJobs: TechnicianProfileLiveJob[];
   recentCloseouts: TechnicianProfileRecentCloseout[];
+  manualTimeEntries: TechnicianManualTimeEntryView[];
+  timeRepairCandidates: TechnicianTimeRepairCandidate[];
+  photos: TechnicianProfilePhotoEvidence[];
+  workdayIntegrity: TechnicianWorkdayIntegrity;
   warnings: string[];
 }
