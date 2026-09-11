@@ -45,7 +45,7 @@ const PROGRESS: Record<EnrollmentPacketStatus, EnrollmentPacketProgress> = {
     eyebrow: "Agreement sent",
     title: "Waiting on their signature.",
     detail:
-      "DocuSign has the next move. Stripe stays separate until the agreement is complete.",
+      "The customer has the next move in HomeAtlas. Stripe stays separate until the agreement is complete.",
     actionLabel: "Check signature",
     tone: "accent",
     blocksNewSend: true,
@@ -141,7 +141,7 @@ export function enrollmentPacketProgress(
     return {
       ...progress,
       detail:
-        "DocuSign has the next move. The owner-approved cash/check account activates after signature; no Stripe step will be created.",
+        "The customer has the next move in HomeAtlas. The owner-approved cash/check account activates after signature; no Stripe step will be created.",
     };
   }
   if (status === "signature_complete") {

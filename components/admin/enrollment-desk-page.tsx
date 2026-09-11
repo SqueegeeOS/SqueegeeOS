@@ -69,6 +69,7 @@ interface EnrollmentDeskData {
     customer_email: string;
     status: string;
     payment_rail: "stripe_card" | "manual_cash_check";
+    signature_provider: "homeatlas_native" | "docusign";
     docusign_status: string | null;
     signature_sent_at: string | null;
     signed_at: string | null;
@@ -290,10 +291,10 @@ function EnrollmentDeskContent() {
                 Enrollment Desk
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-[1.7] text-muted">
-                One packet, three trusted surfaces: DocuSign for the agreement,
-                Stripe for the card, and HomeAtlas for the life of the home.
-                Nothing sends until the owner-released document, rollout, and
-                provider gates are genuinely ready.
+                HomeAtlas presents the agreement and records the signature;
+                Stripe securely saves the card when that payment rail is
+                selected. Nothing sends until the owner-released document and
+                rollout gates are genuinely ready.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:flex-row">
@@ -358,32 +359,34 @@ function EnrollmentDeskContent() {
                 </span>
               </div>
               <div className="mt-7 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {data.readiness.checks.map((check) => (
-                  <div
-                    key={check.id}
-                    className={`rounded-2xl border p-4 ${
-                      check.ready
-                        ? "border-emerald-300/15 bg-emerald-300/[0.035]"
-                        : "border-white/[0.08] bg-black/10"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <strong className="text-sm font-medium">
-                        {check.label}
-                      </strong>
-                      <span
-                        className={
-                          check.ready ? "text-emerald-300" : "text-amber-200"
-                        }
-                      >
-                        {check.ready ? "✓" : "○"}
-                      </span>
+                {data.readiness.checks
+                  .filter((check) => check.id !== "docusign")
+                  .map((check) => (
+                    <div
+                      key={check.id}
+                      className={`rounded-2xl border p-4 ${
+                        check.ready
+                          ? "border-emerald-300/15 bg-emerald-300/[0.035]"
+                          : "border-white/[0.08] bg-black/10"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <strong className="text-sm font-medium">
+                          {check.label}
+                        </strong>
+                        <span
+                          className={
+                            check.ready ? "text-emerald-300" : "text-amber-200"
+                          }
+                        >
+                          {check.ready ? "✓" : "○"}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs leading-relaxed text-muted">
+                        {check.detail}
+                      </p>
                     </div>
-                    <p className="mt-2 text-xs leading-relaxed text-muted">
-                      {check.detail}
-                    </p>
-                  </div>
-                ))}
+                  ))}
               </div>
               {!data.readiness.readyToSend ? (
                 <p className="mt-6 rounded-xl border border-accent/15 bg-accent/[0.05] px-4 py-3 text-xs leading-relaxed text-muted">
@@ -973,7 +976,14 @@ function EnrollmentDeskContent() {
                               {packet.customer_name}
                             </p>
                             <p className="mt-1 text-xs text-muted">
-                              {packet.customer_email} · {packet.payment_rail === "manual_cash_check" ? "cash / check" : "Stripe card"}
+                              {packet.customer_email} ·{" "}
+                              {packet.signature_provider === "homeatlas_native"
+                                ? "HomeAtlas signing"
+                                : "DocuSign"}{" "}
+                              ·{" "}
+                              {packet.payment_rail === "manual_cash_check"
+                                ? "cash / check"
+                                : "Stripe card"}
                             </p>
                           </div>
                           <span
