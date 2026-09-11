@@ -72,10 +72,10 @@ export function buildEnrollmentDocumentSnapshot(input: {
     throw new Error("Customer name is required before sending enrollment.");
   }
   if (!customerEmail) {
-    throw new Error("A valid customer email is required for DocuSign.");
+    throw new Error("A valid customer email is required for the secure handoff.");
   }
   if (input.signer && (!input.signer.name.trim() || !signerEmail)) {
-    throw new Error("A valid signer name and email are required for DocuSign.");
+    throw new Error("A valid signer name and email are required for the secure handoff.");
   }
   if (!input.presentation.clientAddress.trim()) {
     throw new Error("Service address is required before sending enrollment.");

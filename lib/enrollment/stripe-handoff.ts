@@ -176,7 +176,7 @@ export async function createEnrollmentStripeHandoff(input: {
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;color:#17211c">
         <p style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#587060">HomeAtlas · SqueegeeKing</p>
         <h1 style="font-family:Georgia,serif;font-size:32px;font-weight:400;margin:14px 0">Agreement complete. One secure step left.</h1>
-        <p style="font-size:16px;line-height:1.65">Hi ${safeName} — DocuSign is complete. Use Stripe's hosted page to save your payment method, then your private home portal turns on automatically.</p>
+        <p style="font-size:16px;line-height:1.65">Hi ${safeName} — your HomeAtlas agreement is signed. Use Stripe's hosted page to save your payment method, then your private home portal turns on automatically.</p>
         <p style="margin:28px 0"><a href="${safeStripeUrl}" style="display:inline-block;background:#183f2b;color:#fff;text-decoration:none;padding:15px 22px;border-radius:10px;font-weight:700">Open secure Stripe setup</a></p>
         <p style="font-size:14px;line-height:1.6;color:#587060">No payment is collected today. SqueegeeKing never sees or stores your card number.</p>
         <p style="font-size:14px;line-height:1.6;color:#587060">Want to check progress? <a href="${safeEnrollmentUrl}" style="color:#183f2b">Open your HomeAtlas handoff</a>.</p>
