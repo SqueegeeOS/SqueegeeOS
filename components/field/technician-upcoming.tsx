@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { JobValue } from "./job-value";
 import { StatusNotice } from "@/components/craft/status-notice";
 import type { FieldUpcomingVisit } from "@/lib/field-operations/field-upcoming";
 import { jobDirectionsHref } from "@/lib/care-operations/jobber-visit-address";
@@ -32,6 +33,7 @@ export function TechnicianUpcoming() {
           <p className="text-sm font-medium text-accent">{date(visit.scheduledStart)}</p>
           <h3 className="mt-2 text-base font-semibold text-foreground">{visit.clientName}</h3>
           <p className="mt-1 break-words text-sm leading-relaxed text-muted">{visit.service}</p>
+          <JobValue value={visit.jobValue} />
           {visit.address ? <p className="mt-2 text-sm text-muted">{visit.address}</p> : null}
           {jobDirectionsHref(visit.address) ? <a href={jobDirectionsHref(visit.address)!} target="_blank" rel="noreferrer"
             className="mt-2 inline-flex min-h-11 items-center text-sm font-medium text-accent underline underline-offset-4"

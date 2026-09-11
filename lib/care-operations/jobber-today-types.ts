@@ -2,6 +2,7 @@ import type { VisitFieldFollowUpView } from "@/lib/field-records/visit-field-rec
 import type { TechnicianVisitStage } from "@/lib/field-operations/technician-visit-events";
 import type { TechnicianJobClockSnapshot } from "@/lib/field-operations/technician-job-clock";
 import type { FieldIndependenceReview } from "@/lib/field-operations/independence-review";
+import type { FieldJobValue } from "@/lib/field-operations/field-job-value";
 
 export type JobberTodayVisitMoment =
   | "complete"
@@ -138,6 +139,8 @@ export function readJobberTodayVisitScope(value: unknown): Pick<
 }
 
 export interface JobberTodayVisit {
+  /** Returned only to HQ and technicians explicitly allowed to see job pricing. */
+  jobValue?: FieldJobValue;
   projectionId: string;
   externalVisitId: string;
   clientName: string;

@@ -1,4 +1,5 @@
 import "server-only";
+import { canTechnicianViewJobValue, fieldJobValue } from "./field-job-value";
 
 import {
   COMPANY_BUSINESS_TIMEZONE,
@@ -29,6 +30,7 @@ import {
 } from "./live-dispatch";
 
 interface LiveAssignmentRow {
+  live_sold_amount_cents?: number | null;
   id: string;
   external_visit_id: string;
   technician_id: string;
@@ -253,7 +255,7 @@ export async function loadPendingLiveFieldVisits(
   let query = supabase
     .from("homeatlas_technician_visit_assignments")
     .select(
-      "id, external_visit_id, technician_id, technician_display_name, source_kind, sync_state, live_client_name, live_service_title, live_property_address, live_scheduled_start, live_service_scope, assigned_at",
+      "id, external_visit_id, technician_id, technician_display_name, source_kind, sync_state, live_client_name, live_service_title, live_property_address, live_scheduled_start, live_service_scope, live_sold_amount_cents, assigned_at",
     )
     .eq("source_kind", "live")
     .eq("sync_state", "pending_sync")
@@ -313,6 +315,8 @@ export async function loadPendingLiveFieldVisits(
     return [
       {
         projectionId: `live:${row.id}`,
+        jobValue: actor.kind === "admin" || canTechnicianViewJobValue(actor.jobberUserId)
+          ? fieldJobValue(row.live_sold_amount_cents, "hq") : undefined,
         externalVisitId: row.external_visit_id,
         clientName: row.live_client_name,
         title: row.live_service_title,

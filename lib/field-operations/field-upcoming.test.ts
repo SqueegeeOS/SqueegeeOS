@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { JobberTodayVisit } from "@/lib/care-operations/jobber-today-types";
 import { fieldUpcomingVisits } from "./field-upcoming";
+import { TYLER_GERMANY_TECHNICIAN_ID } from "./technician-profile";
 const mocks = vi.hoisted(() => ({ authorize: vi.fn(), board: vi.fn() }));
 vi.mock("@/lib/field-operations/field-access", () => ({ authorizeFieldRequest: mocks.authorize }));
 vi.mock("@/lib/care-operations/jobber-today", () => ({ loadJobberTodayBoard: mocks.board }));
@@ -16,6 +17,21 @@ function visit(id: string, days: number, tech = "homeatlas:tyler"): JobberTodayV
 }
 const request = () => GET(new Request("https://www.squeegeeking.net/api/field/upcoming"));
 describe("upcoming technician schedule", () => {
+  it("returns pricing only for Tyler's own assignments and removes it for other technicians", async () => {
+    const tyler = `homeatlas:${TYLER_GERMANY_TECHNICIAN_ID}`;
+    const own = { ...visit("mine", 2, tyler), jobValue: { amountCents: 50000, source: "jobber" as const } };
+    const other = { ...visit("other", 3, "homeatlas:other"), jobValue: { amountCents: 90000, source: "jobber" as const } };
+    mocks.board.mockResolvedValue({ visits: [own, other], fieldFollowUps: [] });
+    mocks.authorize.mockResolvedValue({ kind: "technician", jobberUserId: tyler });
+    const body = await (await request()).json();
+    expect(body.visits).toHaveLength(1);
+    expect(body.visits[0].jobValue).toEqual({ amountCents: 50000, source: "jobber" });
+    mocks.authorize.mockResolvedValue({ kind: "technician", jobberUserId: "homeatlas:other", displayName: "Tyler Germany" });
+    const otherBody = await (await request()).json();
+    expect(otherBody.visits).toHaveLength(1);
+    expect(otherBody.visits[0]).not.toHaveProperty("jobValue");
+    expect(other.jobValue.amountCents).toBe(90000);
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.authorize.mockResolvedValue({ kind: "technician", jobberUserId: "homeatlas:tyler" });
