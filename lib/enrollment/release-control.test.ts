@@ -5,6 +5,15 @@ import {
 } from "./release-control";
 
 describe("enrollment release control", () => {
+  it("allows an explicit owner live release without claiming a completed rehearsal", () => {
+    const config = { releaseMode: "live", rehearsalEmail: "", rehearsalConfirmed: "false", liveApproved: "true" };
+    expect(getEnrollmentReleaseControlState(config)).toMatchObject({ ready: true, rehearsalConfirmed: false, missing: [] });
+    expect(getEnrollmentRecipientGate("customer@example.com", config).allowed).toBe(true);
+    expect(getEnrollmentRecipientGate("invalid", config).allowed).toBe(false);
+    expect(getEnrollmentRecipientGate("customer@example.com", { ...config, releaseMode: "rehearsal", rehearsalEmail: "owner@example.com" }).allowed).toBe(false);
+    expect(getEnrollmentReleaseControlState({ ...config, releaseMode: "invalid" }).ready).toBe(false);
+    expect(getEnrollmentRecipientGate("customer@example.com", { ...config, liveApproved: "false" }).allowed).toBe(false);
+  });
   it("defaults to fail-closed rehearsal mode", () => {
     const state = getEnrollmentReleaseControlState({
       releaseMode: "",

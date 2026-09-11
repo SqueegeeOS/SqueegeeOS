@@ -7,6 +7,7 @@ import { AmbientStage } from "@/components/craft/ambient-stage";
 import { StatePanel } from "@/components/craft/state-panel";
 import { StatusNotice } from "@/components/craft/status-notice";
 import { TechnicianUpcoming } from "@/components/field/technician-upcoming";
+import { JobValue } from "@/components/field/job-value";
 import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
 import { jobDirectionsHref } from "@/lib/care-operations/jobber-visit-address";
 import {
@@ -464,6 +465,7 @@ function TechnicianVisitCard({
         <p className="mt-2 text-base leading-relaxed text-foreground/70">
           {serviceLabel(visit)}
         </p>
+        <JobValue value={visit.jobValue} />
         {visit.propertyLabel ? (
           <p className="mt-1 text-sm text-muted">{visit.propertyLabel}</p>
         ) : null}

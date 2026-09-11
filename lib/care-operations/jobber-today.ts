@@ -1,4 +1,5 @@
 import "server-only";
+import { fieldJobValue } from "@/lib/field-operations/field-job-value";
 import { formatJobberVisitAddress } from "./jobber-visit-address";
 
 import {
@@ -52,6 +53,7 @@ import {
 } from "./jobber-today-types";
 
 interface StoredVisitRow {
+  job_total_cents?: number | null;
   id: string;
   external_visit_id: string;
   external_client_id: string;
@@ -113,7 +115,7 @@ interface StoredVisibleAssetRow {
 }
 
 const TODAY_VISIT_SELECT =
-  "id, external_visit_id, external_client_id, external_property_id, jobber_property_web_uri, property_address, visit_invoice_status, job_number, title, client_name, visit_status, job_status, scheduled_start, scheduled_end, is_complete, raw_payload";
+  "id, external_visit_id, external_client_id, external_property_id, jobber_property_web_uri, property_address, visit_invoice_status, job_total_cents, job_number, title, client_name, visit_status, job_status, scheduled_start, scheduled_end, is_complete, raw_payload";
 
 function optionalString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -173,6 +175,7 @@ export function toTodayVisit(
     : undefined;
   return {
     projectionId: row.id,
+    jobValue: fieldJobValue(row.job_total_cents, "jobber"),
     externalVisitId: row.external_visit_id,
     clientName: row.client_name,
     title: row.title,

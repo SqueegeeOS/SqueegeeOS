@@ -21,6 +21,7 @@ export interface EnrollmentRecipientGate {
 }
 
 interface EnrollmentReleaseControlConfig {
+  liveApproved: string;
   releaseMode: string;
   rehearsalEmail: string;
   rehearsalConfirmed: string;
@@ -29,6 +30,7 @@ interface EnrollmentReleaseControlConfig {
 const RELEASE_MODE_ENV = "HOMEATLAS_ENROLLMENT_RELEASE_MODE";
 const REHEARSAL_EMAIL_ENV = "HOMEATLAS_ENROLLMENT_REHEARSAL_EMAIL";
 const REHEARSAL_CONFIRMED_ENV = "HOMEATLAS_ENROLLMENT_REHEARSAL_CONFIRMED";
+const LIVE_APPROVED_ENV = "HOMEATLAS_ENROLLMENT_LIVE_APPROVED";
 
 function env(name: string): string {
   return process.env[name]?.trim() ?? "";
@@ -38,6 +40,8 @@ function resolveConfig(
   overrides: Partial<EnrollmentReleaseControlConfig> = {},
 ): EnrollmentReleaseControlConfig {
   return {
+    liveApproved: overrides.liveApproved === undefined
+      ? env(LIVE_APPROVED_ENV) : overrides.liveApproved.trim(),
     releaseMode:
       overrides.releaseMode === undefined
         ? env(RELEASE_MODE_ENV)
@@ -68,15 +72,16 @@ export function getEnrollmentReleaseControlState(
   const mode: EnrollmentReleaseMode = rawMode === "live" ? "live" : "rehearsal";
   const rehearsalEmail = normalizeEnrollmentEmail(config.rehearsalEmail);
   const rehearsalConfirmed = config.rehearsalConfirmed.toLowerCase() === "true";
+  const liveApproved = config.liveApproved.toLowerCase() === "true";
+  const liveReady = liveApproved || (rehearsalConfirmed && Boolean(rehearsalEmail));
   const missing = [
     ...(!validMode ? [RELEASE_MODE_ENV] : []),
-    ...(!rehearsalEmail ? [REHEARSAL_EMAIL_ENV] : []),
-    ...(mode === "live" && !rehearsalConfirmed
+    ...(!rehearsalEmail && !(mode === "live" && liveApproved) ? [REHEARSAL_EMAIL_ENV] : []),
+    ...(mode === "live" && !liveApproved && !rehearsalConfirmed
       ? [REHEARSAL_CONFIRMED_ENV]
       : []),
   ];
-  const ready = validMode && Boolean(rehearsalEmail) &&
-    (mode === "rehearsal" || rehearsalConfirmed);
+  const ready = validMode && (mode === "live" ? liveReady : Boolean(rehearsalEmail));
 
   return {
     mode,
@@ -90,9 +95,11 @@ export function getEnrollmentReleaseControlState(
         ? rehearsalEmail
           ? `Rehearsal mode is locked to ${recipientHint(rehearsalEmail)}; every other recipient is blocked before any packet write or provider call.`
           : "Rehearsal mode is active. Add one business-controlled email before any envelope can be created."
+        : liveApproved
+          ? "Live enrollment is explicitly approved by the owner. Rehearsal completion is not claimed; signing, card setup, and billing controls remain separate."
         : rehearsalConfirmed && rehearsalEmail
           ? "Live mode is explicitly confirmed after a business-owned rehearsal. Recipient-specific safeguards remain active."
-          : "Live mode remains blocked until a business-owned rehearsal address is recorded and the rehearsal is explicitly confirmed.",
+          : "Live mode remains blocked until a business-owned rehearsal is confirmed or the owner explicitly approves live enrollment.",
     missing,
   };
 }
@@ -134,6 +141,6 @@ export function getEnrollmentRecipientGate(
     detail:
       state.mode === "rehearsal"
         ? "This recipient matches the configured business-controlled rehearsal address."
-        : "Live enrollment sending is explicitly enabled after the recorded rehearsal.",
+        : "Live enrollment sending is explicitly enabled. Signing, card setup, and billing controls remain separate.",
   };
 }

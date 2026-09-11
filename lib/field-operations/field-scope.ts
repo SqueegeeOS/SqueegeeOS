@@ -1,4 +1,5 @@
 import "server-only";
+import { canTechnicianViewJobValue } from "./field-job-value";
 
 import { JOBBER_CONNECTION_ID } from "@/lib/care-operations/jobber-oauth-config";
 import { loadJobberTodayBoard } from "@/lib/care-operations/jobber-today";
@@ -70,6 +71,7 @@ export function scopeTodayBoardToTechnician(
     .filter((visit) => isVisitAssignedToTechnician(visit, jobberUserId))
     .map((visit) => ({
       ...visit,
+      jobValue: canTechnicianViewJobValue(jobberUserId) ? visit.jobValue : undefined,
       // Portal paths contain bearer access and HQ follow-up records can contain
       // private owner notes. Neither belongs in a technician DTO.
       jobberPropertyWebUri: null,
