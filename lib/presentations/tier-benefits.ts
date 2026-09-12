@@ -19,7 +19,7 @@ const SHARED_DIFFERENCE_ROWS: PresentationDifferenceRow[] = [
     us: "Scheduled rhythm — not when you remember",
     them: "Call when it looks bad",
   },
-  { us: "Locked member pricing", them: "Price changes every visit" },
+  { us: "Member-only savings", them: "No ongoing member benefits" },
   { us: "Property documented over time", them: "No record of your home" },
   { us: "Billed before we arrive", them: "Payment at the door" },
   { us: "7-day workmanship guarantee", them: "Hope it looks fine" },
@@ -52,8 +52,8 @@ export function presentationIncludedItems(
       detail: "Members first",
     },
     {
-      label: "Locked member pricing",
-      detail: "No surprises",
+      label: "Member-only savings",
+      detail: "Benefits while active",
     },
     {
       label: "Property health",
@@ -98,9 +98,9 @@ export function tierCertaintyCopy(tier: SqueegeeKingTierId | string): string {
     return "Both memberships protect your home with priority scheduling and automatic add-on discounts. Quarterly adds RainBlock, Hard Water protection, and 25% OFF every add-on.";
   }
   if (id === "triannual") {
-    return "The 3× Per Year membership keeps the home on an every-four-month rhythm with priority scheduling, locked member pricing, and 20% OFF add-on services.";
+    return "The 3× Per Year membership keeps the home on an every-four-month rhythm with priority scheduling, member-only savings, and 20% OFF add-on services.";
   }
-  return "Bi-Annual membership protects your home with priority scheduling, locked member pricing, and 20% OFF add-on services while your membership is active.";
+  return "Bi-Annual membership protects your home with priority scheduling, member-only savings, and 20% OFF add-on services while your membership is active.";
 }
 
 export function tierIncludesPremiumTreatments(

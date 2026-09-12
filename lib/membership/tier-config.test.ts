@@ -6,6 +6,8 @@ import {
   formatTierPrice,
   membershipRequestHref,
   normalizeToSqueegeeKingTier,
+  SQUEEGEEKING_TIERS,
+  TIER_COMPARISON_ROWS,
 } from "./tier-config";
 
 describe("SqueegeeKing tier quotes", () => {
@@ -31,6 +33,18 @@ describe("SqueegeeKing tier quotes", () => {
     expect(membershipRequestHref("quarterly", 3200)).toBe(
       "/request?membership=quarterly&sqft=3200",
     );
+  });
+
+  it("uses flexible member-only savings language across plans and comparisons", () => {
+    for (const tier of Object.values(SQUEEGEEKING_TIERS)) {
+      expect(tier.benefits).toContain("Member-Only Savings");
+      expect(tier.benefits.join(" ").toLowerCase()).not.toContain(
+        "locked member pricing",
+      );
+    }
+
+    expect(TIER_COMPARISON_ROWS.some((row) => row.label === "Member-Only Savings"))
+      .toBe(true);
   });
 });
 
