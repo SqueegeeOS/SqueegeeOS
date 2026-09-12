@@ -65,7 +65,7 @@ const CAPTURE_OPTIONS: Array<{
 }> = [
   { type: "before", label: "Before", detail: "Arrival condition" },
   { type: "after", label: "After", detail: "Finished result" },
-  { type: "detail", label: "Detail", detail: "Something worth remembering" },
+  { type: "detail", label: "General", detail: "Any useful job photo" },
 ];
 
 function newClientId(): string {
@@ -923,7 +923,7 @@ export function VisitFieldCapture({
               Visit photos
             </p>
             <p className="mt-1 text-xs text-muted">
-              {fieldAssignmentId ? "Private job evidence for owner review." : "Stored privately; choose portal visibility per photo."}
+              Tap Before, After, or General, then choose one or multiple photos straight from the camera roll.
             </p>
           </div>
           <span className="text-xs text-muted">
@@ -936,14 +936,16 @@ export function VisitFieldCapture({
               key={option.type}
               className="flex min-h-20 cursor-pointer flex-col justify-center rounded-xl border border-border bg-foreground/[0.035] px-3 py-3 text-center transition active:scale-[0.98] active:border-accent/50"
             >
-              <span className="text-sm text-foreground">+ {option.label}</span>
+              <span className="text-sm font-medium text-foreground">{option.label}</span>
+              <span className="mt-1 text-[10px] leading-tight text-accent/70">
+                Choose from Photos
+              </span>
               <span className="mt-1 text-[10px] leading-tight text-muted">
                 {option.detail}
               </span>
               <input
                 type="file"
                 accept={VISIT_PHOTO_MIME_TYPES.join(",")}
-                capture="environment"
                 multiple
                 className="sr-only"
                 onChange={(event) => {
@@ -966,14 +968,14 @@ export function VisitFieldCapture({
               <div className="relative aspect-[4/3] bg-black/30">
                 <Image
                   src={photo.previewUrl}
-                  alt={`${photo.captureType} visit preview`}
+                  alt={`${photo.captureType === "detail" ? "general" : photo.captureType} visit preview`}
                   fill
                   unoptimized
                   sizes="(max-width: 640px) 100vw, 320px"
                   className="object-cover"
                 />
                 <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-wide text-white">
-                  {photo.captureType}
+                  {photo.captureType === "detail" ? "General" : photo.captureType}
                 </span>
               </div>
               <div className="space-y-3 p-3">
@@ -989,6 +991,37 @@ export function VisitFieldCapture({
                   >
                     Remove
                   </button>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.13em] text-muted">
+                    Photo type
+                  </p>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    {CAPTURE_OPTIONS.map((option) => (
+                      <button
+                        key={option.type}
+                        type="button"
+                        disabled={saving}
+                        onClick={() => {
+                          completedUploads.current.delete(photo.clientId);
+                          setPhotos((current) =>
+                            current.map((item) =>
+                              item.clientId === photo.clientId
+                                ? { ...item, captureType: option.type }
+                                : item,
+                            ),
+                          );
+                        }}
+                        className={`min-h-9 rounded-lg border px-2 text-[10px] font-medium transition disabled:opacity-50 ${
+                          photo.captureType === option.type
+                            ? "border-accent/45 bg-accent/[0.12] text-accent"
+                            : "border-border bg-foreground/[0.025] text-foreground/60"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
                 {!fieldAssignmentId ? <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-3">
                   <span className="text-xs text-foreground/75">Show in portal</span>
