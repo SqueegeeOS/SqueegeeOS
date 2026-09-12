@@ -450,14 +450,32 @@ export function VisitFieldCapture({
           setProgress(
             `Uploading unfinished photo ${index + 1} of ${pendingPhotos.length}…`,
           );
+          let uploadBody: ArrayBuffer;
+          try {
+            // iOS Photos files can fail when storage-js wraps the File in
+            // multipart FormData. A raw body avoids that Safari-specific path
+            // and keeps the original image bytes and quality intact.
+            uploadBody = await draft.file.arrayBuffer();
+          } catch {
+            throw new Error(
+              `Could not read ${draft.file.name} from Photos. Select it again.`,
+            );
+          }
           const upload = await uploadClient.storage
             .from(intentBody.bucket)
-            .uploadToSignedUrl(intent.storagePath, intent.token, draft.file, {
+            .uploadToSignedUrl(intent.storagePath, intent.token, uploadBody, {
               contentType: draft.file.type,
               cacheControl: "3600",
               upsert: false,
             });
-          if (upload.error) throw new Error(`Could not upload ${draft.file.name}.`);
+          if (upload.error) {
+            const storageDetail = upload.error.message?.trim();
+            throw new Error(
+              storageDetail
+                ? `Could not upload ${draft.file.name}: ${storageDetail}. Tap Save to retry.`
+                : `Could not upload ${draft.file.name}. Tap Save to retry.`,
+            );
+          }
           completedUploads.current.set(intent.clientId, {
             clientId: intent.clientId,
             fileName: intent.fileName,
