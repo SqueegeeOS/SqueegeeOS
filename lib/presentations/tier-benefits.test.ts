@@ -30,6 +30,17 @@ describe("presentationDifferenceRows", () => {
     const rows = presentationDifferenceRows("quarterly");
     expect(rows.some((row) => row.us.includes("RainBlock"))).toBe(true);
   });
+
+  it("uses member-only savings language without promising locked pricing", () => {
+    const items = presentationIncludedItems("quarterly");
+    const rows = presentationDifferenceRows("quarterly");
+
+    expect(items.some((item) => item.label === "Member-only savings")).toBe(true);
+    expect(rows.some((row) => row.us === "Member-only savings")).toBe(true);
+    expect(JSON.stringify({ items, rows }).toLowerCase()).not.toContain(
+      "locked member pricing",
+    );
+  });
 });
 
 describe("computePresentationRates retailValue", () => {
