@@ -25,4 +25,18 @@ describe("technician visit photo picker", () => {
     expect(capture).toContain("Photo type");
     expect(capture).toContain("completedUploads.current.delete(photo.clientId)");
   });
+
+  it("uses a raw upload body for iPhone camera-roll files and preserves retry detail", () => {
+    const capture = read("components/visit/visit-field-capture.tsx");
+
+    expect(capture).toContain("await draft.file.arrayBuffer()");
+    expect(capture).toContain(
+      ".uploadToSignedUrl(intent.storagePath, intent.token, uploadBody",
+    );
+    expect(capture).not.toContain(
+      ".uploadToSignedUrl(intent.storagePath, intent.token, draft.file",
+    );
+    expect(capture).toContain("storageDetail");
+    expect(capture).toContain("Tap Save to retry.");
+  });
 });
