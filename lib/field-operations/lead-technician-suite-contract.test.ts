@@ -10,6 +10,7 @@ const suite = read("../../components/field/lead-technician-suite.tsx");
 const dock = read("../../components/field/technician-portal-dock.tsx");
 const claim = read("../../app/api/field/access/claim/route.ts");
 const access = read("../../app/tech/access/page.tsx");
+const upcoming = read("../../components/field/technician-upcoming.tsx");
 
 describe("lead technician suite", () => {
   it("derives the profile from the authenticated native technician identity", () => {
@@ -28,12 +29,13 @@ describe("lead technician suite", () => {
 
   it("shows useful field intelligence without owner billing controls", () => {
     for (const copy of [
-      "Lead Tech Suite",
+      "Lead Technician",
       "Your field pulse",
       "Clean handoff score",
       "Your production",
       "Production load",
       "Field mastery",
+      "TechnicianUpcoming featured defaultOpen",
     ]) {
       expect(suite).toContain(copy);
     }
@@ -42,5 +44,17 @@ describe("lead technician suite", () => {
     expect(suite).not.toContain("billing");
     expect(suite).not.toContain("customer messaging");
     expect(suite).not.toContain("grantId");
+    expect(suite).not.toContain('href="/hq');
+    expect(dock).not.toContain('href: "/hq');
+  });
+
+  it("puts Tyler's future assigned dispatch directly inside the suite", () => {
+    expect(suite).toContain('<Link href="#upcoming-jobs"');
+    expect(upcoming).toContain("Your upcoming route.");
+    expect(upcoming).toContain("Every future stop assigned to Tyler");
+    expect(upcoming).toContain('fetch("/api/field/upcoming"');
+    expect(upcoming).toContain("if (!defaultOpen) return");
+    expect(upcoming).toContain("Open directions");
+    expect(route).toContain('if (actor.kind !== "technician") redirect("/tech")');
   });
 });

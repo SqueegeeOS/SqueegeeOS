@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AmbientStage } from "@/components/craft/ambient-stage";
+import { TechnicianUpcoming } from "@/components/field/technician-upcoming";
 import type { TechnicianOperationalProfile } from "@/lib/field-operations/technician-profile";
 import {
   craftPrimaryButton,
@@ -89,21 +90,22 @@ export function LeadTechnicianSuite({
   return (
     <AmbientStage founding className="min-h-[100svh] px-4 py-6 pb-32 text-foreground sm:px-6 sm:py-10">
       <main className="mx-auto max-w-3xl">
-        <header className="overflow-hidden rounded-[2rem] border border-accent/25 bg-surface-elevated p-5 shadow-[var(--shadow-float)] sm:p-7">
-          <div className="flex items-start justify-between gap-4">
+        <header className="relative overflow-hidden rounded-[2rem] border border-accent/30 bg-surface-elevated p-5 shadow-[var(--shadow-float)] sm:p-8">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_88%_8%,rgba(212,175,55,0.16),transparent_38%)]" aria-hidden />
+          <div className="relative flex items-start justify-between gap-4">
             <div>
               <p className="text-[10px] uppercase tracking-[0.23em] text-accent">
-                HomeAtlas · Lead Tech Suite
+                HomeAtlas · Lead Technician
               </p>
               <h1 className="mt-3 font-serif text-4xl font-light tracking-[-0.045em] sm:text-5xl">
-                {firstName}&apos;s field command.
+                {firstName}&apos;s field suite.
               </h1>
               <p className="mt-3 max-w-xl text-sm leading-relaxed text-muted">
-                Your route, property intelligence, quality proof, time, and team
-                wins—organized around the work you own.
+                Today&apos;s work, the road ahead, property details, quality proof,
+                and every field win—kept in one place for you.
               </p>
             </div>
-            <div className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-accent/30 bg-accent/[0.08] font-serif text-lg text-accent">
+            <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-accent/35 bg-accent/[0.1] font-serif text-xl text-accent shadow-[0_0_35px_rgba(212,175,55,0.12)]">
               {profile.technician.displayName
                 .split(/\s+/)
                 .map((part) => part[0])
@@ -113,12 +115,12 @@ export function LeadTechnicianSuite({
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-foreground/10 pt-5">
+          <div className="relative mt-7 flex flex-wrap items-center gap-2 border-t border-foreground/10 pt-5">
             <span className="rounded-full border border-success/30 bg-success/[0.08] px-3 py-1.5 text-[11px] text-success">
               {profile.technician.roleTitle}
             </span>
             <span className="rounded-full border border-foreground/10 bg-foreground/[0.035] px-3 py-1.5 text-[11px] text-muted">
-              Private field access
+              Lead access · private
             </span>
           </div>
         </header>
@@ -127,13 +129,15 @@ export function LeadTechnicianSuite({
           <Link href="/tech" className={craftPrimaryButton}>
             Run today&apos;s route
           </Link>
-          <Link href="/tech#upcoming-jobs" className={craftSecondaryButton}>
-            Look ahead
+          <Link href="#upcoming-jobs" className={craftSecondaryButton}>
+            View full schedule
           </Link>
           <Link href="/tech/refer" className={craftSecondaryButton}>
             Send a referral
           </Link>
         </section>
+
+        <TechnicianUpcoming featured defaultOpen />
 
         <section className="mt-7">
           <div className="flex items-end justify-between gap-4">
