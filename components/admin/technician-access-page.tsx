@@ -180,7 +180,25 @@ export function TechnicianAccessPage() {
   );
   const referenceDate = today ? new Date(today.loadedAt) : new Date();
 
-  async function issue(member: TechnicianRosterMember) {
+  async function sendInstallLink(pass: IssuedPass): Promise<string> {
+    const response = await fetch(
+      `/api/admin/technicians/access-grants/${pass.grantId}/sms`,
+      {
+        method: "POST",
+        headers: getAdminRequestHeaders(),
+        body: JSON.stringify({
+          inviteToken: new URL(pass.installUrl).searchParams.get("token"),
+        }),
+      },
+    );
+    const body = await response.json();
+    return response.ok
+      ? `Text status: ${body.status}${body.destinationEnding ? ` · phone ending ${body.destinationEnding}` : ""}.`
+      : body.error ||
+          "Text not confirmed. Check delivery before creating another invitation.";
+  }
+
+  async function issue(member: TechnicianRosterMember, textImmediately = false) {
     setSmsReceipt(null);
     setWorkingUserId(member.jobberUserId);
     setIssuedPass(null);
@@ -211,12 +229,17 @@ export function TechnicianAccessPage() {
       ) {
         throw new Error(body?.error ?? "Could not create Technician Access.");
       }
-      setIssuedPass({
+      const nextPass = {
         grantId: body.grantId,
         displayName: member.displayName,
         inviteExpiresAt: body.inviteExpiresAt,
         installUrl: `${window.location.origin}${body.claimPath}`,
-      });
+      };
+      setIssuedPass(nextPass);
+      if (textImmediately) {
+        setSmsBusy(true);
+        setSmsReceipt(await sendInstallLink(nextPass));
+      }
       await load();
     } catch (issueError) {
       setError(
@@ -225,6 +248,7 @@ export function TechnicianAccessPage() {
           : "Could not create Technician Access.",
       );
     } finally {
+      setSmsBusy(false);
       setWorkingUserId(null);
     }
   }
@@ -233,12 +257,7 @@ export function TechnicianAccessPage() {
     if (!issuedPass || smsBusy || smsReceipt) return;
     setSmsBusy(true);
     try {
-      const response = await fetch(`/api/admin/technicians/access-grants/${issuedPass.grantId}/sms`, {
-        method: "POST", headers: getAdminRequestHeaders(),
-        body: JSON.stringify({ inviteToken: new URL(issuedPass.installUrl).searchParams.get("token") }),
-      });
-      const body = await response.json();
-      setSmsReceipt(response.ok ? `Text status: ${body.status}${body.destinationEnding ? ` · phone ending ${body.destinationEnding}` : ""}.` : body.error || "Text not confirmed. Check delivery before retrying.");
+      setSmsReceipt(await sendInstallLink(issuedPass));
     } catch { setSmsReceipt("Text not confirmed. Check delivery before creating another invitation."); }
     finally { setSmsBusy(false); }
   }
@@ -436,14 +455,22 @@ export function TechnicianAccessPage() {
                       <button
                         type="button"
                         disabled={working}
-                        onClick={() => void issue(member)}
+                        onClick={() =>
+                          void issue(member, member.source === "homeatlas")
+                        }
                         className={craftPrimaryButton}
                       >
                         {working
-                          ? "Working…"
-                          : member.currentGrant
-                            ? "Replace access"
-                            : "Create access"}
+                          ? member.source === "homeatlas"
+                            ? "Sending…"
+                            : "Working…"
+                          : member.source === "homeatlas"
+                            ? member.currentGrant
+                              ? "Reconnect by text"
+                              : "Create & text access"
+                            : member.currentGrant
+                              ? "Replace access"
+                              : "Create access"}
                       </button>
                       {member.currentGrant ? (
                         <button

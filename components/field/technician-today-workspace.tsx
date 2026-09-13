@@ -1030,12 +1030,24 @@ export function TechnicianTodayWorkspace({
           </Link>
           <div className="flex gap-2">
             {technicianSession ? (
-              <form action="/api/field/access/logout" method="post">
+              <form
+                action="/api/field/access/logout"
+                method="post"
+                onSubmit={(event) => {
+                  if (
+                    !window.confirm(
+                      "Remove HomeAtlas access from this phone? You will need HQ to text you a new private link before you can get back in.",
+                    )
+                  ) {
+                    event.preventDefault();
+                  }
+                }}
+              >
                 <button
                   type="submit"
                   className="inline-flex min-h-11 items-center rounded-full border border-foreground/10 px-4 text-xs text-foreground/65"
                 >
-                  Sign out
+                  Remove this phone
                 </button>
               </form>
             ) : embeddedInHq && onExitHqMode ? (

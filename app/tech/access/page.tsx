@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import { AccessFrame } from "@/components/craft/access-frame";
 import { StatusNotice } from "@/components/craft/status-notice";
-import { craftPrimaryButton } from "@/lib/craft/tokens";
+import { craftPrimaryButton, craftSecondaryButton } from "@/lib/craft/tokens";
+import { SQUEEGEEKING_PHONE_E164 } from "@/lib/marketing/local-seo";
 import { isFieldAccessToken } from "@/lib/field-operations/field-access";
 
 export const metadata: Metadata = {
@@ -22,7 +23,7 @@ interface FieldAccessPageProps {
 function safeReturnTo(value: string | undefined): string {
   return value?.startsWith("/tech") && !value.startsWith("/tech/access")
     ? value
-    : "/tech";
+    : "/tech/suite";
 }
 
 export default async function FieldAccessPage({
@@ -63,10 +64,18 @@ export default async function FieldAccessPage({
             </p>
           </form>
         ) : (
-          <StatusNotice tone="warning" className="mt-7">
-            Open the one-time link HQ created for your technician profile. If
-            you need a new link, ask HQ to open Team in HomeAtlas.
-          </StatusNotice>
+          <div className="mt-7 space-y-4">
+            <StatusNotice tone="warning">
+              Technician Access does not use a password. Ask HQ to open Team
+              and tap <strong>Reconnect by text</strong> beside your name.
+            </StatusNotice>
+            <a
+              href={`sms:${SQUEEGEEKING_PHONE_E164}?&body=${encodeURIComponent("I need a new HomeAtlas Technician Access link.")}`}
+              className={`w-full ${craftSecondaryButton}`}
+            >
+              Text HQ for new access
+            </a>
+          </div>
         )}
     </AccessFrame>
   );

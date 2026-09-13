@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const destinations = [
+  { href: "/tech/suite", label: "Suite", glyph: "★" },
   { href: "/tech", label: "Today", glyph: "01" },
   { href: "/tech/refer", label: "Refer", glyph: "+" },
 ] as const;
@@ -17,7 +18,7 @@ export function TechnicianPortalDock() {
       aria-label="Technician workspace"
       className="fixed inset-x-0 bottom-0 z-50 mx-auto w-full max-w-lg border-t border-[var(--border-strong)] bg-background/95 px-3 pb-[calc(env(safe-area-inset-bottom)+0.7rem)] pt-2 shadow-[0_-16px_42px_rgba(0,0,0,0.2)] backdrop-blur-xl"
     >
-      <ul className="grid grid-cols-2 gap-2">
+      <ul className="grid grid-cols-3 gap-2">
         {destinations.map((destination) => {
           const active = destination.href === "/tech"
             ? pathname === destination.href

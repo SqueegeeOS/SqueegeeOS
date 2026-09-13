@@ -11,7 +11,7 @@ function safeReturnTo(value: FormDataEntryValue | null): string {
     value.startsWith("/tech") &&
     !value.startsWith("/tech/access")
     ? value
-    : "/tech";
+    : "/tech/suite";
 }
 
 export async function POST(request: Request) {

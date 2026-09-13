@@ -21,7 +21,7 @@ export function TechnicianUpcoming() {
     finally { setLoading(false); }
   }
   const date = (value: string) => new Intl.DateTimeFormat("en-US", { timeZone: "America/Los_Angeles", weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(value));
-  return <section className="mb-6 rounded-[var(--radius-card-lg)] border border-accent/25 bg-surface-elevated p-5">
+  return <section id="upcoming-jobs" className="mb-6 scroll-mt-6 rounded-[var(--radius-card-lg)] border border-accent/25 bg-surface-elevated p-5">
     <button type="button" aria-expanded={open} disabled={loading} onClick={() => open ? setOpen(false) : void load()} className="flex min-h-12 w-full items-center justify-between gap-4 text-left disabled:opacity-50">
       <span><span className="block text-lg font-semibold text-foreground">Upcoming jobs</span><span className="mt-1 block text-sm text-muted">Look ahead at your next six weeks.</span></span>
       <span className="text-accent" aria-hidden>{loading ? "…" : open ? "−" : "+"}</span>

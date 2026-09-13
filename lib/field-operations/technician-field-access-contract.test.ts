@@ -28,6 +28,11 @@ const fieldVisitEvents = read(
 const adminGrantRoute = read(
   "../../app/api/admin/technicians/access-grants/route.ts",
 );
+const accessPage = read("../../app/tech/access/page.tsx");
+const accessAdmin = read("../../components/admin/technician-access-page.tsx");
+const fieldWorkspace = read(
+  "../../components/field/technician-today-workspace.tsx",
+);
 
 describe("technician Field Pass security contract", () => {
   it("stores hashes only and exposes all grant mutations only to service_role", () => {
@@ -110,5 +115,15 @@ describe("technician Field Pass security contract", () => {
     expect(persistentMigration).toContain("public.homeatlas_technicians");
     expect(access).toContain("homeatlas:");
     expect(access).toContain("Choose an active HomeAtlas technician");
+  });
+
+  it("makes technician reconnection obvious and guards against accidental removal", () => {
+    expect(accessAdmin).toContain("Reconnect by text");
+    expect(accessAdmin).toContain("sendInstallLink(nextPass)");
+    expect(accessPage).toContain("Text HQ for new access");
+    expect(accessPage).toContain("Technician Access does not use a password");
+    expect(fieldWorkspace).toContain("Remove this phone");
+    expect(fieldWorkspace).toContain("window.confirm");
+    expect(fieldWorkspace).toContain("need HQ to text you a new private link");
   });
 });
