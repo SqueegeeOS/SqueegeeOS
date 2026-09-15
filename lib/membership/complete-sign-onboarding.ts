@@ -567,9 +567,9 @@ export async function completeSignOnboarding(
     .eq("id", membershipId);
 
   if (membershipLinkError) {
-    console.error(
-      "[onboarding] Membership link update failed:",
-      membershipLinkError.message,
+    throw new SignOnboardingError(
+      `Agreement saved but membership linking failed: ${membershipLinkError.message}`,
+      { membershipId, agreementId, onboardingStatus: "pending_payment" },
     );
   }
 
@@ -601,9 +601,9 @@ export async function completeSignOnboarding(
     .eq("id", presentation.id);
 
   if (presentationError) {
-    console.error(
-      "[onboarding] Presentation link update failed:",
-      presentationError.message,
+    throw new SignOnboardingError(
+      `Agreement saved but presentation linking failed: ${presentationError.message}`,
+      { membershipId, agreementId, onboardingStatus: "pending_payment" },
     );
   }
 

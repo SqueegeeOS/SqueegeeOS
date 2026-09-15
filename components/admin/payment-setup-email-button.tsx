@@ -20,6 +20,7 @@ export function PaymentSetupEmailButton({
 }) {
   const [sending, setSending] = useState(false);
   const [accepted, setAccepted] = useState(false);
+  const [reconciled, setReconciled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const send = async () => {
@@ -41,11 +42,13 @@ export function PaymentSetupEmailButton({
       const body = (await response.json().catch(() => null)) as {
         error?: string;
         message?: string;
+        status?: string;
       } | null;
       if (!response.ok) {
         throw new Error(body?.error ?? "Secure Stripe email could not be sent.");
       }
       setAccepted(true);
+      setReconciled(body?.status === "reconciled");
       onAccepted?.(
         body?.message ?? "Secure Stripe email accepted for delivery.",
       );
@@ -75,7 +78,9 @@ export function PaymentSetupEmailButton({
         {sending
           ? "Sending Stripe link…"
           : accepted
-            ? "Stripe email accepted"
+            ? reconciled
+              ? "Stripe card matched"
+              : "Stripe email accepted"
             : idleLabel}
       </button>
       {error ? (

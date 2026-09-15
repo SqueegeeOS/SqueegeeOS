@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { sendHostedMembershipPaymentLink } from "@/lib/membership/hosted-payment-handoff";
 import { publicHostedPaymentHandoffError } from "@/lib/membership/hosted-payment-handoff-errors";
+import { reconcileExistingStripeSetup } from "@/lib/membership/reconcile-existing-stripe-setup";
 import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
 import { getPresentation } from "@/lib/presentations/repository";
 import { authorizeSalesPresentationRequest } from "@/lib/sales/sales-access";
@@ -38,6 +39,18 @@ export async function POST(
         { error: "Finish the signed agreement before emailing card setup." },
         409,
       );
+    }
+
+    const recovered = await reconcileExistingStripeSetup(
+      presentation.membershipId,
+    );
+    if (recovered) {
+      return response({
+        status: "reconciled",
+        setupIntentId: recovered.setupIntentId,
+        message:
+          "Stripe already had this card. HomeAtlas matched it successfully; no duplicate email was sent.",
+      });
     }
 
     const result = await sendHostedMembershipPaymentLink({

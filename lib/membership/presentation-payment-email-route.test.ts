@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   authorizeSalesPresentationRequest: vi.fn(),
   getPresentation: vi.fn(),
   isSupabaseConfigured: vi.fn(),
+  reconcileExistingStripeSetup: vi.fn(),
   sendHostedMembershipPaymentLink: vi.fn(),
 }));
 
@@ -22,6 +23,10 @@ vi.mock("@/lib/persistence/supabase/client", () => ({
 
 vi.mock("@/lib/membership/hosted-payment-handoff", () => ({
   sendHostedMembershipPaymentLink: mocks.sendHostedMembershipPaymentLink,
+}));
+
+vi.mock("@/lib/membership/reconcile-existing-stripe-setup", () => ({
+  reconcileExistingStripeSetup: mocks.reconcileExistingStripeSetup,
 }));
 
 import { POST } from "@/app/api/presentations/[id]/send-payment-link/route";
@@ -61,6 +66,7 @@ describe("presentation payment email route", () => {
       status: "signed",
       membershipId: MEMBERSHIP_ID,
     });
+    mocks.reconcileExistingStripeSetup.mockResolvedValue(null);
     mocks.sendHostedMembershipPaymentLink.mockResolvedValue({
       status: "sent",
       recipientMasked: "c***@example.com",
@@ -129,5 +135,26 @@ describe("presentation payment email route", () => {
     expect(mocks.sendHostedMembershipPaymentLink).toHaveBeenCalledWith(
       expect.objectContaining({ actor: "homeatlas_hq" }),
     );
+  });
+
+  it("reconciles an existing Stripe card instead of sending another email", async () => {
+    mocks.reconcileExistingStripeSetup.mockResolvedValue({
+      setupIntentId: "seti_existing",
+      operation: "membership_enrollment_setup",
+    });
+
+    const response = await POST(request(), context());
+    const body = (await response.json()) as {
+      status?: string;
+      message?: string;
+    };
+
+    expect(response.status).toBe(200);
+    expect(body.status).toBe("reconciled");
+    expect(body.message).toContain("no duplicate email was sent");
+    expect(mocks.reconcileExistingStripeSetup).toHaveBeenCalledWith(
+      MEMBERSHIP_ID,
+    );
+    expect(mocks.sendHostedMembershipPaymentLink).not.toHaveBeenCalled();
   });
 });

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { sendHostedMembershipPaymentLink } from "@/lib/membership/hosted-payment-handoff";
 import { publicHostedPaymentHandoffError } from "@/lib/membership/hosted-payment-handoff-errors";
+import { reconcileExistingStripeSetup } from "@/lib/membership/reconcile-existing-stripe-setup";
 import { isSupabaseConfigured } from "@/lib/persistence/supabase/client";
 
 export const runtime = "nodejs";
@@ -31,6 +32,15 @@ export async function POST(
   }
 
   try {
+    const recovered = await reconcileExistingStripeSetup(membershipId);
+    if (recovered) {
+      return response({
+        status: "reconciled",
+        setupIntentId: recovered.setupIntentId,
+        message:
+          "Stripe already had this card. HomeAtlas matched it successfully; no duplicate email was sent.",
+      });
+    }
     const result = await sendHostedMembershipPaymentLink({
       membershipId,
       requestOrigin: new URL(request.url).origin,
