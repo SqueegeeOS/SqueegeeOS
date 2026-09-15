@@ -55,6 +55,12 @@ describe("signature invitation email", () => {
     expect(email.html).toContain(
       "https://www.squeegeeking.net/enroll/private-token",
     );
+    expect(email.html).toContain(
+      "If the button does not open, copy and paste this address",
+    );
+    expect(
+      email.html.match(/https:\/\/www\.squeegeeking\.net\/enroll\/private-token/g),
+    ).toHaveLength(3);
     expect(email.text).toContain("Review and sign securely");
     expect(email.text).toContain("draw your signature in one box");
     expect(email.text).not.toContain("DocuSign");

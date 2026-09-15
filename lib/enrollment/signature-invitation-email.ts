@@ -64,6 +64,10 @@ export function buildSignatureInvitationEmail(input: {
             <p style="margin:0;color:rgba(255,255,255,.62);font-size:13px;line-height:1.55">${safePlanSummary}</p>
           </div>
           <p style="margin:28px 0"><a href="${safeEnrollmentUrl}" style="display:inline-block;border-radius:999px;background:#f4efe6;color:#173f32;text-decoration:none;font-size:14px;font-weight:800;padding:15px 24px">Open my agreement</a></p>
+          <div style="margin:0 0 18px;border-radius:14px;background:rgba(0,0,0,.12);padding:13px 15px">
+            <p style="margin:0 0 6px;color:rgba(255,255,255,.42);font-size:11px;line-height:1.5">If the button does not open, copy and paste this address into your browser:</p>
+            <a href="${safeEnrollmentUrl}" style="color:#d9d0bf;font-size:11px;line-height:1.5;overflow-wrap:anywhere;word-break:break-all">${safeEnrollmentUrl}</a>
+          </div>
           <p style="margin:0 0 12px;color:rgba(255,255,255,.52);font-size:13px;line-height:1.6">${safePaymentLine}</p>
           <p style="margin:0;color:rgba(255,255,255,.34);font-size:11px;line-height:1.55">This private link shows your exact visits, included services, optional choices, and payment arrangement before you sign.</p>
         </div>
