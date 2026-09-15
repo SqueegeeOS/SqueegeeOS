@@ -19,6 +19,7 @@ import {
   getEnrollmentReadiness,
 } from "./readiness";
 import { enrollmentTokenSha256, generateEnrollmentToken } from "./token";
+import { rememberEnrollmentPacketAccessToken } from "./packet-token-repository";
 import type {
   EnrollmentPacketRow,
   EnrollmentSalesContext,
@@ -332,6 +333,11 @@ export async function sendEnrollmentPacket(input: {
   if (rotateToken.error) {
     throw new Error(`The private agreement link could not be secured: ${rotateToken.error.message}`);
   }
+  await rememberEnrollmentPacketAccessToken({
+    packetId: packet.id,
+    tokenSha256,
+    expiresAt: tokenExpiresAt,
+  });
 
   try {
     if (

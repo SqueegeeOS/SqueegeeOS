@@ -28,6 +28,7 @@ const publicSigningRoute = read(
   "../../app/api/enrollment/[token]/signing/route.ts",
 );
 const publicSigning = read("./public-signing.ts");
+const packetTokenRepository = read("./packet-token-repository.ts");
 
 describe("enrollment route security contract", () => {
   it("keeps packet creation behind presentation ownership and readiness behind HQ auth", () => {
@@ -174,18 +175,27 @@ describe("enrollment route security contract", () => {
   });
 
   it("validates the private token and packet state before creating an embedded signing view", () => {
-    const plausible = publicSigning.indexOf("isPlausibleEnrollmentToken(token)");
-    const packetRead = publicSigning.indexOf('.from("enrollment_packets")', plausible);
+    const plausible = packetTokenRepository.indexOf(
+      "isPlausibleEnrollmentToken(token)",
+    );
+    const packetRead = packetTokenRepository.indexOf(
+      '.from("enrollment_packets")',
+      plausible,
+    );
+    const sharedLookup = publicSigning.indexOf(
+      "findEnrollmentPacketByToken(token)",
+    );
     const recipientView = publicSigning.indexOf(
       "createDocuSignRecipientView",
-      packetRead,
+      sharedLookup,
     );
 
     expect(publicSigningRoute).toContain("export async function POST(");
     expect(publicSigningRoute).toContain('"Cache-Control": "private, no-store"');
     expect(plausible).toBeGreaterThan(-1);
     expect(packetRead).toBeGreaterThan(plausible);
+    expect(sharedLookup).toBeGreaterThan(-1);
     expect(publicSigning).toContain('packet.status !== "signature_sent"');
-    expect(recipientView).toBeGreaterThan(packetRead);
+    expect(recipientView).toBeGreaterThan(sharedLookup);
   });
 });

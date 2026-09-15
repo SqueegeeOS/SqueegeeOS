@@ -1,9 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
-import {
-  enrollmentTokenSha256,
-  isPlausibleEnrollmentToken,
-} from "@/lib/enrollment/token";
+import { isPlausibleEnrollmentToken } from "@/lib/enrollment/token";
+import { findEnrollmentPacketByToken } from "@/lib/enrollment/packet-token-repository";
 import type { EnrollmentPacketRow } from "@/lib/enrollment/types";
 import { completeRemoteEnrollmentSignature } from "@/lib/enrollment/complete-remote-signature";
 import { completeManualPaymentHandoff } from "@/lib/enrollment/manual-payment-handoff";
@@ -62,15 +60,11 @@ export async function POST(
   }
 
   const supabase = createServiceRoleSupabaseClient();
-  const packetResult = await supabase
-    .from("enrollment_packets")
-    .select("*")
-    .eq("public_token_sha256", enrollmentTokenSha256(token))
-    .maybeSingle();
-  if (packetResult.error || !packetResult.data) {
+  const packetResult = await findEnrollmentPacketByToken(token);
+  if (!packetResult) {
     return response({ error: "Enrollment handoff not found." }, 404);
   }
-  let packet = packetResult.data as PacketWithVersions;
+  let packet = packetResult as PacketWithVersions;
   if (new Date(packet.public_token_expires_at).getTime() <= Date.now()) {
     return response({ error: "This private agreement link has expired." }, 410);
   }

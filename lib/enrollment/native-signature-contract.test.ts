@@ -16,7 +16,7 @@ const repair = read("./repair-recorded-native-enrollment.ts");
 describe("HomeAtlas native enrollment signature contract", () => {
   it("keeps the customer signature behind the private packet token and provider binding", () => {
     expect(route).toContain("isPlausibleEnrollmentToken(token)");
-    expect(route).toContain("enrollmentTokenSha256(token)");
+    expect(route).toContain("findEnrollmentPacketByToken(token)");
     expect(route).toContain('packet.signature_provider !== "homeatlas_native"');
     expect(route).toContain('packet.status !== "signature_sent"');
     expect(route).toContain('body?.consent !== true');

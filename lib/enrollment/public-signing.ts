@@ -2,9 +2,8 @@ import "server-only";
 
 import { createDocuSignRecipientView } from "@/lib/integrations/docusign";
 import { resolvePublicAppOrigin } from "@/lib/membership/portal-access";
-import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
-import { enrollmentTokenSha256, isPlausibleEnrollmentToken } from "./token";
-import type { EnrollmentDocumentSnapshot, EnrollmentPacketRow } from "./types";
+import { findEnrollmentPacketByToken } from "./packet-token-repository";
+import type { EnrollmentDocumentSnapshot } from "./types";
 
 export class EnrollmentSigningUnavailableError extends Error {
   constructor(message: string) {
@@ -16,17 +15,8 @@ export class EnrollmentSigningUnavailableError extends Error {
 export async function createPublicEnrollmentSigningSession(
   token: string,
 ): Promise<string | null> {
-  if (!isPlausibleEnrollmentToken(token)) return null;
-
-  const supabase = createServiceRoleSupabaseClient();
-  const result = await supabase
-    .from("enrollment_packets")
-    .select("*")
-    .eq("public_token_sha256", enrollmentTokenSha256(token))
-    .maybeSingle();
-  if (result.error || !result.data) return null;
-
-  const packet = result.data as EnrollmentPacketRow;
+  const packet = await findEnrollmentPacketByToken(token);
+  if (!packet) return null;
   if (new Date(packet.public_token_expires_at).getTime() <= Date.now()) {
     return null;
   }

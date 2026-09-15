@@ -2,10 +2,9 @@ import "server-only";
 
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { buildPortalAccessUrl } from "@/lib/membership/portal-access";
-import { enrollmentTokenSha256, isPlausibleEnrollmentToken } from "./token";
+import { findEnrollmentPacketByToken } from "./packet-token-repository";
 import type {
   EnrollmentDocumentSnapshot,
-  EnrollmentPacketRow,
   EnrollmentPacketStatus,
   EnrollmentSignatureProvider,
 } from "./types";
@@ -52,15 +51,10 @@ function maskEmail(email: string): string {
 export async function loadPublicEnrollmentStatus(
   token: string,
 ): Promise<PublicEnrollmentStatus | null> {
-  if (!isPlausibleEnrollmentToken(token)) return null;
+  const packet = await findEnrollmentPacketByToken(token);
+  if (!packet) return null;
+
   const supabase = createServiceRoleSupabaseClient();
-  const result = await supabase
-    .from("enrollment_packets")
-    .select("*")
-    .eq("public_token_sha256", enrollmentTokenSha256(token))
-    .maybeSingle();
-  if (result.error || !result.data) return null;
-  const packet = result.data as EnrollmentPacketRow;
   const signatureProvider: EnrollmentSignatureProvider =
     packet.signature_provider === "homeatlas_native"
       ? "homeatlas_native"

@@ -6,6 +6,7 @@ import { resolvePublicAppOrigin } from "@/lib/membership/portal-access";
 import { getStripe } from "@/lib/stripe/server";
 import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { enrollmentTokenSha256, generateEnrollmentToken } from "./token";
+import { rememberEnrollmentPacketAccessToken } from "./packet-token-repository";
 import type { EnrollmentPacketRow } from "./types";
 
 const CHECKOUT_TTL_SECONDS = 24 * 60 * 60;
@@ -138,14 +139,16 @@ export async function createEnrollmentStripeHandoff(input: {
   if (!session.url) throw new Error("Stripe did not return a hosted setup URL.");
   const setupIntentId = checkoutSessionId(session.setup_intent);
   const expiresAt = new Date(expiresAtSeconds * 1000).toISOString();
+  const tokenExpiresAt = new Date(
+    Date.now() + 30 * 24 * 60 * 60 * 1000,
+  ).toISOString();
+  const tokenSha256 = enrollmentTokenSha256(rawToken);
   const saveHandoff = await supabase
     .from("enrollment_packets")
     .update({
       status: "payment_ready",
-      public_token_sha256: enrollmentTokenSha256(rawToken),
-      public_token_expires_at: new Date(
-        Date.now() + 30 * 24 * 60 * 60 * 1000,
-      ).toISOString(),
+      public_token_sha256: tokenSha256,
+      public_token_expires_at: tokenExpiresAt,
       stripe_checkout_session_id: session.id,
       stripe_setup_intent_id: setupIntentId,
       stripe_payment_url: session.url,
@@ -156,6 +159,11 @@ export async function createEnrollmentStripeHandoff(input: {
     })
     .eq("id", input.packet.id);
   if (saveHandoff.error) throw new Error(saveHandoff.error.message);
+  await rememberEnrollmentPacketAccessToken({
+    packetId: input.packet.id,
+    tokenSha256,
+    expiresAt: tokenExpiresAt,
+  });
 
   const replyTo =
     process.env.RESEND_COMMUNICATIONS_REPLY_TO?.trim() ||
