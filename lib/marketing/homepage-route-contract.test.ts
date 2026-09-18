@@ -91,6 +91,9 @@ describe("public homepage route contract", () => {
     expect(leadership).toContain('from "@/lib/team/founders"');
     expect(leadership).toContain("SQUEEGEEKING_FOUNDERS.map");
     expect(leadership).toContain("SQUEEGEEKING_TEAM_LEADS.map");
+    expect(leadership).toContain("const firstName = member.name.trim()");
+    expect(leadership).toContain("<h3>{firstName}</h3>");
+    expect(leadership).not.toContain("<h3>{member.name}</h3>");
     expect(atlas).toContain("MEMBER_ORBIT_FEATURES");
     expect(atlas).toContain("RainBlock treatment");
     expect(atlas).toContain("Built in Chico.");

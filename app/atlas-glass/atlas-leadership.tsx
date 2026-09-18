@@ -15,7 +15,8 @@ function LeadershipCard({
   index: number;
   compact?: boolean;
 }) {
-  const initials = member.name
+  const firstName = member.name.trim().split(/\s+/)[0] || member.name;
+  const initials = firstName
     .trim()
     .split(/\s+/)
     .map((part) => part[0])
@@ -40,7 +41,7 @@ function LeadershipCard({
       </div>
       <div className={styles.founderIdentity}>
         <small>{member.role}</small>
-        <h3>{member.name}</h3>
+        <h3>{firstName}</h3>
       </div>
       <p>{member.bio}</p>
       {member.quote ? <blockquote>“{member.quote}”</blockquote> : null}
