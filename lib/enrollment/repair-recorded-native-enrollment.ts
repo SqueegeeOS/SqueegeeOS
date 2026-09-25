@@ -2,6 +2,7 @@ import "server-only";
 
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { completeManualPaymentHandoff } from "./manual-payment-handoff";
+import { createEnrollmentStripeHandoff } from "./stripe-handoff";
 import { enrollmentMembershipBillingState } from "./membership-billing-state";
 import type { EnrollmentPacketRow } from "./types";
 
@@ -19,10 +20,12 @@ export async function repairRecordedNativeEnrollment(
   presentationId: string,
 ): Promise<{
   packetId: string;
-  status: "portal_ready";
+  status: "portal_ready" | "payment_ready" | "payment_sent";
   membershipId: string;
   agreementId: string;
-  portalUrl: string;
+  portalUrl?: string;
+  paymentUrl?: string;
+  enrollmentUrl?: string;
   emailSent: boolean;
 }> {
   const supabase = createServiceRoleSupabaseClient();
@@ -38,11 +41,40 @@ export async function repairRecordedNativeEnrollment(
   if (packet.signature_provider !== "homeatlas_native") {
     throw new Error("Only a HomeAtlas-native signature can use this repair.");
   }
-  if (packet.payment_rail !== "manual_cash_check") {
-    throw new Error("Only an owner-approved cash/check packet can use this repair.");
-  }
-  if (!packet.manual_payment_approved_at || !packet.manual_payment_approved_by) {
+  if (
+    packet.payment_rail === "manual_cash_check" &&
+    (!packet.manual_payment_approved_at || !packet.manual_payment_approved_by)
+  ) {
     throw new Error("The cash/check packet is missing owner approval evidence.");
+  }
+
+  if (
+    packet.payment_rail === "stripe_card" &&
+    packet.membership_id &&
+    packet.signed_agreement_id &&
+    packet.homeowner_id &&
+    packet.property_id &&
+    packet.signed_at
+  ) {
+    const handoff = await createEnrollmentStripeHandoff({
+      packet,
+      membershipId: packet.membership_id,
+    });
+    return {
+      packetId: packet.id,
+      status: handoff.emailSent ? "payment_sent" : "payment_ready",
+      membershipId: packet.membership_id,
+      agreementId: packet.signed_agreement_id,
+      paymentUrl: handoff.paymentUrl,
+      enrollmentUrl: handoff.enrollmentUrl,
+      emailSent: handoff.emailSent,
+    };
+  }
+
+  if (packet.payment_rail !== "manual_cash_check") {
+    throw new Error(
+      "The Stripe-card packet must have complete signed lineage before its handoff can be retried.",
+    );
   }
 
   if (
@@ -116,7 +148,7 @@ export async function repairRecordedNativeEnrollment(
       status: "active",
       ...enrollmentMembershipBillingState({
         manualPayment: true,
-        pausedAt: packet.manual_payment_approved_at,
+        pausedAt: packet.manual_payment_approved_at!,
       }),
       payment_rail: packet.payment_rail,
       manual_payment_approved_at: packet.manual_payment_approved_at,
