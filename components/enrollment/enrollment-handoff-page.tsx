@@ -320,9 +320,9 @@ export function EnrollmentHandoffPage({
                     Your plan
                   </p>
                   <p className="mt-2 font-serif text-3xl font-light text-white">
-                    {money(status.agreementSummary.annualTotalCents)}
+                    {money(status.recurringVisitPriceCents)}
                   </p>
-                  <p className="mt-1 text-xs text-white/42">per year</p>
+                  <p className="mt-1 text-xs text-white/42">per planned visit</p>
                 </div>
                 <span className="rounded-full border border-white/[0.09] bg-white/[0.04] px-3 py-1.5 text-[10px] text-white/55">
                   {status.agreementSummary.visitsPerYear} visits
@@ -331,13 +331,10 @@ export function EnrollmentHandoffPage({
               <p className="mt-4 text-xs leading-relaxed text-white/52">
                 {status.agreementSummary.planSummary}
               </p>
-              <details
-                open
-                className="group mt-5 border-t border-white/[0.08] pt-4"
-              >
+              <details className="group mt-5 border-t border-white/[0.08] pt-4">
                 <summary className="cursor-pointer list-none text-xs font-semibold text-[#d9d0bf] marker:content-none">
-                  <span className="group-open:hidden">View visit details</span>
-                  <span className="hidden group-open:inline">Hide visit details</span>
+                  <span className="group-open:hidden">View annual plan details</span>
+                  <span className="hidden group-open:inline">Hide annual plan details</span>
                 </summary>
                 <AgreementSummary agreement={status.agreementSummary} />
               </details>
