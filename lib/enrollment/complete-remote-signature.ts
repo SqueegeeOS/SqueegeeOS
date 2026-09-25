@@ -39,6 +39,7 @@ import {
   PRESENTATION_CARE_PLAN_VERSION,
 } from "@/lib/presentations/care-plan";
 import type { PresentationData } from "@/lib/presentations/types";
+import { createPresentationDraftPayload } from "@/lib/presentations/draft-persistence";
 import type {
   EnrollmentDocumentSnapshot,
   EnrollmentPacketRow,
@@ -610,8 +611,7 @@ export async function completeRemoteEnrollmentSignature(input: {
       tier: packet.agreement_tier,
       annual_rate: pricing.annualRate,
       visit_rate_overrides: overrides,
-      plan_mode: "custom",
-      care_plan: signedPresentation.carePlan,
+      draft_payload: createPresentationDraftPayload(signedPresentation),
       ...legacyOverrideFieldsForTier(overrides, packet.agreement_tier),
     })
     .eq("id", presentation.id);

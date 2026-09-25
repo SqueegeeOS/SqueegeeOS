@@ -61,6 +61,14 @@ describe("HomeAtlas native enrollment signature contract", () => {
     expect(handoff).not.toMatch(/<details\s+open\s+className=/);
   });
 
+  it("persists the signed plan through the current presentation draft schema", () => {
+    expect(completion).toContain(
+      "draft_payload: createPresentationDraftPayload(signedPresentation)",
+    );
+    expect(completion).not.toContain('plan_mode: "custom"');
+    expect(completion).not.toContain("care_plan: signedPresentation.carePlan");
+  });
+
   it("keeps manual-payment membership pause metadata consistent", () => {
     expect(completion).toContain("enrollmentMembershipBillingState({");
     expect(completion).toContain("manualPayment,");
