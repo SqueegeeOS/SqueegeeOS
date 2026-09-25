@@ -53,8 +53,12 @@ describe("HomeAtlas native enrollment signature contract", () => {
     expect(handoff).not.toContain("#f0c85b");
   });
 
-  it("shows the visit-by-visit agreement details immediately", () => {
-    expect(handoff).toMatch(/<details\s+open\s+className=/);
+  it("leads with the per-visit price and keeps annual details available on request", () => {
+    expect(handoff).toContain("money(status.recurringVisitPriceCents)");
+    expect(handoff).toContain("per planned visit");
+    expect(handoff).toContain("View annual plan details");
+    expect(handoff).toContain("money(agreement.annualTotalCents)");
+    expect(handoff).not.toMatch(/<details\s+open\s+className=/);
   });
 
   it("keeps manual-payment membership pause metadata consistent", () => {
