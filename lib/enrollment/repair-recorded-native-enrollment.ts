@@ -148,7 +148,7 @@ export async function repairRecordedNativeEnrollment(
       status: "active",
       ...enrollmentMembershipBillingState({
         manualPayment: true,
-        pausedAt: packet.manual_payment_approved_at,
+        pausedAt: packet.manual_payment_approved_at!,
       }),
       payment_rail: packet.payment_rail,
       manual_payment_approved_at: packet.manual_payment_approved_at,
