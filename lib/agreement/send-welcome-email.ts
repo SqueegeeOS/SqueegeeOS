@@ -127,6 +127,7 @@ export async function sendWelcomeEmail(
 
         <p style="color: #666; font-size: 13px; line-height: 1.6; margin: 0;">
           Save this link — it is your private access to your home&apos;s care record.
+          Your signed agreement is available to view or download inside the portal.
           Add ${PLATFORM_BRAND.name} to your Home Screen for the best experience.
         </p>
 

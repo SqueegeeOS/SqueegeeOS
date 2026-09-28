@@ -12,6 +12,9 @@ const sendPacket = read("./send-packet.ts");
 const handoff = read("../../components/enrollment/enrollment-handoff-page.tsx");
 const completion = read("./complete-remote-signature.ts");
 const repair = read("./repair-recorded-native-enrollment.ts");
+const agreementView = read("../../app/api/enrollment/[token]/agreement/route.ts");
+const stripeHandoff = read("./stripe-handoff.ts");
+const manualHandoff = read("./manual-payment-handoff.ts");
 
 describe("HomeAtlas native enrollment signature contract", () => {
   it("keeps the customer signature behind the private packet token and provider binding", () => {
@@ -66,6 +69,23 @@ describe("HomeAtlas native enrollment signature contract", () => {
     expect(handoff).toContain("View annual plan details");
     expect(handoff).toContain("money(agreement.annualTotalCents)");
     expect(handoff).not.toMatch(/<details\s+open\s+className=/);
+  });
+
+  it("offers the exact private PDF before signing and the saved PDF afterward", () => {
+    expect(handoff).toContain("View agreement PDF");
+    expect(handoff).toContain("View your signed agreement (PDF)");
+    expect(agreementView).toContain("findEnrollmentPacketByToken(token)");
+    expect(agreementView).toContain('packet.signature_provider !== "homeatlas_native"');
+    expect(agreementView).toContain("generateEnrollmentAgreementPreviewPDF");
+    expect(agreementView).toContain('.eq("id", packet.signed_agreement_id)');
+    expect(agreementView).toContain('"Cache-Control": "private, no-store, max-age=0"');
+  });
+
+  it("attaches the vault PDF to both native post-sign email rails", () => {
+    expect(stripeHandoff).toContain("loadEnrollmentSignedPdfAttachment");
+    expect(stripeHandoff).toContain("attachments: [signedPdf]");
+    expect(manualHandoff).toContain("loadEnrollmentSignedPdfAttachment");
+    expect(manualHandoff).toContain("attachments: [signedPdf]");
   });
 
   it("persists the signed plan through the current presentation draft schema", () => {

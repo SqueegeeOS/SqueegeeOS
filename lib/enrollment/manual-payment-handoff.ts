@@ -6,6 +6,7 @@ import {
 } from "@/lib/membership/portal-access";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import type { EnrollmentPacketRow } from "./types";
+import { loadEnrollmentSignedPdfAttachment } from "./signed-pdf-attachment";
 
 function htmlEscape(value: string): string {
   return value
@@ -60,19 +61,25 @@ export async function completeManualPaymentHandoff(input: {
     process.env.RESEND_COMMUNICATIONS_REPLY_TO?.trim() ||
     process.env.HOMEATLAS_LEGAL_NOTICE_EMAIL?.trim() ||
     "hello@squeegeeking.net";
+  const signedPdf = await loadEnrollmentSignedPdfAttachment(
+    input.packet,
+    input.membershipId,
+  );
   const email = await sendResendEmail({
     to: input.packet.customer_email,
     replyTo,
     idempotencyKey: `enrollment-manual-portal-${input.packet.id}`,
+    attachments: [signedPdf],
     subject: `${input.packet.customer_name}, your HomeAtlas is ready`,
     text:
-      `Your agreement is complete and your cash/check payment arrangement is on file. Open your private HomeAtlas portal: ${portalUrl}\n\n` +
+      `Your signed agreement PDF is attached. Your cash/check payment arrangement is on file. Open your private HomeAtlas portal: ${portalUrl}\n\n` +
       "No card was stored and automatic card billing is not enabled.",
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;color:#17211c">
         <p style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#587060">HomeAtlas · SqueegeeKing</p>
         <h1 style="font-family:Georgia,serif;font-size:32px;font-weight:400;margin:14px 0">Your home is under care.</h1>
         <p style="font-size:16px;line-height:1.65">Hi ${safeName} — your agreement and cash/check payment arrangement are complete. Your private home-care portal is ready.</p>
+        <p style="font-size:14px;line-height:1.6;color:#587060">Your signed agreement PDF is attached for your records.</p>
         <p style="margin:28px 0"><a href="${safePortalUrl}" style="display:inline-block;background:#183f2b;color:#fff;text-decoration:none;padding:15px 22px;border-radius:10px;font-weight:700">Open my HomeAtlas</a></p>
         <p style="font-size:14px;line-height:1.6;color:#587060">No card was stored and automatic card billing is not enabled for this account.</p>
       </div>`,

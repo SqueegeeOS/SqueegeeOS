@@ -17,6 +17,7 @@ import {
 import type { MembershipPlanId } from "@/lib/membership/types";
 import { storeSignedPdf } from "@/lib/agreement/store-signed-pdf";
 import { generateSignedPDF } from "@/lib/agreement/generate-signed-pdf";
+import { enrollmentAgreementPdfInput } from "./agreement-pdf-input";
 import { storeSignatureImage } from "@/lib/agreement/store-signature-image";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
@@ -440,35 +441,9 @@ export async function completeRemoteEnrollmentSignature(input: {
   if (signatureProvider === "homeatlas_native") {
     const signatureDataUrl = input.signatureDataUrl as string;
     agreementPdf = await generateSignedPDF({
-      memberName: snapshot.signer?.name ?? snapshot.customer.name,
+      ...enrollmentAgreementPdfInput(snapshot),
       signedAt: input.signedAt,
       signatureDataUrl,
-      tier: pricing.planName,
-      agreementTier: packet.agreement_tier,
-      propertyName: address.propertyName,
-      monthlyPrice: packet.recurring_visit_price_cents / 100,
-      homeSqft: snapshot.property.squareFeet ?? undefined,
-      twoStory: snapshot.property.twoStory,
-      includeScreens: snapshot.plan.visits.every(
-        (visit) => visit.screens === "included",
-      ),
-      includeInterior: snapshot.plan.visits.every(
-        (visit) => visit.interiorWindows === "included",
-      ),
-      carePlan: signedPresentation.carePlan,
-      carePlanPricing: {
-        baseVisitPrice: packet.recurring_visit_price_cents / 100,
-        annualTotal: packet.annualized_value_cents / 100,
-        averageVisitPrice:
-          packet.annualized_value_cents / 100 / snapshot.plan.visitsPerYear,
-        visits: snapshot.plan.visits.map((visit, index) => ({
-          id: `visit_${index + 1}`,
-          label: visit.label,
-          total: visit.priceCents / 100,
-          usedOverride: true,
-        })),
-      },
-      annualPrice: packet.annualized_value_cents / 100,
     });
     storedSignature = await storeSignatureImage(
       signatureDataUrl,

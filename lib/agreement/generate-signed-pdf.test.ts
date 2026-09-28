@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument } from "pdf-lib";
-import { generateSignedPDF } from "./generate-signed-pdf";
+import {
+  agreementBenefitsForPdf,
+  generateEnrollmentAgreementPreviewPDF,
+  generateSignedPDF,
+} from "./generate-signed-pdf";
+import { SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
 
 /** 2×2 dark PNG — visible when embedded on a white PDF page */
 const signature =
@@ -14,6 +19,39 @@ async function embeddedImageCount(bytes: Uint8Array): Promise<number> {
 }
 
 describe("generateSignedPDF", () => {
+  it("does not promise window cleaning or treatments for a personalized solar plan", () => {
+    const benefits = agreementBenefitsForPdf(SQUEEGEEKING_TIERS.biannual, true);
+    expect(benefits.join(" ")).not.toMatch(/exterior window cleaning|rainblock/i);
+    expect(benefits).toContain("Personalized Home Care Plan");
+  });
+  it("renders an unsigned agreement for review without embedding a signature", async () => {
+    const bytes = await generateEnrollmentAgreementPreviewPDF({
+      memberName: "Test User",
+      signedAt: "2026-07-07T01:00:00.000Z",
+      tier: "SqueegeeKing Bi-Annual Home Care Membership",
+      agreementTier: "biannual",
+      propertyName: "123 Main St",
+      monthlyPrice: 208,
+      carePlan: {
+        version: 1,
+        tier: "biannual",
+        summary: "Solar panels twice yearly",
+        customerChoiceNote: "Solar cleaning only",
+        servicePrices: {
+          exteriorWindows: 0,
+          interiorWindows: 0,
+          screens: 0,
+          cobwebRemoval: 0,
+          solarPanels: 0,
+          pressureWashing: 0,
+        },
+        visits: [],
+      },
+      annualPrice: 416,
+    });
+    expect(bytes.byteLength).toBeGreaterThan(500);
+    expect(await embeddedImageCount(bytes)).toBe(0);
+  });
   it("generates a quarterly membership agreement PDF", async () => {
     const bytes = await generateSignedPDF({
       memberName: "Test User",

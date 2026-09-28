@@ -27,6 +27,10 @@ export interface SendResendEmailInput {
   idempotencyKey: string;
   html?: string;
   text?: string;
+  attachments?: Array<{
+    filename: string;
+    content: string;
+  }>;
 }
 
 interface ResendEmailOptions {
@@ -148,6 +152,7 @@ export async function sendResendEmail(
     subject,
     ...(html ? { html } : {}),
     ...(text ? { text } : {}),
+    ...(input.attachments?.length ? { attachments: input.attachments } : {}),
   };
 
   let response: Response;
