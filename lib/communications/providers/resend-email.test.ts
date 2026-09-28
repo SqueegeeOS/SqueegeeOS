@@ -73,6 +73,32 @@ describe("Resend email provider", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("sends a signed PDF attachment on an idempotent enrollment email", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ id: "email_pdf_123" }), { status: 200 }),
+    );
+    const result = await sendResendEmail(
+      {
+        to: "member@example.com",
+        subject: "Your agreement",
+        replyTo: "hello@squeegeeking.net",
+        idempotencyKey: "enrollment-payment-packet-123",
+        text: "Your signed agreement is attached.",
+        attachments: [{
+          filename: "HomeAtlas-signed-agreement.pdf",
+          content: Buffer.from("%PDF-test").toString("base64"),
+        }],
+      },
+      { config, fetch: fetchMock },
+    );
+    expect(result.ok).toBe(true);
+    const [, request] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(String(request.body)).attachments).toEqual([{
+      filename: "HomeAtlas-signed-agreement.pdf",
+      content: Buffer.from("%PDF-test").toString("base64"),
+    }]);
+  });
+
   it("returns a safe error code without copying provider response content", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response('{"message":"secret provider detail"}', { status: 401 }),

@@ -9,6 +9,7 @@ import {
   planNameForAgreement,
   SQUEEGEEKING_TIERS,
   type SqueegeeKingTierId,
+  type SqueegeeKingTierDefinition,
 } from "@/lib/membership/tier-config";
 import {
   buildAgreementPricingSnapshot,
@@ -58,6 +59,14 @@ export interface GenerateSignedPDFInput {
   annualPrice?: number;
   pricingSnapshot?: AgreementPricingSnapshot;
   enrollmentSavings?: number;
+  /** Frozen enrollment disclosures; existing direct-sign callers may omit them. */
+  enrollmentDisclosures?: {
+    billingSummary: string;
+    billingConsent: string;
+    cancellationSummary: string;
+    renewalSummary: string;
+    rateChangeSummary: string;
+  };
 }
 
 /** Overlay coordinates for designer PDF templates (origin bottom-left). */
@@ -155,9 +164,24 @@ async function loadTemplateBytes(
   }
 }
 
+export function agreementBenefitsForPdf(
+  tier: SqueegeeKingTierDefinition,
+  hasPersonalizedScope: boolean,
+): string[] {
+  if (!hasPersonalizedScope) return tier.benefits;
+  // Cadence alone does not promise a particular service or treatment.
+  return tier.benefits.filter(
+    (benefit) =>
+      !/exterior window cleaning|rainblock|hard water stain removal/i.test(
+        benefit,
+      ),
+  );
+}
+
 async function buildProgrammaticAgreement(
   input: GenerateSignedPDFInput,
   skTier: SqueegeeKingTierId,
+  preview = false,
 ): Promise<{ pdfDoc: PDFDocument; signaturePlacement: SignaturePlacement }> {
   const def = SQUEEGEEKING_TIERS[skTier];
   const pricing =
@@ -177,21 +201,26 @@ async function buildProgrammaticAgreement(
   const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
   const layout = new AgreementPdfLayout(pdfDoc, font, fontBold);
 
-  layout.drawParagraph(planNameForAgreement(skTier).toUpperCase(), {
-    size: 14,
-    bold: true,
-  });
+  layout.drawParagraph(
+    (input.carePlan
+      ? "HOME CARE PLAN AGREEMENT"
+      : planNameForAgreement(skTier)
+    ).toUpperCase(),
+    { size: 14, bold: true },
+  );
   layout.gap(6);
   layout.drawParagraph(`Member: ${input.memberName}`);
   layout.drawParagraph(`Property: ${input.propertyName}`);
-  layout.drawParagraph(`Signed: ${formatSignedDateTime(input.signedAt)}`);
+  layout.drawParagraph(
+    `${preview ? "Prepared" : "Signed"}: ${formatSignedDateTime(input.signedAt)}`,
+  );
 
-  layout.drawHeading("Membership Benefits");
-  for (const benefit of def.benefits) {
+  layout.drawHeading(input.carePlan ? "Membership Features" : "Membership Benefits");
+  for (const benefit of agreementBenefitsForPdf(def, Boolean(input.carePlan))) {
     layout.drawBullet(benefit);
   }
 
-  if (def.exclusions.length > 0) {
+  if (!input.carePlan && def.exclusions.length > 0) {
     layout.drawHeading("Upgrade to Quarterly for");
     for (const item of def.exclusions) {
       layout.drawParagraph(`  —  ${item}`, { size: 9 });
@@ -249,17 +278,27 @@ async function buildProgrammaticAgreement(
     }
   }
 
-  if (pricing.kind === "included") {
-    layout.drawQuarterlyIncludedHighlight(pricing);
-  } else {
-    layout.drawBiannualSavingsHighlight(pricing);
+  // Generic tier savings are based on window-cleaning retail rates and do
+  // not describe a personalized solar or mixed-service plan.
+  if (!input.carePlan) {
+    if (pricing.kind === "included") {
+      layout.drawQuarterlyIncludedHighlight(pricing);
+    } else {
+      layout.drawBiannualSavingsHighlight(pricing);
+    }
   }
 
   layout.drawHeading("Terms — Billing & Payment");
-  layout.drawParagraph(MEMBERSHIP_BILLING_FINE_PRINT_BODY, {
-    size: 8,
-    lineHeight: 12,
-  });
+  layout.drawParagraph(
+    input.enrollmentDisclosures?.billingSummary ?? MEMBERSHIP_BILLING_FINE_PRINT_BODY,
+    { size: 8, lineHeight: 12 },
+  );
+  if (input.enrollmentDisclosures?.billingConsent) {
+    layout.drawParagraph(input.enrollmentDisclosures.billingConsent, {
+      size: 8,
+      lineHeight: 12,
+    });
+  }
 
   const enrollmentSavings =
     input.enrollmentSavings && input.enrollmentSavings > 0
@@ -268,9 +307,21 @@ async function buildProgrammaticAgreement(
 
   layout.drawHeading("Terms — Cancellation");
   layout.drawParagraph(
-    membershipCancellationReimbursementClause(enrollmentSavings),
+    input.enrollmentDisclosures?.cancellationSummary ??
+      membershipCancellationReimbursementClause(enrollmentSavings),
     { size: 8, lineHeight: 12 },
   );
+  if (input.enrollmentDisclosures) {
+    layout.drawHeading("Terms — Renewal & Rate Changes");
+    layout.drawParagraph(input.enrollmentDisclosures.renewalSummary, {
+      size: 8,
+      lineHeight: 12,
+    });
+    layout.drawParagraph(input.enrollmentDisclosures.rateChangeSummary, {
+      size: 8,
+      lineHeight: 12,
+    });
+  }
 
   layout.drawHeading("Terms — Add-On Service Discount");
   layout.drawParagraph(
@@ -436,6 +487,21 @@ export async function generateSignedPDF(
     built.signaturePlacement.pageIndex,
     input,
     built.signaturePlacement,
+  );
+  return built.pdfDoc.save();
+}
+
+/** Same personalized terms as the signed native PDF, without signature evidence. */
+export async function generateEnrollmentAgreementPreviewPDF(
+  input: Omit<GenerateSignedPDFInput, "signatureDataUrl">,
+): Promise<Uint8Array> {
+  const skTier = normalizeToSqueegeeKingTier(
+    input.agreementTier ?? input.tier ?? "quarterly",
+  );
+  const built = await buildProgrammaticAgreement(
+    { ...input, signatureDataUrl: "" },
+    skTier,
+    true,
   );
   return built.pdfDoc.save();
 }

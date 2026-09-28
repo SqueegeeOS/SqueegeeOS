@@ -404,6 +404,21 @@ export function EnrollmentHandoffPage({
 
           {nativeSigning && !status.agreementComplete ? (
             <section className="mt-8 border-t border-white/[0.08] pt-7" aria-labelledby="signature-heading">
+              {previewMode ? (
+                <div className="mb-7 rounded-2xl border border-[#b8cdbf]/30 bg-[#b8cdbf]/[0.08] px-4 py-3 text-sm text-[#e6eee8]">
+                  View agreement PDF <span className="block text-xs text-white/45">Opens the exact plan PDF on a real private link.</span>
+                </div>
+              ) : (
+                <a
+                  href={`/api/enrollment/${encodeURIComponent(token)}/agreement`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mb-7 flex min-h-12 items-center justify-between gap-3 rounded-2xl border border-[#b8cdbf]/30 bg-[#b8cdbf]/[0.08] px-4 text-sm font-semibold text-[#e6eee8] transition-colors hover:bg-[#b8cdbf]/[0.15] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b8cdbf]"
+                >
+                  <span>View agreement PDF</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              )}
               <p className="text-[9px] font-semibold uppercase tracking-[0.2em] text-[#b8cdbf]/75">
                 One last thing
               </p>
@@ -428,9 +443,20 @@ export function EnrollmentHandoffPage({
                   disabled={startingSignature || previewComplete}
                   className="mt-0.5 h-4 w-4 shrink-0 accent-[#173f32]"
                 />
-                <span>I agree to this home-care plan and consent to sign electronically.</span>
+                <span>I have had the opportunity to review the agreement PDF, agree to this home-care plan, and consent to sign electronically.</span>
               </label>
             </section>
+          ) : null}
+
+          {nativeSigning && status.agreementComplete && !previewMode ? (
+            <a
+              href={`/api/enrollment/${encodeURIComponent(token)}/agreement`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-7 inline-flex min-h-11 items-center text-sm font-semibold text-[#d9d0bf] underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b8cdbf]"
+            >
+              View your signed agreement (PDF) ↗
+            </a>
           ) : null}
 
           {paymentResult === "cancelled" && !status.paymentComplete ? (

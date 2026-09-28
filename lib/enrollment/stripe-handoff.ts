@@ -8,6 +8,7 @@ import { isStripeServerEnabled } from "@/lib/stripe/config";
 import { enrollmentTokenSha256, generateEnrollmentToken } from "./token";
 import { rememberEnrollmentPacketAccessToken } from "./packet-token-repository";
 import type { EnrollmentPacketRow } from "./types";
+import { loadEnrollmentSignedPdfAttachment } from "./signed-pdf-attachment";
 
 const CHECKOUT_TTL_SECONDS = 24 * 60 * 60;
 
@@ -67,6 +68,10 @@ export async function createEnrollmentStripeHandoff(input: {
   if (membership.payment_rail !== "stripe_card") {
     throw new Error("This membership is not a Stripe-card account.");
   }
+  const signedPdf = await loadEnrollmentSignedPdfAttachment(
+    input.packet,
+    input.membershipId,
+  );
 
   const stripe = getStripe();
   let customerId = membership.stripe_customer_id as string | null;
@@ -176,15 +181,17 @@ export async function createEnrollmentStripeHandoff(input: {
     to: input.packet.customer_email,
     replyTo,
     idempotencyKey: `enrollment-payment-${input.packet.id}-${session.id}`,
+    attachments: [signedPdf],
     subject: `${input.packet.customer_name}, one secure step for your HomeAtlas membership`,
     text:
-      `Your agreement is complete. Add your payment method on Stripe's secure page: ${session.url}\n\n` +
+      `Your signed agreement PDF is attached. Add your payment method on Stripe's secure page: ${session.url}\n\n` +
       `Then open your HomeAtlas handoff: ${enrollmentUrl}\n\nNo payment is collected today.`,
     html: `
       <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:32px 20px;color:#17211c">
         <p style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#587060">HomeAtlas · SqueegeeKing</p>
         <h1 style="font-family:Georgia,serif;font-size:32px;font-weight:400;margin:14px 0">Agreement complete. One secure step left.</h1>
         <p style="font-size:16px;line-height:1.65">Hi ${safeName} — your HomeAtlas agreement is signed. Use Stripe's hosted page to save your payment method, then your private home portal turns on automatically.</p>
+        <p style="font-size:14px;line-height:1.6;color:#587060">Your signed agreement PDF is attached for your records.</p>
         <p style="margin:28px 0"><a href="${safeStripeUrl}" style="display:inline-block;background:#183f2b;color:#fff;text-decoration:none;padding:15px 22px;border-radius:10px;font-weight:700">Open secure Stripe setup</a></p>
         <p style="font-size:14px;line-height:1.6;color:#587060">No payment is collected today. SqueegeeKing never sees or stores your card number.</p>
         <p style="font-size:14px;line-height:1.6;color:#587060">Want to check progress? <a href="${safeEnrollmentUrl}" style="color:#183f2b">Open your HomeAtlas handoff</a>.</p>
