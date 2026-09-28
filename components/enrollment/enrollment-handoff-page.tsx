@@ -159,6 +159,20 @@ export function EnrollmentHandoffPage({
   const [consentAccepted, setConsentAccepted] = useState(false);
   const [previewComplete, setPreviewComplete] = useState(false);
 
+  function openStripeCheckout(value: unknown): boolean {
+    if (typeof value !== "string") return false;
+    try {
+      const url = new URL(value);
+      if (url.protocol !== "https:" || url.hostname !== "checkout.stripe.com") {
+        return false;
+      }
+      window.location.assign(url.href);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   async function startSignature() {
     if (previewMode || startingSignature) return;
     setStartingSignature(true);
@@ -213,6 +227,7 @@ export function EnrollmentHandoffPage({
       );
       const result = (await response.json().catch(() => null)) as {
         error?: unknown;
+        paymentUrl?: unknown;
       } | null;
       if (!response.ok) {
         throw new Error(
@@ -221,6 +236,7 @@ export function EnrollmentHandoffPage({
             : "Your signature could not be safely recorded.",
         );
       }
+      if (openStripeCheckout(result?.paymentUrl)) return;
       const statusResponse = await fetch(
         `/api/enrollment/${encodeURIComponent(token)}`,
         { cache: "no-store" },

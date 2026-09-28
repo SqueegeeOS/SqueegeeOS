@@ -36,6 +36,13 @@ describe("HomeAtlas native enrollment signature contract", () => {
     expect(stripe).toBeGreaterThan(save);
   });
 
+  it("hands a completed signer directly to the hosted Stripe setup page", () => {
+    expect(route).toContain("paymentUrl: handoff.paymentUrl");
+    expect(handoff).toContain("openStripeCheckout(result?.paymentUrl)");
+    expect(handoff).toContain('url.hostname !== "checkout.stripe.com"');
+    expect(handoff).toContain("window.location.assign(url.href)");
+  });
+
   it("does not create or send a DocuSign envelope for native packets", () => {
     expect(sendPacket).toContain(
       'input.signatureProvider === "docusign" && !envelopeId',

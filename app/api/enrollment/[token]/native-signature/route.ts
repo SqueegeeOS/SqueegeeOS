@@ -192,11 +192,15 @@ export async function POST(
       });
     }
 
-    await createEnrollmentStripeHandoff({
+    const handoff = await createEnrollmentStripeHandoff({
       packet,
       membershipId: completed.membershipId,
     });
-    return response({ ok: true, status: "payment_sent" });
+    return response({
+      ok: true,
+      status: "payment_sent",
+      paymentUrl: handoff.paymentUrl,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message.slice(0, 2000) : "Unknown signature completion error";
