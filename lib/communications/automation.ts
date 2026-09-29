@@ -428,8 +428,8 @@ export function buildVerifiedAppointmentReminderPlan(
   const appointmentTime = formatAppointmentTime(scheduledAt);
   const addressText = address ? ` Service address: ${address}.` : "";
   const optOutText =
-    destination.channel === "sms" ? " Reply STOP to opt out." : "";
-  const text = `Hi ${name}, reminder: your ${service} visit is scheduled for ${appointmentTime}.${addressText}${optOutText}`;
+    destination.channel === "sms" ? " Reply STOP to opt out or HELP for help." : "";
+  const text = `Hi ${name}, this is SqueegeeKing. Reminder: your ${service} visit is scheduled for ${appointmentTime}.${addressText}${optOutText}`;
   const subject = `Reminder: ${service} visit`;
 
   return {

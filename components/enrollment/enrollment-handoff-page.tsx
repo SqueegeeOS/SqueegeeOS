@@ -157,6 +157,8 @@ export function EnrollmentHandoffPage({
   const [signatureError, setSignatureError] = useState<string | null>(null);
   const [signatureDataUrl, setSignatureDataUrl] = useState("");
   const [consentAccepted, setConsentAccepted] = useState(false);
+  const [smsReminderOptIn, setSmsReminderOptIn] = useState(false);
+  const [reminderPhone, setReminderPhone] = useState("");
   const [previewComplete, setPreviewComplete] = useState(false);
 
   function openStripeCheckout(value: unknown): boolean {
@@ -222,7 +224,12 @@ export function EnrollmentHandoffPage({
           method: "POST",
           cache: "no-store",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ signatureDataUrl, consent: true }),
+          body: JSON.stringify({
+            signatureDataUrl,
+            consent: true,
+            smsReminderOptIn,
+            reminderPhone: status.reminderPhoneLast4 ? undefined : reminderPhone,
+          }),
         },
       );
       const result = (await response.json().catch(() => null)) as {
@@ -445,6 +452,38 @@ export function EnrollmentHandoffPage({
                 />
                 <span>I have had the opportunity to review the agreement PDF, agree to this home-care plan, and consent to sign electronically.</span>
               </label>
+              <div className="mt-3 rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4 text-xs leading-relaxed text-white/58">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={smsReminderOptIn}
+                    onChange={(event) => setSmsReminderOptIn(event.target.checked)}
+                    disabled={startingSignature || previewComplete}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#173f32]"
+                  />
+                  <span>
+                    I confirm this is my mobile number and agree to receive SqueegeeKing texts about scheduled service visits{status.reminderPhoneLast4 ? ` at the number ending ${status.reminderPhoneLast4}` : " at the number I enter below"}. Message frequency varies; message and data rates may apply. Reply STOP to opt out or HELP for help. This is optional and not required to join.
+                  </span>
+                </label>
+                {!status.reminderPhoneLast4 && smsReminderOptIn ? (
+                  <label className="mt-3 block text-white/70">
+                    Mobile number for visit reminders
+                    <input
+                      type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
+                      value={reminderPhone}
+                      onChange={(event) => setReminderPhone(event.target.value)}
+                      disabled={startingSignature || previewComplete}
+                      placeholder="(555) 555-5555"
+                      className="mt-2 min-h-11 w-full rounded-xl border border-white/20 bg-[#0b1812] px-3 text-sm text-white placeholder:text-white/30 focus-visible:outline-2 focus-visible:outline-[#b8cdbf]"
+                    />
+                  </label>
+                ) : null}
+                <p className="mt-3 text-[11px] text-white/42">
+                  See our <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">text terms</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">privacy policy</a>.
+                </p>
+              </div>
             </section>
           ) : null}
 

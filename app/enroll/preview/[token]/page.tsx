@@ -15,6 +15,7 @@ export const metadata: Metadata = {
 const previewStatus: PublicEnrollmentStatus = {
   customerFirstName: "Michael",
   maskedEmail: "m•••••@example.com",
+  reminderPhoneLast4: "2294",
   propertyAddress: "Riley Residence · Customer preview",
   planName: "Quarterly Solar + Exterior Care Plan",
   cadence: "4 visits per year",
