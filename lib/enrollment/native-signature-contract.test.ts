@@ -15,6 +15,13 @@ const repair = read("./repair-recorded-native-enrollment.ts");
 const agreementView = read("../../app/api/enrollment/[token]/agreement/route.ts");
 const stripeHandoff = read("./stripe-handoff.ts");
 const manualHandoff = read("./manual-payment-handoff.ts");
+const reminderConsent = read("./visit-reminder-consent.ts");
+const reminderConsentMigration = read(
+  "../persistence/supabase/migrations/20260929180000_signed_enrollment_visit_sms_consent.sql",
+);
+const vercelConfig = JSON.parse(read("../../vercel.json")) as {
+  crons: { path: string; schedule: string }[];
+};
 
 describe("HomeAtlas native enrollment signature contract", () => {
   it("keeps the customer signature behind the private packet token and provider binding", () => {
@@ -25,6 +32,25 @@ describe("HomeAtlas native enrollment signature contract", () => {
     expect(route).toContain('body?.consent !== true');
     expect(route).toContain("MAX_SIGNATURE_DATA_URL_LENGTH");
     expect(route).not.toContain("body.signedAt");
+  });
+
+  it("keeps visit texts optional and records exact-number consent only after signing", () => {
+    expect(handoff).toContain("smsReminderOptIn");
+    expect(handoff).toContain("This is optional and not required to join");
+    expect(handoff).toContain("Reply STOP to opt out or HELP for help");
+    expect(route).toContain("optedIn: body.smsReminderOptIn === true");
+    expect(route.indexOf('status: "signature_complete"')).toBeLessThan(
+      route.lastIndexOf("recordEnrollmentVisitReminderConsent({"),
+    );
+    expect(reminderConsent).toContain("normalizeNorthAmericanPhone");
+    expect(reminderConsentMigration).toContain("packet.signed_at");
+    expect(reminderConsentMigration).toContain("v_prior_status = 'opted_out'");
+    expect(reminderConsentMigration).toContain("'customer_signed_enrollment_opt_in'");
+    expect(reminderConsentMigration).toContain("from public, anon, authenticated");
+    expect(vercelConfig.crons).toContainEqual({
+      path: "/api/cron/communications",
+      schedule: "35 17 * * *",
+    });
   });
 
   it("stores signature evidence before advancing payment or portal state", () => {

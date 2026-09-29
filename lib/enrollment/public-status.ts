@@ -20,6 +20,7 @@ import {
 export interface PublicEnrollmentStatus {
   customerFirstName: string;
   maskedEmail: string;
+  reminderPhoneLast4: string | null;
   propertyAddress: string;
   planName: string;
   cadence: string;
@@ -99,6 +100,7 @@ export async function loadPublicEnrollmentStatus(
   return {
     customerFirstName: firstName(packet.customer_name),
     maskedEmail: maskEmail(packet.customer_email),
+    reminderPhoneLast4: snapshot.customer.phone?.replace(/\D/g, "").slice(-4) || null,
     propertyAddress: snapshot.property.fullAddress,
     planName: snapshot.plan.tierLabel,
     cadence: snapshot.plan.cadence,

@@ -308,7 +308,8 @@ describe("lead first-touch SMS", () => {
         verifiedAppointment({ preferredChannel: "either" }),
       );
       expect(sms?.channel).toBe("sms");
-      expect(sms?.text).toContain("Reply STOP to opt out.");
+      expect(sms?.text).toContain("this is SqueegeeKing");
+      expect(sms?.text).toContain("Reply STOP to opt out or HELP for help.");
 
       const emailFallback = buildVerifiedAppointmentReminderPlan(
         verifiedAppointment({

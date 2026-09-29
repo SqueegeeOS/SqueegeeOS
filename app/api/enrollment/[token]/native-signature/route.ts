@@ -6,6 +6,11 @@ import type { EnrollmentPacketRow } from "@/lib/enrollment/types";
 import { completeRemoteEnrollmentSignature } from "@/lib/enrollment/complete-remote-signature";
 import { completeManualPaymentHandoff } from "@/lib/enrollment/manual-payment-handoff";
 import { createEnrollmentStripeHandoff } from "@/lib/enrollment/stripe-handoff";
+import {
+  enrollmentReminderPhone,
+  recordEnrollmentVisitReminderConsent,
+} from "@/lib/enrollment/visit-reminder-consent";
+import type { EnrollmentDocumentSnapshot } from "@/lib/enrollment/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -51,6 +56,8 @@ export async function POST(
   const body = (await request.json().catch(() => null)) as {
     signatureDataUrl?: unknown;
     consent?: unknown;
+    smsReminderOptIn?: unknown;
+    reminderPhone?: unknown;
   } | null;
   if (body?.consent !== true || !isValidSignature(body.signatureDataUrl)) {
     return response(
@@ -65,6 +72,16 @@ export async function POST(
     return response({ error: "Enrollment handoff not found." }, 404);
   }
   let packet = packetResult as PacketWithVersions;
+  let reminderPhone: string | null;
+  try {
+    reminderPhone = enrollmentReminderPhone({
+      packetPhone: (packet.document_snapshot as EnrollmentDocumentSnapshot).customer.phone,
+      enteredPhone: body.reminderPhone,
+      optedIn: body.smsReminderOptIn === true,
+    });
+  } catch (error) {
+    return response({ error: error instanceof Error ? error.message : "Invalid reminder number." }, 400);
+  }
   if (new Date(packet.public_token_expires_at).getTime() <= Date.now()) {
     return response({ error: "This private agreement link has expired." }, 410);
   }
@@ -179,6 +196,38 @@ export async function POST(
       .single();
     if (refreshed.error) throw new Error(refreshed.error.message);
     packet = refreshed.data as PacketWithVersions;
+
+    if (reminderPhone) {
+      try {
+        await recordEnrollmentVisitReminderConsent({
+          packet,
+          homeownerId: completed.homeownerId,
+          phone: reminderPhone,
+          ipAddress,
+          userAgent: request.headers.get("user-agent"),
+        });
+      } catch (error) {
+        // A reminder preference must never strand a signed agreement or card handoff.
+        console.warn("[native-enrollment-signature] reminder consent needs review", {
+          packetId: packet.id,
+          reason: error instanceof Error ? error.message : "unknown",
+        });
+        const recorded = await supabase.from("enrollment_packet_events").insert({
+          enrollment_packet_id: packet.id,
+          event_type: "visit_sms_opt_in_needs_review",
+          actor: "system",
+          provider: "homeatlas_native",
+          provider_event_key: `native:${packet.id}:visit-sms-needs-review`,
+          event_data: { reason: "consent_recording_failed" },
+        });
+        if (recorded.error && recorded.error.code !== "23505") {
+          console.warn("[native-enrollment-signature] reminder review event failed", {
+            packetId: packet.id,
+            reason: recorded.error.message,
+          });
+        }
+      }
+    }
 
     if (packet.payment_rail === "manual_cash_check") {
       const handoff = await completeManualPaymentHandoff({
