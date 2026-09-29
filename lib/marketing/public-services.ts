@@ -15,6 +15,10 @@ export interface PublicService {
     title: string;
     description: string;
   }>;
+  questions: Array<{
+    question: string;
+    answer: string;
+  }>;
 }
 
 export const PUBLIC_SERVICES: PublicService[] = [
@@ -51,13 +55,30 @@ export const PUBLIC_SERVICES: PublicService[] = [
           "Members receive HomeAtlas, where visits, observations, photos, and the next care rhythm stay connected to the property.",
       },
     ],
+    questions: [
+      {
+        question: "Can I book one window-cleaning visit without a membership?",
+        answer:
+          "Yes. Start with one visit. If you want regular care later, we can build a three- or six-month schedule around your home.",
+      },
+      {
+        question: "Do you clean inside windows and screens?",
+        answer:
+          "We can include interior glass and screens. Your Home Care Plan states which windows and extras are included before you approve the work.",
+      },
+      {
+        question: "How do I get a window-cleaning quote in Chico?",
+        answer:
+          "Send us the property address and tell us whether you want exterior glass, interior glass, screens, or a combination. We confirm the scope and price in your plan.",
+      },
+    ],
   },
   {
     slug: "pressure-washing",
     name: "Pressure Washing",
     navLabel: "Pressure washing",
     pageTitle: "Pressure Washing in Chico, CA",
-    headline: "Exterior cleaning that respects the surface.",
+    headline: "Pressure washing in Chico, planned for each surface.",
     description:
       "Pressure washing for Chico homes, walkways, patios, and other quoted exterior areas. We begin with the property, choose an appropriate approach, and make the scope clear before work starts.",
     metaDescription:
@@ -83,6 +104,23 @@ export const PUBLIC_SERVICES: PublicService[] = [
         title: "Easy service bundling",
         description:
           "Pressure washing can be planned alongside window or solar panel care so the property is handled in one coordinated visit.",
+      },
+    ],
+    questions: [
+      {
+        question: "What can you pressure wash at my Chico home?",
+        answer:
+          "Common requests include walkways, patios, siding, and other exterior areas. We review the material and condition before confirming what belongs in the quote.",
+      },
+      {
+        question: "Do you use the same pressure on every surface?",
+        answer:
+          "No. We choose the cleaning approach for the material and the condition of the area. Your plan identifies the surfaces and work before the visit.",
+      },
+      {
+        question: "Can I combine pressure washing with window cleaning?",
+        answer:
+          "Yes. We can quote both services in one Home Care Plan and coordinate the work around the property.",
       },
     ],
   },
@@ -119,13 +157,30 @@ export const PUBLIC_SERVICES: PublicService[] = [
           "HomeAtlas members keep the visit and property history together, so the next conversation starts with what has already been done.",
       },
     ],
+    questions: [
+      {
+        question: "How often should solar panels be cleaned in Chico?",
+        answer:
+          "It depends on dust, trees, weather, and the panel location. We can quote a single visit or discuss seasonal care after seeing the property.",
+      },
+      {
+        question: "Will cleaning guarantee more solar production?",
+        answer:
+          "We remove accessible surface buildup; we do not promise a specific change in energy output. Your system's performance depends on other factors too.",
+      },
+      {
+        question: "Can panel cleaning happen with my window service?",
+        answer:
+          "Yes. We can include solar panels and windows in one property-specific plan so you have a clear scope and one coordinated visit.",
+      },
+    ],
   },
   {
     slug: "home-care-memberships",
     name: "Home Care Memberships",
     navLabel: "Home care memberships",
     pageTitle: "Recurring Home Care in Chico, CA",
-    headline: "Put the exterior of your home on a rhythm.",
+    headline: "Recurring home care in Chico, on your rhythm.",
     description:
       "Quarterly and bi-annual care plans combine preferred scheduling, member benefits, and HomeAtlas: a living record of what your property needs and what has already been done. A custom three-times-yearly plan is also available when it better fits the home.",
     metaDescription:
@@ -151,6 +206,23 @@ export const PUBLIC_SERVICES: PublicService[] = [
         title: "HomeAtlas included",
         description:
           "Your portal brings the next scheduled visit, care history, property notes, documents, and membership details into one place.",
+      },
+    ],
+    questions: [
+      {
+        question: "Do I have to join a membership to book service?",
+        answer:
+          "No. One-time service is available. Membership is an option when you want the next visits and property history planned together.",
+      },
+      {
+        question: "How often does a Home Care Plan schedule visits?",
+        answer:
+          "Quarterly and twice-yearly plans are available. We can discuss a different rhythm when it fits the property and the services you choose.",
+      },
+      {
+        question: "What does HomeAtlas keep for my home?",
+        answer:
+          "Your private portal brings together the care plan, upcoming visits, property notes, service history, and available photos and documents.",
       },
     ],
   },
