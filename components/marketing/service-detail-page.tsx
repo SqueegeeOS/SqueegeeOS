@@ -169,6 +169,35 @@ export function ServiceDetailPage({ service }: { service: PublicService }) {
         </div>
       </section>
 
+      <section className="border-t border-[#173f32]/10 bg-[#fffdf8] px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
+        <div className="mx-auto max-w-[90rem]">
+          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#8f5f37]">
+            Answers before you book
+          </p>
+          <h2 className="mt-5 max-w-4xl font-serif text-4xl font-light leading-tight sm:text-5xl">
+            {service.name} questions from Chico homeowners
+          </h2>
+          <div className="mt-9 grid gap-4 lg:grid-cols-3">
+            {service.questions.map(({ question, answer }) => (
+              <article
+                key={question}
+                className="rounded-[1.5rem] border border-[#173f32]/10 bg-[#f5f0e6] p-7 sm:p-8"
+              >
+                <h3 className="font-serif text-2xl font-light">{question}</h3>
+                <p className="mt-4 text-sm leading-relaxed text-[#526b60] sm:text-base">
+                  {answer}
+                </p>
+              </article>
+            ))}
+          </div>
+          <p className="mt-9 max-w-3xl text-sm leading-relaxed text-[#526b60]">
+            Based in Chico, California. Share your property address when you
+            request a plan and we will confirm service availability before
+            quoting the work.
+          </p>
+        </div>
+      </section>
+
       <section className="border-t border-[#173f32]/10 bg-[#e7ecdf] px-5 py-20 sm:px-8 sm:py-24 lg:px-12">
         <div className="mx-auto max-w-[90rem]">
           <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
