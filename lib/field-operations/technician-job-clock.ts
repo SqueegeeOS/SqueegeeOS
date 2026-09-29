@@ -104,6 +104,16 @@ export function technicianJobClockElapsedSeconds(
   return Math.max(0, Math.floor((endedAt - startedAt) / 1_000));
 }
 
+/** Unfinished clocks are not labor hours; after a day they need owner review. */
+export function isTechnicianJobClockStale(
+  clock: Pick<TechnicianJobClockSnapshot, "startedAt" | "endedAt">,
+  now = new Date(),
+): boolean {
+  if (!clock.startedAt || clock.endedAt) return false;
+  const startedAt = Date.parse(clock.startedAt);
+  return Number.isFinite(startedAt) && now.getTime() - startedAt >= 24 * 60 * 60 * 1_000;
+}
+
 export function technicianCanDocumentVisit(
   state: TechnicianJobClockState,
 ): boolean {
