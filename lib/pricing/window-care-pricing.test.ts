@@ -9,6 +9,7 @@ import {
   getMaxSqft,
   getMinSqft,
   validateInput,
+  visitPriceForMembershipTier,
 } from "./window-care-pricing";
 
 const { rates, interiorMultiplier, oneTimePremium, screenCleaningAddOn, twoStorySurcharge } =
@@ -17,6 +18,10 @@ const { rates, interiorMultiplier, oneTimePremium, screenCleaningAddOn, twoStory
 const EXAMPLE_SQFT = 2572;
 
 describe("Atlas Pricing Engine — window-care-pricing", () => {
+  it("uses the agreed three-visits/year rate in customer-facing quotes", () => {
+    expect(visitPriceForMembershipTier("triannual", 2000)).toBe(230);
+  });
+
   it("matches Noah's quarterly exterior example (2-story)", () => {
     const breakdown = buildExteriorWindowBreakdown(
       EXAMPLE_SQFT,

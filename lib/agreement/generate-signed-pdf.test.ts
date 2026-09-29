@@ -6,6 +6,7 @@ import {
   generateSignedPDF,
 } from "./generate-signed-pdf";
 import { SQUEEGEEKING_TIERS } from "@/lib/membership/tier-config";
+import { PRESENTATION_CARE_PLAN_VERSION } from "@/lib/presentations/care-plan";
 
 /** 2×2 dark PNG — visible when embedded on a white PDF page */
 const signature =
@@ -33,12 +34,11 @@ describe("generateSignedPDF", () => {
       propertyName: "123 Main St",
       monthlyPrice: 208,
       carePlan: {
-        version: 1,
+        version: PRESENTATION_CARE_PLAN_VERSION,
         tier: "biannual",
         summary: "Solar panels twice yearly",
         customerChoiceNote: "Solar cleaning only",
         servicePrices: {
-          exteriorWindows: 0,
           interiorWindows: 0,
           screens: 0,
           cobwebRemoval: 0,

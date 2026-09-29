@@ -320,9 +320,13 @@ export function visitPriceForMembershipTier(
   const resolved = normalizeCompanySettings(settings);
   const ratePerSqft =
     tier === "triannual"
-      ? (resolved.rates.quarterly.ratePerSqft +
-          resolved.rates.bi_annual.ratePerSqft) /
-        2
+      // Noah's three-visits/year field rate is $0.115/sq ft when the
+      // quarterly and biannual defaults are $0.10 and $0.125. Preserve
+      // that position when the owner adjusts either endpoint rate.
+      ? resolved.rates.quarterly.ratePerSqft +
+        (resolved.rates.bi_annual.ratePerSqft -
+          resolved.rates.quarterly.ratePerSqft) *
+          0.6
       : resolved.rates[tier === "quarterly" ? "quarterly" : "bi_annual"]
           .ratePerSqft;
   const exteriorPrice =

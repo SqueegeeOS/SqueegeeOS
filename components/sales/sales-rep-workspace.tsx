@@ -21,6 +21,7 @@ import {
 } from "@/components/sales/service-interest-control";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { CustomerProofMap } from "@/components/sales/customer-proof-map";
+import { FieldPriceCalculator } from "@/components/sales/field-price-calculator";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { paymentHandoffSendLabel } from "@/lib/membership/payment-handoff-progress";
 import { usePaymentHandoffRefresh } from "@/lib/membership/use-payment-handoff-refresh";
@@ -1870,7 +1871,7 @@ export function SalesRepWorkspace({
 
           <nav
             aria-label="Field workspace views"
-            className="mb-4 grid grid-cols-2 gap-1 rounded-2xl border border-white/[0.08] bg-black/20 p-1"
+            className={`mb-4 grid gap-1 rounded-2xl border border-white/[0.08] bg-black/20 p-1 ${profile.slug === "david" ? "grid-cols-3" : "grid-cols-2"}`}
           >
             <a
               href="#pulse"
@@ -1878,11 +1879,19 @@ export function SalesRepWorkspace({
             >
               Today
             </a>
+            {profile.slug === "david" ? (
+              <a
+                href="#field-pricing"
+                className="flex min-h-11 items-center justify-center rounded-xl px-2 text-[10px] font-bold uppercase tracking-[0.12em] text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+              >
+                Quick price
+              </a>
+            ) : null}
             <a
               href="#performance"
               className="flex min-h-11 items-center justify-center rounded-xl px-4 text-[10px] font-bold uppercase tracking-[0.16em] text-muted transition-colors hover:bg-white/[0.05] hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              30-day performance
+              Performance
             </a>
           </nav>
 
@@ -2144,6 +2153,8 @@ export function SalesRepWorkspace({
             ) : null}
           </div>
         </section>
+
+        {profile.slug === "david" ? <FieldPriceCalculator /> : null}
 
         <DoorMemoryTimeline
           memories={recentDoorMemories}
