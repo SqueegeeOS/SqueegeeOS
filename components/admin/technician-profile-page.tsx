@@ -40,6 +40,10 @@ function formatHours(minutes: number): string {
   return `${hours.toFixed(hours >= 10 ? 1 : 2)}h`;
 }
 
+function formatMoney(cents: number): string {
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+}
+
 function labelize(value: string): string {
   return value.replaceAll("_", " ").replace(/^./, (letter) => letter.toUpperCase());
 }
@@ -72,6 +76,9 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
   const [profile, setProfile] = useState<TechnicianOperationalProfile | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [correctingAddonId, setCorrectingAddonId] = useState<string | null>(null);
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [correctionPending, setCorrectionPending] = useState(false);
 
   const load = useCallback(async () => {
     if (!unlocked) return;
@@ -95,6 +102,25 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
       setLoading(false);
     }
   }, [technicianId, unlocked]);
+
+  async function voidAddon(reportId: string) {
+    if (correctionPending || correctionReason.trim().length < 3) return;
+    setCorrectionPending(true);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/admin/technicians/${encodeURIComponent(technicianId)}/job-addons/${encodeURIComponent(reportId)}/void`,
+        { method: "POST", headers: { ...getAdminRequestHeaders(), "Content-Type": "application/json" }, body: JSON.stringify({ reason: correctionReason.trim() }) },
+      );
+      const body = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(body.error ?? "Correction could not be saved.");
+      setCorrectingAddonId(null);
+      setCorrectionReason("");
+      await load();
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Correction could not be saved.");
+    } finally { setCorrectionPending(false); }
+  }
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -174,6 +200,38 @@ export function TechnicianProfilePage({ technicianId }: { technicianId: string }
               <Metric label="Independent work" value={`${profile.readiness?.independentJobs ?? 0}`} detail={`${profile.readiness?.independentHours ?? 0} verified independent hours.`} />
               <Metric label="30-day closeouts" value={`${profile.activity.closeouts}`} detail={`${profile.activity.followUpCloseouts} flagged for follow-up.`} />
               <Metric label="30-day clock" value={formatHours(profile.activity.clockedMinutes)} detail={`${profile.activity.activeClocks} job clock${profile.activity.activeClocks === 1 ? "" : "s"} currently open.`} />
+            </section>
+
+            <section className="mt-7 rounded-[2rem] border border-foreground/10 bg-surface-elevated p-5 sm:p-7">
+              <p className="text-[10px] uppercase tracking-[0.2em] text-accent">Owner-only weekly scorecard</p>
+              <h2 className="mt-2 text-2xl font-semibold">Week of {formatCalendarDate(profile.weeklyScorecard?.weekStart ?? null)}</h2>
+              {profile.weeklyScorecard ? (
+                <>
+                  <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Metric label="Closeouts" value={String(profile.weeklyScorecard.completedJobs)} detail="HomeAtlas jobs closed this week." />
+                    <Metric label="Recorded job time" value={formatHours(profile.weeklyScorecard.clockedMinutes + profile.weeklyScorecard.manualMinutes)} detail="Clocked on-site plus owner-entered time; not all payroll hours." />
+                    <Metric label="Missing job time" value={String(profile.weeklyScorecard.missingTimeJobs)} detail="Closeouts needing time review." />
+                    <Metric label="Add-ons reported" value={formatMoney(profile.weeklyScorecard.reportedAddonAmountCents)} detail={`${profile.weeklyScorecard.reportedAddonCount} technician report${profile.weeklyScorecard.reportedAddonCount === 1 ? "" : "s"}; not verified collections.`} />
+                  </div>
+                  <p className="mt-4 text-xs leading-relaxed text-muted">Add-ons are grouped by report date in the Pacific business week. Reconcile against Jobber, customer payment, and the current written pay terms before calculating compensation. This view does not charge customers or issue payroll.</p>
+                </>
+              ) : <p className="mt-4 text-sm text-warning">The add-on ledger is unavailable, so the weekly scorecard is paused rather than showing a misleading zero.</p>}
+              {profile.recentAddons.length ? (
+                <div className="mt-6 border-t border-foreground/10 pt-4">
+                  <p className="text-xs font-medium text-foreground">Recent technician-reported add-ons</p>
+                  <ul className="mt-3 divide-y divide-foreground/10">
+                    {profile.recentAddons.slice(0, 12).map((addon) => (
+                      <li key={addon.id} className="py-3 text-sm">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div><p className={addon.voidedAt ? "text-muted line-through" : "text-foreground"}>{addon.serviceName}</p><p className="mt-1 text-[11px] text-muted">Reported {formatDateTime(addon.reportedAt)} · Job {addon.assignmentId.slice(0, 8)}</p></div>
+                          <div className="flex items-center gap-3"><span className="tabular-nums text-foreground/75">{formatMoney(addon.reportedAmountCents)}{addon.voidedAt ? " · voided" : " · needs reconciliation"}</span>{!addon.voidedAt ? <button type="button" onClick={() => { setCorrectingAddonId(addon.id); setCorrectionReason(""); }} className="min-h-10 rounded-full border border-foreground/15 px-3 text-xs text-muted hover:text-foreground">Correct</button> : null}</div>
+                        </div>
+                        {correctingAddonId === addon.id ? <div className="mt-3 flex flex-wrap gap-2 rounded-xl border border-warning/20 bg-warning/[0.05] p-3"><label className="min-w-48 flex-1 text-xs text-muted">Why void this report?<input value={correctionReason} onChange={(event) => setCorrectionReason(event.target.value)} maxLength={500} className="mt-1 block min-h-11 w-full rounded-lg border border-foreground/15 bg-background px-3 text-sm text-foreground" /></label><button type="button" disabled={correctionPending || correctionReason.trim().length < 3} onClick={() => void voidAddon(addon.id)} className="min-h-11 self-end rounded-lg border border-danger/30 px-4 text-xs text-danger disabled:opacity-50">{correctionPending ? "Saving…" : "Void report"}</button><button type="button" onClick={() => setCorrectingAddonId(null)} className="min-h-11 self-end rounded-lg px-3 text-xs text-muted">Cancel</button></div> : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </section>
 
             <section className="mt-7 rounded-[2rem] border border-foreground/10 bg-surface-elevated p-5 sm:p-7">

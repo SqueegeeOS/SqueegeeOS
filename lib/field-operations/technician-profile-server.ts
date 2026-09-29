@@ -4,6 +4,7 @@ import {
   COMPANY_BUSINESS_TIMEZONE,
   formatBusinessCalendarDate,
   getBusinessCalendarDayUtcBounds,
+  getBusinessCalendarWeekUtcBounds,
 } from "@/lib/admin/company-business-timezone";
 import { loadTechnicianPhotoEvidence } from "@/lib/field-records/technician-photo-memory-server";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
@@ -27,6 +28,7 @@ import {
   type TechnicianWorkdayIntegrity,
 } from "./technician-profile";
 import { loadTechnicianReadinessSnapshot } from "./technician-readiness-server";
+import { technicianWeeklyScorecard } from "./technician-weekly-scorecard";
 
 interface TechnicianRow {
   id: string;
@@ -109,6 +111,15 @@ interface ManualTimeVoidRow {
 interface VisitEventRow {
   event_type: string;
   occurred_at: string;
+}
+
+interface AddonReportRow {
+  id: string;
+  assignment_id: string;
+  service_name: string;
+  reported_amount_cents: number;
+  reported_at: string;
+  voided_at: string | null;
 }
 
 function latestTimestamp(values: Array<string | null | undefined>): string | null {
@@ -213,6 +224,7 @@ export async function loadTechnicianOperationalProfile(
   const today = formatBusinessCalendarDate(reference);
   const { startUtc: todayStart, endUtc: todayEnd } =
     getBusinessCalendarDayUtcBounds(reference, COMPANY_BUSINESS_TIMEZONE);
+  const week = getBusinessCalendarWeekUtcBounds(reference, COMPANY_BUSINESS_TIMEZONE);
 
   const [readinessSettled, capacitySettled, photoSettled] = await Promise.allSettled([
     loadTechnicianReadinessSnapshot(reference),
@@ -227,6 +239,7 @@ export async function loadTechnicianOperationalProfile(
     legacyTimeResult,
     manualTimeResult,
     eventsResult,
+    addonsResult,
   ] = await Promise.all([
     supabase
       .from("technician_access_grants")
@@ -270,10 +283,20 @@ export async function loadTechnicianOperationalProfile(
       .gte("occurred_at", sinceIso)
       .order("occurred_at", { ascending: false })
       .limit(5_000),
+    supabase
+      .from("homeatlas_technician_job_addon_reports")
+      .select("id, assignment_id, service_name, reported_amount_cents, reported_at, voided_at")
+      .eq("technician_id", technician.id)
+      .gte("reported_at", sinceIso)
+      .order("reported_at", { ascending: false })
+      .limit(5_000),
   ]);
 
   const assignments = (assignmentsResult.data ?? []) as unknown as AssignmentRow[];
-  const assignmentIds = assignments.map((row) => row.id);
+  const assignmentIds = [...new Set([
+    ...assignments.map((row) => row.id),
+    ...((closeoutsResult.data ?? []) as CloseoutRow[]).map((row) => row.assignment_id),
+  ])];
   const nativeClockResult = assignmentIds.length
     ? await supabase
         .from("homeatlas_technician_job_clocks")
@@ -310,6 +333,7 @@ export async function loadTechnicianOperationalProfile(
     ["Owner-entered time", manualTimeResult],
     ["Owner-entered time audit", manualVoidResult],
     ["Visit events", eventsResult],
+    ["Add-on reports", addonsResult],
   ] as const) {
     if (result.error) warnings.push(`${label} data is temporarily unavailable.`);
   }
@@ -339,6 +363,7 @@ export async function loadTechnicianOperationalProfile(
   const legacyTimeEntries = (legacyTimeResult.data ?? []) as TimeEntryRow[];
   const nativeClocks = (nativeClockResult.data ?? []) as NativeClockRow[];
   const visitEvents = (eventsResult.data ?? []) as VisitEventRow[];
+  const addonReports = (addonsResult.data ?? []) as AddonReportRow[];
   const nativeClockByAssignment = new Map(nativeClocks.map((row) => [row.assignment_id, row]));
   const closeoutByAssignment = new Map(closeouts.map((row) => [row.assignment_id, row]));
   const manualByAssignment = new Map(
@@ -478,6 +503,17 @@ export async function loadTechnicianOperationalProfile(
   }));
 
   const todayCloseouts = closeouts.filter((row) => row.visit_date === today);
+  const weeklyScorecard = addonsResult.error ? null : technicianWeeklyScorecard({
+    weekStart: week.startCalendarDate,
+    weekEndExclusive: week.endCalendarDateExclusive,
+    weekStartUtc: week.startUtc.toISOString(),
+    weekEndUtc: week.endUtc.toISOString(),
+    closeouts,
+    nativeClocks,
+    legacyClocks: legacyTimeEntries,
+    manualEntries: manualTimeRows,
+    addons: addonReports,
+  });
   const completedPairCount = todayCloseouts.filter((closeout) => {
     const jobPhotos = photosByAssignment.get(closeout.assignment_id) ?? [];
     return (
@@ -559,6 +595,15 @@ export async function loadTechnicianOperationalProfile(
     timeRepairCandidates,
     photos,
     workdayIntegrity,
+    weeklyScorecard,
+    recentAddons: addonReports.slice(0, 30).map((row) => ({
+      id: row.id,
+      assignmentId: row.assignment_id,
+      serviceName: row.service_name,
+      reportedAmountCents: row.reported_amount_cents,
+      reportedAt: row.reported_at,
+      voidedAt: row.voided_at,
+    })),
     warnings: [...new Set(warnings)],
   };
 }
