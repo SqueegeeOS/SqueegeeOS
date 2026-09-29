@@ -131,6 +131,25 @@ export interface TechnicianProfilePhotoEvidence {
   jobberBacked: boolean;
 }
 
+export interface TechnicianProfileAddonReport {
+  id: string;
+  assignmentId: string;
+  serviceName: string;
+  reportedAmountCents: number;
+  reportedAt: string;
+  voidedAt: string | null;
+}
+
+export interface TechnicianWeeklyScorecard {
+  weekStart: string;
+  completedJobs: number;
+  clockedMinutes: number;
+  manualMinutes: number;
+  missingTimeJobs: number;
+  reportedAddonCount: number;
+  reportedAddonAmountCents: number;
+}
+
 export interface TechnicianWorkdayIntegrityJob {
   assignmentId: string;
   clientName: string;
@@ -176,5 +195,7 @@ export interface TechnicianOperationalProfile {
   timeRepairCandidates: TechnicianTimeRepairCandidate[];
   photos: TechnicianProfilePhotoEvidence[];
   workdayIntegrity: TechnicianWorkdayIntegrity;
+  weeklyScorecard: TechnicianWeeklyScorecard | null;
+  recentAddons: TechnicianProfileAddonReport[];
   warnings: string[];
 }

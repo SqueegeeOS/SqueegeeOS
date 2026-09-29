@@ -7,6 +7,7 @@ import { AmbientStage } from "@/components/craft/ambient-stage";
 import { StatePanel } from "@/components/craft/state-panel";
 import { StatusNotice } from "@/components/craft/status-notice";
 import { TechnicianUpcoming } from "@/components/field/technician-upcoming";
+import { TechnicianJobAddons } from "@/components/field/technician-job-addons";
 import { JobValue } from "@/components/field/job-value";
 import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
 import { jobDirectionsHref } from "@/lib/care-operations/jobber-visit-address";
@@ -637,6 +638,10 @@ function TechnicianVisitCard({
               </div>
             )}
           </section>
+        ) : null}
+
+        {technicianSession && fieldAssignmentId ? (
+          <TechnicianJobAddons assignmentId={fieldAssignmentId} />
         ) : null}
 
         {!technicianSession && fieldEventStatusAvailable && propertyId && appointmentId ? (
