@@ -14,6 +14,7 @@ import {
   type TechnicianAccessGrantView,
 } from "./field-access";
 import { reconcilePendingLiveDispatchJobs } from "./live-dispatch-server";
+import { isTechnicianJobClockStale } from "./technician-job-clock";
 import { loadTechnicianCapacitySnapshot } from "./technician-capacity-server";
 import { resolveTechnicianFieldPassState } from "./technician-dispatch";
 import {
@@ -362,6 +363,14 @@ export async function loadTechnicianOperationalProfile(
   const closeouts = (closeoutsResult.data ?? []) as CloseoutRow[];
   const legacyTimeEntries = (legacyTimeResult.data ?? []) as TimeEntryRow[];
   const nativeClocks = (nativeClockResult.data ?? []) as NativeClockRow[];
+  const staleClockCount = nativeClocks.filter((entry) =>
+    isTechnicianJobClockStale({ startedAt: entry.started_at, endedAt: entry.ended_at }, reference),
+  ).length;
+  if (staleClockCount > 0) {
+    warnings.push(
+      `${staleClockCount} job clock${staleClockCount === 1 ? " has" : "s have"} been open over 24 hours. Review the actual finish time with the technician; unfinished time is excluded from recorded labor.`,
+    );
+  }
   const visitEvents = (eventsResult.data ?? []) as VisitEventRow[];
   const addonReports = (addonsResult.data ?? []) as AddonReportRow[];
   const nativeClockByAssignment = new Map(nativeClocks.map((row) => [row.assignment_id, row]));

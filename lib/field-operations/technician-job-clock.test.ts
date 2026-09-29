@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canCreateNativeJobCloseout,
+  isTechnicianJobClockStale,
   technicianCanDocumentVisit,
   technicianCanFinishJob,
   technicianJobClockElapsedSeconds,
@@ -77,6 +78,23 @@ describe("technician job clock", () => {
         new Date("2026-08-31T17:59:00.000Z"),
       ),
     ).toBe(0);
+  });
+
+  it("flags an open clock after 24 hours without treating it as worked time", () => {
+    const now = new Date("2026-09-29T18:00:00.000Z");
+    expect(
+      isTechnicianJobClockStale({ startedAt: "2026-09-28T18:00:00.000Z", endedAt: null }, now),
+    ).toBe(true);
+    expect(
+      isTechnicianJobClockStale({ startedAt: "2026-09-29T17:00:00.000Z", endedAt: null }, now),
+    ).toBe(false);
+    expect(
+      isTechnicianJobClockStale(
+        { startedAt: "2026-09-08T16:00:00.000Z", endedAt: "2026-09-08T18:00:00.000Z" },
+        now,
+      ),
+    ).toBe(false);
+    expect(isTechnicianJobClockStale({ startedAt: "invalid", endedAt: null }, now)).toBe(false);
   });
 
   it("accepts one native field assignment target and rejects ambiguous targets", () => {
