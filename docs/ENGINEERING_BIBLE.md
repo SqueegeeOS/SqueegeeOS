@@ -126,6 +126,7 @@ This repository maintains a permanent knowledge base:
 
 | Document | Purpose |
 |----------|---------|
+| [COHESION_MAP.md](./COHESION_MAP.md) | One product spine, source-of-truth map, and sequencing |
 | [ENGINEERING_BIBLE.md](./ENGINEERING_BIBLE.md) | Constitution (this file) |
 | [VISION.md](./VISION.md) | Ten-year direction |
 | [ROADMAP.md](./ROADMAP.md) | Shipped vs planned by version |
