@@ -5,10 +5,8 @@ import type { LeadIntakeRecord } from "@/lib/acquisition/lead-record";
 import { sendLeadNotificationEmail } from "@/lib/acquisition/send-lead-notification-email";
 import { runLeadAcknowledgementAutomation } from "@/lib/communications/lead-automation";
 import { normalizeE164 } from "@/lib/communications/providers/contracts";
-import { sendTwilioSms } from "@/lib/communications/providers/twilio-sms";
+import { sendOwnerLeadSmsAlert as sendDurableOwnerLeadSmsAlert } from "@/lib/acquisition/send-owner-lead-sms-alert";
 import { ensureLeadConversation } from "@/lib/communications/repository";
-import { getCommunicationsConfiguration } from "@/lib/communications/service";
-import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import { routeInboundLeadToConfiguredOwner } from "@/lib/sales/inbound-lead-routing-server";
 import {
   metaLeadToIntakeInput,
@@ -137,42 +135,7 @@ export async function sendOwnerLeadSmsAlert(
 ): Promise<{ sent: boolean; reason?: string }> {
   const to = ownerAlertPhone();
   if (!to) return { sent: false, reason: "LEAD_NOTIFY_SMS not configured" };
-  if (!getCommunicationsConfiguration().sms.configured) {
-    return { sent: false, reason: "Twilio sender is not approved" };
-  }
-
-  const supabase = createServiceRoleSupabaseClient();
-  const claimedAt = new Date().toISOString();
-  const claimed = await supabase
-    .from("lead_intakes")
-    .update({
-      owner_sms_alert_status: "sending",
-      owner_sms_alert_attempted_at: claimedAt,
-      owner_sms_alert_failure_code: null,
-    })
-    .eq("id", lead.id)
-    .or("owner_sms_alert_status.is.null,owner_sms_alert_status.eq.failed")
-    .select("id")
-    .maybeSingle();
-  if (claimed.error) return { sent: false, reason: "Alert claim failed" };
-  if (!claimed.data) return { sent: true, reason: "already_attempted" };
-
-  const result = await sendTwilioSms({ to, body: ownerAlertBody(lead) });
-  const update = result.ok
-    ? {
-        owner_sms_alert_status: "accepted",
-        owner_sms_alert_provider_id: result.providerMessageId,
-        owner_sms_alert_failure_code: null,
-      }
-    : {
-        owner_sms_alert_status: "failed",
-        owner_sms_alert_provider_id: null,
-        owner_sms_alert_failure_code: result.errorCode,
-      };
-  await supabase.from("lead_intakes").update(update).eq("id", lead.id);
-  return result.ok
-    ? { sent: true }
-    : { sent: false, reason: result.errorCode };
+  return sendDurableOwnerLeadSmsAlert(lead, { to, body: ownerAlertBody(lead) });
 }
 
 export async function runMetaLeadPostSaveAutomation(

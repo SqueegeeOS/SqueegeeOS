@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   cookies: vi.fn(),
   runLeadAcknowledgementAutomation: vi.fn(),
   sendLeadNotificationEmail: vi.fn(),
+  sendWebsiteLeadSmsAlert: vi.fn(),
   routeInboundLeadToConfiguredOwner: vi.fn(),
 }));
 
@@ -32,6 +33,10 @@ vi.mock("@/lib/acquisition/send-lead-notification-email", () => ({
 vi.mock("@/lib/sales/inbound-lead-routing-server", () => ({
   routeInboundLeadToConfiguredOwner:
     mocks.routeInboundLeadToConfiguredOwner,
+}));
+
+vi.mock("@/lib/acquisition/send-owner-lead-sms-alert", () => ({
+  sendWebsiteLeadSmsAlert: mocks.sendWebsiteLeadSmsAlert,
 }));
 
 import { POST } from "@/app/api/leads/route";
@@ -112,6 +117,7 @@ describe("public lead intake retry safety", () => {
       smsReason: "not_requested",
     });
     mocks.sendLeadNotificationEmail.mockResolvedValue({ sent: true });
+    mocks.sendWebsiteLeadSmsAlert.mockResolvedValue({ sent: true });
   });
 
   it("requires a browser submission UUID before writing a lead", async () => {
@@ -144,6 +150,7 @@ describe("public lead intake retry safety", () => {
     expect(mocks.routeInboundLeadToConfiguredOwner).not.toHaveBeenCalled();
     expect(mocks.runLeadAcknowledgementAutomation).not.toHaveBeenCalled();
     expect(mocks.sendLeadNotificationEmail).not.toHaveBeenCalled();
+    expect(mocks.sendWebsiteLeadSmsAlert).not.toHaveBeenCalled();
   });
 
   it("saves and automates a fresh request exactly once", async () => {
@@ -158,5 +165,21 @@ describe("public lead intake retry safety", () => {
     expect(mocks.routeInboundLeadToConfiguredOwner).toHaveBeenCalledTimes(1);
     expect(mocks.runLeadAcknowledgementAutomation).toHaveBeenCalledTimes(1);
     expect(mocks.sendLeadNotificationEmail).toHaveBeenCalledTimes(1);
+    expect(mocks.sendWebsiteLeadSmsAlert).toHaveBeenCalledExactlyOnceWith(savedRecord);
+    expect(body.ownerSmsAlertSent).toBe(true);
   });
+  it("keeps a saved lead successful when the owner SMS provider fails", async () => {
+    mocks.sendWebsiteLeadSmsAlert.mockRejectedValue(new Error("Twilio unavailable"));
+    const response = await POST(request(requestBody));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ id: LEAD_ID, ownerSmsAlertSent: false });
+  });
+
+  it("does not send an owner alert without durable cloud tracking", async () => {
+    mocks.createLeadIntake.mockResolvedValue({ record: savedRecord, storage: "local", duplicate: false });
+    const response = await POST(request(requestBody));
+    expect(response.status).toBe(200);
+    expect(mocks.sendWebsiteLeadSmsAlert).not.toHaveBeenCalled();
+  });
+
 });

@@ -131,6 +131,23 @@ Payment-action texts honor Pacific quiet hours. If a message is deferred, Atlas
 rechecks that the billing order still needs customer action before delivery and
 cancels stale notices.
 
+### Website lead owner alerts
+
+Each new `/request` submission saved through `POST /api/leads` sends a private
+owner alert to `+15305886235` with this exact body:
+
+`You Got an Organic Hot Lead on your Website!🔥`
+
+The recipient is selected on the server and does not depend on the customer's
+text consent or `LEAD_NOTIFY_SMS` (which still configures Facebook owner alerts).
+The existing approved Twilio sender, status callback, current signed-webhook
+verification, and Supabase owner-alert tracking must be ready. Duplicate browser
+submissions and already-claimed alerts do not send another text. Provider
+failures do not reject a saved lead; check the lead's `owner_sms_alert_*` fields
+and the `[leads] post-save communication incomplete` server log for failures.
+`ownerSmsAlertSent` in the intake response reports provider acceptance, not
+confirmed handset delivery.
+
 ## 5. Kill switches and recovery
 
 - **HQ Communications:** turn off any email or SMS automation rule.

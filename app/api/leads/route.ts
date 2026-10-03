@@ -10,6 +10,7 @@ import {
   smsConsentStatusForLead,
   type CreateLeadIntakeInput,
 } from "@/lib/acquisition/lead-record";
+import { sendWebsiteLeadSmsAlert } from "@/lib/acquisition/send-owner-lead-sms-alert";
 import { sendLeadNotificationEmail } from "@/lib/acquisition/send-lead-notification-email";
 import { runLeadAcknowledgementAutomation } from "@/lib/communications/lead-automation";
 import {
@@ -142,6 +143,7 @@ export async function POST(request: Request) {
         smsSent: false,
         smsScheduled: false,
         notifySent: false,
+        ownerSmsAlertSent: false,
       });
     }
 
@@ -164,13 +166,16 @@ export async function POST(request: Request) {
 
     // The request is already durably saved. Provider outages must never turn a
     // successful intake into a 500 that encourages duplicate submissions.
-    const [routingAttempt, automationAttempt, notifyAttempt] =
+    const [routingAttempt, automationAttempt, notifyAttempt, ownerSmsAttempt] =
       await Promise.allSettled([
         storage === "supabase"
           ? routeInboundLeadToConfiguredOwner({ leadIntakeId: record.id })
           : Promise.resolve({ status: "not_configured" as const }),
         runLeadAcknowledgementAutomation(record),
         sendLeadNotificationEmail(record),
+        storage === "supabase"
+          ? sendWebsiteLeadSmsAlert(record)
+          : Promise.resolve({ sent: false, reason: "Cloud alert tracking unavailable" }),
       ]);
     const emailResult =
       automationAttempt.status === "fulfilled"
@@ -192,13 +197,18 @@ export async function POST(request: Request) {
         ? notifyAttempt.value
         : { sent: false, reason: "Email provider unavailable" };
 
+    const ownerSmsResult =
+      ownerSmsAttempt.status === "fulfilled"
+        ? ownerSmsAttempt.value
+        : { sent: false, reason: "Text provider unavailable" };
+
     if (routingAttempt.status === "rejected") {
       console.warn("[leads] automatic owner routing incomplete", {
         leadId: record.id,
       });
     }
 
-    if (!emailResult.sent || !notifyResult.sent) {
+    if (!emailResult.sent || !notifyResult.sent || !ownerSmsResult.sent) {
       console.warn("[leads] post-save communication incomplete", {
         leadId: record.id,
         confirmation: emailResult.reason ?? "sent",
@@ -209,6 +219,7 @@ export async function POST(request: Request) {
               : "sent"
             : smsResult.reason ?? "not_requested",
         founderNotification: notifyResult.reason ?? "sent",
+        ownerTextNotification: ownerSmsResult.reason ?? "sent",
       });
     }
 
@@ -220,6 +231,7 @@ export async function POST(request: Request) {
       smsSent: smsResult.sent,
       smsScheduled: smsResult.scheduled,
       notifySent: notifyResult.sent,
+      ownerSmsAlertSent: ownerSmsResult.sent,
     });
   } catch (error) {
     console.error("[leads] POST error:", error);
