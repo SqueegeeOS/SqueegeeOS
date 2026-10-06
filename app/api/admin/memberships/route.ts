@@ -1,3 +1,4 @@
+import type { RecurringMembershipValueRow } from "@/lib/admin/compute-membership-yearly-value";
 import { NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { computeMembershipYearlyValue } from "@/lib/admin/compute-membership-yearly-value";
@@ -105,6 +106,7 @@ interface MembershipAppointmentRow {
 }
 
 interface MembershipQueryRow {
+  recurring_services?: RecurringMembershipValueRow[] | null;
   id: string;
   homeowner_id: string;
   property_id: string;
@@ -127,7 +129,7 @@ interface MembershipQueryRow {
 }
 
 const MEMBERSHIP_BASE_SELECT =
-  "id, homeowner_id, property_id, sales_tier, visit_price, annual_rate, visits_per_year, status, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, agreement_id, created_at";
+  "id, homeowner_id, property_id, sales_tier, visit_price, annual_rate, visits_per_year, status, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, agreement_id, created_at, recurring_services:membership_recurring_services(status, annual_value_cents)";
 
 const MEMBERSHIP_EXTENDED_SELECT = `${MEMBERSHIP_BASE_SELECT}, next_billing_date, portal_access_token, founding_member`;
 

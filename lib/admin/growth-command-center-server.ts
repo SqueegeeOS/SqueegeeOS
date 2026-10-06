@@ -1,3 +1,5 @@
+import { computeMembershipYearlyValue } from "@/lib/admin/compute-membership-yearly-value";
+import type { RecurringMembershipValueRow } from "@/lib/admin/compute-membership-yearly-value";
 import "server-only";
 
 import {
@@ -11,6 +13,7 @@ import {
 import type { GrowthTruthSnapshot } from "./growth-command-center";
 
 interface MembershipGrowthRow {
+  recurring_services?: RecurringMembershipValueRow[] | null;
   status: string;
   agreement_id: string | null;
   annual_rate: number | null;
@@ -61,13 +64,7 @@ function emptySnapshot(warning: string): GrowthTruthSnapshot {
 }
 
 function yearlyValue(row: MembershipGrowthRow): number {
-  const annual = Number(row.annual_rate ?? 0);
-  if (Number.isFinite(annual) && annual > 0) return annual;
-  const visit = Number(row.visit_price ?? 0);
-  const visits = Number(row.visits_per_year ?? 0);
-  return Number.isFinite(visit) && Number.isFinite(visits) && visit > 0 && visits > 0
-    ? visit * visits
-    : 0;
+  return computeMembershipYearlyValue(row) ?? 0;
 }
 
 function isGrowthMembershipCancelled(row: MembershipGrowthRow): boolean {
@@ -84,7 +81,7 @@ export async function loadGrowthTruthSnapshot(): Promise<GrowthTruthSnapshot> {
     supabase
       .from("memberships")
       .select(
-        "status, agreement_id, annual_rate, visit_price, visits_per_year, started_at, created_at, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by",
+        "status, agreement_id, annual_rate, visit_price, visits_per_year, started_at, created_at, payment_setup_completed_at, stripe_payment_method_id, stripe_customer_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, recurring_services:membership_recurring_services(status, annual_value_cents)",
       ),
     supabase.from("lead_intakes").select("status, source, submitted_at"),
     supabase.from("presentations").select("status, created_at, signed_at"),

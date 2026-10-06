@@ -1,3 +1,4 @@
+import type { RecurringMembershipValueRow } from "@/lib/admin/compute-membership-yearly-value";
 import {
   createServerSupabaseClient,
   isSupabaseConfigured,
@@ -27,6 +28,7 @@ const EMPTY_OVERVIEW: MembershipProductionRevenueOverview = {
 };
 
 interface MembershipRow {
+  recurring_services?: RecurringMembershipValueRow[] | null;
   id: string;
   homeowner_id: string;
   property_id: string;
@@ -68,7 +70,7 @@ export async function loadMembershipProductionRevenueOverview(): Promise<Members
     const { data: membershipData, error: membershipError } = await supabase
       .from("memberships")
       .select(
-        "id, homeowner_id, property_id, agreement_id, sales_tier, visit_price, annual_rate, visits_per_year, status, payment_setup_completed_at, stripe_payment_method_id",
+        "id, homeowner_id, property_id, agreement_id, sales_tier, visit_price, annual_rate, visits_per_year, status, payment_setup_completed_at, stripe_payment_method_id, recurring_services:membership_recurring_services(status, annual_value_cents)",
       )
       .order("created_at", { ascending: true });
 

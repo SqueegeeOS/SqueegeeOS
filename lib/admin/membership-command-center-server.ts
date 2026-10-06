@@ -1,3 +1,5 @@
+import { computeMembershipYearlyValue } from "@/lib/admin/compute-membership-yearly-value";
+import type { RecurringMembershipValueRow } from "@/lib/admin/compute-membership-yearly-value";
 import { resolveAgreementPdfAccessUrl } from "@/lib/agreement/signed-agreement-storage";
 import { resolveNextChargeDate } from "@/lib/admin/billing-charge-dates";
 import { isPaidBillingStatus } from "@/lib/admin/billing-ledger";
@@ -36,6 +38,7 @@ import {
 } from "@/lib/care-operations/model";
 
 interface MembershipRow {
+  recurring_services?: RecurringMembershipValueRow[] | null;
   id: string;
   homeowner_id: string;
   property_id: string;
@@ -332,7 +335,7 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
   const { data: memberships, error: membershipError } = await supabase
     .from("memberships")
     .select(
-      "id, homeowner_id, property_id, presentation_id, agreement_id, status, sales_tier, plan_name, visit_price, annual_rate, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, portal_access_token, founding_member",
+      "id, homeowner_id, property_id, presentation_id, agreement_id, status, sales_tier, plan_name, visit_price, annual_rate, visits_per_year, started_at, payment_setup_completed_at, stripe_customer_id, stripe_payment_method_id, payment_rail, manual_payment_approved_at, manual_payment_approved_by, portal_access_token, founding_member, recurring_services:membership_recurring_services(status, annual_value_cents)",
     )
     .neq("status", "cancelled")
     .order("created_at", { ascending: true });
@@ -506,12 +509,15 @@ export async function loadMembershipCommandCenter(): Promise<MembershipCommandCe
     const planType = planTypeFromTier(membership.sales_tier, membership.plan_name);
     const visitPrice =
       membership.visit_price != null ? Number(membership.visit_price) : null;
-    const yearlyValue = resolveYearlyValue(
-      visitPrice,
-      membership.visits_per_year,
-      membership.annual_rate != null ? Number(membership.annual_rate) : null,
-      membership.sales_tier,
-    );
+    const yearlyValue = computeMembershipYearlyValue({
+      ...membership,
+      annual_rate: resolveYearlyValue(
+        visitPrice,
+        membership.visits_per_year,
+        membership.annual_rate != null ? Number(membership.annual_rate) : null,
+        membership.sales_tier,
+      ),
+    });
 
     const periodCharge = nextChargeDate
       ? charges.find((row) =>

@@ -41,4 +41,35 @@ describe("computeMembershipYearlyValue", () => {
       }),
     ).toBeNull();
   });
+
+  it("includes Bill's twice-yearly window addition without changing base pricing", () => {
+    const member = {
+      annual_rate: 544,
+      visit_price: 272,
+      visits_per_year: 2,
+      recurring_services: [{ status: "active", annual_value_cents: 47600 }],
+    };
+    expect(computeMembershipYearlyValue(member)).toBe(1020);
+    expect(member.visit_price).toBe(272);
+    expect(member.annual_rate).toBe(544);
+  });
+
+  it("excludes paused and cancelled recurring services", () => {
+    expect(computeMembershipYearlyValue({
+      annual_rate: 544, visit_price: 272, visits_per_year: 2,
+      recurring_services: [
+        { status: "paused", annual_value_cents: 47600 },
+        { status: "cancelled", annual_value_cents: 63000 },
+        { status: "active", annual_value_cents: 8000 },
+      ],
+    })).toBe(624);
+  });
+
+  it("does not present a partial addition as a complete unknown plan value", () => {
+    expect(computeMembershipYearlyValue({
+      annual_rate: null, visit_price: null, visits_per_year: 2,
+      recurring_services: [{ status: "active", annual_value_cents: 47600 }],
+    })).toBeNull();
+  });
+
 });
