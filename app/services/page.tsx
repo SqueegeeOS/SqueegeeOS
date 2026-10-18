@@ -11,12 +11,12 @@ import { PUBLIC_SERVICES } from "@/lib/marketing/public-services";
 export const metadata: Metadata = {
   title: "Window Cleaning & Exterior Home Care in Chico, CA",
   description:
-    "Explore SqueegeeKing window cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
+    "Explore SqueegeeKing window cleaning, gutter cleaning, pressure washing, solar panel cleaning, and recurring exterior home care in Chico, California.",
   alternates: { canonical: "/services" },
   openGraph: {
     title: "Exterior Home Care Services in Chico, CA | SqueegeeKing",
     description:
-      "Window cleaning, pressure washing, solar panel cleaning, and recurring care built around your Chico home.",
+      "Windows, gutters, pressure washing, solar panels, and recurring care built around your Chico home.",
     url: "/services",
     type: "website",
     images: [
@@ -47,13 +47,13 @@ export default function ServicesPage() {
           </p>
           <div className="mt-6 grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
             <h1 className="max-w-5xl font-serif text-6xl font-light leading-[0.9] sm:text-8xl lg:text-[7.2rem]">
-              Four crafts.
+              Exterior care.
               <br />
               <em className="text-[#99683d]">One standard.</em>
             </h1>
             <div className="pb-2">
               <p className="max-w-xl text-lg leading-relaxed text-[#526b60]">
-                Window cleaning, pressure washing, solar panel care, and
+                Window cleaning, gutter cleaning, pressure washing, solar panel care, and
                 recurring maintenance shaped around the property—not a generic
                 package.
               </p>

@@ -43,6 +43,12 @@ export async function generateMetadata({
         },
       ],
     },
+    twitter: {
+      card: "summary_large_image",
+      title: `${service.pageTitle} | SqueegeeKing`,
+      description: service.metaDescription,
+      images: [service.image],
+    },
   };
 }
 

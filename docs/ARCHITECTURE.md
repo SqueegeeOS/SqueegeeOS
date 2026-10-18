@@ -71,7 +71,7 @@ Everything downstream of **Property Hub** is property-scoped. The timeline is th
 
 | Stage | Status | Route |
 |-------|--------|-------|
-| Marketing Website | Not started | — |
+| Marketing Website | Public acquisition pages and homeowner guides | `/`, `/services`, `/guides` |
 | Home Care Assessment | Not started | — |
 | Homeowner Portal (Member portal) | **Built** (token) + demo (slug) | `/portal/[token]` production; `/homecare/.../portal` internal |
 | Property Hub | Built | `/properties` |
@@ -481,12 +481,16 @@ Presentation onboarding signs agreements via `POST /api/sign-agreement` → `com
 | Photo Library | Counts only | Property Hub cards |
 | Annual Home Care Review | Not started | — |
 | Headquarters | **Built** (PIN + sales tracker) | `/hq` (canonical); `/admin` legacy alias |
-| Marketing Website | Not started | — |
+| Marketing Website | Public acquisition pages, guides, and private editorial drafting | `/`, `/services`, `/guides`, `/hq/marketing` |
 | Home Care Assessment | Not started | — |
 
 ---
 
 ## Headquarters (`/hq`)
+
+### Local presence and editorial workflow
+
+`/hq/marketing` adds a private drafting surface under the existing founder session boundary. It consumes a minimal read-only Aftercare/review-readiness view at `/api/admin/marketing` and builds owner-reviewed content packs locally. It reuses the existing review-request processor and adds no publishing or messaging sender. Public services and guides remain server-rendered and appear in the sitemap. See [Local Presence Marketing](operations/LOCAL_PRESENCE_MARKETING.md) for operation, attribution limits, and production activation boundaries.
 
 Founder command center for **Noah Thomas** and **Dasan Gramps** — executive revenue room with Closed Jobs / Sales Tracker. User-facing name is **Headquarters**, not "Admin" — see [BRAND.md](./BRAND.md).
 

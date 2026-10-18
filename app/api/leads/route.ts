@@ -24,9 +24,11 @@ import {
   type SqueegeeKingTierId,
 } from "@/lib/membership/tier-config";
 import { routeInboundLeadToConfiguredOwner } from "@/lib/sales/inbound-lead-routing-server";
+import { websiteAttributionNote } from "@/lib/marketing/website-attribution";
 
 type LeadIntakeRequestBody = Partial<LeadIntakeFormData> & {
   submissionId?: unknown;
+  websiteAttribution?: unknown;
 };
 
 function isServiceOption(value: string): value is (typeof serviceOptions)[number] {
@@ -122,7 +124,7 @@ export async function POST(request: Request) {
         smsConsentStatus === "opted_in"
           ? request.headers.get("user-agent")?.slice(0, 1_000) || null
           : null,
-      notes: body.notes?.trim() ?? "",
+      notes: [body.notes?.trim() ?? "", websiteAttributionNote(body.websiteAttribution)].filter(Boolean).join("\n\n"),
       membershipTier,
       squareFootage,
       estimatedVisitPrice: estimatedPriceForLead(membershipTier, squareFootage),

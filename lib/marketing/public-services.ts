@@ -11,6 +11,7 @@ export interface PublicService {
   serviceType: string;
   rhythm: string;
   promise: string;
+  quoteFactors: string[];
   inclusions: Array<{
     title: string;
     description: string;
@@ -24,6 +25,7 @@ export interface PublicService {
 export const PUBLIC_SERVICES: PublicService[] = [
   {
     slug: "window-cleaning",
+    quoteFactors: ["Number, size, and style of windows", "Exterior only or interior and exterior", "Screens, tracks, and sills requested", "Second-story access and hard-water buildup"],
     name: "Window Cleaning",
     navLabel: "Window cleaning",
     pageTitle: "Window Cleaning in Chico, CA",
@@ -57,6 +59,10 @@ export const PUBLIC_SERVICES: PublicService[] = [
     ],
     questions: [
       {
+        question: "What affects the cost of window cleaning in Chico?",
+        answer: "Window count and style, building height, access, interior glass, screens, and specialty buildup affect the work. Share your address and requested services so we can confirm the scope and price before you book.",
+      },
+      {
         question: "Can I book one window-cleaning visit without a membership?",
         answer:
           "Yes. Start with one visit. If you want regular care later, we can build a three- or six-month schedule around your home.",
@@ -75,6 +81,7 @@ export const PUBLIC_SERVICES: PublicService[] = [
   },
   {
     slug: "pressure-washing",
+    quoteFactors: ["Size of the areas being cleaned", "Surface material and condition", "Access and water availability", "Staining and additional services requested"],
     name: "Pressure Washing",
     navLabel: "Pressure washing",
     pageTitle: "Pressure Washing in Chico, CA",
@@ -126,6 +133,7 @@ export const PUBLIC_SERVICES: PublicService[] = [
   },
   {
     slug: "solar-panel-cleaning",
+    quoteFactors: ["Panel count and arrangement", "Roof height, slope, and safe access", "Dust, leaves, and surface buildup", "A single visit or recurring service"],
     name: "Solar Panel Cleaning",
     navLabel: "Solar panel cleaning",
     pageTitle: "Solar Panel Cleaning in Chico, CA",
@@ -176,7 +184,37 @@ export const PUBLIC_SERVICES: PublicService[] = [
     ],
   },
   {
+    slug: "gutter-cleaning",
+    name: "Gutter Cleaning",
+    navLabel: "Gutter cleaning",
+    pageTitle: "Gutter Cleaning in Chico, CA",
+    headline: "Gutter cleaning in Chico, before debris becomes a problem.",
+    description:
+      "Leaf and debris removal for Chico homeowners who want a clear scope before anyone climbs a ladder. We review gutter access, roof height, and the condition of the system before confirming the work.",
+    metaDescription:
+      "Gutter cleaning in Chico, CA from SqueegeeKing. Request a free quote for leaf and debris removal, accessible downspouts, and seasonal exterior care.",
+    image: "/day/hour-dusk.jpg",
+    imageAlt: "A home exterior in evening light",
+    serviceType: "Residential gutter cleaning",
+    rhythm: "One-time or seasonal care based on your property",
+    promise:
+      "Your quote explains which gutters and accessible downspouts are included. Repairs, gutter guards, and specialty work are discussed separately.",
+    quoteFactors: ["Approximate gutter length and building height", "Ladder access around the property", "Amount of debris and accessible blockages", "Gutter guards and any separately requested work"],
+    inclusions: [
+      { title: "Leaves and debris", description: "We quote removal of the buildup in the accessible gutter runs included in your plan." },
+      { title: "Downspout scope", description: "Tell us about overflow or a suspected blockage so we can confirm which accessible outlets and downspouts belong in the work." },
+      { title: "Coordinated exterior care", description: "Ask about combining gutter cleaning with windows or other exterior services in one Home Care Plan." },
+    ],
+    questions: [
+      { question: "How much does gutter cleaning cost in Chico?", answer: "Gutter length, building height, access, debris, and gutter guards all affect the work. Share the address and any known overflow areas for a property-specific quote." },
+      { question: "Are gutter repairs included?", answer: "Cleaning and repairs are different scopes. Let us know about leaks, loose sections, or damage before booking so we can explain what the cleaning quote covers." },
+      { question: "Can you quote a second-story gutter job?", answer: "Yes. Send the property details so we can review height and safe access before confirming the job and price." },
+      { question: "When should I arrange gutter cleaning?", answer: "Plan around the trees and leaf buildup at your property. If you notice debris or overflow, request an assessment rather than waiting for a fixed calendar date." },
+    ],
+  },
+  {
     slug: "home-care-memberships",
+    quoteFactors: ["Services included in each visit", "Quarterly, bi-annual, or custom frequency", "Interior cleaning and screen frequency", "Property size, layout, and access"],
     name: "Home Care Memberships",
     navLabel: "Home care memberships",
     pageTitle: "Recurring Home Care in Chico, CA",

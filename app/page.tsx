@@ -11,11 +11,11 @@ export const metadata: Metadata = {
   },
   alternates: { canonical: "/" },
   description:
-    "Professional window cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
+    "Window cleaning, gutter cleaning, pressure washing, and solar panel cleaning in Chico, CA. Request a free quote for one-time or recurring SqueegeeKing care.",
   openGraph: {
     title: "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
     description:
-      "Professional exterior home care in Chico with a personalized plan and a memory for every membership.",
+      "Windows, gutters, pressure washing, and solar panel cleaning in Chico. Get a free quote for one-time or recurring care.",
     url: "/",
     type: "website",
     images: [
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
     description:
-      "Professional window cleaning and exterior home care in Chico, powered by a HomeAtlas record for every member home.",
+      "Windows, gutters, pressure washing, and solar panel cleaning in Chico. Get a free quote for one-time or recurring care.",
     images: ["/atlas-glass/hero-house-wide.png"],
   },
 };

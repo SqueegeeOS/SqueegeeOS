@@ -17,6 +17,7 @@ import {
 } from "@/lib/acquisition/types";
 import { CUSTOMER_CONTACT, CUSTOMER_CTAS } from "@/lib/brand/customer";
 import { createLeadSubmissionId } from "@/lib/acquisition/lead-submission-id";
+import { websiteAttributionFromParams } from "@/lib/marketing/website-attribution";
 import {
   buildSqueegeeKingTierQuote,
   formatTierPeriodPrice,
@@ -186,6 +187,7 @@ function RequestFormFields() {
         body: JSON.stringify({
           ...form,
           submissionId: submissionAttempt.id,
+          websiteAttribution: websiteAttributionFromParams(searchParams),
         }),
       });
 

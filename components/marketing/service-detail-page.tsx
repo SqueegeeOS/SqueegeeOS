@@ -59,7 +59,7 @@ export function ServiceDetailPage({ service }: { service: PublicService }) {
                 href="/request"
                 className="inline-flex min-h-14 items-center justify-center rounded-full bg-[#173f32] px-8 text-sm font-medium tracking-[0.08em] text-[#fffaf0] transition-transform hover:-translate-y-0.5"
               >
-                Request my plan
+                Get a free quote
               </Link>
               <a
                 href={LOCAL_CONTACT.phoneHref}
@@ -166,6 +166,22 @@ export function ServiceDetailPage({ service }: { service: PublicService }) {
               </li>
             ))}
           </ol>
+        </div>
+      </section>
+
+      <section className="border-t border-[#173f32]/10 bg-[#e7ecdf] px-5 py-16 sm:px-8 lg:px-12">
+        <div className="mx-auto max-w-[90rem]">
+          <h2 className="font-serif text-4xl font-light">What shapes your quote?</h2>
+          <p className="mt-4 max-w-3xl leading-relaxed text-[#526b60]">
+            We confirm the scope and price before work begins. These details help us prepare an accurate quote for your home.
+          </p>
+          <ul className="mt-6 grid list-inside list-disc gap-3 text-[#526b60] sm:grid-cols-2">
+            {service.quoteFactors.map((factor) => <li key={factor}>{factor}</li>)}
+          </ul>
+          <div className="mt-8 flex flex-wrap gap-6">
+            <Link href="/request" className="font-medium underline underline-offset-4">Get a free quote →</Link>
+            <Link href="/guides" className="underline underline-offset-4">Read our home care guides</Link>
+          </div>
         </div>
       </section>
 
