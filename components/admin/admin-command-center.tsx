@@ -68,6 +68,7 @@ const QUICK_ACTIONS = [
   { label: "Memberships", href: "/hq/memberships" },
   { label: "Referrals", href: "/hq/referrals" },
   { label: "Aftercare", href: ROUTES.hqAftercare },
+  { label: "Marketing", href: "/hq/marketing" },
   { label: "All Presentations", href: ROUTES.presentations },
   { label: "Production Health", href: ROUTES.hqProductionHealth },
   { label: "Production Check", href: ROUTES.hqProductionCheck },

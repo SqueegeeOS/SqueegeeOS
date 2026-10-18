@@ -168,6 +168,18 @@ describe("public lead intake retry safety", () => {
     expect(mocks.sendWebsiteLeadSmsAlert).toHaveBeenCalledExactlyOnceWith(savedRecord);
     expect(body.ownerSmsAlertSent).toBe(true);
   });
+  it("preserves the homeowner note and validated website campaign on intake", async () => {
+    const response = await POST(request({ ...requestBody, notes: "Please include screens.", websiteAttribution: { source: "google_business_profile", medium: "organic", campaign: "job_window-cleaning" } }));
+    expect(response.status).toBe(200);
+    expect(mocks.createLeadIntake).toHaveBeenCalledWith(expect.objectContaining({ notes: "Please include screens.\n\nWebsite campaign (visitor-supplied): google_business_profile / organic / job_window-cleaning", clientSubmissionId: SUBMISSION_ID }));
+  });
+
+  it("ignores malformed attribution without blocking an ordinary request", async () => {
+    const response = await POST(request({ ...requestBody, websiteAttribution: { source: "google\nforged" } }));
+    expect(response.status).toBe(200);
+    expect(mocks.createLeadIntake).toHaveBeenCalledWith(expect.objectContaining({ notes: "" }));
+  });
+
   it("keeps a saved lead successful when the owner SMS provider fails", async () => {
     mocks.sendWebsiteLeadSmsAlert.mockRejectedValue(new Error("Twilio unavailable"));
     const response = await POST(request(requestBody));

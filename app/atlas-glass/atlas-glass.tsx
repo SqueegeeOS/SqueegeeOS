@@ -95,6 +95,14 @@ const CARE_OPTIONS = [
   },
   {
     number: "04",
+    title: "Gutter cleaning",
+    detail: "Leaves, debris, and accessible downspouts included in a clear property-specific quote.",
+    cadence: "Seasonal maintenance",
+    href: "/services/gutter-cleaning",
+    image: "/day/hour-dusk.jpg",
+  },
+  {
+    number: "05",
     title: "Home care memberships",
     detail: "Quarterly or bi-annual care, with a custom 3x/year option when it fits.",
     cadence: "Your home, on rhythm",
@@ -210,27 +218,28 @@ export function AtlasGlass() {
               <a href="#reviews">Reviews</a>
             </nav>
             <span className={styles.liveBadge}><i aria-hidden="true" />Home care, live</span>
-            <Link href="/request" className={styles.headerCta}>Build my plan</Link>
+            <Link href="/request" className={styles.headerCta}>Get a free quote</Link>
           </div>
         </header>
 
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>The SqueegeeKing membership, powered by HomeAtlas</p>
-          <h1 id="atlas-hero-title">Your home<em>remembers.</em></h1>
+          <p className={styles.eyebrow}>SqueegeeKing · Chico, California</p>
+          <h1 id="atlas-hero-title">Window cleaning.<em>Chico home care.</em></h1>
           <p className={styles.heroBody}>
-            Cleaning is the visit. HomeAtlas is everything your home keeps:
-            what happened, what is next, and the proof behind every promise.
+            Windows, gutters, pressure washing, and solar panel cleaning,
+            with a clear quote before work begins. Book one visit or let us
+            keep your home on a recurring care schedule.
           </p>
           <div className={styles.heroActions}>
             <Link href="/request" className={styles.primaryCta}>
-              Get your free Home Care Plan <span aria-hidden="true">↗</span>
+              Get a free quote <span aria-hidden="true">↗</span>
             </Link>
-            <a href="#homeatlas-live" className={styles.secondaryCta}>See the app in motion</a>
+            <a href={CUSTOMER_CONTACT.phoneHref} className={styles.secondaryCta}>Call {CUSTOMER_CONTACT.phoneDisplay}</a>
           </div>
           <div className={styles.heroTrust} aria-label="SqueegeeKing promises">
             <span><i aria-hidden="true" />Founder-led in Chico</span>
             <span>7-day workmanship guarantee</span>
-            <span>Your home keeps the record</span>
+            <span>One-time or recurring care</span>
           </div>
         </div>
 
@@ -490,6 +499,7 @@ export function AtlasGlass() {
         </div>
         <nav aria-label="Footer navigation">
           <Link href="/services">Services</Link>
+          <Link href="/guides">Home care guides</Link>
           <Link href="/request">Request a plan</Link>
           <Link href="/contact">Contact</Link>
           <Link href="/privacy">Privacy</Link>

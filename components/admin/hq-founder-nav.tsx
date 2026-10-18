@@ -32,6 +32,7 @@ const FOUNDER_NAV_ITEMS = [
   { label: "Billing", href: ROUTES.hqBilling },
   { label: "Numbers", href: ROUTES.hqBusinessPulse },
   { label: "Growth", href: ROUTES.hqGrowth },
+  { label: "Marketing", href: "/hq/marketing" },
   { label: "Health", href: ROUTES.hqProductionHealth },
   { label: "Overview", href: ROUTES.hq, exact: true },
 ] as const;

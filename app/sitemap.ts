@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { PUBLIC_SITE_URL } from "@/lib/brand/urls";
 import { PUBLIC_SERVICES } from "@/lib/marketing/public-services";
+import { HOMEOWNER_GUIDES } from "@/lib/marketing/homeowner-guides";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
@@ -26,5 +27,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     })),
     { url: `${PUBLIC_SITE_URL}/request`, changeFrequency: "monthly", priority: 0.9 },
     { url: `${PUBLIC_SITE_URL}/contact`, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${PUBLIC_SITE_URL}/guides`, changeFrequency: "monthly", priority: 0.7 },
+    ...HOMEOWNER_GUIDES.map((guide) => ({ url: `${PUBLIC_SITE_URL}/guides/${guide.slug}`, changeFrequency: "monthly" as const, priority: 0.65 })),
   ];
 }
