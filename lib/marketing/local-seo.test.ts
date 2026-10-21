@@ -23,6 +23,7 @@ describe("local SEO contracts", () => {
     expect(slugs).toContain("window-cleaning");
     expect(slugs).toContain("pressure-washing");
     expect(slugs).toContain("solar-panel-cleaning");
+    expect(slugs).toContain("gutter-cleaning");
   });
 
   it("connects service structured data to SqueegeeKing", () => {

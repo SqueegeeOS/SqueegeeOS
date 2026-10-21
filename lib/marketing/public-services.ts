@@ -11,6 +11,7 @@ export interface PublicService {
   serviceType: string;
   rhythm: string;
   promise: string;
+  pricing?: { heading: string; description: string; factors: string[] };
   inclusions: Array<{
     title: string;
     description: string;
@@ -29,7 +30,7 @@ export const PUBLIC_SERVICES: PublicService[] = [
     pageTitle: "Window Cleaning in Chico, CA",
     headline: "Window cleaning in Chico, done the right way.",
     description:
-      "Professional window care built around your home, your glass, and the level of service you choose. Start with a clear Home Care Plan, then choose a one-time visit or a recurring rhythm.",
+      "Interior and exterior window cleaning for Chico homes, with screen, track, and sill cleaning available in your quote. Choose a one-time cleaning or recurring visits every three or six months. We confirm the windows, access, and included details before you approve the work.",
     metaDescription:
       "Professional window cleaning in Chico, CA from SqueegeeKing. Request a personalized plan for one-time, bi-annual, or quarterly home care.",
     image: "/day/hour-window.jpg",
@@ -42,19 +43,24 @@ export const PUBLIC_SERVICES: PublicService[] = [
       {
         title: "A plan for your glass",
         description:
-          "We shape the quote around the windows and access at your property instead of forcing every home into the same package.",
+          "Exterior window cleaning removes dirt and buildup from the glass. Tell us about second-story windows, difficult access, and any glass you are especially concerned about so we can plan the visit and confirm what is included.",
       },
       {
         title: "Interior care when requested",
         description:
-          "Interior window cleaning can be added to the plan, along with screens and other quoted details.",
+          "Add interior glass, screen cleaning, tracks, and sills to suit your home. These details are listed in your quote so you can compare exterior-only care with a more complete inside-and-out cleaning.",
       },
       {
-        title: "A home that is remembered",
+        title: "Hard-water spots and glass condition",
         description:
-          "Members receive HomeAtlas, where visits, observations, photos, and the next care rhythm stay connected to the property.",
+          "Point out mineral spots when requesting your quote. Hard-water treatment is assessed separately from routine glass cleaning; permanent etching or damaged glass may remain visible after cleaning. Members also receive a HomeAtlas record for ongoing care.",
       },
     ],
+    pricing: {
+      heading: "What affects window cleaning prices in Chico?",
+      description: "Your quote is based on the work at your property. Share the address, approximate home size, number of stories, and whether you want inside, outside, or both. Photos of unusual windows help us confirm the scope.",
+      factors: ["Window quantity, size, and style", "Second-story windows and access", "Interior glass, screens, tracks, and sills", "Hard-water buildup and glass condition", "One-time cleaning or recurring service"],
+    },
     questions: [
       {
         question: "Can I book one window-cleaning visit without a membership?",
@@ -106,6 +112,11 @@ export const PUBLIC_SERVICES: PublicService[] = [
           "Pressure washing can be planned alongside window or solar panel care so the property is handled in one coordinated visit.",
       },
     ],
+    pricing: {
+      heading: "What affects pressure washing prices?",
+      description: "Tell us which surfaces need cleaning and send photos if possible. We review the material, condition, and access before recommending pressure washing or a lower-pressure soft wash for appropriate surfaces.",
+      factors: ["Size of the driveway, patio, walkway, or exterior", "Surface material and condition", "Algae, dirt, stains, and other buildup", "Water access and surrounding landscaping", "Combining the visit with window or solar cleaning"],
+    },
     questions: [
       {
         question: "What can you pressure wash at my Chico home?",
@@ -129,9 +140,9 @@ export const PUBLIC_SERVICES: PublicService[] = [
     name: "Solar Panel Cleaning",
     navLabel: "Solar panel cleaning",
     pageTitle: "Solar Panel Cleaning in Chico, CA",
-    headline: "Solar panel care for Chico dust and seasons.",
+    headline: "Solar panel cleaning in Chico, CA.",
     description:
-      "Professional solar panel cleaning for homeowners who want seasonal buildup handled without another task to remember. Book it alone or coordinate it with the rest of the exterior.",
+      "Solar panel cleaning for Chico homeowners dealing with dust, pollen, bird droppings, and other surface buildup. Share the panel count and roof access so we can quote the work. Book a single visit or coordinate recurring panel cleaning with your window service.",
     metaDescription:
       "Solar panel cleaning in Chico, CA from SqueegeeKing. Schedule one-time care or bundle panel cleaning with windows and recurring home maintenance.",
     image: "/day/hour-solar.jpg",
@@ -157,6 +168,11 @@ export const PUBLIC_SERVICES: PublicService[] = [
           "HomeAtlas members keep the visit and property history together, so the next conversation starts with what has already been done.",
       },
     ],
+    pricing: {
+      heading: "What affects solar panel cleaning prices?",
+      description: "Panel count is a useful starting point, but access and buildup also affect the work. Send the property address, approximate number of panels, and a photo of the array when requesting your quote. Cleaning is separate from electrical repairs or system diagnostics.",
+      factors: ["Number of panels and array layout", "Roof height, pitch, and safe access", "Dust, bird droppings, and other buildup", "One-time or recurring cleaning", "Combining solar panel and window cleaning"],
+    },
     questions: [
       {
         question: "How often should solar panels be cleaned in Chico?",
@@ -173,6 +189,36 @@ export const PUBLIC_SERVICES: PublicService[] = [
         answer:
           "Yes. We can include solar panels and windows in one property-specific plan so you have a clear scope and one coordinated visit.",
       },
+    ],
+  },
+  {
+    slug: "gutter-cleaning",
+    name: "Gutter Cleaning",
+    navLabel: "Gutter cleaning",
+    pageTitle: "Gutter Cleaning in Chico, CA",
+    headline: "Gutter cleaning in Chico, CA.",
+    description: "Gutter cleaning for Chico homes with leaves, roof debris, and blocked gutter runs. Request a quote for debris removal and a review of accessible downspout flow. We confirm the roofline, access, and included work before scheduling your visit.",
+    metaDescription: "Gutter cleaning in Chico, CA from SqueegeeKing. Request a quote for gutter debris removal and accessible downspout checks, alone or with window cleaning.",
+    image: "/day/hour-dusk.jpg",
+    imageAlt: "A residential home exterior in evening light",
+    serviceType: "Residential gutter cleaning",
+    rhythm: "One-time cleaning or seasonal care by arrangement",
+    promise: "A clear scope for the gutter runs we can safely reach, with any visible access concerns or additional work discussed before you approve the service.",
+    inclusions: [
+      { title: "Leaves and gutter debris", description: "We quote removal of leaves and debris from the agreed gutter runs. Let us know about overflowing sections, nearby trees, or areas that have not been cleaned recently so we can account for the buildup." },
+      { title: "Downspouts and drainage concerns", description: "Accessible downspout flow can be checked as part of the quoted work. Tell us where water is backing up. A blockage inside a concealed pipe or underground drain may require separate work; the quote makes the scope clear." },
+      { title: "One- and two-story access", description: "Share the number of stories, roofline photos, and any gutter guards before the visit. Height, roof pitch, landscaping, and guard design affect access and the cleaning approach. We confirm which sections can be safely serviced." },
+    ],
+    pricing: {
+      heading: "What affects gutter cleaning prices in Chico?",
+      description: "Gutter length, access, and debris determine the scope. Send your address and photos of the roofline or overflowing sections for a property-specific quote. Gutter repairs, guard installation, and exterior gutter washing are separate services unless included in writing.",
+      factors: ["Length and layout of gutter runs", "Number of stories and safe ladder access", "Debris depth and downspout blockages", "Existing gutter guards", "Combining gutter and window cleaning"],
+    },
+    questions: [
+      { question: "When should I schedule gutter cleaning in Chico?", answer: "Check your gutters as leaves collect and before the rainy season. If you notice overflowing water or visible debris, request a cleaning assessment. Homes with trees close to the roof may need attention more often than homes with little leaf buildup." },
+      { question: "Can you clean second-story gutters or gutters with guards?", answer: "We assess second-story work and existing gutter guards before confirming the quote. Send roofline photos and tell us about the guards, roof height, and access restrictions so we can identify the sections we can safely clean." },
+      { question: "Can I book gutters and windows together?", answer: "Yes. Request both services in the same quote. We confirm the gutter cleaning scope, window options, and scheduling before you approve the visit. One-time service is available without a membership." },
+      { question: "Does gutter cleaning include repairs or gutter washing?", answer: "Debris removal, exterior washing, repairs, and guard installation involve different work. Your quote states what is included. Mention leaks, sagging sections, stains, or damaged guards when requesting service so we can discuss the appropriate next step." },
     ],
   },
   {

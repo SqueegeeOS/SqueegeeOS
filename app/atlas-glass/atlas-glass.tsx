@@ -66,7 +66,7 @@ const MEMORIES = [
 ] as const;
 
 const SERVICE_RIBBON =
-  "WINDOWS · PRESSURE WASHING · SOLAR · EVERY 3 MONTHS · EVERY 6 MONTHS · SEVEN-DAY GUARANTEE · RAINBLOCK · ";
+  "WINDOWS · GUTTERS · PRESSURE WASHING · SOLAR · EVERY 3 MONTHS · EVERY 6 MONTHS · SEVEN-DAY GUARANTEE · RAINBLOCK · ";
 
 const CARE_OPTIONS = [
   {
@@ -95,6 +95,14 @@ const CARE_OPTIONS = [
   },
   {
     number: "04",
+    title: "Gutter cleaning",
+    detail: "Leaf and debris removal, with access and downspout checks agreed in your quote.",
+    cadence: "Before the rainy season",
+    href: "/services/gutter-cleaning",
+    image: "/day/hour-dusk.jpg",
+  },
+  {
+    number: "05",
     title: "Home care memberships",
     detail: "Quarterly or bi-annual care, with a custom 3x/year option when it fits.",
     cadence: "Your home, on rhythm",
@@ -131,7 +139,7 @@ const HOMEOWNER_QUESTIONS = [
   {
     question: "Where does SqueegeeKing work?",
     answer:
-      "We are based in Chico, California. Send us the property address and the services you need, and we will confirm availability in your area before building the plan.",
+      "We are based in Chico, California. For properties in Oroville, Magalia, or Lake Almanor, send the address and requested services so we can confirm travel and scheduling availability before quoting.",
   },
 ] as const;
 
@@ -215,15 +223,16 @@ export function AtlasGlass() {
         </header>
 
         <div className={styles.heroCopy}>
-          <p className={styles.eyebrow}>The SqueegeeKing membership, powered by HomeAtlas</p>
-          <h1 id="atlas-hero-title">Your home<em>remembers.</em></h1>
+          <p className={styles.eyebrow}>Local window cleaning &amp; exterior home care</p>
+          <h1 id="atlas-hero-title">Window Cleaning &amp; Exterior Home Care<em>in Chico, CA.</em></h1>
           <p className={styles.heroBody}>
-            Cleaning is the visit. HomeAtlas is everything your home keeps:
-            what happened, what is next, and the proof behind every promise.
+            Interior and exterior window cleaning, gutter cleaning, pressure
+            washing, and solar panel cleaning for Chico homeowners. Book one
+            visit or choose recurring care with HomeAtlas included for members.
           </p>
           <div className={styles.heroActions}>
             <Link href="/request" className={styles.primaryCta}>
-              Get your free Home Care Plan <span aria-hidden="true">↗</span>
+              Get your free quote <span aria-hidden="true">↗</span>
             </Link>
             <a href="#homeatlas-live" className={styles.secondaryCta}>See the app in motion</a>
           </div>
@@ -374,7 +383,7 @@ export function AtlasGlass() {
         <div className={styles.careHeading}>
           <div>
             <p className={styles.darkEyebrow}>Window cleaning &amp; exterior home care in Chico</p>
-            <h2 id="care-options-title">One home.<em>Every clear next step.</em></h2>
+            <h2 id="care-options-title">Cleaning services<em>for your Chico home.</em></h2>
           </div>
           <p>
             Start with the service you need today. If recurring care makes

@@ -31,7 +31,7 @@ export const metadata: Metadata = {
     template: "%s | SqueegeeKing",
   },
   description:
-    "Window cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
+    "Window cleaning, gutter cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
   applicationName: CUSTOMER_BRAND.name,
   creator: CUSTOMER_BRAND.name,
   publisher: CUSTOMER_BRAND.name,
@@ -43,7 +43,7 @@ export const metadata: Metadata = {
     url: "/",
     title: "SqueegeeKing | Window Cleaning in Chico, CA",
     description:
-      "Window cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
+      "Window cleaning, gutter cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
     images: [
       {
         url: "/day/morning.jpg",

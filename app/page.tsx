@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   },
   alternates: { canonical: "/" },
   description:
-    "Professional window cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
+    "Window cleaning, gutter cleaning, pressure washing, and solar panel cleaning in Chico, CA. Get a free quote for one-time or recurring home care.",
   openGraph: {
     title: "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
     description:
