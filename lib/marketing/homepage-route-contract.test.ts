@@ -45,6 +45,7 @@ describe("public homepage route contract", () => {
       "window-cleaning",
       "pressure-washing",
       "solar-panel-cleaning",
+      "gutter-cleaning",
       "home-care-memberships",
     ];
 

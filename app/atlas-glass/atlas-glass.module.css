@@ -136,8 +136,8 @@
 .heroCopy { position: absolute; z-index: 4; top: 20%; left: clamp(32px,5.2vw,88px); width: min(610px,48vw); }
 .eyebrow { margin: 0 0 22px; color: var(--gold); font-size: clamp(.58rem,.7vw,.7rem); line-height: 1.6; animation: rise .85s ease-out .26s both; }
 .heroCopy h1, .portalNarrative h2, .careHeading h2, .closingContent h2 { margin: 0; font-family: var(--font-serif), Georgia, serif; font-weight: 400; letter-spacing: -.045em; }
-.heroCopy h1 { max-width: 7.2ch; font-size: clamp(4.5rem,8vw,8.6rem); line-height: .75; text-shadow: 0 12px 46px rgba(0,0,0,.24); animation: rise 1s cubic-bezier(.16,1,.3,1) .32s both; }
-.heroCopy h1 em { display: block; margin-left: .38em; color: var(--gold); font-weight: 300; }
+.heroCopy h1 { max-width: 15ch; font-size: clamp(3.2rem,4.8vw,5.8rem); line-height: .95; text-shadow: 0 12px 46px rgba(0,0,0,.24); animation: rise 1s cubic-bezier(.16,1,.3,1) .32s both; }
+.heroCopy h1 em { display: block; margin-left: 0; color: var(--gold); font-weight: 300; }
 .heroBody { max-width: 520px; margin: 35px 0 0; color: rgba(255,248,232,.78); font-size: clamp(.96rem,1.2vw,1.15rem); line-height: 1.65; animation: rise .9s ease-out .45s both; }
 .heroActions { gap: 14px; margin-top: 28px; animation: rise .9s ease-out .56s both; }
 
@@ -430,7 +430,7 @@
 
 @media (max-width:1100px) {
   .heroCopy { top:17%; width:56vw; }
-  .heroCopy h1 { font-size:clamp(4.5rem,9vw,7rem); }
+  .heroCopy h1 { font-size:clamp(3.2rem,5.5vw,5rem); }
   .memoryDock { width:48vw; right:28px; bottom:62px; }
   .portalIntro { grid-template-columns:1fr; }
   .portalNarrative { display:grid; grid-template-columns:1fr 260px; column-gap:50px; }
@@ -445,8 +445,8 @@
   .glassEdge { inset:9px; border-radius:22px; }
   .header { padding:22px 20px; } .brand strong { font-size:1.05rem; } .headerNav, .liveBadge { display:none; } .headerCta { padding:10px 13px; font-size:.68rem; }
   .heroCopy { top:125px; left:22px; width:calc(100% - 44px); }
-  .heroCopy h1 { max-width:6.5ch; font-size:clamp(4.1rem,20vw,6.5rem); line-height:.78; }
-  .heroCopy h1 em { margin-left:.12em; }
+  .heroCopy h1 { max-width:16ch; font-size:clamp(2.6rem,10vw,4.2rem); line-height:.98; }
+  .heroCopy h1 em { margin-left:0; }
   .heroBody { max-width:92%; margin-top:27px; font-size:.93rem; }
   .heroActions { align-items:flex-start; flex-direction:column; } .primaryCta { width:100%; }
   .memoryDock { right:16px; bottom:55px; left:16px; width:auto; }

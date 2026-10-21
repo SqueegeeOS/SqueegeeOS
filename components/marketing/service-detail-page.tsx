@@ -13,7 +13,7 @@ import {
 export function ServiceDetailPage({ service }: { service: PublicService }) {
   const relatedServices = PUBLIC_SERVICES.filter(
     (candidate) => candidate.slug !== service.slug,
-  ).slice(0, 3);
+  );
 
   return (
     <main className="min-h-screen bg-[#f5f0e6] text-[#173f32]">
@@ -121,6 +121,20 @@ export function ServiceDetailPage({ service }: { service: PublicService }) {
         </div>
       </section>
 
+      {service.pricing && (
+        <section className="border-b border-[#173f32]/10 bg-[#e7ecdf] px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
+          <div className="mx-auto grid max-w-[90rem] gap-8 lg:grid-cols-2">
+            <div>
+              <h2 className="font-serif text-4xl font-light sm:text-5xl">{service.pricing.heading}</h2>
+              <p className="mt-6 max-w-2xl text-base leading-relaxed text-[#526b60]">{service.pricing.description}</p>
+            </div>
+            <ul className="list-disc space-y-3 pl-6 text-base leading-relaxed text-[#526b60]">
+              {service.pricing.factors.map((factor) => <li key={factor}>{factor}</li>)}
+            </ul>
+          </div>
+        </section>
+      )}
+
       <section className="px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
         <div className="mx-auto grid max-w-[90rem] gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
           <div>
@@ -191,9 +205,9 @@ export function ServiceDetailPage({ service }: { service: PublicService }) {
             ))}
           </div>
           <p className="mt-9 max-w-3xl text-sm leading-relaxed text-[#526b60]">
-            Based in Chico, California. Share your property address when you
-            request a plan and we will confirm service availability before
-            quoting the work.
+            Based in Chico, California. For properties in Oroville, Magalia,
+            or Lake Almanor, share your address so we can confirm travel and
+            scheduling availability before quoting the work.
           </p>
         </div>
       </section>
