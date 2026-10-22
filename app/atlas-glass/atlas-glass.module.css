@@ -140,6 +140,8 @@
 .heroLine, .heroSecondary, .heroLocation { display: block; }
 .heroSecondary { margin-top: .13em; font-size: .64em; font-weight: 500; line-height: 1.18; letter-spacing: -.015em; }
 .heroLocation { margin-top: 1.7em; color: #d6c398; font-family: var(--font-geist-sans), Arial, sans-serif; font-size: clamp(.7rem,.9vw,.85rem); font-weight: 500; line-height: 1.5; letter-spacing: .2em; text-transform: uppercase; }
+.heroTagline { max-width: 520px; margin: 24px 0 0; color: #f2ecdf; font-family: var(--font-geist-sans), Arial, sans-serif; font-size: clamp(1.1rem,1.6vw,1.4rem); font-weight: 500; line-height: 1.45; letter-spacing: -.015em; animation: rise .9s ease-out .4s both; }
+.heroTagline + .heroBody { margin-top: 14px; }
 .heroBody { max-width: 520px; margin: 35px 0 0; color: rgba(255,248,232,.78); font-size: clamp(.96rem,1.2vw,1.15rem); line-height: 1.65; animation: rise .9s ease-out .45s both; }
 .heroActions { gap: 14px; margin-top: 28px; animation: rise .9s ease-out .56s both; }
 
@@ -448,6 +450,7 @@
   .header { padding:22px 20px; } .brand strong { font-size:1.05rem; } .headerNav, .liveBadge { display:none; } .headerCta { padding:10px 13px; font-size:.68rem; }
   .heroCopy { top:125px; left:22px; width:calc(100% - 44px); }
   .heroCopy h1 { max-width:100%; font-size:clamp(2.7rem,11.5vw,4rem); line-height:1.05; }
+  .heroTagline { margin-top:20px; font-size:1.05rem; }
   .heroBody { max-width:92%; margin-top:27px; font-size:.93rem; }
   .heroActions { align-items:flex-start; flex-direction:column; } .primaryCta { width:100%; }
   .memoryDock { right:16px; bottom:55px; left:16px; width:auto; }

@@ -229,6 +229,7 @@ export function AtlasGlass() {
             <span className={styles.heroSecondary}>&amp; Exterior Home Care</span>{" "}
             <span className={styles.heroLocation}>Chico, California</span>
           </h1>
+          <p className={styles.heroTagline}>Never worry about dirty windows again.</p>
           <p className={styles.heroBody}>
             Interior and exterior window cleaning, gutter cleaning, pressure
             washing, and solar panel cleaning for Chico homeowners. Book one
@@ -485,7 +486,7 @@ export function AtlasGlass() {
         </div>
         <div className={styles.closingContent}>
           <p className={styles.darkEyebrow}>Included with SqueegeeKing membership</p>
-          <h2 id="closing-title">Never worry about dirty windows again.</h2>
+          <h2 id="closing-title">Your next cleaning, already planned.</h2>
           <p>
             With recurring window care, your next cleaning is already planned.
             Choose quarterly or twice-yearly visits and let SqueegeeKing
