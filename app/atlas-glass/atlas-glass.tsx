@@ -485,10 +485,11 @@ export function AtlasGlass() {
         </div>
         <div className={styles.closingContent}>
           <p className={styles.darkEyebrow}>Included with SqueegeeKing membership</p>
-          <h2 id="closing-title">Clean windows are the beginning.</h2>
+          <h2 id="closing-title">Never worry about dirty windows again.</h2>
           <p>
-            Give your home a care record, a next step, and a service company
-            that remembers what it promised.
+            With recurring window care, your next cleaning is already planned.
+            Choose quarterly or twice-yearly visits and let SqueegeeKing
+            keep the calendar handled.
           </p>
           <Link href="/request" className={styles.darkCta}>
             Build my Home Care Plan <span aria-hidden="true">↗</span>
