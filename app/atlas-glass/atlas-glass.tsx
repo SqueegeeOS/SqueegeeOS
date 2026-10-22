@@ -225,9 +225,9 @@ export function AtlasGlass() {
         <div className={styles.heroCopy}>
           <p className={styles.eyebrow}>Local window cleaning &amp; exterior home care</p>
           <h1 id="atlas-hero-title">
-            <span className={styles.heroLine}>Window Cleaning &amp;</span>{" "}
-            <span className={styles.heroLine}>Exterior Home Care</span>{" "}
-            <span className={styles.heroLocation}>Chico, CA</span>
+            <span className={styles.heroLine}>Window Cleaning</span>{" "}
+            <span className={styles.heroSecondary}>&amp; Exterior Home Care</span>{" "}
+            <span className={styles.heroLocation}>Chico, California</span>
           </h1>
           <p className={styles.heroBody}>
             Interior and exterior window cleaning, gutter cleaning, pressure
