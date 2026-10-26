@@ -32,6 +32,14 @@ type VisitFieldDraftStorage = Pick<
   "getItem" | "setItem" | "removeItem"
 >;
 
+// Defer even the localStorage property lookup until inside the helpers' try/catch.
+// Some phone privacy settings throw on accessing window.localStorage itself.
+export const browserVisitFieldDraftStorage: VisitFieldDraftStorage = {
+  getItem: (key) => window.localStorage.getItem(key),
+  setItem: (key, value) => window.localStorage.setItem(key, value),
+  removeItem: (key) => window.localStorage.removeItem(key),
+};
+
 function isIsoCalendarDate(value: unknown): value is string {
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;

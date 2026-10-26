@@ -7,6 +7,12 @@ function read(path: string): string {
 }
 
 describe("technician visit photo picker", () => {
+  it("keeps phone selections mounted when the field form is hidden", () => {
+    const workspace = read("components/field/technician-today-workspace.tsx");
+    expect(workspace).toContain("{captureMounted ? (");
+    expect(workspace).toContain("hidden={!captureOpen}");
+    expect(workspace).toContain("setCaptureMounted(false)");
+  });
   it("opens the phone photo library instead of forcing the rear camera", () => {
     const capture = read("components/visit/visit-field-capture.tsx");
 
@@ -23,7 +29,8 @@ describe("technician visit photo picker", () => {
     expect(capture).toContain('{ type: "after", label: "After"');
     expect(capture).toContain('{ type: "detail", label: "General"');
     expect(capture).toContain("Photo type");
-    expect(capture).toContain("completedUploads.current.delete(photo.clientId)");
+    expect(capture).not.toContain("completedUploads.current.delete(photo.clientId)");
+    expect(capture).toContain("captureType: photo.captureType");
   });
 
   it("uses a raw upload body for iPhone camera-roll files and preserves retry detail", () => {

@@ -58,7 +58,7 @@ describe("technician field run contract", () => {
     expect(fieldRun).toContain('label: "Closed out"');
     expect(fieldRun).toContain("Saved on this device");
     expect(fieldRun).toContain("I’m here · Start job");
-    expect(fieldRun).toContain("Document finished work");
+    expect(fieldRun).toContain("Photos &amp; work notes");
     expect(fieldRun).toContain("Clock out & complete");
     expect(fieldRun).toContain("Navigate to job");
     expect(fieldRun).not.toContain(
@@ -70,7 +70,7 @@ describe("technician field run contract", () => {
     expect(fieldRecordRoute).toContain("assertTechnicianCanDocumentVisit");
     expect(jobClockRoute).toContain("assertTechnicianCanFinishJob");
     expect(jobClockRoute).toContain('target:');
-    expect(jobClockRoute).toContain('"service_started" : "departed"');
+    expect(jobClockRoute).toContain('result.clock.state === "finished" ? "departed" : "service_started"');
     expect(fieldCapture).toContain("requiresClockOutAfterSave");
     expect(fieldCapture).toContain("Save work & continue");
     expect(fieldCapture).toContain("Clock out &amp; complete");
