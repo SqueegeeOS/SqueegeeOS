@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AmbientStage } from "@/components/craft/ambient-stage";
 import { StatePanel } from "@/components/craft/state-panel";
 import { StatusNotice } from "@/components/craft/status-notice";
@@ -18,7 +18,7 @@ import {
   type JobberTodayData,
   type JobberTodayVisit,
 } from "@/lib/care-operations/jobber-today-types";
-import { readVisitFieldDraft } from "@/lib/field-records/visit-field-draft";
+import { browserVisitFieldDraftStorage, readVisitFieldDraft } from "@/lib/field-records/visit-field-draft";
 import type { VisitFieldSaveResult } from "@/components/visit/visit-field-capture";
 import { billingTodayReviewHref } from "@/lib/admin/billing-workspace-links";
 import {
@@ -31,6 +31,7 @@ import {
   canCreateNativeJobCloseout,
   technicianJobClockElapsedSeconds,
   type TechnicianJobClockAction,
+  type TechnicianJobClockSnapshot,
 } from "@/lib/field-operations/technician-job-clock";
 import {
   filterTechnicianVisits,
@@ -213,6 +214,8 @@ function TechnicianVisitCard({
   fieldActorName,
   ownerSession,
   onSaved,
+  onClockUpdated,
+  runningVisitId,
 }: {
   visit: JobberTodayVisit;
   timezone: string;
@@ -221,12 +224,27 @@ function TechnicianVisitCard({
   jobClockStatusAvailable: boolean;
   fieldActorName: string | null;
   ownerSession: boolean;
-  onSaved: () => void;
+  onSaved: () => Promise<JobberTodayData | null>;
+  onClockUpdated: (clock: TechnicianJobClockSnapshot, fieldStage?: TechnicianVisitEventType | null) => void;
+  runningVisitId: string | null;
 }) {
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [captureMounted, setCaptureMounted] = useState(false);
+
+  function showCapture() {
+    setCaptureMounted(true);
+    setCaptureOpen(true);
+  }
+
+  function toggleCapture() {
+    setCaptureMounted(true);
+    setCaptureOpen((open) => !open);
+  }
   const [hasDraft, setHasDraft] = useState(false);
   const [routePending, setRoutePending] = useState(false);
   const [clockPending, setClockPending] = useState(false);
+  const clockInFlight = useRef(false);
+  const pendingClockAction = useRef<{ action: TechnicianJobClockAction; actionId: string } | null>(null);
   const [clockNow, setClockNow] = useState(() => new Date());
   const [routeError, setRouteError] = useState<string | null>(null);
   const [routeNotice, setRouteNotice] = useState<string | null>(null);
@@ -316,7 +334,7 @@ function TechnicianVisitCard({
     const timer = window.setTimeout(() => {
       setHasDraft(
         Boolean(
-          readVisitFieldDraft(window.localStorage, {
+          readVisitFieldDraft(browserVisitFieldDraftStorage, {
             propertyId: draftPropertyId,
             appointmentId: draftAppointmentId,
           }),
@@ -333,7 +351,11 @@ function TechnicianVisitCard({
   }, [jobClock.state]);
 
   async function updateJobClock(action: TechnicianJobClockAction) {
-    if (!canOperate || clockPending) return;
+    if (!canOperate || clockInFlight.current) return;
+    clockInFlight.current = true;
+    if (pendingClockAction.current?.action !== action) {
+      pendingClockAction.current = { action, actionId: crypto.randomUUID() };
+    }
     setClockPending(true);
     setRouteError(null);
     setRouteNotice(null);
@@ -342,31 +364,41 @@ function TechnicianVisitCard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          actionId: crypto.randomUUID(),
+          actionId: pendingClockAction.current.actionId,
           ...fieldJobTarget({ propertyId, appointmentId, fieldAssignmentId }),
           action,
         }),
       });
       const body = (await response.json().catch(() => null)) as
-        | { error?: string }
+        | { error?: string; clock?: TechnicianJobClockSnapshot; fieldStage?: TechnicianVisitEventType | null; routeEventWarning?: string | null }
         | null;
-      if (!response.ok) {
-        throw new Error(body?.error ?? "Could not update the job clock.");
+      if (!response.ok || !body?.clock) {
+        throw new Error(body?.error ?? "Could not confirm the job clock. Refresh to check before retrying.");
       }
+      // The write response is authoritative, even when a subsequent Today read fails.
+      onClockUpdated(body.clock, body.fieldStage);
+      pendingClockAction.current = null;
       setRouteNotice(
-        action === "start"
-          ? "Arrival saved. Your job clock is running."
-          : "Visit complete. Your time, closeout, and departure are saved.",
+        body.clock.state === "finished"
+          ? "Job time saved. Your clock is stopped."
+          : "Arrival saved. Your job clock is running.",
       );
+      if (body.routeEventWarning) setRouteError(body.routeEventWarning);
       setClockNow(new Date());
-      onSaved();
+      void onSaved();
     } catch (clockError) {
-      setRouteError(
-        clockError instanceof Error
-          ? clockError.message
-          : "Could not update the job clock.",
-      );
+      // A lost response is not evidence that the write failed. Read before retrying.
+      const refreshed = await onSaved();
+      const confirmed = refreshed?.visits.find((item) => item.projectionId === visit.projectionId)?.homeAtlasJobClock;
+      if (confirmed && (action === "start" ? confirmed.state !== "not_started" : confirmed.state === "finished")) {
+        pendingClockAction.current = null;
+        setRouteNotice(confirmed.state === "finished" ? "Clock-out confirmed. Your job time is saved." : "Clock-in confirmed. Your job clock is running.");
+      } else {
+        const message = clockError instanceof Error ? clockError.message : "Could not update the job clock.";
+        setRouteError(`${message}${refreshed ? " You can retry safely." : " Could not refresh the clock. Reconnect and refresh before retrying; the request may already have saved."}`);
+      }
     } finally {
+      clockInFlight.current = false;
       setClockPending(false);
     }
   }
@@ -415,6 +447,7 @@ function TechnicianVisitCard({
 
   function handleCloseoutSaved(result: VisitFieldSaveResult) {
     setCaptureOpen(false);
+    setCaptureMounted(false);
     setRouteError(null);
     setRouteNotice(
       fieldAssignmentId
@@ -538,7 +571,7 @@ function TechnicianVisitCard({
             <div className="flex items-center justify-between gap-4 border-b border-foreground/10 px-4 py-3">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.17em] text-muted">
-                  Actual job time
+                  On-site time
                 </p>
                 <p className="mt-1 text-sm font-medium text-foreground">
                   {jobClock.state === "running"
@@ -549,7 +582,8 @@ function TechnicianVisitCard({
                 </p>
               </div>
               <span
-                className={`rounded-full border px-3 py-1.5 text-sm font-semibold tabular-nums ${
+                aria-label={`Job time: ${formatJobDuration(clockElapsedSeconds)}`}
+                className={`shrink-0 rounded-2xl border px-3 py-2.5 text-xl font-semibold tabular-nums tracking-tight sm:text-2xl ${
                   jobClock.state === "running"
                     ? "border-success/35 bg-success/10 text-success"
                     : "border-foreground/10 bg-foreground/[0.04] text-foreground/70"
@@ -559,6 +593,11 @@ function TechnicianVisitCard({
               </span>
             </div>
 
+            {jobClock.state === "running" && jobClock.startedAt && new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date(jobClock.startedAt)) !== new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(clockNow) ? (
+              <p className="border-b border-warning/20 bg-warning/[0.06] px-4 py-3 text-xs leading-relaxed text-warning">
+                This clock is still running from {new Intl.DateTimeFormat("en-US", { timeZone: timezone, month: "short", day: "numeric" }).format(new Date(jobClock.startedAt))}. Review the time before clocking out; contact HQ if it needs correction.
+              </p>
+            ) : null}
             {!jobClockStatusAvailable ? (
               <p className="px-4 py-4 text-xs leading-relaxed text-warning">
                 The job clock is waiting for its private time-ledger migration.
@@ -567,6 +606,10 @@ function TechnicianVisitCard({
               <p className="px-4 py-4 text-xs leading-relaxed text-muted">
                 Assigned technician starts and completes this job from their private Field Pass.
               </p>
+            ) : jobClock.state === "not_started" && technicianSession && runningVisitId && runningVisitId !== visit.projectionId ? (
+              <a href={`#visit-${runningVisitId}`} className="flex min-h-16 items-center px-4 text-sm text-warning">
+                Another job clock is running. Open that job to finish it first.
+              </a>
             ) : jobClock.state === "not_started" ? (
               <button
                 type="button"
@@ -591,15 +634,15 @@ function TechnicianVisitCard({
                 <button
                   type="button"
                   disabled={!canCapture}
-                  onClick={() => setCaptureOpen(true)}
+                  onClick={showCapture}
                   className="flex min-h-20 w-full items-center justify-between gap-4 bg-accent/[0.08] px-4 text-left text-foreground active:scale-[0.997] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>
                     <span className="block text-base font-semibold">
-                      Document finished work
+                      Photos &amp; work notes
                     </span>
                     <span className="mt-1 block text-xs font-normal text-accent/65">
-                      Check the scope, add notes and photos, then save.
+                      Add Before now, After when finished. Save your complete work record.
                     </span>
                   </span>
                   <span className="rounded-full border border-accent/35 px-3 py-1 text-xs">
@@ -692,7 +735,7 @@ function TechnicianVisitCard({
                 }
                 onClick={() => {
                   if (routeAction.kind === "closeout") {
-                    setCaptureOpen((open) => !open);
+                    toggleCapture();
                     return;
                   }
                   void advanceRoute(routeAction.eventType);
@@ -856,11 +899,11 @@ function TechnicianVisitCard({
               <button
                 type="button"
                 aria-expanded={captureOpen}
-                onClick={() => setCaptureOpen((open) => !open)}
+                onClick={toggleCapture}
                 className="flex min-h-14 w-full items-center justify-between rounded-[var(--radius-control)] border border-accent/35 bg-accent/[0.09] px-4 text-left text-base font-medium text-foreground active:scale-[0.995]"
               >
                 <span>
-                  {captureOpen ? "Close field form" : actionLabel}
+                  {captureOpen ? "Hide field form" : `${actionLabel} · Before / after photos`}
                   {hasDraft && !captureOpen ? (
                     <span className="mt-0.5 block text-[10px] font-normal text-accent/55">
                       Saved on this device
@@ -870,8 +913,9 @@ function TechnicianVisitCard({
                 <span aria-hidden>{captureOpen ? "−" : "+"}</span>
               </button>
             ) : null}
-            {captureOpen ? (
-              <div className="mt-3 rounded-2xl border border-foreground/10 bg-background/60 p-4">
+            {captureMounted ? (
+              // Hide, rather than unmount, so phone files and completed upload retries survive collapse.
+              <div hidden={!captureOpen} className="mt-3 rounded-2xl border border-foreground/10 bg-background/60 p-4">
                 <VisitFieldCapture
                   propertyId={propertyId}
                   appointmentId={appointmentId}
@@ -918,31 +962,37 @@ export function TechnicianTodayWorkspace({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [crewSelection, setCrewSelection] = useState(TECHNICIAN_ALL_CREW);
+  const loadGeneration = useRef(0);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<JobberTodayData | null> => {
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setError(null);
     try {
-      setData(await requestTodayData());
+      const result = await requestTodayData();
+      if (generation === loadGeneration.current) setData(result);
+      return result;
     } catch (loadError) {
-      setError(
+      if (generation === loadGeneration.current) setError(
         loadError instanceof Error
           ? loadError.message
           : "Could not load the field run.",
       );
+      return null;
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     let active = true;
+    const generation = ++loadGeneration.current;
     const initialLoad = async () => {
       try {
         const result = await requestTodayData();
-        if (active) setData(result);
+        if (active && generation === loadGeneration.current) setData(result);
       } catch (loadError) {
-        if (active) {
+        if (active && generation === loadGeneration.current) {
           setError(
             loadError instanceof Error
               ? loadError.message
@@ -950,7 +1000,7 @@ export function TechnicianTodayWorkspace({
           );
         }
       } finally {
-        if (active) setLoading(false);
+        if (active && generation === loadGeneration.current) setLoading(false);
       }
     };
     void initialLoad();
@@ -958,6 +1008,20 @@ export function TechnicianTodayWorkspace({
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    window.addEventListener("online", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      window.removeEventListener("online", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [load]);
 
   useEffect(() => {
     if (technicianSession) return;
@@ -1095,7 +1159,14 @@ export function TechnicianTodayWorkspace({
 
         <TechnicianUpcoming />
 
-        {error ? <StatusNotice tone="danger" className="mb-5">{error}</StatusNotice> : null}
+        {error ? (
+          <StatusNotice tone="danger" className="mb-5">
+            <p>{error}</p>
+            <button type="button" disabled={loading} onClick={() => void load()} className="mt-3 min-h-11 rounded-full border border-current px-4 text-xs disabled:opacity-50">
+              {loading ? "Checking…" : "Retry / refresh job clocks"}
+            </button>
+          </StatusNotice>
+        ) : null}
 
         {data && summary ? (
           <>
@@ -1256,7 +1327,20 @@ export function TechnicianTodayWorkspace({
                       technicianSession ? actorDisplayName : null
                     }
                     ownerSession={!technicianSession}
-                    onSaved={() => void load()}
+                    onSaved={load}
+                    runningVisitId={data.visits.find((item) => item.homeAtlasJobClock.state === "running")?.projectionId ?? null}
+                    onClockUpdated={(clock, fieldStage) => {
+                      // Discard reads started before this confirmed mutation.
+                      loadGeneration.current += 1;
+                      setData((current) => current ? {
+                        ...current,
+                        visits: current.visits.map((item) => item.projectionId === visit.projectionId ? {
+                          ...item,
+                          homeAtlasJobClock: clock,
+                          ...(fieldStage ? { homeAtlasFieldStage: fieldStage } : {}),
+                        } : item),
+                      } : current);
+                    }}
                   />
                 ))
               ) : (

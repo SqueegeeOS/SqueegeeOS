@@ -2,12 +2,15 @@ import { after, NextResponse } from "next/server";
 import { getJobberClientSecret } from "@/lib/care-operations/jobber-oauth-config";
 import {
   parseJobberWebhookPayload,
-  recordAndProcessJobberWebhook,
+  processPendingJobberWebhooks,
+  recordJobberWebhook,
 } from "@/lib/integrations/jobber-webhook";
 import { verifyJobberWebhookSignature } from "@/lib/integrations/webhook-signatures";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// A visit snapshot traverses the complete history. Keep the response fast, but
+// give its coalesced background worker the same budget as the repair endpoint.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   let secret: string;
@@ -35,6 +38,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
   }
 
-  after(() => recordAndProcessJobberWebhook({ rawPayload, event }));
+  try {
+    // Never acknowledge a delivery before it is durable. A database failure
+    // must remain retryable by Jobber rather than disappearing after a 202.
+    await recordJobberWebhook({ rawPayload, event });
+  } catch {
+    console.error("[jobber-webhook] durable inbox unavailable");
+    return NextResponse.json({ error: "Webhook could not be saved" }, { status: 503 });
+  }
+  after(() => processPendingJobberWebhooks());
   return NextResponse.json({ received: true }, { status: 202 });
 }

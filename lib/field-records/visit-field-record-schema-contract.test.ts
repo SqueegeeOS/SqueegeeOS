@@ -225,7 +225,7 @@ describe("visit field record database contract", () => {
       "homeatlas:visit-field-draft:v1:${scope.propertyId}:${scope.appointmentId}",
     );
     expect(visitFieldCapture).toContain("readVisitFieldDraft");
-    expect(visitFieldCapture).toContain("clearVisitFieldDraft(window.localStorage");
+    expect(visitFieldCapture).toContain("clearVisitFieldDraft(browserVisitFieldDraftStorage");
     expect(visitFieldCapture).toContain("Draft restored from this device");
     expect(visitFieldCapture).toContain("Re-add the complete set");
     expect(visitFieldCapture).toContain("onDraftStateChange?.(draftStored)");
