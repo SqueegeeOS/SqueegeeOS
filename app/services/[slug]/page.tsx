@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildPublicPageMetadata } from "@/lib/marketing/page-metadata";
 import { notFound } from "next/navigation";
 import { ServiceDetailPage } from "@/components/marketing/service-detail-page";
 import {
@@ -24,26 +25,17 @@ export async function generateMetadata({
 
   if (!service) return {};
 
-  const canonical = `/services/${service.slug}`;
-  return {
+  return buildPublicPageMetadata({
     title: service.pageTitle,
     description: service.metaDescription,
-    alternates: { canonical },
-    openGraph: {
-      title: `${service.pageTitle} | SqueegeeKing`,
-      description: service.metaDescription,
-      url: canonical,
-      type: "website",
-      images: [
-        {
-          url: service.image,
-          width: 1376,
-          height: 768,
-          alt: service.imageAlt,
-        },
-      ],
+    path: `/services/${service.slug}`,
+    image: {
+      url: service.image,
+      width: 1376,
+      height: 768,
+      alt: service.imageAlt,
     },
-  };
+  });
 }
 
 export default async function PublicServicePage({ params }: ServicePageProps) {

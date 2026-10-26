@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { buildPublicPageMetadata } from "@/lib/marketing/page-metadata";
 import Link from "next/link";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPublicPageMetadata({
   title: "Privacy Policy",
   description: "How SqueegeeKing and HomeAtlas handle website and Google review data.",
-};
+  path: "/privacy",
+});
 
 export default function PrivacyPolicyPage() {
   return (

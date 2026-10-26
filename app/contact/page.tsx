@@ -1,19 +1,14 @@
 import type { Metadata } from "next";
+import { buildPublicPageMetadata } from "@/lib/marketing/page-metadata";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import { SQUEEGEEKING_PHONE } from "@/lib/home-care-plan/defaults";
 import { ContactPageContent } from "@/components/navigation/contact-page";
 
-export const metadata: Metadata = {
-  title: "Contact",
+export const metadata: Metadata = buildPublicPageMetadata({
+  title: "Contact Our Chico Home Care Team",
   description: `Call ${CUSTOMER_BRAND.name} for window cleaning and exterior home care in ${CUSTOMER_BRAND.location}, or request a personalized Home Care Plan online.`,
-  alternates: { canonical: "/contact" },
-  openGraph: {
-    title: `Contact ${CUSTOMER_BRAND.name} in ${CUSTOMER_BRAND.location}`,
-    description: `Call or request a personalized window cleaning and exterior home care plan in ${CUSTOMER_BRAND.location}.`,
-    url: "/contact",
-    type: "website",
-  },
-};
+  path: "/contact",
+});
 
 export default function ContactPage({
   searchParams,

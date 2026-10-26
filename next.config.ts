@@ -32,6 +32,7 @@ const privateRouteHeaders = [
 ];
 
 const privateRoutePatterns = [
+  "/payment/:path*",
   "/hq/:path*",
   "/employee/:path*",
   "/tech/:path*",

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { buildPublicPageMetadata } from "@/lib/marketing/page-metadata";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -8,27 +9,18 @@ import {
 } from "@/lib/marketing/local-seo";
 import { PUBLIC_SERVICES } from "@/lib/marketing/public-services";
 
-export const metadata: Metadata = {
-  title: "Window Cleaning & Exterior Home Care in Chico, CA",
+export const metadata: Metadata = buildPublicPageMetadata({
+  title: "Exterior Cleaning Services in Chico, CA",
   description:
     "Explore SqueegeeKing window cleaning, gutter cleaning, pressure washing, solar panel cleaning, and recurring exterior home care for Chico, California homeowners.",
-  alternates: { canonical: "/services" },
-  openGraph: {
-    title: "Exterior Home Care Services in Chico, CA | SqueegeeKing",
-    description:
-      "Window cleaning, gutter cleaning, pressure washing, solar panel cleaning, and recurring care built around your Chico home.",
-    url: "/services",
-    type: "website",
-    images: [
-      {
-        url: "/day/hour-window.jpg",
-        width: 1376,
-        height: 768,
-        alt: "SqueegeeKing exterior home care in Chico, California",
-      },
-    ],
+  path: "/services",
+  image: {
+    url: "/day/hour-window.jpg",
+    width: 1376,
+    height: 768,
+    alt: "Window cleaning and exterior home care",
   },
-};
+});
 
 export default function ServicesPage() {
   return (

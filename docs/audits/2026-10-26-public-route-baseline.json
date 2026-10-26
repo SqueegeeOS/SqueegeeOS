@@ -1,0 +1,350 @@
+{
+  "checked_at_utc": "2026-10-26T06:41:56Z",
+  "scope": "Read-only public SEO audit; no authentication or form submissions",
+  "routes": [
+    {
+      "path": "/",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/",
+      "title": "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
+      "h1": [
+        "Window Cleaning & Exterior Home Care Chico, California"
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/atlas-glass/hero-house-wide.png"
+    },
+    {
+      "path": "/services",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/services",
+      "title": "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
+      "h1": [
+        "Exterior Cleaningin Chico, CA."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/services"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net/services",
+      "og_image": "https://www.squeegeeking.net/day/hour-window.jpg"
+    },
+    {
+      "path": "/services/window-cleaning",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/services/window-cleaning",
+      "title": "Window Cleaning in Chico, CA | SqueegeeKing",
+      "h1": [
+        "Window cleaning in Chico, done the right way."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/services/window-cleaning"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net/services/window-cleaning",
+      "og_image": "https://www.squeegeeking.net/day/hour-window.jpg"
+    },
+    {
+      "path": "/services/pressure-washing",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/services/pressure-washing",
+      "title": "Pressure Washing in Chico, CA | SqueegeeKing",
+      "h1": [
+        "Pressure washing in Chico, planned for each surface."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/services/pressure-washing"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net/services/pressure-washing",
+      "og_image": "https://www.squeegeeking.net/day/hour-pressure.jpg"
+    },
+    {
+      "path": "/services/solar-panel-cleaning",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/services/solar-panel-cleaning",
+      "title": "Solar Panel Cleaning in Chico, CA | SqueegeeKing",
+      "h1": [
+        "Solar panel cleaning in Chico, CA."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/services/solar-panel-cleaning"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net/services/solar-panel-cleaning",
+      "og_image": "https://www.squeegeeking.net/day/hour-solar.jpg"
+    },
+    {
+      "path": "/services/gutter-cleaning",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/services/gutter-cleaning",
+      "title": "Gutter Cleaning in Chico, CA | SqueegeeKing",
+      "h1": [
+        "Gutter cleaning in Chico, CA."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/services/gutter-cleaning"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net/services/gutter-cleaning",
+      "og_image": "https://www.squeegeeking.net/day/hour-dusk.jpg"
+    },
+    {
+      "path": "/services/home-care-memberships",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/services/home-care-memberships",
+      "title": "Recurring Home Care in Chico, CA | SqueegeeKing",
+      "h1": [
+        "Recurring home care in Chico, on your rhythm."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/services/home-care-memberships"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net/services/home-care-memberships",
+      "og_image": "https://www.squeegeeking.net/day/hour-dusk.jpg"
+    },
+    {
+      "path": "/request",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/request",
+      "title": "Request Your Home Care Plan | SqueegeeKing",
+      "h1": [],
+      "canonical": [
+        "https://www.squeegeeking.net/request"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net/request",
+      "og_image": null
+    },
+    {
+      "path": "/contact",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/contact",
+      "title": "Contact | SqueegeeKing",
+      "h1": [
+        "We are here for your home."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/contact"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net/contact",
+      "og_image": null
+    },
+    {
+      "path": "/privacy",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/privacy",
+      "title": "Privacy Policy | SqueegeeKing",
+      "h1": [
+        "Privacy Policy"
+      ],
+      "canonical": [],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/terms",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/terms",
+      "title": "Terms of Use | SqueegeeKing",
+      "h1": [
+        "Terms of Use"
+      ],
+      "canonical": [],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/robots.txt",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/robots.txt",
+      "title": "",
+      "h1": [],
+      "canonical": [],
+      "robots": null,
+      "twitter_title": null,
+      "og_url": null,
+      "og_image": null
+    },
+    {
+      "path": "/sitemap.xml",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/sitemap.xml",
+      "title": "",
+      "h1": [],
+      "canonical": [],
+      "robots": null,
+      "twitter_title": null,
+      "og_url": null,
+      "og_image": null
+    },
+    {
+      "path": "/services/not-a-real-service-seo-audit",
+      "http_status": 404,
+      "final_url": "https://www.squeegeeking.net/services/not-a-real-service-seo-audit",
+      "title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "h1": [
+        "This path does not lead home."
+      ],
+      "canonical": [],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/not-a-real-page-seo-audit",
+      "http_status": 404,
+      "final_url": "https://www.squeegeeking.net/not-a-real-page-seo-audit",
+      "title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "h1": [
+        "This path does not lead home."
+      ],
+      "canonical": [],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/day2",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/",
+      "title": "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
+      "h1": [
+        "Window Cleaning & Exterior Home Care Chico, California"
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net"
+      ],
+      "robots": "index, follow",
+      "twitter_title": "Window Cleaning & Exterior Home Care in Chico, CA | SqueegeeKing",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/atlas-glass/hero-house-wide.png"
+    },
+    {
+      "path": "/atlas-glass",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/atlas-glass",
+      "title": "HomeAtlas \u2014 Your Home Remembers | SqueegeeKing",
+      "h1": [
+        "Window Cleaning & Exterior Home Care Chico, California"
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net"
+      ],
+      "robots": "noindex, nofollow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/home2",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/home2",
+      "title": "SqueegeeKing Membership \u2014 Home Care, Put on a Plan | SqueegeeKing",
+      "h1": [
+        "Home care,put on a plan."
+      ],
+      "canonical": [],
+      "robots": "noindex, nofollow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/day",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/day",
+      "title": "The Day's Work \u00b7 SqueegeeKing | SqueegeeKing",
+      "h1": [
+        "Morning comes back.So do we."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/day"
+      ],
+      "robots": "noindex, nofollow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": null,
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/night",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/night",
+      "title": "The Night Watch \u00b7 HomeAtlas | SqueegeeKing",
+      "h1": [
+        "Every house sleeps.Yours is watched."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/night"
+      ],
+      "robots": "noindex, nofollow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": null,
+      "og_image": "https://www.squeegeeking.net/night/house-lit.jpg"
+    },
+    {
+      "path": "/rightway",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/rightway",
+      "title": "The Right Way \u2014 SqueegeeKing Homepage Study | SqueegeeKing",
+      "h1": [
+        "The rightway."
+      ],
+      "canonical": [
+        "https://www.squeegeeking.net/rightway"
+      ],
+      "robots": "noindex, nofollow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/sales/access",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/sales/access",
+      "title": "Install Sales Phone Pass | HomeAtlas | SqueegeeKing",
+      "h1": [
+        "Install your private field desk."
+      ],
+      "canonical": [],
+      "robots": "noindex, nofollow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    },
+    {
+      "path": "/payment/setup/cancelled",
+      "http_status": 200,
+      "final_url": "https://www.squeegeeking.net/payment/setup/cancelled",
+      "title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "h1": [
+        "Nothing was saved or charged."
+      ],
+      "canonical": [],
+      "robots": "index, follow",
+      "twitter_title": "SqueegeeKing | Window Cleaning in Chico, CA",
+      "og_url": "https://www.squeegeeking.net",
+      "og_image": "https://www.squeegeeking.net/day/morning.jpg"
+    }
+  ]
+}

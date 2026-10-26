@@ -61,7 +61,7 @@ export function ContactPageContent({
   const copy = contactCopy(topic, serviceId);
 
   return (
-    <div
+    <main
       className="relative min-h-screen overflow-x-hidden bg-background"
       style={{ paddingTop: "var(--site-chrome-offset)" }}
     >
@@ -115,6 +115,6 @@ export function ContactPageContent({
           </Link>
         </motion.div>
       </div>
-    </div>
+    </main>
   );
 }
