@@ -17,18 +17,20 @@ describe("public site route policy", () => {
 
   it("defines canonical URLs for every indexable public page", () => {
     const expectations = [
-      ["app/page.tsx", 'canonical: "/"'],
-      ["app/request/page.tsx", 'canonical: "/request"'],
-      ["app/contact/page.tsx", 'canonical: "/contact"'],
-      ["app/services/page.tsx", 'canonical: "/services"'],
+      ["app/page.tsx", 'path: "/"'],
+      ["app/request/page.tsx", 'path: "/request"'],
+      ["app/contact/page.tsx", 'path: "/contact"'],
+      ["app/services/page.tsx", 'path: "/services"'],
     ] as const;
     for (const [path, expected] of expectations) {
+      expect(readProjectFile(path)).toContain("buildPublicPageMetadata({");
       expect(readProjectFile(path)).toContain(expected);
     }
 
+    expect(readProjectFile("lib/marketing/page-metadata.ts")).toContain("alternates: { canonical: path }");
     const servicePage = readProjectFile("app/services/[slug]/page.tsx");
     expect(servicePage).toContain(
-      'const canonical = `/services/${service.slug}`',
+      'path: `/services/${service.slug}`',
     );
     expect(servicePage).toContain("generateStaticParams");
   });

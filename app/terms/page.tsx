@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
+import { buildPublicPageMetadata } from "@/lib/marketing/page-metadata";
 import Link from "next/link";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildPublicPageMetadata({
   title: "Terms of Use",
   description: "Terms for using the SqueegeeKing website and HomeAtlas experiences.",
-};
+  path: "/terms",
+});
 
 export default function TermsOfUsePage() {
   return (

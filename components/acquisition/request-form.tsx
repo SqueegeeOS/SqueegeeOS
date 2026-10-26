@@ -214,7 +214,7 @@ function RequestFormFields() {
 
   return (
     <>
-      <div className="relative min-h-screen overflow-x-hidden bg-background pb-24">
+      <main className="relative min-h-screen overflow-x-hidden bg-background pb-24">
         <AmbientGlow />
 
         <div
@@ -572,7 +572,7 @@ function RequestFormFields() {
             </form>
           </Reveal>
         </div>
-      </div>
+      </main>
 
       <RequestPlanTransition
         active={phase === "transition"}
@@ -584,10 +584,38 @@ function RequestFormFields() {
 
 function RequestFormFallback() {
   return (
-    <div
-      className="min-h-screen bg-background"
+    <main
+      className="min-h-screen bg-background px-5 pb-24"
       style={{ paddingTop: "var(--site-chrome-offset)" }}
-    />
+    >
+      <div className="mx-auto max-w-xl pt-8 sm:pt-12">
+        <p className="text-xs uppercase tracking-[0.2em] text-muted">
+          SqueegeeKing · Chico, California
+        </p>
+        <h1 className="mt-6 font-serif text-[2rem] font-light leading-[1.1] text-foreground sm:text-4xl">
+          Begin your Home Care Plan.
+        </h1>
+        <p className="mt-5 text-base leading-relaxed text-muted">
+          Request a free quote for window cleaning, gutter cleaning, pressure
+          washing, or solar panel cleaning. One-time and recurring care are
+          available for Chico homes.
+        </p>
+        <p role="status" className="mt-6 text-sm text-muted">
+          Loading the request form. You can also call us directly:
+        </p>
+        <a
+          href={CUSTOMER_CONTACT.phoneHref}
+          className="mt-4 inline-flex min-h-12 items-center rounded-full border border-border px-6 text-foreground underline underline-offset-4"
+        >
+          {CUSTOMER_CONTACT.phoneDisplay}
+        </a>
+        <noscript>
+          <p className="mt-4 text-sm text-muted">
+            The online form needs JavaScript. Please call to request your quote.
+          </p>
+        </noscript>
+      </div>
+    </main>
   );
 }
 
