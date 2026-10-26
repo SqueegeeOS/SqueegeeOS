@@ -8,13 +8,13 @@ import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import { businessTodayIsoDate } from "@/lib/admin/company-business-timezone";
 import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
 import {
+  browserVisitFieldDraftStorage,
   clearVisitFieldDraft,
   readVisitFieldDraft,
   writeVisitFieldDraft,
 } from "@/lib/field-records/visit-field-draft";
 import {
   MAX_VISIT_PHOTOS,
-  MAX_VISIT_PHOTO_BYTES,
   buildCompletedScopeCustomerSummary,
   type VisitFieldRecordCommitInput,
   type VisitPhotoCaptureType,
@@ -22,14 +22,17 @@ import {
   type VisitPhotoUploadIntent,
   type VisitServiceScopeItemCompletion,
   type VisitServiceScopeReadState,
-  VISIT_PHOTO_MIME_TYPES,
 } from "@/lib/field-records/visit-field-record";
+
+import { selectVisitPhotos, VISIT_PHOTO_ACCEPT } from "@/lib/field-records/visit-photo-selection";
 
 const TECHNICIAN_NAME_KEY = "squeegeeos-tech-name";
 
 interface PhotoDraft {
   clientId: string;
   file: File;
+  mimeType: VisitPhotoMimeType;
+  previewUnavailable?: boolean;
   captureType: VisitPhotoCaptureType;
   customerVisible: boolean;
   previewUrl: string;
@@ -146,7 +149,7 @@ export function VisitFieldCapture({
   const [initialDraft] = useState(() =>
     typeof window === "undefined"
       ? null
-      : readVisitFieldDraft(window.localStorage, {
+      : readVisitFieldDraft(browserVisitFieldDraftStorage, {
           propertyId: draftPropertyId,
           appointmentId: draftAppointmentId,
         }),
@@ -186,6 +189,7 @@ export function VisitFieldCapture({
   );
   const [draftNoticeDismissed, setDraftNoticeDismissed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [selectionErrors, setSelectionErrors] = useState<string[]>([]);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<{
@@ -232,7 +236,7 @@ export function VisitFieldCapture({
 
   useEffect(() => {
     if (saved) {
-      clearVisitFieldDraft(window.localStorage, {
+      clearVisitFieldDraft(browserVisitFieldDraftStorage, {
         propertyId: draftPropertyId,
         appointmentId: draftAppointmentId,
       });
@@ -249,7 +253,7 @@ export function VisitFieldCapture({
       restoredPhotoCount > 0 ||
       photos.length > 0;
     if (!hasMeaningfulDraft) {
-      clearVisitFieldDraft(window.localStorage, {
+      clearVisitFieldDraft(browserVisitFieldDraftStorage, {
         propertyId: draftPropertyId,
         appointmentId: draftAppointmentId,
       });
@@ -257,7 +261,7 @@ export function VisitFieldCapture({
       return;
     }
 
-    const draftStored = writeVisitFieldDraft(window.localStorage, {
+    const draftStored = writeVisitFieldDraft(browserVisitFieldDraftStorage, {
       version: 1,
       propertyId: draftPropertyId,
       appointmentId: draftAppointmentId,
@@ -291,34 +295,22 @@ export function VisitFieldCapture({
   ]);
 
   function addPhotos(captureType: VisitPhotoCaptureType, files: FileList | null) {
-    if (!files?.length) return;
+    if (saveInFlight.current || !files?.length) return;
     setError(null);
-    const nextFiles = Array.from(files);
-    if (photos.length + nextFiles.length > MAX_VISIT_PHOTOS) {
-      setError(`Keep each visit record to ${MAX_VISIT_PHOTOS} photos or fewer.`);
-      return;
-    }
-
-    const accepted: PhotoDraft[] = [];
-    for (const file of nextFiles) {
-      if (!VISIT_PHOTO_MIME_TYPES.includes(file.type as VisitPhotoMimeType)) {
-        setError(`${file.name} is not a supported phone photo format.`);
-        continue;
-      }
-      if (file.size < 1 || file.size > MAX_VISIT_PHOTO_BYTES) {
-        setError(`${file.name} must be 15 MB or smaller.`);
-        continue;
-      }
+    const selection = selectVisitPhotos(Array.from(files), photos.length);
+    setSelectionErrors(selection.errors);
+    const accepted = selection.accepted.map(({ file, mimeType }): PhotoDraft => {
       const previewUrl = URL.createObjectURL(file);
       previewUrls.current.add(previewUrl);
-      accepted.push({
+      return {
         clientId: newClientId(),
         file,
+        mimeType,
         captureType,
         customerVisible: !fieldAssignmentId,
         previewUrl,
-      });
-    }
+      };
+    });
     if (accepted.length) {
       setRestoredPhotoCount(0);
       setPhotos((current) => [...current, ...accepted]);
@@ -326,6 +318,7 @@ export function VisitFieldCapture({
   }
 
   function removePhoto(clientId: string) {
+    if (saveInFlight.current) return;
     completedUploads.current.delete(clientId);
     setPhotos((current) => {
       const target = current.find((photo) => photo.clientId === clientId);
@@ -426,7 +419,7 @@ export function VisitFieldCapture({
               photos: pendingPhotos.map((photo) => ({
                 clientId: photo.clientId,
                 fileName: photo.file.name,
-                mimeType: photo.file.type,
+                mimeType: photo.mimeType,
                 sizeBytes: photo.file.size,
                 captureType: photo.captureType,
                 customerVisible: photo.customerVisible,
@@ -464,7 +457,7 @@ export function VisitFieldCapture({
           const upload = await uploadClient.storage
             .from(intentBody.bucket)
             .uploadToSignedUrl(intent.storagePath, intent.token, uploadBody, {
-              contentType: draft.file.type,
+              contentType: draft.mimeType,
               cacheControl: "3600",
               upsert: false,
             });
@@ -526,7 +519,7 @@ export function VisitFieldCapture({
       }
 
       rememberTechnicianName(technicianName.trim());
-      clearVisitFieldDraft(window.localStorage, {
+      clearVisitFieldDraft(browserVisitFieldDraftStorage, {
         propertyId: draftPropertyId,
         appointmentId: draftAppointmentId,
       });
@@ -564,7 +557,7 @@ export function VisitFieldCapture({
   }
 
   function startAnotherRecord() {
-    clearVisitFieldDraft(window.localStorage, {
+    clearVisitFieldDraft(browserVisitFieldDraftStorage, {
       propertyId: draftPropertyId,
       appointmentId: draftAppointmentId,
     });
@@ -574,6 +567,7 @@ export function VisitFieldCapture({
       previewUrls.current.delete(photo.previewUrl);
     }
     setPhotos([]);
+    setSelectionErrors([]);
     completedUploads.current.clear();
     setCustomerSummary("");
     setInternalNote("");
@@ -703,7 +697,8 @@ export function VisitFieldCapture({
   }
 
   return (
-    <form onSubmit={saveRecord} aria-busy={saving} className="space-y-5">
+    <form onSubmit={saveRecord} aria-busy={saving}>
+      <fieldset disabled={saving} className="min-w-0 space-y-5">
       <div>
         <p className="text-[10px] uppercase tracking-[0.18em] text-accent">
           Field record · {clientName}
@@ -749,6 +744,151 @@ export function VisitFieldCapture({
             </button>
           </div>
         </div>
+      ) : null}
+
+      <div>
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.15em] text-muted">
+              Before &amp; after photos
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              Choose one or multiple photos straight from the camera roll. Add Before now and After when the work is finished.
+            </p>
+          </div>
+          <span className="shrink-0 rounded-full border border-border px-3 py-1.5 text-xs tabular-nums text-foreground/80">
+            {photos.length}/{MAX_VISIT_PHOTOS}
+          </span>
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {CAPTURE_OPTIONS.map((option) => (
+            <label
+              key={option.type}
+              className="flex min-h-28 cursor-pointer flex-col justify-center rounded-2xl border border-accent/25 bg-accent/[0.05] px-2 py-4 text-center transition focus-within:ring-2 focus-within:ring-accent active:scale-[0.98] active:border-accent/50"
+            >
+              <span className="text-base font-semibold text-foreground">{option.label}</span>
+              <span className="mt-2 text-[11px] leading-tight text-accent">
+                Choose from Photos
+              </span>
+              <span className="mt-1 text-[10px] leading-tight text-muted">
+                {option.detail}
+              </span>
+              <input
+                type="file"
+                accept={VISIT_PHOTO_ACCEPT}
+                aria-label={`Choose ${option.label.toLowerCase()} photos from camera roll`}
+                multiple
+                className="sr-only"
+                onChange={(event) => {
+                  addPhotos(option.type, event.currentTarget.files);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {selectionErrors.length > 0 ? (
+        <div role="alert" className="rounded-xl border border-amber-300/25 bg-amber-300/[0.07] p-3 text-xs text-amber-100">
+          <p className="font-medium">Some photos were not added. Your other selections are still here.</p>
+          <ul className="mt-2 space-y-1">{selectionErrors.map((message, index) => <li key={`${index}:${message}`}>{message}</li>)}</ul>
+        </div>
+      ) : null}
+      {photos.length > 0 ? (
+        <p role="status" className="text-xs leading-relaxed text-accent">
+          {CAPTURE_OPTIONS.map((option) => `${photos.filter((photo) => photo.captureType === option.type).length} ${option.label.toLowerCase()}`).join(" · ")}
+          <span className="mt-1 block text-foreground/75">Selected on this phone, not saved yet. Save the complete before-and-after set below before leaving or reloading this page.</span>
+        </p>
+      ) : null}
+
+      {photos.length > 0 ? (
+        <ul className="grid gap-3 sm:grid-cols-2">
+          {photos.map((photo) => (
+            <li
+              key={photo.clientId}
+              className="overflow-hidden rounded-xl border border-border bg-background/60"
+            >
+              <div className="relative aspect-[4/3] bg-black/30">
+                {photo.previewUnavailable ? (
+                  <div className="flex h-full items-center justify-center px-4 text-center text-xs text-muted">
+                    Preview unavailable on this phone. Your original photo is still selected.
+                  </div>
+                ) : <Image
+                  src={photo.previewUrl}
+                  alt={`${photo.captureType === "detail" ? "general" : photo.captureType} visit preview`}
+                  fill
+                  unoptimized
+                  sizes="(max-width: 640px) 100vw, 320px"
+                  className="object-cover"
+                  onError={() => setPhotos((current) => current.map((item) =>
+                    item.clientId === photo.clientId ? { ...item, previewUnavailable: true } : item,
+                  ))}
+                />}
+                <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-wide text-white">
+                  {photo.captureType === "detail" ? "General" : photo.captureType}
+                </span>
+              </div>
+              <div className="space-y-3 p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs text-foreground">{photo.file.name}</p>
+                    <p className="mt-1 text-[10px] text-muted">{megabytes(photo.file.size)}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(photo.clientId)}
+                    aria-label={`Remove ${photo.file.name}`}
+                    className="min-h-11 px-2 text-xs text-red-300"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div>
+                  <p className="text-[10px] uppercase tracking-[0.13em] text-muted">
+                    Photo type
+                  </p>
+                  <div className="mt-2 grid grid-cols-3 gap-1.5">
+                    {CAPTURE_OPTIONS.map((option) => (
+                      <button
+                        key={option.type}
+                        type="button"
+                        disabled={saving}
+                        onClick={() => {
+                          // Labels are commit metadata; keep already-uploaded bytes for retry.
+                          setPhotos((current) =>
+                            current.map((item) =>
+                              item.clientId === photo.clientId
+                                ? { ...item, captureType: option.type }
+                                : item,
+                            ),
+                          );
+                        }}
+                        aria-pressed={photo.captureType === option.type}
+                        className={`min-h-11 rounded-lg border px-2 text-xs font-medium transition disabled:opacity-50 ${
+                          photo.captureType === option.type
+                            ? "border-accent/45 bg-accent/[0.12] text-accent"
+                            : "border-border bg-foreground/[0.025] text-foreground/60"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {!fieldAssignmentId ? <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-3">
+                  <span className="text-xs text-foreground/75">Show in portal</span>
+                  <input
+                    type="checkbox"
+                    checked={photo.customerVisible}
+                    onChange={() => togglePhotoVisibility(photo.clientId)}
+                    className="h-4 w-4 accent-emerald-500"
+                  />
+                </label> : null}
+              </div>
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <section className="rounded-2xl border border-[#9be2bd]/25 bg-[#9be2bd]/[0.055] p-4">
@@ -934,128 +1074,6 @@ export function VisitFieldCapture({
         </span>
       </label>
 
-      <div>
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <p className="text-[10px] uppercase tracking-[0.15em] text-muted">
-              Visit photos
-            </p>
-            <p className="mt-1 text-xs text-muted">
-              Tap Before, After, or General, then choose one or multiple photos straight from the camera roll.
-            </p>
-          </div>
-          <span className="text-xs text-muted">
-            {photos.length}/{MAX_VISIT_PHOTOS}
-          </span>
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          {CAPTURE_OPTIONS.map((option) => (
-            <label
-              key={option.type}
-              className="flex min-h-20 cursor-pointer flex-col justify-center rounded-xl border border-border bg-foreground/[0.035] px-3 py-3 text-center transition active:scale-[0.98] active:border-accent/50"
-            >
-              <span className="text-sm font-medium text-foreground">{option.label}</span>
-              <span className="mt-1 text-[10px] leading-tight text-accent/70">
-                Choose from Photos
-              </span>
-              <span className="mt-1 text-[10px] leading-tight text-muted">
-                {option.detail}
-              </span>
-              <input
-                type="file"
-                accept={VISIT_PHOTO_MIME_TYPES.join(",")}
-                multiple
-                className="sr-only"
-                onChange={(event) => {
-                  addPhotos(option.type, event.currentTarget.files);
-                  event.currentTarget.value = "";
-                }}
-              />
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {photos.length > 0 ? (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {photos.map((photo) => (
-            <li
-              key={photo.clientId}
-              className="overflow-hidden rounded-xl border border-border bg-background/60"
-            >
-              <div className="relative aspect-[4/3] bg-black/30">
-                <Image
-                  src={photo.previewUrl}
-                  alt={`${photo.captureType === "detail" ? "general" : photo.captureType} visit preview`}
-                  fill
-                  unoptimized
-                  sizes="(max-width: 640px) 100vw, 320px"
-                  className="object-cover"
-                />
-                <span className="absolute left-2 top-2 rounded-full bg-black/70 px-2.5 py-1 text-[10px] uppercase tracking-wide text-white">
-                  {photo.captureType === "detail" ? "General" : photo.captureType}
-                </span>
-              </div>
-              <div className="space-y-3 p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs text-foreground">{photo.file.name}</p>
-                    <p className="mt-1 text-[10px] text-muted">{megabytes(photo.file.size)}</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(photo.clientId)}
-                    className="text-xs text-red-300"
-                  >
-                    Remove
-                  </button>
-                </div>
-                <div>
-                  <p className="text-[10px] uppercase tracking-[0.13em] text-muted">
-                    Photo type
-                  </p>
-                  <div className="mt-2 grid grid-cols-3 gap-1.5">
-                    {CAPTURE_OPTIONS.map((option) => (
-                      <button
-                        key={option.type}
-                        type="button"
-                        disabled={saving}
-                        onClick={() => {
-                          completedUploads.current.delete(photo.clientId);
-                          setPhotos((current) =>
-                            current.map((item) =>
-                              item.clientId === photo.clientId
-                                ? { ...item, captureType: option.type }
-                                : item,
-                            ),
-                          );
-                        }}
-                        className={`min-h-9 rounded-lg border px-2 text-[10px] font-medium transition disabled:opacity-50 ${
-                          photo.captureType === option.type
-                            ? "border-accent/45 bg-accent/[0.12] text-accent"
-                            : "border-border bg-foreground/[0.025] text-foreground/60"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                {!fieldAssignmentId ? <label className="flex min-h-10 cursor-pointer items-center justify-between gap-3 rounded-lg border border-border px-3">
-                  <span className="text-xs text-foreground/75">Show in portal</span>
-                  <input
-                    type="checkbox"
-                    checked={photo.customerVisible}
-                    onChange={() => togglePhotoVisibility(photo.clientId)}
-                    className="h-4 w-4 accent-emerald-500"
-                  />
-                </label> : null}
-              </div>
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
       <label className="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border border-border bg-foreground/[0.025] px-4">
         <input
           type="checkbox"
@@ -1102,6 +1120,7 @@ export function VisitFieldCapture({
               : "Finish Visit"
             : "Save visit record"}
       </button>
+      </fieldset>
     </form>
   );
 }

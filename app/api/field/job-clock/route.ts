@@ -96,19 +96,33 @@ export async function POST(request: Request) {
       request: submitted,
       actor,
     });
+    let routeEventRecorded = true;
+    let routeEventWarning: string | null = null;
+    const fieldStage = result.clock.state === "finished" ? "departed" : "service_started";
     if (!submitted.fieldAssignmentId) {
-      await advanceLifecycle({
-        actor,
-        propertyId: submitted.propertyId!,
-        appointmentId: submitted.appointmentId!,
-        target:
-          submitted.action === "start" ? "service_started" : "departed",
-      });
+      try {
+        await advanceLifecycle({
+          actor,
+          propertyId: submitted.propertyId!,
+          appointmentId: submitted.appointmentId!,
+          target: fieldStage,
+        });
+      } catch (error) {
+        // The durable time write already succeeded. Never tell the technician
+        // that clock-in/out failed just because the secondary timeline failed.
+        routeEventRecorded = false;
+        routeEventWarning = "Your job time is saved. The visit timeline still needs an HQ check.";
+        console.warn("[field-job-clock] time saved without route event:",
+          error instanceof Error ? error.message : "unknown route event error");
+      }
     }
     return NextResponse.json({
       ...result,
-      fieldStage:
-        submitted.action === "start" ? "service_started" : "departed",
+      routeEventRecorded,
+      routeEventWarning,
+      ...(routeEventRecorded ? {
+        fieldStage,
+      } : {}),
     }, {
       status: result.replayed ? 200 : 201,
       headers: { "Cache-Control": "private, no-store" },
@@ -120,7 +134,7 @@ export async function POST(request: Request) {
       /not assigned|not available to this Field Pass|outside the safe|no longer active/i.test(
         message,
       );
-    const conflict = /start the job clock before finishing|closeout before clocking out/i.test(message);
+    const conflict = /start the job clock before finishing|closeout before clocking out|other active job/i.test(message);
     const invalid =
       /valid|not found|does not belong|not a verified Jobber stop/i.test(message);
     const status = forbidden ? 403 : conflict ? 409 : invalid ? 400 : 503;
