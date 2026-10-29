@@ -736,9 +736,9 @@ button,
 }
 
 /* ——— HomeAtlas experience themes (Day / Night / Lux) ———
-   Night is the base :root token set; Day and Lux override the same
-   custom properties inside a data-atlas-theme scope, so every surface
-   built on the tokens re-skins with no component changes. */
+   All three member atmospheres share the forest / ivory / champagne family.
+   They stay scoped so operational surfaces keep their existing root tokens.
+   Saved Day / Night / Lux preferences and their identifiers are unchanged. */
 
 [data-atlas-theme] {
   background: var(--background);
@@ -746,15 +746,35 @@ button,
   transition: background-color 0.5s ease, color 0.5s ease;
 }
 
+[data-atlas-theme="night"] {
+  --background: #0c241c;
+  --foreground: #f4efe4;
+  --muted: #b0bfb5;
+  --accent: #d4bd8d;
+  --accent-soft: #d4bd8d26;
+  --on-accent: #102d23;
+  --surface: #14362a;
+  --surface-elevated: #1c4234;
+  --border: #f4efe426;
+  --glass-bg: rgba(20, 54, 42, 0.82);
+  --glass-bg-elevated: rgba(28, 66, 52, 0.88);
+  --glass-bg-subtle: rgba(20, 54, 42, 0.55);
+  --glass-border: rgba(212, 189, 141, 0.22);
+  --glass-highlight: rgba(244, 239, 228, 0.08);
+  --at-toggle-border: rgba(244, 239, 228, 0.22);
+  --at-toggle-bg: rgba(244, 239, 228, 0.05);
+  color-scheme: dark;
+}
+
 [data-atlas-theme="day"] {
-  --background: #f7f5f0;
-  --foreground: #1f1c17;
-  --muted: #5a564c;
-  --accent: #84683f;
-  --accent-soft: #84683f26;
-  --surface: #ffffff;
-  --surface-elevated: #fcfaf6;
-  --border: #1f1c171a;
+  --background: #f4efe4;
+  --foreground: #173f32;
+  --muted: #526b60;
+  --accent: #7a5933;
+  --accent-soft: #7a593326;
+  --surface: #fbf7ee;
+  --surface-elevated: #fffdf8;
+  --border: #173f321a;
   --on-accent: #fffdf8;
   --glass-bg: rgba(255, 253, 248, 0.55);
   --glass-bg-elevated: rgba(255, 253, 248, 0.72);
@@ -923,22 +943,23 @@ button,
 }
 
 [data-atlas-theme="lux"] {
-  --background: #090705;
-  --foreground: #f3ecdc;
-  --muted: #9c8f76;
-  --accent: #d4af37;
-  --accent-soft: #d4af3733;
-  --on-accent: #090705;
-  --surface: #121008;
-  --surface-elevated: #1a1710;
-  --border: #f3ecdc14;
-  --glass-bg: rgba(243, 236, 220, 0.045);
-  --glass-bg-elevated: rgba(243, 236, 220, 0.07);
-  --glass-bg-subtle: rgba(243, 236, 220, 0.025);
-  --glass-border: rgba(212, 175, 55, 0.22);
-  --glass-highlight: rgba(243, 236, 220, 0.1);
-  --at-toggle-border: rgba(212, 175, 55, 0.3);
-  --at-toggle-bg: rgba(243, 236, 220, 0.04);
+  --background: #071c16;
+  --foreground: #fbf7ee;
+  --muted: #b8c2b5;
+  --accent: #d4bd8d;
+  --accent-soft: #d4bd8d33;
+  --on-accent: #071c16;
+  --surface: #102d23;
+  --surface-elevated: #183b2e;
+  --border: #d4bd8d33;
+  --glass-bg: rgba(16, 45, 35, 0.78);
+  --glass-bg-elevated: rgba(24, 59, 46, 0.85);
+  --glass-bg-subtle: rgba(16, 45, 35, 0.5);
+  --glass-border: rgba(212, 189, 141, 0.28);
+  --glass-highlight: rgba(251, 247, 238, 0.1);
+  --at-toggle-border: rgba(212, 189, 141, 0.35);
+  --at-toggle-bg: rgba(251, 247, 238, 0.04);
+  color-scheme: dark;
 }
 
 [data-atlas-theme="lux"] .craft-stage-warmth {
@@ -1103,3 +1124,98 @@ button,
 
 .night-marquee-slow { animation: night-marquee-slide 60s linear infinite; }
 @media (prefers-reduced-motion: reduce) { .night-marquee-slow { animation: none; flex-wrap: wrap; } }
+
+
+/* Shared homeowner surfaces. Do not apply this scope to Headquarters/field UI. */
+.customer-theme {
+  --background: #f4efe4;
+  --foreground: #173f32;
+  --muted: #526b60;
+  --accent: #7a5933;
+  --accent-soft: #7a593326;
+  --on-accent: #fffdf8;
+  --surface: #fbf7ee;
+  --surface-elevated: #fffdf8;
+  --border: rgba(23, 63, 50, 0.18);
+  --border-strong: rgba(23, 63, 50, 0.28);
+  --control-bg: #fffdf8;
+  --control-bg-hover: #fbf7ee;
+  --customer-primary: #173f32;
+  --glass-bg: rgba(251, 247, 238, 0.85);
+  --glass-bg-elevated: rgba(255, 253, 248, 0.95);
+  --glass-border: rgba(23, 63, 50, 0.15);
+  --glass-highlight: rgba(255, 255, 255, 0.8);
+  background: var(--background);
+  color: var(--foreground);
+  color-scheme: light;
+}
+
+.customer-panel {
+  border: 1px solid var(--border);
+  border-radius: 1.5rem;
+  background: var(--surface-elevated);
+  box-shadow: 0 16px 48px -28px rgba(23, 63, 50, 0.22);
+}
+
+.customer-button-primary,
+.customer-button-secondary {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--customer-primary, #173f32);
+  border-radius: 999px;
+  padding: 0.8rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-decoration: none;
+  transition: background-color 180ms ease, box-shadow 180ms ease;
+}
+
+.customer-button-primary {
+  background: var(--customer-primary, #173f32);
+  color: #fbf7ee;
+  box-shadow: 0 6px 18px -10px rgba(23, 63, 50, 0.4);
+}
+.customer-button-primary:hover { background: #102d23; }
+.customer-button-secondary { background: var(--surface); color: var(--foreground); border-color: var(--border); }
+.customer-button-secondary:hover { background: #e9e5d8; border-color: var(--foreground); }
+.customer-button-primary:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.customer-theme :is(a, button, summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--customer-primary);
+  outline-offset: 4px;
+}
+.customer-theme :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) {
+  min-height: 3rem;
+  border-color: var(--border-strong);
+  background-color: var(--surface-elevated);
+  color: var(--foreground);
+  font-size: 1rem;
+}
+.customer-theme :is(input, textarea)::placeholder { color: var(--muted); opacity: 1; }
+
+/* Keep themed portal cards green all the way through their gradient, not black. */
+:is([data-atlas-theme="night"], [data-atlas-theme="lux"]) .craft-glass {
+  background: linear-gradient(165deg, var(--glass-highlight), transparent 42%),
+    linear-gradient(180deg, var(--glass-bg), var(--surface));
+}
+:is([data-atlas-theme="night"], [data-atlas-theme="lux"]) .craft-glass-elevated {
+  background: linear-gradient(165deg, var(--glass-highlight), transparent 42%),
+    linear-gradient(180deg, var(--glass-bg-elevated), var(--surface-elevated));
+}
+:is([data-atlas-theme="night"], [data-atlas-theme="lux"]) .craft-glass-subtle,
+:is([data-atlas-theme="night"], [data-atlas-theme="lux"]) .craft-glass-inset {
+  background: var(--glass-bg-subtle);
+  border-color: var(--border);
+}
+[data-atlas-theme] :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea) { font-size: 1rem; }
+[data-atlas-theme] :is(a, button, summary, input, select, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .customer-button-primary, .customer-button-secondary, [data-atlas-theme] { transition: none; }
+}

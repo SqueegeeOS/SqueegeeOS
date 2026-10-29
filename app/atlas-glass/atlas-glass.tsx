@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Day2ReviewsWall } from "@/components/marketing/day2-reviews-wall";
+import { CustomerBrandLockup } from "@/components/brand/customer-brand-lockup";
 import { AtlasMark } from "@/components/theme/atlas-mark";
 import { CUSTOMER_CONTACT } from "@/lib/brand/customer";
 import { AtlasLeadership } from "./atlas-leadership";
@@ -209,16 +210,24 @@ export function AtlasGlass() {
 
         <header className={styles.header}>
           <Link href="/" className={styles.brand} aria-label="SqueegeeKing home">
-            <AtlasMark size={38} />
-            <span><strong>SqueegeeKing</strong><small>with HomeAtlas</small></span>
+            <CustomerBrandLockup />
           </Link>
           <div className={styles.headerActions}>
             <nav className={styles.headerNav} aria-label="Primary navigation">
               <a href="#care-options">Services</a>
-              <a href="#reviews">Reviews</a>
+              <Link href="/contact">Contact</Link>
+              <Link href="/portal">Member portal</Link>
             </nav>
-            <span className={styles.liveBadge}><i aria-hidden="true" />Home care, live</span>
-            <Link href="/request" className={styles.headerCta}>Build my plan</Link>
+            <Link href="/request" className={styles.headerCta}>Free quote</Link>
+            <details className={styles.mobileNav}>
+              <summary>Menu <span aria-hidden="true">+</span></summary>
+              <nav aria-label="Mobile navigation">
+                <Link href="/services">Services</Link>
+                <Link href="/request">Free quote</Link>
+                <Link href="/contact">Contact</Link>
+                <Link href="/portal">Member portal</Link>
+              </nav>
+            </details>
           </div>
         </header>
 
@@ -239,7 +248,7 @@ export function AtlasGlass() {
             <Link href="/request" className={styles.primaryCta}>
               Get your free quote <span aria-hidden="true">↗</span>
             </Link>
-            <a href="#homeatlas-live" className={styles.secondaryCta}>See the app in motion</a>
+            <a href="#homeatlas-live" className={styles.secondaryCta}>Explore your member portal</a>
           </div>
           <div className={styles.heroTrust} aria-label="SqueegeeKing promises">
             <span><i aria-hidden="true" />Founder-led in Chico</span>
@@ -323,7 +332,7 @@ export function AtlasGlass() {
               <div className={styles.windowControls} aria-hidden="true"><span /><span /><span /></div>
               <div className={styles.portalIdentity}>
                 <AtlasMark size={26} />
-                <span><strong>HomeAtlas</strong><small>Your Chico home · live example</small></span>
+                <span><strong>HomeAtlas</strong><small>Your Chico home · example only</small></span>
               </div>
               <span className={styles.memberChip}>CARE MEMBER</span>
             </div>

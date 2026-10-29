@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState, type CSSProperties } from "react";
+import { useCallback, useState } from "react";
+import { CustomerBrandLockup } from "@/components/brand/customer-brand-lockup";
 import {
   CUSTOMER_PRIMARY_NAV,
   CUSTOMER_TAIL_NAV,
@@ -31,6 +32,10 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
     pathname === ROUTES.home ||
     pathname === "/home2" ||
     pathname === ROUTES.services ||
+    pathname === ROUTES.request ||
+    pathname === ROUTES.contact ||
+    pathname === "/privacy" ||
+    pathname === "/terms" ||
     pathname.startsWith(`${ROUTES.services}/`);
   const elevated = daylight || scrolled || !immersive;
   const lightText = !daylight && immersive && !scrolled;
@@ -50,32 +55,26 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
   return (
     <>
       <header
-        className={`fixed inset-x-0 top-0 z-[60] border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${headerSurface}`}
-        style={daylight ? ({
-          height: "var(--site-nav-height)",
-          "--background": "#fffaf0",
-          "--foreground": "#173f32",
-          "--muted": "#526b60",
-          "--accent": "#99683d",
-          "--border": "rgba(23,63,50,0.14)",
-        } as CSSProperties) : { height: "var(--site-nav-height)" }}
+        className={`${daylight ? "customer-theme" : ""} fixed inset-x-0 top-0 z-[60] border-b transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300 ease-out ${headerSurface}`}
+        style={{ height: "var(--site-nav-height)" }}
       >
         <div className="relative z-[1] mx-auto flex h-full max-w-7xl items-center justify-between gap-4 px-5 sm:px-8 lg:px-10">
           <Link
             href={ROUTES.home}
-            className={`min-h-[44px] py-2 font-serif text-lg font-light tracking-[0.16em] transition-colors duration-300 hover:opacity-90 sm:text-xl ${
+            aria-label="SqueegeeKing home"
+            className={`min-h-[44px] py-1 transition-colors duration-300 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
               lightText ? "text-white/92" : "text-foreground"
             }`}
           >
-            {CUSTOMER_BRAND_NAME}
+            <CustomerBrandLockup />
           </Link>
 
-          <nav className="hidden items-center gap-6 lg:flex" aria-label="Main">
+          <nav className="hidden items-center gap-6 lg:flex [&_a]:inline-flex [&_a]:min-h-11 [&_a]:items-center [&_a]:text-xs [&_a]:tracking-[0.12em]" aria-label="Main">
             {CUSTOMER_PRIMARY_NAV.map((item) => (
               <NavLink
                 key={item.href}
                 href={item.href}
-                label={item.label}
+                label={item.href === ROUTES.request ? "Free quote" : item.label}
                 active={isActiveNavItem(pathname, item.href)}
                 light={lightText}
                 variant={item.href === ROUTES.request ? "cta" : "default"}
@@ -90,7 +89,7 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
               <NavLink
                 key={item.href}
                 href={item.href}
-                label={item.label}
+                label={item.href === ROUTES.request ? "Free quote" : item.label}
                 active={isActiveNavItem(pathname, item.href)}
                 light={lightText}
               />
@@ -121,7 +120,9 @@ export function CustomerNav({ pathname }: CustomerNavProps) {
         open={menuOpen}
         onClose={closeMenu}
         pathname={pathname}
-        items={[...CUSTOMER_PRIMARY_NAV, ...CUSTOMER_TAIL_NAV]}
+        items={[...CUSTOMER_PRIMARY_NAV, ...CUSTOMER_TAIL_NAV].map((item) =>
+          item.href === ROUTES.request ? { ...item, label: "Free quote" } : item,
+        )}
         portalItem={null}
         accountSession={session}
         brandName={CUSTOMER_BRAND_NAME}

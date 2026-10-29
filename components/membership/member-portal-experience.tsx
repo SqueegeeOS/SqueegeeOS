@@ -138,7 +138,7 @@ export function MemberPortalExperience({
       homeownerSlug={data.homeowner.slug}
       propertySlug={data.property.slug}
     >
-      <div className="mx-auto max-w-2xl px-5 pb-[max(3rem,env(safe-area-inset-bottom))] pt-[max(3.5rem,env(safe-area-inset-top))] sm:px-10 sm:pb-20 sm:pt-16">
+      <div className="mx-auto max-w-2xl px-5 pb-8 pt-8 sm:px-10 sm:pb-10 sm:pt-10">
         {/* §1 — Landing */}
         <motion.header
           initial={reduceMotion ? false : "hidden"}
@@ -146,19 +146,19 @@ export function MemberPortalExperience({
           variants={materialize}
           className="text-center"
         >
-          <p className="text-[11px] uppercase tracking-[0.35em] text-accent/70">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-accent">
             {CUSTOMER_BRAND.name}
           </p>
           <div
-            className="mx-auto mt-6 mb-8 h-px w-12 bg-accent/25"
+            className="mx-auto my-5 h-px w-12 bg-accent/25"
             aria-hidden
           />
           <HeroText>{view.landingHeadline}</HeroText>
-          <p className="mt-5 text-base text-foreground/60 sm:text-lg">
+          <p className="mt-4 text-base leading-relaxed text-muted sm:text-lg">
             {view.propertyAddress}
           </p>
           {view.syncNote && (
-            <p className="mt-4 text-sm text-foreground/45">{view.syncNote}</p>
+            <p className="mt-4 text-sm leading-relaxed text-muted">{view.syncNote}</p>
           )}
           {view.membershipActive && (
             <p className="mt-6 inline-flex rounded-full border border-accent/30 bg-accent/10 px-4 py-2 text-[11px] uppercase tracking-[0.16em] text-accent">
@@ -179,9 +179,9 @@ export function MemberPortalExperience({
         {isCustomerPortal ? (
           <nav
             aria-label="HomeAtlas quick actions"
-            className="craft-glass-subtle mt-8 overflow-x-auto rounded-2xl border border-accent/10 p-2 shadow-[var(--shadow-ambient)]"
+            className="craft-glass-subtle mt-8 rounded-2xl border border-border p-2 shadow-[var(--shadow-ambient)]"
           >
-            <div className="grid min-w-[520px] grid-cols-4 gap-1">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {[
                 ["#next-visit", "Next visit", "01"],
                 ["#membership", "My plan", "02"],
@@ -191,12 +191,12 @@ export function MemberPortalExperience({
                 <a
                   key={href}
                   href={href}
-                  className="group rounded-xl px-3 py-3 text-left transition hover:bg-accent/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                  className="group min-h-16 rounded-xl border border-border px-3 py-3 text-left transition hover:bg-accent/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                 >
-                  <span className="block text-[9px] tracking-[0.18em] text-accent/55">
+                  <span className="block text-xs tabular-nums text-muted">
                     {index}
                   </span>
-                  <span className="mt-1 block text-xs font-medium text-foreground/75 group-hover:text-foreground">
+                  <span className="mt-1 block text-sm font-medium text-foreground">
                     {label}
                   </span>
                 </a>
@@ -213,7 +213,7 @@ export function MemberPortalExperience({
           ) : null}
         </div>
 
-        <div className="mt-16 space-y-20 sm:mt-20 sm:space-y-24">
+        <div className="mt-12 space-y-14 sm:mt-16 sm:space-y-20">
           {/* §2 — Membership */}
           <PortalSection
             id="membership"
@@ -641,8 +641,8 @@ export function MemberPortalExperience({
           </div>
         )}
 
-        <footer className="mt-20 border-t border-border pt-10 text-center">
-          <p className="text-[10px] uppercase tracking-[0.3em] text-muted/70">
+        <footer className="mt-14 border-t border-border pt-6 text-center">
+          <p className="text-xs text-muted">
             Powered by HomeAtlas
           </p>
         </footer>

@@ -24,6 +24,8 @@ interface RequestPlanTransitionProps {
   active: boolean;
   onComplete: () => void;
   messages?: readonly string[];
+  /** Quote flow uses the shared homeowner palette; internal previews keep their existing appearance. */
+  appearance?: "default" | "customer";
 }
 
 function PremiumSqueegee({
@@ -101,6 +103,7 @@ export function RequestPlanTransition({
   active,
   onComplete,
   messages = REQUEST_PLAN_MESSAGES,
+  appearance = "default",
 }: RequestPlanTransitionProps) {
   const [fadeIn, setFadeIn] = useState(false);
   const [wipeProgress, setWipeProgress] = useState(0);
@@ -202,7 +205,7 @@ export function RequestPlanTransition({
 
   return (
     <div
-      className="fixed inset-0 z-[200] overflow-hidden"
+      className={`fixed inset-0 z-[200] overflow-hidden ${appearance === "customer" ? "customer-theme" : ""}`}
       role="status"
       aria-live="polite"
       aria-label={
@@ -210,7 +213,7 @@ export function RequestPlanTransition({
       }
     >
       <motion.div
-        className="absolute inset-0 bg-black/50 backdrop-blur-[8px]"
+        className={`absolute inset-0 backdrop-blur-[8px] ${appearance === "customer" ? "bg-[#173f32]/10" : "bg-black/50"}`}
         style={{ clipPath: uncleanedClip }}
         initial={{ opacity: 0 }}
         animate={{ opacity: fadeIn ? 1 : 0 }}

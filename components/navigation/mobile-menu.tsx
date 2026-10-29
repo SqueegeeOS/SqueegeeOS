@@ -1,8 +1,9 @@
 "use client";
 
+import { CustomerBrandLockup } from "@/components/brand/customer-brand-lockup";
 import { MembershipActiveBadge } from "@/components/membership/membership-active-badge";
 import Link from "next/link";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ROUTES, type NavItem } from "@/lib/navigation/config";
 import type { NavigationSession } from "@/lib/navigation/session";
@@ -163,25 +164,23 @@ export function MobileMenu({
         aria-modal="true"
         aria-label="Site navigation"
         tabIndex={-1}
-        className={`absolute inset-y-0 right-0 flex w-[min(88vw,22rem)] flex-col border-l px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${daylight ? "border-[#173f32]/15 bg-[#fffaf0]/95 shadow-[-8px_0_40px_rgba(23,63,50,0.16)]" : "border-border/60 bg-background/95 shadow-[-8px_0_40px_rgba(0,0,0,0.2)]"} ${
+        className={`absolute inset-y-0 right-0 flex w-[min(88vw,22rem)] flex-col border-l px-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] pt-[max(1rem,env(safe-area-inset-top))] backdrop-blur-2xl transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${daylight ? "customer-theme border-border shadow-[-8px_0_40px_rgba(23,63,50,0.16)]" : "border-border/60 bg-background/95 shadow-[-8px_0_40px_rgba(0,0,0,0.2)]"} ${
           visible ? "translate-x-0" : "translate-x-full"
         }`}
-        style={daylight ? ({
-          "--background": "#fffaf0",
-          "--foreground": "#173f32",
-          "--muted": "#526b60",
-          "--accent": "#99683d",
-          "--border": "rgba(23,63,50,0.14)",
-        } as CSSProperties) : undefined}
+
       >
         <div className="flex items-center justify-between gap-4 border-b border-border/50 pb-5">
-          <p className="font-serif text-lg font-light tracking-[0.12em] text-foreground/90">
-            {brandName}
-          </p>
+          {daylight ? (
+            <CustomerBrandLockup />
+          ) : (
+            <p className="font-serif text-lg font-light tracking-[0.12em] text-foreground/90">
+              {brandName}
+            </p>
+          )}
           <button
             type="button"
             onClick={onClose}
-            className="flex h-11 w-11 items-center justify-center rounded-full border border-border/80 text-muted transition-colors hover:border-accent/25 hover:text-foreground touch-manipulation"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-border/80 text-muted transition-colors hover:border-accent/25 hover:text-foreground touch-manipulation"
             aria-label="Close navigation"
           >
             <span className="text-xl leading-none">×</span>
