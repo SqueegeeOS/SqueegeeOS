@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useId,
   useState,
   type ReactNode,
 } from "react";
@@ -160,6 +161,7 @@ export function useAtlasTheme(): AtlasThemeContextValue {
 export function PortalThemeSelector({ className = "" }: { className?: string }) {
   const { theme, setTheme, saveTheme, isDirty, isSaving } = useAtlasTheme();
   const [saveState, setSaveState] = useState<"idle" | "saved" | "error">("idle");
+  const groupName = useId();
 
   const handleSave = useCallback(async () => {
     const ok = await saveTheme();
@@ -171,50 +173,57 @@ export function PortalThemeSelector({ className = "" }: { className?: string }) 
     <div
       className={`flex w-full max-w-md flex-col items-center gap-3 ${className}`}
     >
-      <p className="text-[10px] font-medium uppercase tracking-[0.28em] text-muted">
-        HomeAtlas Atmosphere
+      <fieldset className="w-full">
+        <legend className="mb-3 text-sm font-medium text-foreground">
+          Choose your appearance
+        </legend>
+        <div className="grid grid-cols-3 gap-2 rounded-2xl border border-[var(--at-toggle-border)] bg-[var(--at-toggle-bg)] p-1.5">
+          {ATLAS_THEMES.map((t) => {
+            const active = t.id === theme;
+            return (
+              <label key={t.id} className="relative cursor-pointer">
+                <input
+                  type="radio"
+                  name={groupName}
+                  value={t.id}
+                  checked={active}
+                  disabled={isSaving}
+                  onChange={() => {
+                    setTheme(t.id);
+                    setSaveState("idle");
+                  }}
+                  className="peer sr-only"
+                />
+                <span
+                  className={`flex min-h-11 items-center justify-center rounded-xl px-3 text-sm font-medium transition-colors duration-200 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent peer-disabled:cursor-wait ${
+                    active
+                      ? "bg-accent text-[var(--on-accent)]"
+                      : "text-foreground hover:bg-accent/10"
+                  }`}
+                >
+                  {t.label}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+      <p role="status" className="min-h-5 w-full text-sm leading-relaxed text-muted">
+        {saveState === "error"
+          ? "Your preference could not be saved. Please try again."
+          : saveState === "saved"
+            ? "Your appearance preference is saved."
+            : isDirty
+              ? "Previewing this appearance. Save to keep it."
+              : "Preview a style, then save your preference."}
       </p>
-      <div
-        role="radiogroup"
-        aria-label="Portal atmosphere"
-        className="inline-flex w-full items-center gap-1 rounded-full border border-[var(--at-toggle-border,rgba(245,242,235,0.14))] bg-[var(--at-toggle-bg,rgba(245,242,235,0.05))] p-1 backdrop-blur-sm"
-      >
-        {ATLAS_THEMES.map((t) => {
-          const active = t.id === theme;
-          return (
-            <button
-              key={t.id}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              title={t.tagline}
-              onClick={() => setTheme(t.id)}
-              className={`min-h-[34px] flex-1 rounded-full px-3 text-[11px] font-medium uppercase tracking-[0.14em] transition-colors duration-300 touch-manipulation sm:px-4 sm:tracking-[0.16em] ${
-                active
-                  ? "bg-accent text-[var(--on-accent)]"
-                  : "text-foreground/55 hover:text-foreground"
-              }`}
-            >
-              {t.label}
-            </button>
-          );
-        })}
-      </div>
       <button
         type="button"
         onClick={() => void handleSave()}
         disabled={!isDirty || isSaving}
-        className="min-h-[36px] rounded-full border border-border bg-[var(--glass-bg-elevated)] px-5 text-[10px] font-medium uppercase tracking-[0.2em] text-foreground/75 transition-[opacity,background-color,border-color] duration-300 hover:border-accent/30 hover:text-foreground disabled:cursor-default disabled:opacity-40 touch-manipulation"
+        className="min-h-11 self-start rounded-full border border-border bg-[var(--glass-bg-elevated)] px-5 text-sm font-medium text-foreground transition-colors duration-200 hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-default disabled:opacity-50 touch-manipulation"
       >
-        {isSaving
-          ? "Saving…"
-          : saveState === "saved"
-            ? "Saved"
-            : saveState === "error"
-              ? "Try again"
-              : isDirty
-                ? "Save atmosphere"
-                : "Atmosphere saved"}
+        {isSaving ? "Saving…" : "Save appearance"}
       </button>
     </div>
   );

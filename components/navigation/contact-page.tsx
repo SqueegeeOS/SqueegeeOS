@@ -46,7 +46,7 @@ function contactCopy(topic?: string | null, serviceId?: string | null) {
   return {
     eyebrow: "Contact",
     title: "We are here for your home.",
-    body: `${CUSTOMER_BRAND.name} serves homeowners in ${CUSTOMER_BRAND.location} with calm, consistent care. Reach us directly — or begin with a Home Care Plan request.`,
+    body: `${CUSTOMER_BRAND.name} serves homeowners in ${CUSTOMER_BRAND.location} with calm, consistent care. Reach us directly — or request a free quote for one-time or recurring care.`,
   };
 }
 
@@ -62,7 +62,7 @@ export function ContactPageContent({
 
   return (
     <main
-      className="relative min-h-screen overflow-x-hidden bg-background"
+      className="customer-theme relative min-h-screen overflow-x-hidden bg-background"
       style={{ paddingTop: "var(--site-chrome-offset)" }}
     >
       <AmbientGlow />
@@ -75,7 +75,7 @@ export function ContactPageContent({
           </h1>
           <p className="mt-6 text-base leading-relaxed text-muted">{copy.body}</p>
           {propertySlug ? (
-            <p className="mt-4 text-[10px] uppercase tracking-[0.22em] text-muted/80">
+            <p className="mt-4 text-xs font-medium uppercase tracking-[0.12em] text-muted">
               Property reference · {propertySlug.replace(/-/g, " ")}
             </p>
           ) : null}
@@ -89,9 +89,9 @@ export function ContactPageContent({
         >
           <a
             href={phoneHref}
-            className="flex min-h-[60px] flex-col justify-center rounded-2xl border border-border bg-surface px-6 py-5 transition-colors hover:border-accent/30"
+            className="flex min-h-[60px] flex-col justify-center customer-panel rounded-2xl px-6 py-5 transition-colors hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40"
           >
-            <span className="text-[10px] uppercase tracking-[0.26em] text-accent">
+            <span className="text-xs font-medium uppercase tracking-[0.12em] text-accent">
               Phone
             </span>
             <span className="mt-2 font-serif text-2xl font-light text-foreground">
@@ -101,17 +101,17 @@ export function ContactPageContent({
 
           <Link
             href={ROUTES.request}
-            className="flex min-h-[60px] items-center justify-between rounded-2xl border border-border bg-surface px-6 py-5 transition-colors hover:border-accent/30"
+            className="flex min-h-[60px] items-center justify-between customer-panel rounded-2xl px-6 py-5 transition-colors hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/40"
           >
             <div>
-              <span className="text-[10px] uppercase tracking-[0.26em] text-accent">
+              <span className="text-xs font-medium uppercase tracking-[0.12em] text-accent">
                 New homeowners
               </span>
               <p className="mt-2 font-serif text-xl font-light text-foreground">
-                Request a Home Care Plan
+                Request a free quote
               </p>
             </div>
-            <span className="text-muted">→</span>
+            <span className="text-muted" aria-hidden>→</span>
           </Link>
         </motion.div>
       </div>
