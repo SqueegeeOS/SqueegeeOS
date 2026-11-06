@@ -27,7 +27,7 @@ import { RequestPlanTransition } from "@/components/experience/request-plan-tran
 import { AmbientGlow, Eyebrow, Reveal, easeLuxury } from "@/components/marketing/ui";
 
 const inputClassName =
-  "w-full rounded-2xl border border-border bg-surface px-4 py-3.5 text-base text-foreground placeholder:text-muted/60 focus:border-accent/40 focus:outline-none focus:ring-1 focus:ring-accent/20";
+  "w-full rounded-2xl border border-border bg-surface px-4 py-3.5 text-base text-foreground placeholder:text-muted focus:border-foreground/60 focus:outline-none focus:ring-2 focus:ring-foreground/20";
 
 const SQFT_MIN = 800;
 const SQFT_MAX = 6000;
@@ -38,7 +38,7 @@ type FormPhase = "form" | "transition" | "thanks";
 function ThankYouScreen({ firstName }: { firstName: string }) {
   return (
     <motion.div
-      className="relative min-h-screen overflow-x-hidden bg-background px-5 py-28 sm:px-10 sm:py-32"
+      className="customer-theme relative min-h-screen overflow-x-hidden bg-background px-5 py-28 sm:px-10 sm:py-32"
       style={{ paddingTop: "var(--site-chrome-offset)" }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
@@ -56,7 +56,7 @@ function ThankYouScreen({ firstName }: { firstName: string }) {
         </p>
         <Link
           href="/"
-          className="mt-10 inline-flex min-h-[52px] items-center justify-center rounded-full border border-border px-8 text-sm tracking-[0.12em] text-foreground"
+          className="customer-button-secondary mt-10 inline-flex min-h-[52px] items-center justify-center rounded-full px-8 text-sm font-medium"
         >
           Return Home
         </Link>
@@ -90,7 +90,7 @@ function MembershipTierPicker({
             }`}
           >
             {tier.highlighted && (
-              <p className="mb-1 text-[10px] uppercase tracking-[0.2em] text-accent">
+              <p className="mb-1 text-xs font-medium uppercase tracking-[0.12em] text-accent">
                 Recommended
               </p>
             )}
@@ -214,7 +214,7 @@ function RequestFormFields() {
 
   return (
     <>
-      <main className="relative min-h-screen overflow-x-hidden bg-background pb-24">
+      <main className="relative min-h-screen customer-theme overflow-x-hidden bg-background pb-24">
         <AmbientGlow />
 
         <div
@@ -223,14 +223,15 @@ function RequestFormFields() {
         >
           <Reveal>
             <div className="pt-8 sm:pt-12">
-              <Eyebrow>Request Your Plan</Eyebrow>
+              <Eyebrow>One-time or recurring care</Eyebrow>
             </div>
             <h1 className="mt-6 font-serif text-[2rem] font-light leading-[1.1] tracking-tight text-foreground sm:text-4xl">
-              Begin your Home Care Plan.
+              Request a free quote.
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-muted">
-              Tell us about your property. We&apos;ll schedule an inspection and
-              craft your personalized experience.
+              Tell us what your home needs. Start with a one-time cleaning or
+              explore recurring care. We&apos;ll confirm the scope and next steps
+              with you before you decide.
             </p>
             {form.membershipTier && priceLabel && (
               <div className="mt-4 rounded-2xl border border-accent/20 bg-accent/5 px-4 py-3 text-sm text-foreground">
@@ -251,11 +252,11 @@ function RequestFormFields() {
                 </p>
               </div>
             )}
-            <p className="mt-3 text-[11px] tracking-[0.14em] text-muted/80">
+            <p className="mt-3 text-sm text-muted">
               {CUSTOMER_CTAS.requestPlanHint}
             </p>
             <ol
-              className="mt-8 grid grid-cols-3 overflow-hidden rounded-[1.4rem] border border-border/80 bg-white/[0.018]"
+              className="mt-8 grid grid-cols-3 overflow-hidden rounded-[1.4rem] border border-border bg-surface"
               aria-label="What happens after you request a plan"
             >
               {[
@@ -267,10 +268,10 @@ function RequestFormFields() {
                   key={number}
                   className={`relative px-3 py-4 text-center ${index > 0 ? "border-l border-border/70" : ""}`}
                 >
-                  <span className="block font-mono text-[9px] tracking-[0.18em] text-accent/70">
+                  <span className="block font-mono text-xs tracking-[0.12em] text-accent">
                     {number}
                   </span>
-                  <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.12em] text-foreground/75 sm:text-[11px]">
+                  <span className="mt-1.5 block text-xs font-medium text-foreground">
                     {label}
                   </span>
                 </li>
@@ -279,11 +280,11 @@ function RequestFormFields() {
           </Reveal>
 
           <Reveal delay={0.1}>
-            <form onSubmit={handleSubmit} className="mt-12 space-y-7 sm:mt-14">
+            <form onSubmit={handleSubmit} className="customer-panel mt-8 space-y-7 rounded-3xl p-5 sm:mt-10 sm:p-8">
               <div>
                 <label
                   htmlFor="request-name"
-                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                  className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted"
                 >
                   Name
                 </label>
@@ -303,7 +304,7 @@ function RequestFormFields() {
                 <div>
                   <label
                     htmlFor="request-phone"
-                    className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                    className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted"
                   >
                     Phone
                   </label>
@@ -323,7 +324,7 @@ function RequestFormFields() {
                 <div>
                   <label
                     htmlFor="request-email"
-                    className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                    className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted"
                   >
                     Email
                   </label>
@@ -345,7 +346,7 @@ function RequestFormFields() {
               <div>
                 <label
                   htmlFor="request-address"
-                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                  className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted"
                 >
                   Service Address
                 </label>
@@ -364,9 +365,13 @@ function RequestFormFields() {
               </div>
 
               <fieldset>
-                <legend className="mb-3 block text-[10px] uppercase tracking-[0.26em] text-muted">
-                  Membership Interest
+                <legend className="mb-3 block text-xs font-medium uppercase tracking-[0.12em] text-muted">
+                  Membership interest (optional)
                 </legend>
+                <p className="mb-4 text-sm leading-relaxed text-muted">
+                  Just need one visit, or not sure yet? Leave this blank and tell
+                  us which services you need below.
+                </p>
                 <MembershipTierPicker
                   value={form.membershipTier}
                   onChange={setMembershipTier}
@@ -376,7 +381,7 @@ function RequestFormFields() {
               <div>
                 <label
                   htmlFor="sqft-range"
-                  className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-[0.26em] text-muted"
+                  className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs font-medium uppercase tracking-[0.12em] text-muted"
                 >
                   <span>Approximate sq ft (optional)</span>
                   <span className="normal-case tracking-normal text-foreground">
@@ -396,16 +401,16 @@ function RequestFormFields() {
                       squareFootage: parseInt(e.target.value, 10),
                     })
                   }
-                  className="w-full accent-accent"
+                  className="min-h-11 w-full accent-accent"
                 />
-                <div className="mt-1 flex justify-between text-[10px] text-muted">
+                <div className="mt-1 flex justify-between text-xs text-muted">
                   <span>{SQFT_MIN.toLocaleString()}</span>
                   <span>{SQFT_MAX.toLocaleString()}</span>
                 </div>
               </div>
 
               <fieldset>
-                <legend className="mb-3 block text-[10px] uppercase tracking-[0.26em] text-muted">
+                <legend className="mb-3 block text-xs font-medium uppercase tracking-[0.12em] text-muted">
                   Services Interested In
                 </legend>
                 <div className="flex flex-wrap gap-2">
@@ -433,7 +438,7 @@ function RequestFormFields() {
               <div>
                 <label
                   htmlFor="request-start-window"
-                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                  className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted"
                 >
                   Preferred Start Window
                 </label>
@@ -461,7 +466,7 @@ function RequestFormFields() {
               <div>
                 <label
                   htmlFor="request-contact-method"
-                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                  className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted"
                 >
                   Preferred Contact Method
                 </label>
@@ -500,7 +505,7 @@ function RequestFormFields() {
                       className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--accent)]"
                       required
                     />
-                    <span className="text-[11px] leading-relaxed text-muted/80">
+                    <span className="text-sm leading-relaxed text-muted">
                       I agree to receive transactional texts from SqueegeeKing
                       about this request, appointments, and service updates.
                       Message frequency varies. Message and data rates may
@@ -535,7 +540,7 @@ function RequestFormFields() {
               <div>
                 <label
                   htmlFor="request-notes"
-                  className="mb-2 block text-[10px] uppercase tracking-[0.26em] text-muted"
+                  className="mb-2 block text-xs font-medium uppercase tracking-[0.12em] text-muted"
                 >
                   Notes
                 </label>
@@ -550,7 +555,7 @@ function RequestFormFields() {
               </div>
 
               {error && (
-                <p className="text-sm text-red-400" role="alert">
+                <p className="text-sm text-[#a03535]" role="alert">
                   {error}
                 </p>
               )}
@@ -561,11 +566,11 @@ function RequestFormFields() {
                 aria-busy={isSubmitting}
                 whileTap={{ scale: 0.97 }}
                 transition={{ duration: 0.12, ease: easeLuxury }}
-                className="w-full min-h-[52px] rounded-full border border-accent/40 bg-accent text-sm font-medium tracking-[0.12em] text-background touch-manipulation transition-opacity hover:opacity-95 disabled:opacity-90 sm:text-base"
+                className="customer-button-primary w-full min-h-[52px] rounded-full text-base font-medium touch-manipulation transition-opacity hover:opacity-95 disabled:opacity-70"
               >
-                {isSubmitting ? "Submitting…" : CUSTOMER_CTAS.requestPlan}
+                {isSubmitting ? "Submitting…" : "Request my free quote"}
               </motion.button>
-              <p className="text-center text-[11px] leading-relaxed text-muted/65">
+              <p className="text-center text-sm leading-relaxed text-muted">
                 No spam and no obligation. Your property details stay with
                 SqueegeeKing.
               </p>
@@ -575,6 +580,7 @@ function RequestFormFields() {
       </main>
 
       <RequestPlanTransition
+        appearance="customer"
         active={phase === "transition"}
         onComplete={() => setPhase("thanks")}
       />
@@ -585,7 +591,7 @@ function RequestFormFields() {
 function RequestFormFallback() {
   return (
     <main
-      className="min-h-screen bg-background px-5 pb-24"
+      className="customer-theme min-h-screen bg-background px-5 pb-24"
       style={{ paddingTop: "var(--site-chrome-offset)" }}
     >
       <div className="mx-auto max-w-xl pt-8 sm:pt-12">
@@ -593,7 +599,7 @@ function RequestFormFallback() {
           SqueegeeKing · Chico, California
         </p>
         <h1 className="mt-6 font-serif text-[2rem] font-light leading-[1.1] text-foreground sm:text-4xl">
-          Begin your Home Care Plan.
+          Request a free quote.
         </h1>
         <p className="mt-5 text-base leading-relaxed text-muted">
           Request a free quote for window cleaning, gutter cleaning, pressure
@@ -605,7 +611,7 @@ function RequestFormFallback() {
         </p>
         <a
           href={CUSTOMER_CONTACT.phoneHref}
-          className="mt-4 inline-flex min-h-12 items-center rounded-full border border-border px-6 text-foreground underline underline-offset-4"
+          className="customer-button-secondary mt-4 inline-flex min-h-12 items-center rounded-full px-6 underline underline-offset-4"
         >
           {CUSTOMER_CONTACT.phoneDisplay}
         </a>

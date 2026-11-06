@@ -24,7 +24,7 @@ export const metadata: Metadata = buildPublicPageMetadata({
 
 export default function ServicesPage() {
   return (
-    <main className="min-h-screen bg-[#f5f0e6] text-[#173f32]">
+    <main className="customer-theme min-h-screen">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -33,18 +33,18 @@ export default function ServicesPage() {
       />
 
       <section className="px-5 pb-20 pt-28 sm:px-8 sm:pb-28 sm:pt-36 lg:px-12">
-        <div className="mx-auto max-w-[90rem]">
-          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#8f5f37]">
+        <div className="mx-auto max-w-7xl">
+          <p className="font-mono text-xs uppercase tracking-[0.16em] text-accent">
             Chico, California · Exterior home care
           </p>
           <div className="mt-6 grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
-            <h1 className="max-w-5xl font-serif text-6xl font-light leading-[0.9] sm:text-8xl lg:text-[7.2rem]">
+            <h1 className="max-w-5xl text-balance font-serif text-5xl font-medium leading-[1.04] sm:text-6xl lg:text-7xl">
               Exterior Cleaning
               <br />
-              <em className="text-[#99683d]">in Chico, CA.</em>
+              <em className="text-accent">in Chico, CA.</em>
             </h1>
             <div className="pb-2">
-              <p className="max-w-xl text-lg leading-relaxed text-[#526b60]">
+              <p className="max-w-xl text-lg leading-relaxed text-muted">
                 Window cleaning, gutter cleaning, pressure washing, solar panel
                 cleaning, and recurring maintenance for Chico homeowners.
                 Choose the services your property needs in one clear quote.
@@ -52,13 +52,13 @@ export default function ServicesPage() {
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <Link
                   href="/request"
-                  className="inline-flex min-h-14 items-center justify-center rounded-full bg-[#173f32] px-8 text-sm font-medium tracking-[0.08em] text-[#fffaf0]"
+                  className="customer-button-primary"
                 >
-                  Request my plan
+                  Get your free quote
                 </Link>
                 <a
                   href={LOCAL_CONTACT.phoneHref}
-                  className="inline-flex min-h-14 items-center justify-center rounded-full border border-[#173f32]/15 px-7 text-sm font-medium"
+                  className="customer-button-secondary"
                 >
                   {LOCAL_CONTACT.phoneDisplay}
                 </a>
@@ -68,14 +68,14 @@ export default function ServicesPage() {
         </div>
       </section>
 
-      <section className="border-y border-[#173f32]/10 bg-[#fffdf8] px-5 py-16 sm:px-8 sm:py-24 lg:px-12">
-        <div className="mx-auto grid max-w-[90rem] gap-5 md:grid-cols-2">
+      <section className="border-y border-border bg-surface px-5 py-16 sm:px-8 sm:py-24 lg:px-12">
+        <div className="mx-auto grid max-w-7xl gap-5 md:grid-cols-2">
           {PUBLIC_SERVICES.map((service, index) => (
             <article
               key={service.slug}
-              className="group overflow-hidden rounded-[1.75rem] border border-[#173f32]/10 bg-[#f5f0e6] shadow-[0_24px_70px_-55px_rgba(23,63,50,0.5)]"
+              className="group overflow-hidden rounded-[1.75rem] border border-border bg-background shadow-[0_24px_70px_-55px_rgba(23,63,50,0.5)] focus-within:ring-2 focus-within:ring-accent focus-within:ring-offset-4 focus-within:ring-offset-background"
             >
-              <Link href={`/services/${service.slug}`} className="block">
+              <Link href={`/services/${service.slug}`} className="block rounded-[1.75rem] outline-none">
                 <div className="relative aspect-[16/10] overflow-hidden">
                   <Image
                     src={service.image}
@@ -92,7 +92,7 @@ export default function ServicesPage() {
                 <div className="p-6 sm:p-8">
                   <div className="flex items-start justify-between gap-5">
                     <div>
-                      <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-[#99683d]">
+                      <p className="font-mono text-xs uppercase tracking-[0.14em] text-accent">
                         0{index + 1}
                       </p>
                       <h2 className="mt-3 font-serif text-4xl font-light">
@@ -101,15 +101,15 @@ export default function ServicesPage() {
                     </div>
                     <span
                       aria-hidden
-                      className="mt-2 text-2xl text-[#99683d] transition-transform group-hover:translate-x-1"
+                      className="mt-2 text-2xl text-accent transition-transform group-hover:translate-x-1"
                     >
                       →
                     </span>
                   </div>
-                  <p className="mt-5 max-w-xl text-sm leading-relaxed text-[#526b60] sm:text-base">
+                  <p className="mt-5 max-w-xl text-sm leading-relaxed text-muted sm:text-base">
                     {service.description}
                   </p>
-                  <p className="mt-5 border-t border-[#173f32]/10 pt-4 font-mono text-[10px] uppercase tracking-[0.18em] text-[#526b60]">
+                  <p className="mt-5 border-t border-border pt-4 font-mono text-xs uppercase tracking-[0.14em] text-muted">
                     {service.rhythm}
                   </p>
                 </div>
@@ -120,23 +120,23 @@ export default function ServicesPage() {
       </section>
 
       <section className="px-5 py-20 sm:px-8 sm:py-28 lg:px-12">
-        <div className="mx-auto grid max-w-[90rem] gap-10 rounded-[2rem] border border-[#173f32]/10 bg-[#e7ecdf] p-7 sm:p-12 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:p-16">
+        <div className="mx-auto grid max-w-7xl gap-10 rounded-[2rem] border border-border bg-[var(--surface-elevated)] p-7 sm:p-12 lg:grid-cols-[1fr_0.8fr] lg:items-center lg:p-16">
           <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-[#8f5f37]">
+            <p className="font-mono text-xs uppercase tracking-[0.16em] text-accent">
               Every membership includes HomeAtlas
             </p>
-            <h2 className="mt-5 max-w-3xl font-serif text-5xl font-light leading-[0.96] sm:text-6xl">
+            <h2 className="mt-5 max-w-3xl text-balance font-serif text-4xl font-medium leading-[1.08] sm:text-5xl">
               Your home should not have to explain itself twice.
             </h2>
           </div>
           <div>
-            <p className="text-lg leading-relaxed text-[#526b60]">
+            <p className="text-lg leading-relaxed text-muted">
               HomeAtlas keeps upcoming care, visits, observations, photos,
               documents, and membership details connected to the property.
             </p>
             <Link
               href="/services/home-care-memberships"
-              className="mt-7 inline-flex text-sm font-medium text-[#99683d] underline decoration-[#99683d]/30 underline-offset-4"
+              className="mt-7 inline-flex text-sm font-medium text-accent underline decoration-accent/40 underline-offset-4"
             >
               Explore recurring home care
             </Link>

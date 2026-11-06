@@ -29,7 +29,7 @@ function HomeCarePlanContent({ data }: { data: HomeCarePlanData }) {
   }, []);
 
   return (
-    <div className="plan-experience overflow-x-hidden bg-background pb-28 text-foreground md:pb-0">
+    <div data-atlas-theme="night" className="plan-experience overflow-x-hidden bg-background pb-28 text-foreground md:pb-0">
       <PlanHero data={data} />
       <Divider />
       <PropertySnapshot data={data} />

@@ -16,17 +16,17 @@ type ThemeTokenName = (typeof THEME_TOKEN_NAMES)[number];
 type ThemeTokens = Record<ThemeTokenName, string>;
 
 const EXPECTED_NIGHT_TOKENS: ThemeTokens = {
-  background: "#070605",
-  foreground: "#f5f2eb",
-  muted: "#8a8680",
-  accent: "#c9b896",
+  background: "#0c241c",
+  foreground: "#f4efe4",
+  muted: "#b0bfb5",
+  accent: "#d4bd8d",
 };
 
 const EXPECTED_LUX_TOKENS: ThemeTokens = {
-  background: "#090705",
-  foreground: "#f3ecdc",
-  muted: "#9c8f76",
-  accent: "#d4af37",
+  background: "#071c16",
+  foreground: "#fbf7ee",
+  muted: "#b8c2b5",
+  accent: "#d4bd8d",
 };
 
 const PRE_0951_CLASSES_BY_FILE: Record<
@@ -198,7 +198,7 @@ function mixHex(foreground: string, background: string, amount: number): string 
 describe("member portal atmosphere contrast", () => {
   it("keeps shared text tokens AA across Night, Day, and Lux", () => {
     const css = readProjectFile("app/globals.css");
-    const night = parseEffectiveThemeTokens(css, ":root");
+    const night = parseEffectiveThemeTokens(css, '[data-atlas-theme="night"]');
     const atmospheres: Record<"Night" | "Day" | "Lux", ThemeTokens> = {
       Night: night,
       Day: parseEffectiveThemeTokens(css, '[data-atlas-theme="day"]', night),
@@ -207,7 +207,12 @@ describe("member portal atmosphere contrast", () => {
 
     expect(atmospheres.Night).toEqual(EXPECTED_NIGHT_TOKENS);
     expect(atmospheres.Lux).toEqual(EXPECTED_LUX_TOKENS);
-    expect(atmospheres.Day.accent).toBe("#84683f");
+    expect(atmospheres.Day).toEqual({
+      background: "#f4efe4",
+      foreground: "#173f32",
+      muted: "#526b60",
+      accent: "#7a5933",
+    });
 
     for (const [atmosphere, tokens] of Object.entries(atmospheres)) {
       for (const token of TEXT_TOKEN_NAMES) {
@@ -270,7 +275,7 @@ describe("member portal atmosphere contrast", () => {
 
   it("keeps Day hook text and the pending badge at AA contrast", () => {
     const css = readProjectFile("app/globals.css");
-    const night = parseEffectiveThemeTokens(css, ":root");
+    const night = parseEffectiveThemeTokens(css, '[data-atlas-theme="night"]');
     const day = parseEffectiveThemeTokens(
       css,
       '[data-atlas-theme="day"]',

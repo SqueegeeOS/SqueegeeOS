@@ -2,7 +2,6 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import type { ReactNode } from "react";
-import { Eyebrow } from "@/components/presentations/slide-primitives";
 import { GlassCard } from "@/components/craft/glass-card";
 import { craftHeading } from "@/lib/craft/tokens";
 import { materialize } from "@/lib/motion/system";
@@ -38,14 +37,14 @@ export function PortalSection({
       transition={{ delay }}
       className={`scroll-mt-6 ${className}`}
     >
-      {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
+      {eyebrow ? <p className="mb-3 text-xs font-medium uppercase tracking-[0.12em] text-accent">{eyebrow}</p> : null}
       <h2
         className={`${craftHeading} text-[1.75rem] leading-[1.12] sm:text-4xl`}
       >
         {headline}
       </h2>
       {support ? (
-        <p className="mt-5 max-w-[38rem] text-sm leading-[1.65] text-foreground/60 [text-wrap:balance] sm:text-[0.9375rem]">
+        <p className="mt-5 max-w-[38rem] text-sm leading-[1.65] text-muted [text-wrap:balance] sm:text-[0.9375rem]">
           {support}
         </p>
       ) : null}
