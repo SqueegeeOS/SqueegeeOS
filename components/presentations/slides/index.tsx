@@ -127,7 +127,7 @@ export function CarePlanSlide({ presentation, overrides }: SlideComponentProps) 
                   ) : null}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 text-center text-[10px] sm:grid-cols-3 lg:grid-cols-6">
+                <div className="mt-4 grid grid-cols-2 gap-2 text-center text-[10px] sm:grid-cols-3 lg:grid-cols-4">
                   <div className="rounded-lg border border-accent/20 bg-accent/[0.06] px-2 py-2 text-accent">
                     Exterior<br />{serviceStateLabel(visit.exteriorWindows)}
                   </div>
@@ -145,6 +145,9 @@ export function CarePlanSlide({ presentation, overrides }: SlideComponentProps) 
                   </div>
                   <div className="rounded-lg border border-white/10 bg-black/10 px-2 py-2 text-white/55">
                     Pressure wash<br />{serviceStateLabel(visit.pressureWashing)}
+                  </div>
+                  <div className="rounded-lg border border-white/10 bg-black/10 px-2 py-2 text-white/55">
+                    Gutters<br />{serviceStateLabel(visit.gutterCleaning)}
                   </div>
                 </div>
                 {visit.notes ? (

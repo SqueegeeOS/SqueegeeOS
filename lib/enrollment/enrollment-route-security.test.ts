@@ -37,7 +37,7 @@ describe("enrollment route security contract", () => {
     );
     expect(readinessRoute).toContain("authorizeAdminRequest(request.headers)");
     expect(sendRoute).toContain("export async function GET(request: Request)");
-    expect(sendRoute).toContain("loadEnrollmentPacketStatus(presentationId)");
+    expect(sendRoute).toContain('loadEnrollmentPacketStatus(presentationId, actor.kind === "admin")' );
     expect(
       readinessRoute.indexOf("authorizeAdminRequest(request.headers)"),
     ).toBeLessThan(

@@ -20,6 +20,7 @@ const CARE_PLAN_SERVICE_BY_INTEREST: Partial<
   cobweb_removal: "cobwebRemoval",
   solar_panels: "solarPanels",
   pressure_washing: "pressureWashing",
+  gutter_cleaning: "gutterCleaning",
 };
 
 export interface SalesServiceInterestPresentationSeed {

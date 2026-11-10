@@ -65,6 +65,7 @@ const PLAN_PRESETS: Array<{
 ];
 
 const ASSISTANT_EXAMPLES = [
+  "Bi-annual exterior, with gutter cleaning on the first visit only.",
   "Quarterly exterior. Interior once a year. Screens only if they ask.",
   "Mandi wants exterior and screens every visit, with interior on the first visit each year.",
   "Bi-annual exterior. Ask about screens, interior, and cobwebbing before each visit.",
@@ -123,6 +124,12 @@ const CARE_PLAN_SERVICES: Array<{
     label: "Pressure washing",
     description: "Property-specific. Never added to a website estimate automatically.",
   },
+  {
+    id: "gutterCleaning",
+    priceId: "gutterCleaning",
+    label: "Gutter cleaning",
+    description: "Property-specific. Quote it here or set the exact visit total.",
+  },
 ];
 
 const VISIT_SERVICE_CONTROLS: Array<{
@@ -135,6 +142,7 @@ const VISIT_SERVICE_CONTROLS: Array<{
   { id: "screens", label: "Screens" },
   { id: "cobwebRemoval", label: "Cobweb removal" },
   { id: "pressureWashing", label: "Pressure washing" },
+  { id: "gutterCleaning", label: "Gutter cleaning" },
 ];
 
 type AssistantResponse = {
@@ -228,6 +236,7 @@ function VisitEditor({
               visit.cobwebRemoval,
               visit.solarPanels,
               visit.pressureWashing,
+              visit.gutterCleaning,
             ].filter((state) => state === "included").length} service
             {[
               visit.exteriorWindows,
@@ -236,6 +245,7 @@ function VisitEditor({
               visit.cobwebRemoval,
               visit.solarPanels,
               visit.pressureWashing,
+              visit.gutterCleaning,
             ].filter((state) => state === "included").length === 1
               ? ""
               : "s"}{" "}

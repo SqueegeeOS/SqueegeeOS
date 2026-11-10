@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { UnsignedEnrollmentRevision } from "./unsigned-enrollment-revision";
 import { useEffect, useState } from "react";
 import { getAdminRequestHeaders } from "@/lib/admin/api-client";
 import {
@@ -263,6 +264,16 @@ export function RemoteEnrollmentHandoff({
           <p className="mt-3 text-xs leading-relaxed text-white/45">
             HomeAtlas sent the private agreement link for {presentation.clientName} to {presentation.clientEmail}.
           </p>
+        ) : null}
+        {packetStatus.unsignedRevision ? (
+          <UnsignedEnrollmentRevision
+            presentationId={presentation.id}
+            packet={packetStatus}
+            onSent={() => setPacketStatus({
+              status: "signature_sent", paymentRail: packetStatus.paymentRail,
+              updatedAt: new Date().toISOString(),
+            })}
+          />
         ) : null}
         <Link
           href={progressHref}

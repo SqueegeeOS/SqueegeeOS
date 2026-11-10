@@ -27,6 +27,22 @@ export interface EnrollmentPacketStatusSnapshot {
   status: EnrollmentPacketStatus;
   paymentRail: PaymentRail;
   updatedAt: string;
+  /** HQ-only capability, never returned to sales reps or public token routes. */
+  unsignedRevision?: {
+    expectedTokenSha256: string;
+    expectedPresentationUpdatedAt: string;
+    tier: SqueegeeKingTierId;
+    firstVisitPrice: number;
+    recurringVisitPrice: number;
+    annualizedValue: number;
+    salesContext: EnrollmentSalesContext;
+    homeSolicitationNoticeDays: 3 | 5 | null;
+    signatureProvider: "homeatlas_native";
+    signerName?: string;
+    signerEmail?: string;
+    signerPhone?: string | null;
+    recipientEmail: string;
+  };
 }
 
 export interface EnrollmentVisitSnapshot {
@@ -41,6 +57,8 @@ export interface EnrollmentVisitSnapshot {
   /** Added in schema v2. Missing legacy values mean not included. */
   solarPanels?: CarePlanServiceState;
   pressureWashing?: CarePlanServiceState;
+  /** Absent in previously frozen packets; never implicitly included. */
+  gutterCleaning?: CarePlanServiceState;
   notes: string;
 }
 
@@ -124,6 +142,8 @@ export interface EnrollmentPacketRow {
   docusign_envelope_id: string | null;
   docusign_status: string | null;
   signature_sent_at: string | null;
+  native_signature_started_at?: string | null;
+  revision_id?: string | null;
   signed_at: string | null;
   signed_agreement_id: string | null;
   homeowner_id: string | null;

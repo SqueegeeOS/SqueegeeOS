@@ -28,6 +28,7 @@ export function enrollmentAgreementPdfInput(
       cobwebRemoval: visit.cobwebRemoval,
       solarPanels: visit.solarPanels ?? ("not_included" as const),
       pressureWashing: visit.pressureWashing ?? ("not_included" as const),
+      gutterCleaning: visit.gutterCleaning ?? ("not_included" as const),
       notes: visit.notes,
       priceOverride: visit.priceCents / 100,
     })),
