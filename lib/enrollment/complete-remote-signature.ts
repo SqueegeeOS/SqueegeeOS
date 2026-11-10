@@ -573,7 +573,9 @@ export async function completeRemoteEnrollmentSignature(input: {
     .eq("id", membershipId);
   if (membershipLink.error) throw new Error(membershipLink.error.message);
 
-  const overrides = normalizeVisitRateOverrides(presentation);
+  // Persist the frozen signed price, not a subsequently edited draft price.
+  const overrides = normalizeVisitRateOverrides(signedPresentation);
+  const legacy = legacyOverrideFieldsForTier(overrides, packet.agreement_tier);
   const presentationUpdate = await supabase
     .from("presentations")
     .update({
@@ -588,7 +590,8 @@ export async function completeRemoteEnrollmentSignature(input: {
       annual_rate: pricing.annualRate,
       visit_rate_overrides: overrides,
       draft_payload: createPresentationDraftPayload(signedPresentation),
-      ...legacyOverrideFieldsForTier(overrides, packet.agreement_tier),
+      monthly_rate: legacy.monthlyRate,
+      override_tier: legacy.overrideTier,
     })
     .eq("id", presentation.id);
   if (presentationUpdate.error) throw new Error(presentationUpdate.error.message);
