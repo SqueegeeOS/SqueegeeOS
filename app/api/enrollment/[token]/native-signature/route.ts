@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
-import { isPlausibleEnrollmentToken } from "@/lib/enrollment/token";
+import { enrollmentTokenSha256, isPlausibleEnrollmentToken } from "@/lib/enrollment/token";
 import { findEnrollmentPacketByToken } from "@/lib/enrollment/packet-token-repository";
 import type { EnrollmentPacketRow } from "@/lib/enrollment/types";
 import { completeRemoteEnrollmentSignature } from "@/lib/enrollment/complete-remote-signature";
@@ -143,6 +143,18 @@ export async function POST(
     );
   }
 
+  // Claim before creating any signature evidence. Never release automatically: a
+  // failed completion can already have persisted a legally binding signature.
+  const claim = await supabase.rpc("claim_native_enrollment_signature", {
+    p_packet_id: packet.id,
+    p_expected_token_sha256: packet.public_token_sha256,
+    p_presented_token_sha256: enrollmentTokenSha256(token),
+  });
+  if (claim.error || !claim.data) {
+    return response({ error: "This agreement changed or signing is already in progress. Please reopen your latest link." }, 409);
+  }
+  packet = claim.data as PacketWithVersions;
+
   const signedAt = new Date().toISOString();
   const forwardedFor = request.headers.get("x-forwarded-for");
   const ipAddress = forwardedFor?.split(",")[0]?.trim() || null;
@@ -268,7 +280,7 @@ export async function POST(
     return response(
       {
         error:
-          "Your signature could not be safely recorded yet. Nothing was charged; please try again or contact SqueegeeKing.",
+          "Your signature needs a HomeAtlas review before the next step. Nothing was charged; contact SqueegeeKing rather than submitting again.",
       },
       500,
     );

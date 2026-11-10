@@ -64,7 +64,7 @@ describe("sales service interest presentation seed", () => {
     expect(seed.carePlan.summary).toContain("another service");
   });
 
-  it("carries solar and pressure washing into the builder at zero added price", () => {
+  it("carries solar, pressure washing, and gutters into the builder at zero added price", () => {
     const seed = createSalesServiceInterestPresentationSeed({
       tier: "quarterly",
       serviceInterests: [
@@ -84,7 +84,8 @@ describe("sales service interest presentation seed", () => {
       seed.carePlan.visits.every(
         (visit) =>
           visit.solarPanels === "optional" &&
-          visit.pressureWashing === "optional",
+          visit.pressureWashing === "optional" &&
+          visit.gutterCleaning === "optional",
       ),
     ).toBe(true);
     expect(seed.carePlan.summary).toContain("gutters");

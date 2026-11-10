@@ -139,7 +139,11 @@ export function buildPortalHomeCarePlanFromPresentation(
               visit.solarPanels,
             ).toLowerCase()}; pressure washing ${serviceStateLabel(
               visit.pressureWashing,
-            ).toLowerCase()}${visit.notes ? `; ${visit.notes}` : ""}.`,
+            ).toLowerCase()}${
+              visit.gutterCleaning && visit.gutterCleaning !== "not_included"
+                ? `; gutter cleaning ${serviceStateLabel(visit.gutterCleaning).toLowerCase()}`
+                : ""
+            }${visit.notes ? `; ${visit.notes}` : ""}.`,
         ),
         ...(customCarePlan.customerChoiceNote
           ? [customCarePlan.customerChoiceNote]

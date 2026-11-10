@@ -25,15 +25,13 @@ export async function GET(request: Request) {
   const presentationId = new URL(request.url).searchParams
     .get("presentationId")
     ?.trim();
-  if (
-    !presentationId ||
-    !(await authorizeSalesPresentationRequest(request.headers, presentationId))
-  ) {
-    return unauthorized();
-  }
+  const actor = presentationId
+    ? await authorizeSalesPresentationRequest(request.headers, presentationId)
+    : null;
+  if (!presentationId || !actor) return unauthorized();
 
   try {
-    const packet = await loadEnrollmentPacketStatus(presentationId);
+    const packet = await loadEnrollmentPacketStatus(presentationId, actor.kind === "admin");
     return NextResponse.json(
       { packet },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
@@ -82,6 +80,21 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    const revising = body.action === "revise_unsigned_native";
+    if (revising && actor.kind !== "admin") {
+      return NextResponse.json({ error: "Only HomeAtlas HQ can revise an unsigned packet." }, { status: 403 });
+    }
+    const revisionId = optionalText(body.revisionId);
+    const expectedTokenSha256 = optionalText(body.expectedTokenSha256);
+    const revisionReason = optionalText(body.revisionReason);
+    if (revising && (
+      !revisionId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(revisionId) ||
+      !expectedTokenSha256 || !/^[0-9a-f]{64}$/.test(expectedTokenSha256) ||
+      !revisionReason || revisionReason.length > 1000 ||
+      parsed.value.signatureProvider !== "homeatlas_native"
+    )) {
+      return NextResponse.json({ error: "Revision requires a unique revision ID, the current token digest, and a reason." }, { status: 400 });
+    }
     const signerName = optionalText(body.signerName);
     const signerEmail = optionalText(body.signerEmail);
     const signerPhone = optionalText(body.signerPhone);
@@ -109,6 +122,10 @@ export async function POST(request: Request) {
     if (!presentation) {
       return NextResponse.json({ error: "Presentation not found." }, { status: 404 });
     }
+    if (revising && body.expectedPresentationUpdatedAt !== undefined &&
+      body.expectedPresentationUpdatedAt !== presentation.updatedAt) {
+      return NextResponse.json({ error: "The saved plan changed. Reload and review before revising." }, { status: 409 });
+    }
     if (presentation.status === "signed" || presentation.agreementId) {
       return NextResponse.json(
         { error: "This presentation already has a signed agreement." },
@@ -117,6 +134,7 @@ export async function POST(request: Request) {
     }
 
     const result = await sendEnrollmentPacket({
+      revision: revising ? { id: revisionId!, expectedTokenSha256: expectedTokenSha256!, reason: revisionReason! } : undefined,
       presentation,
       signer:
         signerName && signerEmail

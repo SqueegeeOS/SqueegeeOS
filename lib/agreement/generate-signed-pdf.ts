@@ -258,6 +258,9 @@ async function buildProgrammaticAgreement(
         `Cobweb removal: ${serviceStateLabel(visit.cobwebRemoval).toLowerCase()}`,
         `Solar panels: ${serviceStateLabel(visit.solarPanels).toLowerCase()}`,
         `Pressure washing: ${serviceStateLabel(visit.pressureWashing).toLowerCase()}`,
+        ...(visit.gutterCleaning && visit.gutterCleaning !== "not_included"
+          ? [`Gutter cleaning: ${serviceStateLabel(visit.gutterCleaning).toLowerCase()}`]
+          : []),
       ].join("; ");
       layout.drawParagraph(
         `${index + 1}. ${visit.label} (${visit.timing})${

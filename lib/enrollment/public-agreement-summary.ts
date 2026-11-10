@@ -33,6 +33,7 @@ const SERVICE_LABELS = {
   cobwebRemoval: "Exterior cobweb removal",
   solarPanels: "Solar panel cleaning",
   pressureWashing: "Pressure washing",
+  gutterCleaning: "Gutter cleaning",
 } as const;
 
 type ServiceKey = keyof typeof SERVICE_LABELS;
@@ -46,7 +47,7 @@ function stateForVisit(
   if (service === "exteriorWindows") {
     return visit.exteriorWindows ?? "included";
   }
-  if (service === "solarPanels" || service === "pressureWashing") {
+  if (service === "solarPanels" || service === "pressureWashing" || service === "gutterCleaning") {
     return visit[service] ?? "not_included";
   }
   return visit[service];

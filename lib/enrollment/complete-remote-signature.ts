@@ -408,6 +408,7 @@ export async function completeRemoteEnrollmentSignature(input: {
         cobwebRemoval: visit.cobwebRemoval,
         solarPanels: visit.solarPanels ?? "not_included",
         pressureWashing: visit.pressureWashing ?? "not_included",
+        gutterCleaning: visit.gutterCleaning ?? "not_included",
         notes: visit.notes,
         priceOverride: visit.priceCents / 100,
       })),

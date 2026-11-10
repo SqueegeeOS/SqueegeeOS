@@ -15,16 +15,16 @@ const fieldWorkspace = read("../../components/sales/sales-rep-workspace.tsx");
 const ownerWorkspace = read("../../components/admin/owner-sales-inbox-page.tsx");
 
 describe("durable enrollment progress contract", () => {
-  it("returns a private, ownership-checked, status-only snapshot", () => {
+  it("returns private ownership-checked status with HQ-only revision capability", () => {
     expect(route).toContain("export async function GET(request: Request)");
     expect(route).toContain(
       "authorizeSalesPresentationRequest(request.headers, presentationId)",
     );
-    expect(route).toContain("loadEnrollmentPacketStatus(presentationId)");
+    expect(route).toContain('loadEnrollmentPacketStatus(presentationId, actor.kind === "admin")' );
     expect(route).toContain('"Cache-Control": "private, no-store, max-age=0"');
-    expect(statusServer).toContain(
-      '.select("status, payment_rail, updated_at")',
-    );
+    expect(statusServer).toContain("includeUnsignedRevision = false");
+    expect(statusServer).toContain('if (includeUnsignedRevision && result.data.status === "signature_sent"');
+    expect(statusServer).toContain("...(unsignedRevision ? { unsignedRevision } : {})");
     expect(statusServer).toContain('.eq("presentation_id", presentationId)');
     expect(statusServer).not.toContain("customer_email");
     expect(statusServer).not.toContain("docusign_envelope_id");

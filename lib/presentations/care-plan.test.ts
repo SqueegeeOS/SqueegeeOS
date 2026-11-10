@@ -179,6 +179,7 @@ describe("presentation care plans", () => {
       cobwebRemoval: 50,
       solarPanels: 0,
       pressureWashing: 0,
+      gutterCleaning: 0,
     });
     expect(resizeCarePlan(normalized, "triannual").visits).toHaveLength(3);
   });
@@ -211,4 +212,43 @@ describe("presentation care plans", () => {
     ]);
     expect(summarizeCarePlan(plan)).toContain("solar panels 3×");
   });
+  it("supports gutters on selected visits, optional visits, and every visit without invented prices", () => {
+    const base = createDefaultCarePlan({ tier: "biannual" });
+    expect(base.servicePrices.gutterCleaning).toBe(0);
+    expect(base.visits.every((visit) => visit.gutterCleaning === "not_included")).toBe(true);
+    const selected = applyCarePlanServicePolicy(base, "gutterCleaning", "selected_visits");
+    selected.servicePrices.gutterCleaning = 150;
+    expect(selected.visits.map((visit) => visit.gutterCleaning)).toEqual(["included", "not_included"]);
+    expect(summarizeCarePlan(selected)).toContain("gutters 1×");
+    expect(calculateCarePlanPricing({ plan: selected, baseVisitPrice: 300 }).annualTotal).toBe(750);
+    const optional = applyCarePlanServicePolicy(selected, "gutterCleaning", "optional_add_on");
+    expect(summarizeCarePlan(optional)).toContain("gutters optional");
+    expect(calculateCarePlanPricing({ plan: optional, baseVisitPrice: 300 }).annualTotal).toBe(600);
+    const included = applyCarePlanServicePolicy(optional, "gutterCleaning", "always_included");
+    expect(summarizeCarePlan(included)).toContain("gutters every visit");
+    expect(deriveCarePlanServicePolicy(included, "gutterCleaning")).toBe("always_included");
+    expect(calculateCarePlanPricing({ plan: included, baseVisitPrice: 300 }).annualTotal).toBe(900);
+    expect(applyCarePlanPreset(included, "exterior_only").visits.every((visit) => visit.gutterCleaning === "not_included")).toBe(true);
+  });
+
+  it("round-trips gutter scope and prices while keeping old plans unchanged", () => {
+    const base = createDefaultCarePlan({ tier: "biannual" });
+    const old = JSON.parse(JSON.stringify(base));
+    old.version = 3;
+    delete old.servicePrices.gutterCleaning;
+    old.visits.forEach((visit: Record<string, unknown>) => {
+      delete visit.gutterCleaning;
+      visit.notes = "Gutters discussed, not included.";
+      visit.priceOverride = 714;
+    });
+    const normalized = normalizeCarePlan(old, base);
+    expect(normalized.visits.every((visit) => visit.gutterCleaning === "not_included")).toBe(true);
+    expect(calculateCarePlanPricing({ plan: normalized, baseVisitPrice: 300 }).annualTotal).toBe(1428);
+    const included = applyCarePlanServicePolicy(normalized, "gutterCleaning", "always_included");
+    included.servicePrices.gutterCleaning = 150;
+    expect(normalizeCarePlan(JSON.parse(JSON.stringify(included)), base)).toEqual(included);
+    expect(resizeCarePlan(included, "quarterly").visits.map((visit) => visit.gutterCleaning)).toEqual(["included", "included", "not_included", "not_included"]);
+    expect(calculateCarePlanPricing({ plan: included, baseVisitPrice: 300 }).annualTotal).toBe(1428);
+  });
+
 });

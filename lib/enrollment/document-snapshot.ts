@@ -165,6 +165,7 @@ export function buildEnrollmentDocumentSnapshot(input: {
         cobwebRemoval: visit.cobwebRemoval,
         solarPanels: visit.solarPanels,
         pressureWashing: visit.pressureWashing,
+        gutterCleaning: visit.gutterCleaning,
         notes: visit.notes,
       })),
     },
@@ -206,6 +207,9 @@ export function enrollmentScopePlainText(
         `Cobweb removal: ${serviceStateLabel(visit.cobwebRemoval)}`,
         `Solar panels: ${serviceStateLabel(visit.solarPanels ?? "not_included")}`,
         `Pressure washing: ${serviceStateLabel(visit.pressureWashing ?? "not_included")}`,
+        ...(visit.gutterCleaning !== undefined
+          ? [`Gutter cleaning: ${serviceStateLabel(visit.gutterCleaning)}`]
+          : []),
       ].join("; ");
       return `${visit.label} (${visit.timing}) — ${services}${
         visit.notes ? `; Notes: ${visit.notes}` : ""

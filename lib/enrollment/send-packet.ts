@@ -92,6 +92,7 @@ async function flagPacketError(
 }
 
 export async function sendEnrollmentPacket(input: {
+  revision?: { id: string; expectedTokenSha256: string; reason: string };
   presentation: PresentationData;
   signer?: {
     name: string;
@@ -180,13 +181,23 @@ export async function sendEnrollmentPacket(input: {
     );
   }
 
+  if (packet?.native_signature_started_at && !packet.signed_agreement_id) {
+    throw new Error("Signing has started. Review the recorded signature before any further action.");
+  }
+  if (input.revision && (!packet || input.signatureProvider !== "homeatlas_native")) {
+    throw new Error("Only an existing unsigned native packet can be revised.");
+  }
+  if (!input.revision && packet?.revision_id && (packet.status === "draft" || packet.status === "needs_attention")) {
+    throw new Error("Revision delivery is pending or uncertain. Review delivery before attempting another send.");
+  }
+
   if (packet?.status === "voided") {
     throw new Error(
       "This enrollment envelope was voided. Start a replacement packet before sending again.",
     );
   }
 
-  if (packet && packet.status !== "needs_attention" && packet.status !== "draft") {
+  if (!input.revision && packet && packet.status !== "needs_attention" && packet.status !== "draft") {
     return {
       packetId: packet.id,
       status: "signature_sent",
@@ -226,7 +237,20 @@ export async function sendEnrollmentPacket(input: {
     last_error_message: null,
   };
 
-  if (!packet) {
+  if (input.revision && packet) {
+    const revised = await supabase.rpc("revise_unsigned_native_enrollment", {
+      p_packet_id: packet.id,
+      p_expected_token_sha256: input.revision.expectedTokenSha256,
+      p_revision_id: input.revision.id,
+      p_reason: input.revision.reason,
+      p_actor: input.actor,
+      p_values: packetValues,
+    });
+    if (revised.error || !revised.data) {
+      throw new Error(revised.error?.message ?? "The packet could not be safely revised.");
+    }
+    packet = asPacket(revised.data);
+  } else if (!packet) {
     const packetId = randomUUID();
     const createResult = await supabase
       .from("enrollment_packets")
@@ -256,6 +280,10 @@ export async function sendEnrollmentPacket(input: {
       .from("enrollment_packets")
       .update(packetValues)
       .eq("id", packet.id)
+      .eq("public_token_sha256", packet.public_token_sha256)
+      .is("native_signature_started_at", null)
+      .is("signed_agreement_id", null)
+      .is("revision_id", null)
       .select("*")
       .single();
     if (updateResult.error) throw new Error(updateResult.error.message);

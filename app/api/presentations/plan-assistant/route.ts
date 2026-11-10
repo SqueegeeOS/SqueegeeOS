@@ -38,6 +38,7 @@ const assistantOutputSchema = z.object({
         cobwebRemoval: serviceStateSchema,
         solarPanels: serviceStateSchema,
         pressureWashing: serviceStateSchema,
+        gutterCleaning: serviceStateSchema,
         notes: z.string().max(240),
         priceOverride: z.number().positive().max(100_000).nullable(),
       }),
@@ -96,12 +97,12 @@ Rules:
 - "Always" means included on every visit.
 - "Once a year" means included on exactly one visit and not included on the others.
 - "If they want", "ask to add", or similar means optional, not included.
-- Exterior windows, interior windows, screens, cobweb removal, solar panels, and pressure washing have three states only: included, optional, or not included.
+- Exterior windows, interior windows, screens, cobweb removal, solar panels, pressure washing, and gutter cleaning have three states only: included, optional, or not included.
 - Never place a priceOverride unless the owner explicitly supplied a final dollar price for that exact visit.
 - Use concise customer-friendly language, never internal jargon.
 - Pick concise layout for a fast/simple close, story for a customer needing education, otherwise signature.
-- Solar panels and pressure washing are supported structured services. Never invent their price. Put an exact priceOverride only when the owner stated the final total for that visit.
-- Do not add gutter cleaning or any unsupported work to structured scope; mention it in notes only when the owner explicitly said it.
+- Solar panels, pressure washing, and gutter cleaning are supported structured services. Never invent their price. Put an exact priceOverride only when the owner stated the final total for that visit.
+- Do not add unsupported work to structured scope; mention it in notes only when the owner explicitly said it.
 - Return exactly the visit count required by the chosen cadence.
 - The explanation should plainly summarize what you understood so the owner can verify it before saving.`,
       prompt: `Current cadence: ${input.currentTier}

@@ -44,6 +44,7 @@ describe("generateSignedPDF", () => {
           cobwebRemoval: 0,
           solarPanels: 0,
           pressureWashing: 0,
+          gutterCleaning: 0,
         },
         visits: [],
       },
