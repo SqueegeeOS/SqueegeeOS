@@ -4,7 +4,6 @@ import { motion, useReducedMotion } from "framer-motion";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { MEMBERSHIP_CLOSE_BILLING_BULLETS } from "@/lib/agreement/agreement-content";
 import { CUSTOMER_BRAND } from "@/lib/brand/customer";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
 import type { MemberPortalData } from "@/lib/persistence/queries/member-portal";
@@ -290,13 +289,20 @@ export function MemberPortalExperience({
                         {view.annualMathLabel}
                       </p>
                     )}
+                    {view.plannedVisitLabels.length > 0 && (
+                      <ul className="space-y-2 text-sm text-foreground/70" aria-label="Your visit prices and services">
+                        {view.plannedVisitLabels.map((label) => (
+                          <li key={label}>{label}</li>
+                        ))}
+                      </ul>
+                    )}
                     {view.addonDiscountLabel && (
                       <p className="text-sm text-foreground/60">
                         {view.addonDiscountLabel}
                       </p>
                     )}
                     <ul className="space-y-3 border-t border-border pt-4">
-                      {MEMBERSHIP_CLOSE_BILLING_BULLETS.map((bullet) => (
+                      {view.billingBullets.map((bullet) => (
                         <CheckBullet key={bullet}>{bullet}</CheckBullet>
                       ))}
                     </ul>
