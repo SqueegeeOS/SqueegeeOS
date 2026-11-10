@@ -49,6 +49,10 @@ import {
 } from "@/lib/membership/portal-live-service";
 import { loadMembershipVisitPreferences } from "@/lib/membership/visit-preferences-server";
 import type { MembershipVisitPreference } from "@/lib/membership/visit-preferences";
+import {
+  signedPortalVisitPricing,
+  type PortalVisitPricing,
+} from "@/lib/membership/portal-visit-pricing";
 
 export interface ServiceObservationView {
   id: string;
@@ -77,6 +81,7 @@ export interface MemberPortalAgreement {
   planName: string;
   signedAt: string;
   pdfUrl: string | null;
+  visitPricing?: PortalVisitPricing | null;
 }
 
 export interface MemberPortalData {
@@ -99,6 +104,9 @@ export interface MemberPortalData {
   visitPreferences?: MembershipVisitPreference[];
   membershipStatus: string;
   paymentSetupCompletedAt: string | null;
+  paymentRail?: "stripe_card" | "manual_cash_check";
+  manualPaymentApprovedAt?: string | null;
+  manualPaymentApprovedBy?: string | null;
   membershipEnrollmentSavings: number | null;
   agreement: MemberPortalAgreement | null;
   presentationId: string | null;
@@ -170,6 +178,7 @@ interface SignedAgreementRow {
   signed_at: string;
   agreement_pdf_url: string | null;
   status: string;
+  document_snapshot: unknown;
 }
 
 interface MemberProfileRow {
@@ -557,11 +566,15 @@ export async function getMemberPortalDataBySlugs(
     ? await loadMembershipVisitPreferences(membershipRow.id)
     : [];
 
-  const { data: agreementRow } = await supabase
+  let agreementQuery = supabase
     .from("signed_agreements")
-    .select("plan_name, signed_at, agreement_pdf_url, status")
+    .select("plan_name, signed_at, agreement_pdf_url, status, document_snapshot")
     .eq("property_id", propertyRow.id)
-    .eq("status", "complete")
+    .eq("status", "complete");
+  if (membershipRow?.agreement_id) {
+    agreementQuery = agreementQuery.eq("id", membershipRow.agreement_id);
+  }
+  const { data: agreementRow } = await agreementQuery
     .order("signed_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -894,6 +907,9 @@ export async function getMemberPortalDataBySlugs(
       : "inactive",
     paymentSetupCompletedAt:
       membershipRow?.payment_setup_completed_at ?? null,
+    paymentRail: membershipRow?.payment_rail,
+    manualPaymentApprovedAt: membershipRow?.manual_payment_approved_at ?? null,
+    manualPaymentApprovedBy: membershipRow?.manual_payment_approved_by ?? null,
     membershipEnrollmentSavings:
       membershipRow?.membership_enrollment_savings != null
         ? Number(membershipRow.membership_enrollment_savings)
@@ -903,6 +919,10 @@ export async function getMemberPortalDataBySlugs(
           planName: (agreementRow as SignedAgreementRow).plan_name,
           signedAt: (agreementRow as SignedAgreementRow).signed_at,
           pdfUrl: agreementPdfUrl,
+          visitPricing: signedPortalVisitPricing(
+            (agreementRow as SignedAgreementRow).document_snapshot,
+            membershipRow?.visits_per_year ?? null,
+          ),
         }
       : null,
     presentationId: membershipRow?.presentation_id ?? null,

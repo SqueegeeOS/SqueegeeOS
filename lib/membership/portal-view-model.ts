@@ -1,5 +1,6 @@
 import {
   MEMBERSHIP_BILLING_REMINDER,
+  MEMBERSHIP_CLOSE_BILLING_BULLETS,
   PORTAL_EMPTY_COPY,
 } from "@/lib/agreement/agreement-content";
 import type { HomeCarePlanData } from "@/lib/home-care-plan/types";
@@ -58,9 +59,11 @@ export interface PortalCareRecordView {
   memberSinceFormatted: string;
   visitPriceLabel: string;
   annualMathLabel: string | null;
+  plannedVisitLabels: string[];
   addonDiscountLabel: string | null;
   addonDiscountPercent: number | null;
   billingReminder: string;
+  billingBullets: readonly string[];
   whatsNextHeadline: string;
   whatsNextSupport: string;
   cadenceNote: string;
@@ -241,6 +244,9 @@ export function buildPortalCareRecordView(
     paymentSetupCompletedAt: portalData?.paymentSetupCompletedAt ?? null,
     paymentMethodLabel: portalData?.paymentMethodLabel ?? null,
     hasMembership: Boolean(portalData?.membershipId),
+    paymentRail: portalData?.paymentRail,
+    manualPaymentApprovedAt: portalData?.manualPaymentApprovedAt,
+    manualPaymentApprovedBy: portalData?.manualPaymentApprovedBy,
   });
 
   const membershipActive = paymentState.membershipActive;
@@ -332,6 +338,10 @@ export function buildPortalCareRecordView(
 
   const annualTotal =
     visitPrice != null ? visitPrice * visitsPerYear : null;
+  const signedPricing = portalData?.agreement?.visitPricing;
+  const distinctVisitPrices = [...new Set(signedPricing?.visits.map((visit) => visit.priceCents))];
+  const variableVisitPricing = distinctVisitPrices.length > 1 ? signedPricing : null;
+  const manualPayment = portalData?.paymentRail === "manual_cash_check";
 
   return {
     firstName,
@@ -352,14 +362,26 @@ export function buildPortalCareRecordView(
     tierMemberLabel: `${squeegeeKingTierLabel(tierId)} Member`,
     memberSinceFormatted: formatMemberSince(memberSinceIso),
     visitPriceLabel:
-      visitPrice != null ? `${formatTierPrice(visitPrice)} · per visit` : "",
+      variableVisitPricing
+        ? `${distinctVisitPrices.map((cents) => formatTierPrice(cents / 100)).join(" / ")} · per visit`
+        : visitPrice != null ? `${formatTierPrice(visitPrice)} · per visit` : "",
     annualMathLabel:
-      visitPrice != null && annualTotal != null
+      variableVisitPricing
+        ? `${variableVisitPricing.visits.map((visit) => formatTierPrice(visit.priceCents / 100)).join(" + ")} = ${formatTierPrice(variableVisitPricing.annualTotalCents / 100)}/year`
+        : visitPrice != null && annualTotal != null
         ? `${formatTierPrice(visitPrice)} × ${visitsPerYear} visits = ${formatTierPrice(annualTotal)}/year`
         : null,
+    plannedVisitLabels: variableVisitPricing?.visits.map((visit) =>
+      `Visit ${visit.sequence}: ${visit.serviceSummary} · ${formatTierPrice(visit.priceCents / 100)}`,
+    ) ?? [],
     addonDiscountLabel: `${tierDef.addonDiscount}% OFF add-ons`,
     addonDiscountPercent: tierDef.addonDiscount,
-    billingReminder: MEMBERSHIP_BILLING_REMINDER,
+    billingReminder: manualPayment
+      ? "Pay by cash or check after each completed service. Automatic card billing is disabled."
+      : MEMBERSHIP_BILLING_REMINDER,
+    billingBullets: manualPayment
+      ? ["Cash or check after service", "No automatic card billing"]
+      : MEMBERSHIP_CLOSE_BILLING_BULLETS,
     whatsNextHeadline,
     whatsNextSupport,
     cadenceNote: hasVisitHistory ? cadenceNote : cadenceNote,

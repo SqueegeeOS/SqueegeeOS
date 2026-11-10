@@ -19,6 +19,7 @@ const EXISTING_APPOINTMENT = {
 
 const insertSpy = vi.fn();
 const upsertSpy = vi.fn();
+let signedAgreementFixture: Record<string, unknown> | null = null;
 let appointmentRowsFixture = [EXISTING_APPOINTMENT];
 let propertyLinkFixture: {
   connection_id: string;
@@ -165,7 +166,7 @@ function mockSupabaseFrom(table: string) {
       // Migration 030: anon cannot read; service role may also have no row yet.
       return chain({ data: null });
     case "signed_agreements":
-      return chain({ data: null });
+      return chain({ data: signedAgreementFixture });
     case "member_appointments":
       return chain({ data: appointmentRowsFixture });
     case "jobber_property_links":
@@ -240,6 +241,7 @@ describe("migration 030 portal appointment regression", () => {
   afterEach(() => {
     insertSpy.mockClear();
     upsertSpy.mockClear();
+    signedAgreementFixture = null;
     appointmentRowsFixture = [EXISTING_APPOINTMENT];
     propertyLinkFixture = null;
     jobberVisitFixture = null;
@@ -262,6 +264,49 @@ describe("migration 030 portal appointment regression", () => {
 
     expect(clientModule.createPrivilegedServerSupabaseClient).toHaveBeenCalled();
     expect(mockPrivilegedClient.from).toHaveBeenCalledWith("member_appointments");
+  });
+
+  it("loads linked signed visit prices and manual-payment state without mutating records", async () => {
+    const { loadMembershipPortalRow } = await import("@/lib/persistence/queries/load-membership-portal-row");
+    const member = await loadMembershipPortalRow(mockPrivilegedClient as never, "property-1");
+    vi.mocked(loadMembershipPortalRow).mockResolvedValueOnce({
+      ...member!,
+      agreement_id: "linked-agreement",
+      visit_price: 400,
+      visits_per_year: 4,
+      payment_rail: "manual_cash_check",
+      payment_setup_completed_at: null,
+      stripe_payment_method_id: null,
+      manual_payment_approved_at: "2026-08-28T00:00:00Z",
+      manual_payment_approved_by: "hq",
+    });
+    signedAgreementFixture = {
+      plan_name: "Quarterly care", signed_at: "2026-08-28T00:00:00Z",
+      agreement_pdf_url: null, status: "complete",
+      document_snapshot: {
+        customer: { email: "private@example.test" },
+        plan: {
+          visitsPerYear: 4, annualizedValueCents: 160000,
+          visits: [30000, 50000, 30000, 50000].map((priceCents) => ({
+            priceCents, solarPanels: "included",
+            exteriorWindows: priceCents === 50000 ? "included" : "not_included",
+            screens: priceCents === 50000 ? "included" : "not_included",
+          })),
+        },
+      },
+    };
+    const { getMemberPortalDataBySlugs } = await import("@/lib/persistence/queries/member-portal");
+    const data = await getMemberPortalDataBySlugs("sylvia-siegel", "chico-estate");
+    expect(data?.agreement?.visitPricing?.visits.map((visit) => visit.priceCents)).toEqual([30000, 50000, 30000, 50000]);
+    expect(data?.agreement?.visitPricing?.annualTotalCents).toBe(160000);
+    expect(JSON.stringify(data?.agreement)).not.toContain("private@example.test");
+    expect(data?.paymentRail).toBe("manual_cash_check");
+    expect(data?.manualPaymentApprovedBy).toBe("hq");
+    expect(data?.manualPaymentApprovedAt).toBe("2026-08-28T00:00:00Z");
+    const queryIndex = mockPrivilegedClient.from.mock.calls.findIndex(([table]) => table === "signed_agreements");
+    expect(mockPrivilegedClient.from.mock.results[queryIndex].value.eq).toHaveBeenCalledWith("id", "linked-agreement");
+    expect(insertSpy).not.toHaveBeenCalled();
+    expect(upsertSpy).not.toHaveBeenCalled();
   });
 
   it("loads existing appointments by property_id when member_profiles is unreadable", async () => {
