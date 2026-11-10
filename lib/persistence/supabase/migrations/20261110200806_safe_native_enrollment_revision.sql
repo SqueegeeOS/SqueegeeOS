@@ -156,8 +156,7 @@ end;
 $$;
 revoke all on function public.guard_native_enrollment_agreement_insert()
   from public, anon, authenticated;
-drop trigger if exists guard_native_enrollment_agreement_insert on public.signed_agreements;
-create trigger guard_native_enrollment_agreement_insert
+create or replace trigger guard_native_enrollment_agreement_insert
   before insert on public.signed_agreements
   for each row execute function public.guard_native_enrollment_agreement_insert();
 
