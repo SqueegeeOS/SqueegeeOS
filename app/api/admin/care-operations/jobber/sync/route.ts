@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { processPendingJobberWebhooks } from "@/lib/integrations/jobber-webhook";
+import { JobberSyncBusyError } from "@/lib/care-operations/jobber-sync-lease";
+import { after, NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { syncAllJobberData } from "@/lib/care-operations/jobber-full-sync";
 
@@ -12,6 +14,9 @@ export async function POST(request: Request) {
   try {
     return NextResponse.json(await syncAllJobberData());
   } catch (error) {
+    if (error instanceof JobberSyncBusyError) {
+      return NextResponse.json({ error: error.message }, { status: 409, headers: { "Cache-Control": "no-store", "Retry-After": "15" } });
+    }
     const message = error instanceof Error ? error.message : "Synchronization failed";
     console.error("[jobber-sync] full read-only sync failed:", message);
     return NextResponse.json(
@@ -21,5 +26,8 @@ export async function POST(request: Request) {
       },
       { status: 502 },
     );
+  } finally {
+    // Recover events received while this request owned the shared sync lease.
+    after(() => processPendingJobberWebhooks());
   }
 }

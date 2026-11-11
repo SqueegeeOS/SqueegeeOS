@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { processPendingJobberWebhooks } from "@/lib/integrations/jobber-webhook";
+import { JobberSyncBusyError } from "@/lib/care-operations/jobber-sync-lease";
+import { after, NextResponse } from "next/server";
 import { authorizeAdminRequest } from "@/lib/admin/server-auth";
 import { syncAllJobberData } from "@/lib/care-operations/jobber-full-sync";
 import {
@@ -16,6 +18,9 @@ function unauthorized() {
 }
 
 function territoryError(error: unknown) {
+  if (error instanceof JobberSyncBusyError) {
+    return NextResponse.json({ error: error.message }, { status: 409, headers: { "Cache-Control": "no-store", "Retry-After": "15" } });
+  }
   if (error instanceof TerritoryMapUnavailableError) {
     return NextResponse.json({ error: error.message }, { status: 503 });
   }
@@ -74,5 +79,8 @@ export async function POST(
     });
   } catch (error) {
     return territoryError(error);
+  } finally {
+    // Recover events received while this request owned the shared sync lease.
+    if (body?.syncJobber) after(() => processPendingJobberWebhooks());
   }
 }

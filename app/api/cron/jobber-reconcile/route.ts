@@ -1,10 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { processEligibleReviewRequests } from "@/lib/aftercare/review-request-automation-server";
 import { syncAllJobberData } from "@/lib/care-operations/jobber-full-sync";
 import { processVerifiedAppointmentReminders } from "@/lib/communications/reminders";
 import { processDueScheduledCommunications } from "@/lib/communications/service";
-import { markJobberWebhookEventsReconciled } from "@/lib/integrations/jobber-webhook";
+import { markJobberWebhookEventsReconciled, processPendingJobberWebhooks } from "@/lib/integrations/jobber-webhook";
 import { runAutomaticMembershipBilling } from "@/lib/billing/automatic-billing-executor";
 import { qualifyDueSalesAttributions } from "@/lib/sales/attribution-lifecycle-server";
 import { reconcileSignedMembershipAttributionsForActiveReps } from "@/lib/sales/signed-attribution-server";
@@ -71,7 +71,12 @@ export async function GET(request: Request) {
         };
       },
     );
-    const sync = await syncAllJobberData();
+    // A normal webhook/fallback overlap must not silently skip this scheduled
+    // workflow. Wait at most 90 seconds, bounded by the first two minutes of
+    // this request, leaving time for a fresh snapshot and downstream safeguards.
+    const sync = await syncAllJobberData({
+      waitForLeaseMs: Math.min(90_000, Math.max(0, requestStartedAt + 120_000 - Date.now())),
+    });
     const territory = await geocodeTerritoryBacklog("david", {
       maxBatches: 6,
       stopAtMs: requestStartedAt + 180_000,
@@ -136,5 +141,8 @@ export async function GET(request: Request) {
       { error: "Jobber reconciliation failed" },
       { status: 500, headers: { "Cache-Control": "no-store" } },
     );
+  } finally {
+    // Recover events received while this request owned the shared sync lease.
+    after(() => processPendingJobberWebhooks());
   }
 }

@@ -8,7 +8,7 @@ function read(relativePath: string): string {
 describe("first-of-month billing cron safety contract", () => {
   it("runs only after a successful fresh Jobber snapshot", () => {
     const route = read("../../app/api/cron/automatic-billing/route.ts");
-    const syncAt = route.indexOf("await syncAllJobberData()");
+    const syncAt = route.indexOf("await syncAllJobberData(");
     const billingAt = route.indexOf("await runAutomaticMembershipBilling");
 
     expect(route).toContain("process.env.CRON_SECRET");

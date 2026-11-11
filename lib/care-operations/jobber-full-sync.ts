@@ -1,5 +1,7 @@
 import "server-only";
 
+import { withJobberSyncLease, type JobberSyncLeaseOptions } from "./jobber-sync-lease";
+
 import { getFreshJobberAccessToken } from "./jobber-connection-store";
 import {
   syncAllJobberClients,
@@ -22,16 +24,20 @@ export interface JobberFullSyncResult {
   completedAt: string;
 }
 
-export async function syncAllJobberData(): Promise<JobberFullSyncResult> {
-  const accessToken = await getFreshJobberAccessToken();
-  const clients = await syncAllJobberClients(accessToken);
-  const visits = await syncAllJobberVisits(accessToken);
-  const autoLinking = await reconcileStrictExactJobberCustomerLinks();
-  return {
-    executionMode: "projection_sync_with_safe_linking",
-    clients,
-    visits,
-    autoLinking,
-    completedAt: new Date().toISOString(),
-  };
+export async function syncAllJobberData(
+  options: JobberSyncLeaseOptions = {},
+): Promise<JobberFullSyncResult> {
+  return withJobberSyncLease(async () => {
+    const accessToken = await getFreshJobberAccessToken();
+    const clients = await syncAllJobberClients(accessToken);
+    const visits = await syncAllJobberVisits(accessToken);
+    const autoLinking = await reconcileStrictExactJobberCustomerLinks();
+    return {
+      executionMode: "projection_sync_with_safe_linking",
+      clients,
+      visits,
+      autoLinking,
+      completedAt: new Date().toISOString(),
+    };
+  }, options);
 }

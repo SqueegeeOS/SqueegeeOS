@@ -1,5 +1,7 @@
 import "server-only";
 
+import { withJobberSyncLease } from "./jobber-sync-lease";
+
 import { createHash } from "crypto";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
@@ -317,50 +319,52 @@ export function toJobberClientProjectionRow(
 export async function syncAllJobberClients(
   providedAccessToken?: string,
 ): Promise<JobberClientSyncResult> {
-  const accessToken = providedAccessToken ?? (await getFreshJobberAccessToken());
-  const source = await fetchAllJobberClients(accessToken);
-  const observedAt = new Date().toISOString();
-  const rows = source.nodes.map((client) =>
-    toJobberClientProjectionRow(client, observedAt),
-  );
-  const supabase = createServiceRoleSupabaseClient();
-  const existing = new Map<string, string>();
+  return withJobberSyncLease(async () => {
+    const accessToken = providedAccessToken ?? (await getFreshJobberAccessToken());
+    const source = await fetchAllJobberClients(accessToken);
+    const observedAt = new Date().toISOString();
+    const rows = source.nodes.map((client) =>
+      toJobberClientProjectionRow(client, observedAt),
+    );
+    const supabase = createServiceRoleSupabaseClient();
+    const existing = new Map<string, string>();
 
-  for (const externalIds of chunkItems(
-    rows.map((row) => row.external_client_id),
-  )) {
-    const result = await supabase
-      .from("jobber_client_projections")
-      .select("external_client_id, source_payload_hash")
-      .eq("connection_id", JOBBER_CONNECTION_ID)
-      .in("external_client_id", externalIds);
-    if (result.error) throw new Error(result.error.message);
-    for (const row of (result.data ?? []) as ExistingProjection[]) {
-      existing.set(row.external_client_id, row.source_payload_hash);
+    for (const externalIds of chunkItems(
+      rows.map((row) => row.external_client_id),
+    )) {
+      const result = await supabase
+        .from("jobber_client_projections")
+        .select("external_client_id, source_payload_hash")
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .in("external_client_id", externalIds);
+      if (result.error) throw new Error(result.error.message);
+      for (const row of (result.data ?? []) as ExistingProjection[]) {
+        existing.set(row.external_client_id, row.source_payload_hash);
+      }
     }
-  }
 
-  for (const batch of chunkItems(rows)) {
-    const { error } = await supabase
-      .from("jobber_client_projections")
-      .upsert(batch, { onConflict: "connection_id,external_client_id" });
-    if (error) throw new Error(error.message);
-  }
+    for (const batch of chunkItems(rows)) {
+      const { error } = await supabase
+        .from("jobber_client_projections")
+        .upsert(batch, { onConflict: "connection_id,external_client_id" });
+      if (error) throw new Error(error.message);
+    }
 
-  const changes = summarizeProjectionChanges(
-    rows.map((row) => ({
-      externalId: row.external_client_id,
-      payloadHash: row.source_payload_hash,
-    })),
-    existing,
-  );
-  return {
-    observed: rows.length,
-    pagesRead: source.pageCount,
-    addressReadState: source.addressReadState,
-    addressFields: source.addressFields,
-    ...changes,
-  };
+    const changes = summarizeProjectionChanges(
+      rows.map((row) => ({
+        externalId: row.external_client_id,
+        payloadHash: row.source_payload_hash,
+      })),
+      existing,
+    );
+    return {
+      observed: rows.length,
+      pagesRead: source.pageCount,
+      addressReadState: source.addressReadState,
+      addressFields: source.addressFields,
+      ...changes,
+    };
+  });
 }
 
 async function addPropertiesToHomeowners(

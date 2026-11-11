@@ -1,5 +1,7 @@
 import "server-only";
 
+import { withJobberSyncLease } from "./jobber-sync-lease";
+
 import { createHash } from "crypto";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
 import {
@@ -268,56 +270,58 @@ function toProjectionPreview(
 export async function syncAllJobberVisits(
   providedAccessToken?: string,
 ): Promise<JobberVisitSyncResult> {
-  const accessToken = providedAccessToken ?? (await getFreshJobberAccessToken());
-  const source = await fetchAllJobberVisits(accessToken);
-  const observedAt = new Date().toISOString();
-  const rows = source.nodes.map((visit) =>
-    toJobberVisitProjectionRow(visit, observedAt),
-  );
-  const supabase = createServiceRoleSupabaseClient();
-  const existing = new Map<string, string>();
+  return withJobberSyncLease(async () => {
+    const accessToken = providedAccessToken ?? (await getFreshJobberAccessToken());
+    const source = await fetchAllJobberVisits(accessToken);
+    const observedAt = new Date().toISOString();
+    const rows = source.nodes.map((visit) =>
+      toJobberVisitProjectionRow(visit, observedAt),
+    );
+    const supabase = createServiceRoleSupabaseClient();
+    const existing = new Map<string, string>();
 
-  for (const externalIds of chunkItems(
-    rows.map((row) => row.external_visit_id),
-  )) {
-    const result = await supabase
-      .from("jobber_visit_projections")
-      .select("external_visit_id, source_payload_hash")
-      .eq("connection_id", JOBBER_CONNECTION_ID)
-      .in("external_visit_id", externalIds);
-    if (result.error) throw new Error(result.error.message);
-    for (const row of (result.data ?? []) as ExistingProjection[]) {
-      existing.set(row.external_visit_id, row.source_payload_hash);
+    for (const externalIds of chunkItems(
+      rows.map((row) => row.external_visit_id),
+    )) {
+      const result = await supabase
+        .from("jobber_visit_projections")
+        .select("external_visit_id, source_payload_hash")
+        .eq("connection_id", JOBBER_CONNECTION_ID)
+        .in("external_visit_id", externalIds);
+      if (result.error) throw new Error(result.error.message);
+      for (const row of (result.data ?? []) as ExistingProjection[]) {
+        existing.set(row.external_visit_id, row.source_payload_hash);
+      }
     }
-  }
 
-  for (const batch of chunkItems(rows)) {
-    const { error } = await supabase
-      .from("jobber_visit_projections")
-      .upsert(batch, { onConflict: "connection_id,external_visit_id" });
-    if (error) throw new Error(error.message);
-  }
+    for (const batch of chunkItems(rows)) {
+      const { error } = await supabase
+        .from("jobber_visit_projections")
+        .upsert(batch, { onConflict: "connection_id,external_visit_id" });
+      if (error) throw new Error(error.message);
+    }
 
-  const missing = await reconcileMissingJobberVisits(observedAt, rows.length);
+    const missing = await reconcileMissingJobberVisits(observedAt, rows.length);
 
-  const changes = summarizeProjectionChanges(
-    rows.map((row) => ({
-      externalId: row.external_visit_id,
-      payloadHash: row.source_payload_hash,
-    })),
-    existing,
-  );
-  const portalAppointments = await reconcileAllPairedCustomerPortalVisits();
+    const changes = summarizeProjectionChanges(
+      rows.map((row) => ({
+        externalId: row.external_visit_id,
+        payloadHash: row.source_payload_hash,
+      })),
+      existing,
+    );
+    const portalAppointments = await reconcileAllPairedCustomerPortalVisits();
 
-  return {
-    observed: rows.length,
-    pagesRead: source.pageCount,
-    ...changes,
-    ...missing,
-    executionMode: "read_only_sync",
-    automaticMatching: false,
-    portalAppointments,
-  };
+    return {
+      observed: rows.length,
+      pagesRead: source.pageCount,
+      ...changes,
+      ...missing,
+      executionMode: "read_only_sync",
+      automaticMatching: false,
+      portalAppointments,
+    };
+  });
 }
 
 export async function listJobberVisits(options: {
