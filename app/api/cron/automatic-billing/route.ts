@@ -1,9 +1,9 @@
 import { timingSafeEqual } from "node:crypto";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { runAutomaticMembershipBilling } from "@/lib/billing/automatic-billing-executor";
 import { isFirstBusinessDay } from "@/lib/billing/automatic-billing-settings";
 import { syncAllJobberData } from "@/lib/care-operations/jobber-full-sync";
-import { markJobberWebhookEventsReconciled } from "@/lib/integrations/jobber-webhook";
+import { markJobberWebhookEventsReconciled, processPendingJobberWebhooks } from "@/lib/integrations/jobber-webhook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,7 +38,12 @@ export async function GET(request: Request) {
   try {
     // Billing is allowed only after a successful fresh Jobber snapshot. A
     // stale projection could otherwise charge for a visit canceled upstream.
-    const sync = await syncAllJobberData();
+    // A normal webhook/fallback overlap must not silently skip this scheduled
+    // workflow. Wait at most 90 seconds, bounded by the first two minutes of
+    // this request, leaving time for a fresh snapshot and downstream safeguards.
+    const sync = await syncAllJobberData({
+      waitForLeaseMs: Math.min(90_000, Math.max(0, requestStartedAt + 120_000 - Date.now())),
+    });
     const webhookInbox = await markJobberWebhookEventsReconciled({
       snapshotStartedAt,
       syncSummary: sync,
@@ -64,5 +69,8 @@ export async function GET(request: Request) {
       },
       { status: 500, headers: { "Cache-Control": "no-store" } },
     );
+  } finally {
+    // Recover events received while this request owned the shared sync lease.
+    after(() => processPendingJobberWebhooks());
   }
 }

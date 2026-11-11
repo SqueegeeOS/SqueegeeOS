@@ -1,4 +1,6 @@
-import { NextResponse } from "next/server";
+import { processPendingJobberWebhooks } from "@/lib/integrations/jobber-webhook";
+import { JobberSyncBusyError } from "@/lib/care-operations/jobber-sync-lease";
+import { after, NextResponse } from "next/server";
 import { syncAllJobberVisits } from "@/lib/care-operations/jobber-visit-sync";
 import { authorizeFieldRequest } from "@/lib/field-operations/field-access";
 import { reconcilePendingLiveDispatchJobs } from "@/lib/field-operations/live-dispatch-server";
@@ -39,6 +41,9 @@ export async function POST(request: Request) {
       { headers: PRIVATE_HEADERS },
     );
   } catch (error) {
+    if (error instanceof JobberSyncBusyError) {
+      return NextResponse.json({ error: error.message }, { status: 409, headers: { "Cache-Control": "no-store", "Retry-After": "15" } });
+    }
     console.error("[field-jobber-sync] technician refresh failed", {
       technician: actor.jobberUserId,
       reason: error instanceof Error ? error.message : "unknown",
@@ -50,5 +55,8 @@ export async function POST(request: Request) {
       },
       { status: 503, headers: PRIVATE_HEADERS },
     );
+  } finally {
+    // Recover events received while this request owned the shared sync lease.
+    after(() => processPendingJobberWebhooks());
   }
 }

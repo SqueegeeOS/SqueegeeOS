@@ -1,5 +1,7 @@
 import "server-only";
 
+import { withClaimedJobberSyncLease } from "@/lib/care-operations/jobber-sync-lease";
+
 import { createHash, randomUUID } from "crypto";
 import { syncAllJobberClients } from "@/lib/care-operations/jobber-customer-matching";
 import { getFreshJobberAccessToken, readJobberConnectionStatus } from "@/lib/care-operations/jobber-connection-store";
@@ -110,7 +112,7 @@ async function syncWebhookBatch(events: ClaimedWebhookEvent[]): Promise<unknown>
  * A database lease coalesces bursts across server instances, not just one process.
  * Only the exact claimed events are completed: later arrivals need a new snapshot.
  * Failed/stale deliveries are retried by the next wakeup, including duplicate
- * delivery. The daily full-snapshot repair remains the crash-recovery safety net.
+ * delivery. The periodic full-snapshot repair remains the crash-recovery safety net.
  */
 export async function processPendingJobberWebhooks(): Promise<void> {
   const supabase = createServiceRoleSupabaseClient();
@@ -140,7 +142,7 @@ export async function processPendingJobberWebhooks(): Promise<void> {
       let summary: unknown = null;
       let errorCode: string | null = null;
       try {
-        summary = await syncWebhookBatch(batch.events);
+        summary = await withClaimedJobberSyncLease(leaseId, () => syncWebhookBatch(batch.events));
         consecutiveFailures = 0;
       } catch (error) {
         errorCode = safeErrorCode(error);
@@ -155,7 +157,7 @@ export async function processPendingJobberWebhooks(): Promise<void> {
       });
       if (finished.error) throw new Error("Jobber webhook batch finalization failed");
       // One short retry handles transient provider/network failures. Persistent
-      // failures stay durable for the next webhook or daily reconciliation.
+      // failures stay durable for the next webhook or periodic reconciliation.
       if (errorCode) {
         if (consecutiveFailures >= 2 || Date.now() >= stopClaimingAt) return;
         await new Promise((resolve) => setTimeout(resolve, 1_000));

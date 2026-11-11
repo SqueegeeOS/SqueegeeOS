@@ -36,7 +36,7 @@ describe("completed-visit review request automation contract", () => {
   });
 
   it("runs only after fresh Jobber reconciliation", () => {
-    expect(cron.indexOf("const sync = await syncAllJobberData()"))
+    expect(cron.indexOf("const sync = await syncAllJobberData("))
       .toBeLessThan(cron.indexOf("processEligibleReviewRequests()"));
   });
 });

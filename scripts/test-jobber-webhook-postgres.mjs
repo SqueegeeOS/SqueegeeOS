@@ -88,7 +88,32 @@ try {
     assert.deepEqual(rights,{claim:false,finish:false,table_access:false});
   }
   assert.equal((await db.query("select relrowsecurity from pg_class where oid='public.jobber_webhook_sync_leases'::regclass")).rows[0].relrowsecurity,true);
-  console.log('PASS: real PostgreSQL two-session lease contention, service-role execution, exact batch acknowledgement, follow-on arrival drain, failed/stale recovery, account isolation, stale-owner fencing/release, RLS and private privileges.');
+  // Manual/cron snapshots share the same row without claiming webhook events.
+  const acquireSnapshot = async (client, owner) => {
+    await client.query("insert into jobber_webhook_sync_leases(connection_id) values('squeegeeking') on conflict do nothing");
+    return (await client.query("update jobber_webhook_sync_leases set lease_id=$1,expires_at=now()+interval '330 seconds' where connection_id='squeegeeking' and (lease_id is null or expires_at<=now()) returning lease_id", [owner])).rows;
+  };
+  await add('snapshot-overlap');
+  assert.equal((await acquireSnapshot(a, owner1)).length, 1);
+  assert.equal((await claim(b, owner2)).acquired, false, 'webhook waits for manual/cron snapshot');
+  await a.query("update jobber_webhook_sync_leases set lease_id=null,expires_at=null where lease_id=$1", [owner1]);
+  assert.equal((await claim(b, owner2)).events[0].event_key, 'snapshot-overlap', 'snapshot does not consume later deliveries');
+  assert.equal((await acquireSnapshot(a, owner1)).length, 0, 'manual/cron waits for webhook');
+  await finish(owner2, ['snapshot-overlap']);
+  await claim(b, owner2);
+  await a.query('begin');
+  assert.equal((await acquireSnapshot(a, owner1)).length, 1);
+  let snapshotSettled = false;
+  const competingSnapshot = acquireSnapshot(b, owner2).finally(() => { snapshotSettled = true; });
+  for (let n = 0; n < 100; n++) {
+    const waits = await db.query("select count(*)::int count from pg_stat_activity where wait_event_type='Lock'");
+    if (waits.rows[0].count) break;
+    await delay(10);
+  }
+  assert.equal(snapshotSettled, false, 'snapshot contender waits for the row transaction');
+  await a.query('commit');
+  assert.equal((await competingSnapshot).length, 0, 'conditional UPDATE rechecks after contention');
+  console.log('PASS: real PostgreSQL two-session lease contention, service-role execution, exact batch acknowledgement, follow-on arrival drain, failed/stale recovery, account isolation, stale-owner fencing/release, RLS, private privileges, and cross-path snapshot/webhook exclusion.');
 } finally {
   await Promise.all(clients.map(c => c.end().catch(() => {})));
   server.kill('SIGTERM'); await new Promise(done => server.once('exit',done));
