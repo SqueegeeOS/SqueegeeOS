@@ -1,4 +1,5 @@
 import "server-only";
+import type { OwnerTimeAdjustmentRow } from "./technician-owner-time";
 
 import {
   COMPANY_BUSINESS_TIMEZONE,
@@ -89,6 +90,7 @@ interface TimeEntryRow {
 }
 
 interface NativeClockRow extends TimeEntryRow {
+  id: string;
   assignment_id: string;
 }
 
@@ -241,6 +243,7 @@ export async function loadTechnicianOperationalProfile(
     manualTimeResult,
     eventsResult,
     addonsResult,
+    ownerTimeResult,
   ] = await Promise.all([
     supabase
       .from("technician_access_grants")
@@ -291,6 +294,12 @@ export async function loadTechnicianOperationalProfile(
       .gte("reported_at", sinceIso)
       .order("reported_at", { ascending: false })
       .limit(5_000),
+    // Resolutions must include clocks older than the 30-day display window.
+    supabase.from("homeatlas_technician_owner_time_adjustments")
+      .select("id, technician_id, work_date, duration_minutes, resolved_clock_id, reason, note, entered_by, entered_at")
+      .eq("technician_id", technician.id)
+      .order("work_date", { ascending: false })
+      .limit(5_000),
   ]);
 
   const assignments = (assignmentsResult.data ?? []) as unknown as AssignmentRow[];
@@ -301,7 +310,7 @@ export async function loadTechnicianOperationalProfile(
   const nativeClockResult = assignmentIds.length
     ? await supabase
         .from("homeatlas_technician_job_clocks")
-        .select("assignment_id, started_at, ended_at")
+        .select("id, assignment_id, started_at, ended_at")
         .in("assignment_id", assignmentIds)
         .gte("started_at", sinceIso)
         .order("started_at", { ascending: false })
@@ -321,6 +330,16 @@ export async function loadTechnicianOperationalProfile(
   );
   const manualTimeRows = rawManualTime.filter((row) => !voidedManualIds.has(row.id));
 
+  const ownerIds = ((ownerTimeResult.data ?? []) as OwnerTimeAdjustmentRow[]).map((row) => row.id);
+  const ownerVoidResult = ownerIds.length
+    ? await supabase.from("homeatlas_technician_owner_time_adjustment_voids")
+        .select("adjustment_id").in("adjustment_id", ownerIds).limit(5_000)
+    : { data: [], error: null };
+  const voidedOwnerIds = new Set(((ownerVoidResult.data ?? []) as Array<{ adjustment_id: string }>).map((row) => row.adjustment_id));
+  // Fail closed on unavailable reversal evidence rather than counting reversed time.
+  const ownerTimeRows = ownerVoidResult.error ? [] : ((ownerTimeResult.data ?? []) as OwnerTimeAdjustmentRow[]).filter((row) => !voidedOwnerIds.has(row.id));
+  const resolvedClockIds = new Set(ownerTimeRows.map((row) => row.resolved_clock_id).filter(Boolean));
+  const ownerWindowRows = ownerTimeRows.filter((row) => row.work_date >= sinceDate && row.work_date <= today);
   const warnings: string[] = [...reconciliation.warnings];
   if (readinessSettled.status === "rejected") warnings.push("Readiness evidence could not be loaded for this profile.");
   if (capacitySettled.status === "rejected") warnings.push("Capacity evidence could not be loaded for this profile.");
@@ -333,6 +352,8 @@ export async function loadTechnicianOperationalProfile(
     ["Native job clock", nativeClockResult],
     ["Owner-entered time", manualTimeResult],
     ["Owner-entered time audit", manualVoidResult],
+    ["Owner time adjustments", ownerTimeResult],
+    ["Owner adjustment reversals", ownerVoidResult],
     ["Visit events", eventsResult],
     ["Add-on reports", addonsResult],
   ] as const) {
@@ -364,7 +385,7 @@ export async function loadTechnicianOperationalProfile(
   const legacyTimeEntries = (legacyTimeResult.data ?? []) as TimeEntryRow[];
   const nativeClocks = (nativeClockResult.data ?? []) as NativeClockRow[];
   const staleClockCount = nativeClocks.filter((entry) =>
-    isTechnicianJobClockStale({ startedAt: entry.started_at, endedAt: entry.ended_at }, reference),
+    !resolvedClockIds.has(entry.id) && isTechnicianJobClockStale({ startedAt: entry.started_at, endedAt: entry.ended_at }, reference),
   ).length;
   if (staleClockCount > 0) {
     warnings.push(
@@ -393,17 +414,18 @@ export async function loadTechnicianOperationalProfile(
   }));
 
   const allClockedMinutes =
-    nativeClocks.reduce((total, entry) => total + durationMinutes(entry), 0) +
+    nativeClocks.filter((entry) => !resolvedClockIds.has(entry.id)).reduce((total, entry) => total + durationMinutes(entry), 0) +
     legacyTimeEntries.reduce((total, entry) => total + durationMinutes(entry), 0);
-  const manualMinutes = manualTimeRows.reduce((total, entry) => total + durationMinutes(entry), 0);
+  const manualMinutes = manualTimeRows.reduce((total, entry) => total + durationMinutes(entry), 0)
+    + ownerWindowRows.reduce((total, entry) => total + entry.duration_minutes, 0);
   const todayClockedMinutes =
     nativeClocks
-      .filter((entry) => withinUtcWindow(entry.started_at, todayStart, todayEnd))
+      .filter((entry) => !resolvedClockIds.has(entry.id) && withinUtcWindow(entry.started_at, todayStart, todayEnd))
       .reduce((total, entry) => total + durationMinutes(entry), 0) +
     legacyTimeEntries
       .filter((entry) => withinUtcWindow(entry.started_at, todayStart, todayEnd))
       .reduce((total, entry) => total + durationMinutes(entry), 0);
-  const todayManualMinutes = manualTimeRows
+  const todayManualMinutes = ownerTimeRows.filter((row) => row.work_date === today).reduce((total, row) => total + row.duration_minutes, 0) + manualTimeRows
     .filter((entry) => entry.work_date === today)
     .reduce((total, entry) => total + durationMinutes(entry), 0);
 
@@ -429,7 +451,7 @@ export async function loadTechnicianOperationalProfile(
         soldAmountCents: assignment.live_sold_amount_cents,
         syncState: assignment.sync_state,
         reconciledAt: assignment.reconciled_at,
-        clockState: nativeClockState(clock),
+        clockState: clock && resolvedClockIds.has(clock.id) ? "owner_resolved" : nativeClockState(clock),
         clockStartedAt: clock?.started_at ?? null,
         clockEndedAt: clock?.ended_at ?? null,
         closeoutSaved: closeoutByAssignment.has(assignment.id),
@@ -468,7 +490,7 @@ export async function loadTechnicianOperationalProfile(
     const afterPhotos = assignmentPhotos.filter((photo) => photo.captureType === "after").length;
     const clock = nativeClockByAssignment.get(assignment.id);
     const manual = manualByAssignment.get(assignment.id);
-    const timeSource = clock?.ended_at ? "clock" : manual ? "manual" : "missing";
+    const timeSource = clock && resolvedClockIds.has(clock.id) ? "manual" : clock?.ended_at ? "clock" : manual ? "manual" : "missing";
     const closeoutSaved = closeoutByAssignment.has(assignment.id);
     const checks = [
       assignment.sync_state === "verified",
@@ -521,6 +543,7 @@ export async function loadTechnicianOperationalProfile(
     nativeClocks,
     legacyClocks: legacyTimeEntries,
     manualEntries: manualTimeRows,
+    ownerAdjustments: ownerTimeRows,
     addons: addonReports,
   });
   const completedPairCount = todayCloseouts.filter((closeout) => {
@@ -563,7 +586,7 @@ export async function loadTechnicianOperationalProfile(
       manualMinutes,
       recordedMinutes: allClockedMinutes + manualMinutes,
       activeClocks:
-        nativeClocks.filter((entry) => !entry.ended_at).length +
+        nativeClocks.filter((entry) => !entry.ended_at && !resolvedClockIds.has(entry.id)).length +
         legacyTimeEntries.filter((entry) => !entry.ended_at).length,
       followUpCloseouts: closeouts.filter((row) => row.follow_up_needed).length,
       scopeExceptionCloseouts: closeouts.filter((row) => Boolean(row.scope_exception?.trim())).length,
@@ -601,6 +624,7 @@ export async function loadTechnicianOperationalProfile(
     liveJobs,
     recentCloseouts,
     manualTimeEntries,
+    ownerTimeAdjustments: ownerTimeRows,
     timeRepairCandidates,
     photos,
     workdayIntegrity,

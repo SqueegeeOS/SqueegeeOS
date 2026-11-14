@@ -1,3 +1,4 @@
+import type { OwnerTimeAdjustmentRow } from "./technician-owner-time";
 import type { TechnicianCapacityView } from "./technician-capacity";
 import type {
   IndependentDayTrial,
@@ -77,7 +78,7 @@ export interface TechnicianProfileLiveJob {
   soldAmountCents: number | null;
   syncState: "pending_sync" | "verified";
   reconciledAt: string | null;
-  clockState: "not_started" | "running" | "finished";
+  clockState: "not_started" | "running" | "finished" | "owner_resolved";
   clockStartedAt: string | null;
   clockEndedAt: string | null;
   closeoutSaved: boolean;
@@ -192,6 +193,7 @@ export interface TechnicianOperationalProfile {
   liveJobs: TechnicianProfileLiveJob[];
   recentCloseouts: TechnicianProfileRecentCloseout[];
   manualTimeEntries: TechnicianManualTimeEntryView[];
+  ownerTimeAdjustments?: OwnerTimeAdjustmentRow[];
   timeRepairCandidates: TechnicianTimeRepairCandidate[];
   photos: TechnicianProfilePhotoEvidence[];
   workdayIntegrity: TechnicianWorkdayIntegrity;

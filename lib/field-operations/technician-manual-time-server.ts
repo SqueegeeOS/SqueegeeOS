@@ -1,4 +1,5 @@
 import "server-only";
+import { ownerResolvedOverlapEnd, type OwnerTimeAdjustmentRow } from "./technician-owner-time";
 
 import {
   COMPANY_BUSINESS_TIMEZONE,
@@ -77,7 +78,7 @@ async function assertNoVerifiedClockOverlap(input: {
   const nativeResult = assignmentIds.length
     ? await supabase
         .from("homeatlas_technician_job_clocks")
-        .select("started_at, ended_at")
+        .select("id, started_at, ended_at")
         .in("assignment_id", assignmentIds)
         .lt("started_at", input.endedAt.toISOString())
         .limit(5_000)
@@ -92,10 +93,24 @@ async function assertNoVerifiedClockOverlap(input: {
     .limit(5_000);
   if (legacyResult.error) throw new Error("Could not verify technician clock history.");
 
+  const resolutionResult = await supabase.from("homeatlas_technician_owner_time_adjustments")
+    .select("id, resolved_clock_id, duration_minutes")
+    .eq("technician_id", input.technicianId)
+    .not("resolved_clock_id", "is", null)
+    .limit(5_000);
+  if (resolutionResult.error) throw new Error("Could not verify owner clock resolutions.");
+  const resolutionIds = ((resolutionResult.data ?? []) as OwnerTimeAdjustmentRow[]).map((row) => row.id);
+  const voidResult = resolutionIds.length
+    ? await supabase.from("homeatlas_technician_owner_time_adjustment_voids")
+        .select("adjustment_id").in("adjustment_id", resolutionIds).limit(5_000)
+    : { data: [], error: null };
+  if (voidResult.error) throw new Error("Could not verify owner clock resolution reversals.");
+  const voidedIds = new Set(((voidResult.data ?? []) as Array<{ adjustment_id: string }>).map((row) => row.adjustment_id));
+  const resolutions = ((resolutionResult.data ?? []) as OwnerTimeAdjustmentRow[]).filter((row) => !voidedIds.has(row.id));
   const startMs = input.startedAt.getTime();
   const endMs = input.endedAt.getTime();
   const verifiedEntries = [
-    ...((nativeResult.data ?? []) as Array<{ started_at: string; ended_at: string | null }>),
+    ...((nativeResult.data ?? []) as Array<{ id: string; started_at: string; ended_at: string | null }>).map((row) => ({ ...row, ended_at: ownerResolvedOverlapEnd(row, resolutions) })),
     ...((legacyResult.data ?? []) as Array<{ started_at: string; ended_at: string | null }>),
   ];
   if (verifiedEntries.some((entry) => overlaps(entry, startMs, endMs))) {

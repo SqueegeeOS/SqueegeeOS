@@ -1,6 +1,7 @@
+import type { OwnerTimeAdjustmentRow } from "./technician-owner-time";
 import type { TechnicianWeeklyScorecard } from "./technician-profile";
 
-interface DatedClock { assignment_id?: string; started_at: string; ended_at: string | null }
+interface DatedClock { id?: string; assignment_id?: string; started_at: string; ended_at: string | null }
 interface DatedManual { assignment_id: string | null; work_date: string; started_at: string; ended_at: string }
 interface DatedCloseout { assignment_id: string; visit_date: string }
 interface DatedAddon { reported_at: string; reported_amount_cents: number; voided_at: string | null }
@@ -21,6 +22,7 @@ export function technicianWeeklyScorecard(input: {
   legacyClocks: DatedClock[];
   manualEntries: DatedManual[];
   addons: DatedAddon[];
+  ownerAdjustments?: OwnerTimeAdjustmentRow[];
 }): TechnicianWeeklyScorecard {
   const weekStartMs = Date.parse(input.weekStartUtc);
   const weekEndMs = Date.parse(input.weekEndUtc);
@@ -33,16 +35,19 @@ export function technicianWeeklyScorecard(input: {
   const native = input.nativeClocks.filter((row) => inWeekInstant(row.started_at));
   const legacy = input.legacyClocks.filter((row) => inWeekInstant(row.started_at));
   const manual = input.manualEntries.filter((row) => inWeekDate(row.work_date));
+  const owner = (input.ownerAdjustments ?? []).filter((row) => inWeekDate(row.work_date));
+  const resolvedIds = new Set((input.ownerAdjustments ?? []).map((row) => row.resolved_clock_id).filter(Boolean));
   const addOns = input.addons.filter((row) => !row.voided_at && inWeekInstant(row.reported_at));
   const assignmentsWithTime = new Set([
     ...input.nativeClocks.filter((row) => minutes(row.started_at, row.ended_at) > 0).flatMap((row) => row.assignment_id ? [row.assignment_id] : []),
+    ...input.nativeClocks.filter((row) => row.id && resolvedIds.has(row.id)).flatMap((row) => row.assignment_id ? [row.assignment_id] : []),
     ...manual.flatMap((row) => row.assignment_id ? [row.assignment_id] : []),
   ]);
   return {
     weekStart: input.weekStart,
     completedJobs: closeouts.length,
-    clockedMinutes: [...native, ...legacy].reduce((sum, row) => sum + minutes(row.started_at, row.ended_at), 0),
-    manualMinutes: manual.reduce((sum, row) => sum + minutes(row.started_at, row.ended_at), 0),
+    clockedMinutes: [...native.filter((row) => !row.id || !resolvedIds.has(row.id)), ...legacy].reduce((sum, row) => sum + minutes(row.started_at, row.ended_at), 0),
+    manualMinutes: manual.reduce((sum, row) => sum + minutes(row.started_at, row.ended_at), 0) + owner.reduce((sum, row) => sum + row.duration_minutes, 0),
     missingTimeJobs: closeouts.filter((row) => !assignmentsWithTime.has(row.assignment_id)).length,
     reportedAddonCount: addOns.length,
     reportedAddonAmountCents: addOns.reduce((sum, row) => sum + row.reported_amount_cents, 0),

@@ -44,6 +44,7 @@ function formatMoney(cents: number): string {
 
 function statusLabel(job: TechnicianOperationalProfile["liveJobs"][number]): string {
   if (job.syncState === "verified") return "Jobber verified";
+  if (job.clockState === "owner_resolved") return "Owner-estimated time · sync pending";
   if (job.clockState === "finished") return "Done · sync pending";
   if (job.clockState === "running") return "Working · sync pending";
   return "Assigned · sync pending";

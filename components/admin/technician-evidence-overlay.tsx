@@ -464,6 +464,22 @@ export function TechnicianEvidenceOverlay({ technicianId }: { technicianId: stri
                 <WorkdayIntegrityPanel profile={profile} />
                 <ManualTimeForm technicianId={technicianId} candidates={profile.timeRepairCandidates} onSaved={() => void load()} />
 
+                {profile.ownerTimeAdjustments?.length ? (
+                  <section className="rounded-[1.6rem] border border-foreground/10 bg-surface-elevated p-4 sm:p-6">
+                    <h3 className="text-xl font-semibold">Owner-entered duration adjustments</h3>
+                    <p className="mt-2 text-xs text-muted">Separate from technician clocks. Original clock evidence is preserved.</p>
+                    <div className="mt-4 space-y-2">
+                      {profile.ownerTimeAdjustments.slice(0, 24).map((entry) => (
+                        <div key={entry.id} className="rounded-xl border border-foreground/10 p-3 text-xs">
+                          <p>{entry.work_date} · {formatHours(entry.duration_minutes)} · {entry.resolved_clock_id ? "Owner estimate; open clock administratively resolved" : "Owner-added duration; clock times unspecified"}</p>
+                          <p className="mt-1 text-muted">{entry.note}</p>
+                          <p className="mt-1 text-muted">Recorded by {entry.entered_by}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
                 {profile.manualTimeEntries.length ? (
                   <section className="rounded-[1.6rem] border border-foreground/10 bg-surface-elevated p-4 sm:p-6">
                     <p className="text-[10px] uppercase tracking-[0.18em] text-accent">Owner-entered ledger</p>
