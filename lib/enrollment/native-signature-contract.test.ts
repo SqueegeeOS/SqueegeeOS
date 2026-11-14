@@ -49,7 +49,7 @@ describe("HomeAtlas native enrollment signature contract", () => {
     expect(reminderConsentMigration).toContain("from public, anon, authenticated");
     expect(vercelConfig.crons).toContainEqual({
       path: "/api/cron/communications",
-      schedule: "35 17 * * *",
+      schedule: "*/5 * * * *",
     });
   });
 

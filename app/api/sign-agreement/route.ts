@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { enrollmentReminderPhone } from "@/lib/enrollment/visit-reminder-consent";
+import { recordSignTogetherReminderConsent } from "@/lib/enrollment/sign-together-reminder-consent";
 import { processSignAgreement } from "@/lib/agreement/process-sign-agreement";
 import {
   completeSignOnboarding,
@@ -179,6 +181,16 @@ export async function POST(req: NextRequest) {
       typeof monthlyPrice === "number" ? monthlyPrice : undefined;
 
     if (presentation && !isOneTime && resolvedTier) {
+      let smsReminderPhone: string | null;
+      try {
+        smsReminderPhone = enrollmentReminderPhone({
+          packetPhone: presentation.clientPhone,
+          enteredPhone: body.smsReminderPhone,
+          optedIn: body.smsReminderOptIn === true,
+        });
+      } catch {
+        return NextResponse.json({ error: "Enter a valid mobile number for visit reminders." }, { status: 400 });
+      }
       const result = await completeSignOnboarding({
         presentation,
         agreementTier: resolvedTier,
@@ -192,10 +204,24 @@ export async function POST(req: NextRequest) {
         homeownerSlug,
         propertySlug,
         memberEmail,
+        smsReminderPhone,
         quoteSnapshot: quoteSnapshot as PresentationQuoteSnapshot | null | undefined,
         ipAddress: req.headers.get("x-forwarded-for"),
         userAgent: req.headers.get("user-agent"),
       });
+
+      // Signing succeeds independently of optional service-text consent. On a
+      // retry, the database requires the original saved affirmative evidence.
+      let smsReminderWarning: string | null = null;
+      try {
+        await recordSignTogetherReminderConsent({
+          agreementId: result.agreementId,
+          homeownerId: result.homeownerId,
+          phone: smsReminderPhone,
+        });
+      } catch {
+        smsReminderWarning = "Your agreement is saved, but visit texts were not enabled. Ask SqueegeeKing to review your mobile-number consent separately.";
+      }
 
       // The agreement and membership are already authoritative at this point.
       // Sales reporting is intentionally non-fatal, and the unique membership
@@ -215,6 +241,7 @@ export async function POST(req: NextRequest) {
       }
 
       return NextResponse.json({
+        smsReminderWarning,
         pdfUrl: result.pdfUrl,
         pdfStorageBackend: result.pdfStorageBackend,
         agreementId: result.agreementId,

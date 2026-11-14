@@ -94,6 +94,7 @@ export interface AppointmentReminderInput {
   phone?: string | null;
   smsConsent?: SmsConsent | null;
   quietHours?: QuietHours;
+  offsetMinutes?: number;
 }
 
 export interface ReviewRequestSmsInput {
@@ -274,13 +275,16 @@ export function buildAppointmentReminderIdempotencyKey(input: {
   externalAppointmentId: string;
   scheduledAt: string | Date;
   channel: CommunicationChannel;
+  offsetMinutes?: number;
 }): string | null {
   const externalId = keySegment(input.externalAppointmentId);
   const scheduledAt = validDate(input.scheduledAt);
-  if (!externalId || !scheduledAt) return null;
+  const offset = input.offsetMinutes ?? 1440;
+  if (!externalId || !scheduledAt || !Number.isInteger(offset) || offset < 60 || offset > 43200) return null;
+  const timingKey = offset === 1440 ? "24h" : `${offset}m`;
   return `appointment:${externalId}:${encodeURIComponent(
     scheduledAt.toISOString(),
-  )}:reminder-24h:${input.channel}:v1`;
+  )}:reminder-${timingKey}:${input.channel}:v1`;
 }
 
 export function buildReviewRequestIdempotencyKey(
@@ -409,10 +413,11 @@ export function buildVerifiedAppointmentReminderPlan(
     externalAppointmentId: input.externalAppointmentId,
     scheduledAt,
     channel: destination.channel,
+    offsetMinutes: input.offsetMinutes,
   });
   if (!idempotencyKey) return null;
 
-  const reminderAt = new Date(scheduledAt.getTime() - 24 * 60 * 60 * 1_000);
+  const reminderAt = new Date(scheduledAt.getTime() - (input.offsetMinutes ?? 1440) * 60 * 1_000);
   const requestedAt = new Date(Math.max(reminderAt.getTime(), now.getTime()));
   const notBefore = calculateQuietHoursDeliveryAt(
     requestedAt,

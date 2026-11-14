@@ -1,12 +1,14 @@
 import "server-only";
 
-import { buildVerifiedAppointmentReminderPlan } from "@/lib/communications/automation";
+import { calculateQuietHoursDeliveryAt, buildVerifiedAppointmentReminderPlan } from "@/lib/communications/automation";
 import {
   ensureHomeownerConversation,
   loadCommunicationConversationContext,
 } from "@/lib/communications/repository";
 import { sendOutboundCommunication } from "@/lib/communications/service";
 import { createServiceRoleSupabaseClient } from "@/lib/persistence/supabase/client";
+
+import { DEFAULT_REMINDER_OFFSETS, MAX_REMINDER_OFFSET_MINUTES, reminderIsDue, parseReminderOffsets } from "@/lib/communications/reminder-preferences";
 
 interface ReminderRuleRow {
   id: string;
@@ -60,9 +62,9 @@ export async function processVerifiedAppointmentReminders(
   const rules = (rulesResult.data ?? []) as ReminderRuleRow[];
   if (rules.length === 0) return summary;
 
-  // Hobby deployments run this once per day. A 26-hour lookahead provides a
-  // safe catch-up window; idempotency prevents repeats if the route is retried.
-  const windowEnd = new Date(now.getTime() + 26 * 60 * 60 * 1_000);
+  // Compute due times from current verified appointments on each frequent run.
+  // Nothing is queued ahead, so cancellations/reschedules replace the plan.
+  const windowEnd = new Date(now.getTime() + MAX_REMINDER_OFFSET_MINUTES * 60_000);
   const appointmentsResult = await supabase
     .from("member_appointments")
     .select(
@@ -95,6 +97,11 @@ export async function processVerifiedAppointmentReminders(
   const homeownerByProfile = new Map(
     (profilesResult.data ?? []).map((row) => [row.id as string, row.homeowner_id as string]),
   );
+  const preferenceResult = await supabase.from("customer_visit_reminder_preferences")
+    .select("homeowner_id, offset_minutes, updated_at")
+    .in("homeowner_id", [...new Set(homeownerByProfile.values())]);
+  if (preferenceResult.error) throw new Error("reminder_preferences_unavailable");
+  const preferenceByHomeowner = new Map((preferenceResult.data ?? []).map((row) => [row.homeowner_id as string, row]));
   const propertyById = new Map(
     (propertiesResult.data ?? []).map((row) => [
       row.id as string,
@@ -105,6 +112,22 @@ export async function processVerifiedAppointmentReminders(
   for (const appointment of appointments) {
     const homeownerId = homeownerByProfile.get(appointment.member_profile_id);
     if (!homeownerId) {
+      summary.skipped += rules.length;
+      continue;
+    }
+    const preference = preferenceByHomeowner.get(homeownerId);
+    let dueOffsets: number[];
+    try {
+      const offsets = preference ? parseReminderOffsets(preference.offset_minutes) : DEFAULT_REMINDER_OFFSETS;
+      dueOffsets = offsets.filter((offsetMinutes) => {
+        const dueAt = calculateQuietHoursDeliveryAt(new Date(new Date(appointment.scheduled_at).getTime() - offsetMinutes * 60_000));
+        return reminderIsDue({ dueAt, scheduledAt: appointment.scheduled_at, now, preferencesUpdatedAt: preference?.updated_at, offsetMinutes });
+      });
+    } catch {
+      summary.failed += rules.length;
+      continue;
+    }
+    if (dueOffsets.length === 0) {
       summary.skipped += rules.length;
       continue;
     }
@@ -136,61 +159,72 @@ export async function processVerifiedAppointmentReminders(
           summary.skipped += 1;
           continue;
         }
-        const plan = buildVerifiedAppointmentReminderPlan({
-          externalAppointmentId: appointment.external_id,
-          customerName: context.customerName,
-          serviceLabel: serviceLabel(appointment.service_type),
-          serviceAddress: propertyById.get(appointment.property_id) ?? null,
-          scheduledAt: appointment.scheduled_at,
-          status: appointment.status,
-          verificationState: appointment.verification_state,
-          matchState: appointment.match_state,
-          now,
-          preferredChannel: rule.channel,
-          email: rule.channel === "email" ? destination.address : null,
-          phone: rule.channel === "sms" ? destination.address : null,
-          smsConsent:
-            rule.channel === "sms"
-              ? {
-                  consented: destination.consentStatus === "opted_in",
-                  consentedAt:
-                    destination.consentStatus === "opted_in"
-                      ? now.toISOString()
-                      : null,
-                  optedOutAt:
-                    destination.consentStatus === "opted_out"
-                      ? now.toISOString()
-                      : null,
-                }
-              : null,
-        });
-        if (!plan || new Date(plan.notBefore).getTime() > now.getTime()) {
-          summary.skipped += 1;
-          continue;
-        }
-        try {
-          const sent = await sendOutboundCommunication({
-            conversationId: conversation.id,
-            channel: rule.channel,
-            subject: plan.subject,
-            body: plan.text,
-            idempotencyKey: plan.idempotencyKey,
-            metadata: {
-              source: "appointment_reminder_cron",
-              automationRuleId: rule.id,
+        for (const offsetMinutes of dueOffsets) {
+          const plan = buildVerifiedAppointmentReminderPlan({
+            offsetMinutes,
+            externalAppointmentId: appointment.external_id,
+            customerName: context.customerName,
+            serviceLabel: serviceLabel(appointment.service_type),
+            serviceAddress: propertyById.get(appointment.property_id) ?? null,
+            scheduledAt: appointment.scheduled_at,
+            status: appointment.status,
+            verificationState: appointment.verification_state,
+            matchState: appointment.match_state,
+            now,
+            preferredChannel: rule.channel,
+            email: rule.channel === "email" ? destination.address : null,
+            phone: rule.channel === "sms" ? destination.address : null,
+            smsConsent:
+              rule.channel === "sms"
+                ? {
+                    consented: destination.consentStatus === "opted_in",
+                    consentedAt:
+                      destination.consentStatus === "opted_in"
+                        ? now.toISOString()
+                        : null,
+                    optedOutAt:
+                      destination.consentStatus === "opted_out"
+                        ? now.toISOString()
+                        : null,
+                  }
+                : null,
+          });
+          if (!plan || new Date(plan.notBefore).getTime() > now.getTime()) {
+            summary.skipped += 1;
+            continue;
+          }
+          try {
+            // Revalidate schedule immediately before sending; never send a stale plan.
+            const latest = await supabase.from("member_appointments").select("scheduled_at, status, verification_state, match_state")
+              .eq("id", appointment.id).maybeSingle();
+            if (latest.error || !latest.data || latest.data.scheduled_at !== appointment.scheduled_at || latest.data.status !== "scheduled" || latest.data.verification_state !== "verified" || latest.data.match_state !== "matched") {
+              summary.skipped += 1;
+              continue;
+            }
+            const sent = await sendOutboundCommunication({
+              conversationId: conversation.id,
+              channel: rule.channel,
+              subject: plan.subject,
+              body: plan.text,
+              idempotencyKey: plan.idempotencyKey,
+              metadata: {
+                source: "appointment_reminder_cron",
+                reminderOffsetMinutes: offsetMinutes,
+                automationRuleId: rule.id,
+                appointmentId: appointment.id,
+                externalAppointmentId: appointment.external_id,
+              },
+            });
+            if (sent.duplicate) summary.duplicate += 1;
+            else summary.sent += 1;
+          } catch (error) {
+            summary.failed += 1;
+            console.warn("[appointment-reminders] send failed", {
               appointmentId: appointment.id,
-              externalAppointmentId: appointment.external_id,
-            },
-          });
-          if (sent.duplicate) summary.duplicate += 1;
-          else summary.sent += 1;
-        } catch (error) {
-          summary.failed += 1;
-          console.warn("[appointment-reminders] send failed", {
-            appointmentId: appointment.id,
-            channel: rule.channel,
-            reason: error instanceof Error ? error.message : "unknown",
-          });
+              channel: rule.channel,
+              reason: error instanceof Error ? error.message : "unknown",
+            });
+          }
         }
       }
     } catch (error) {
