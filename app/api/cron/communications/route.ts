@@ -23,6 +23,8 @@ export async function GET(request: Request) {
   }
   try {
     const reminders = await processVerifiedAppointmentReminders();
+    // Counts only: prove routine invocation without logging customer data.
+    console.info("[communications-cron] completed", { reminders });
     return NextResponse.json(
       { ok: true, reminders },
       { headers: { "Cache-Control": "no-store" } },

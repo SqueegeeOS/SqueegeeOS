@@ -45,11 +45,11 @@ describe("15-minute sync-only fallback", () => {
     expect((await GET(request())).status).toBe(500); expect(mocks.reconcile).not.toHaveBeenCalled();
     expect(mocks.after).toHaveBeenCalledTimes(1);
   });
-  it("leaves billing and communications schedules unchanged and keeps side effects out of the route", () => {
+  it("preserves independent reminder, billing and Jobber schedules and keeps side effects out of sync", () => {
     const config = JSON.parse(readFileSync(new URL("../../vercel.json", import.meta.url), "utf8"));
     expect(config.crons).toContainEqual({ path: "/api/cron/jobber-sync", schedule: "11,26,41,56 * * * *" });
     expect(config.crons).toContainEqual({ path: "/api/cron/jobber-reconcile", schedule: "17 17 * * *" });
-    expect(config.crons).toContainEqual({ path: "/api/cron/communications", schedule: "35 17 * * *" });
+    expect(config.crons).toContainEqual({ path: "/api/cron/communications", schedule: "*/5 * * * *" });
     expect(config.crons).toContainEqual({ path: "/api/cron/automatic-billing", schedule: "7 8 1 * *" });
     const source = readFileSync(new URL("../../app/api/cron/jobber-sync/route.ts", import.meta.url), "utf8");
     expect(source).not.toMatch(/runAutomaticMembershipBilling|processDueScheduledCommunications|processVerifiedAppointmentReminders|processEligibleReviewRequests|geocodeTerritoryBacklog/);
