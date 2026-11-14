@@ -62,6 +62,7 @@ export interface CompleteSignOnboardingInput {
   homeownerSlug: string;
   propertySlug: string;
   memberEmail?: string | null;
+  smsReminderPhone?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
   quoteSnapshot?: PresentationQuoteSnapshot | null;
@@ -477,6 +478,9 @@ export async function completeSignOnboarding(
           storedSignature?.storageRef ?? input.signatureDataUrl,
         typed_text: null,
         signed_at: input.signedAt,
+        visit_sms_opt_in: Boolean(input.smsReminderPhone),
+        visit_sms_phone: input.smsReminderPhone ?? null,
+        visit_sms_disclosure_version: input.smsReminderPhone ? "sign-together-visit-reminders-v1" : null,
         ip_address: input.ipAddress ?? null,
         user_agent: input.userAgent ?? null,
         agreement_pdf_url: pdfStorageRef,

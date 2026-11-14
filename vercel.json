@@ -11,7 +11,7 @@
     },
     {
       "path": "/api/cron/communications",
-      "schedule": "35 17 * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/cron/automatic-billing",

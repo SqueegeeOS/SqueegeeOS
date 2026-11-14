@@ -111,6 +111,13 @@ export function PresentationOnboarding({
   );
   const [signature, setSignature] = useState<string | null>(null);
   const [agreed, setAgreed] = useState(false);
+  const smsConsentKey = `${presentation.id}:${presentation.clientPhone}`;
+  const [smsConsent, setSmsConsent] = useState({ key: smsConsentKey, optedIn: false, phone: "" });
+  // A customer/number change invalidates consent synchronously, before a click
+  // can reuse a checkbox selected for the previous presentation.
+  const smsReminderOptIn = smsConsent.key === smsConsentKey && smsConsent.optedIn;
+  const smsReminderPhone = smsConsent.key === smsConsentKey ? smsConsent.phone : "";
+  const [smsReminderWarning, setSmsReminderWarning] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paymentSaved, setPaymentSaved] = useState(
@@ -267,6 +274,8 @@ export function PresentationOnboarding({
           planId: tierToPlanId(),
           planName: planNameForAgreement(tier),
           signatureDataUrl: signature,
+          smsReminderOptIn,
+          smsReminderPhone,
           signedAt,
           monthlyPrice: visitPrice,
           presentationId: presentation.id,
@@ -287,6 +296,7 @@ export function PresentationOnboarding({
         onboardingStatus?: PresentationOnboardingStatus;
         portalUrl?: string | null;
         error?: string;
+        smsReminderWarning?: string | null;
       } | null;
 
       if (!signRes.ok) {
@@ -297,6 +307,7 @@ export function PresentationOnboarding({
         throw new Error("Agreement was not saved — please try again.");
       }
 
+      setSmsReminderWarning(signBody.smsReminderWarning ?? null);
       const signedOverrides = normalizeVisitRateOverrides(presentation);
       const signedPresentation: PresentationData = {
         ...presentation,
@@ -351,6 +362,11 @@ export function PresentationOnboarding({
   return (
     <div className="fixed inset-0 z-[300] flex items-end justify-center overflow-y-auto bg-[#060606]/92 p-5 backdrop-blur-md sm:items-center">
       <div className="relative my-auto w-full max-w-lg">
+        {smsReminderWarning ? (
+          <p role="status" className="mb-3 rounded border border-amber-300/30 bg-black p-3 text-sm text-amber-100">
+            {smsReminderWarning}
+          </p>
+        ) : null}
         {step === "sign" ? (
           <div className="rounded-lg border border-white/10 bg-[#0d0d0d] p-8 sm:p-10">
             <button
@@ -475,6 +491,34 @@ export function PresentationOnboarding({
                 {tierLabel(tier)} plan.
               </span>
             </label>
+
+            <div className="mt-5 rounded-lg border border-white/10 p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={smsReminderOptIn}
+                  onChange={(event) => setSmsConsent({ key: smsConsentKey, optedIn: event.target.checked, phone: smsReminderPhone })}
+                  disabled={loading}
+                  className="mt-1 accent-accent"
+                />
+                <span className="text-xs leading-relaxed text-white/60">
+                  I confirm {presentation.clientPhone.trim() ? `${presentation.clientPhone} is my mobile number` : "the mobile number below is mine"} and agree to receive SqueegeeKing texts about scheduled service visits. Message frequency varies; message and data rates may apply. Reply STOP to opt out or HELP for help. This is optional and not required to join. This does not authorize marketing texts.
+                </span>
+              </label>
+              {smsReminderOptIn && !presentation.clientPhone.trim() ? (
+                <label className="mt-3 block text-xs text-white/60">
+                  Mobile number for visit reminders
+                  <input
+                    type="tel"
+                    autoComplete="tel"
+                    value={smsReminderPhone}
+                    onChange={(event) => setSmsConsent({ key: smsConsentKey, optedIn: smsReminderOptIn, phone: event.target.value })}
+                    disabled={loading}
+                    className="mt-2 block w-full rounded border border-white/15 bg-black/20 px-3 py-2 text-white"
+                  />
+                </label>
+              ) : null}
+            </div>
 
             {error ? <p className="mt-3 text-sm text-red-400">{error}</p> : null}
 

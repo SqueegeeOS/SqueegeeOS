@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CustomerReminderPreferences } from "@/components/admin/customer-reminder-preferences";
 import { AdminPinGate } from "@/components/admin/admin-pin-gate";
 import { CommunicationsLaunchReadinessPanel } from "@/components/admin/communications-launch-readiness";
 import { HqFounderNav } from "@/components/admin/hq-founder-nav";
@@ -1789,6 +1790,8 @@ function CommunicationsInboxContent() {
                       </ol>
                     )}
                   </div>
+
+                  <CustomerReminderPreferences key={selected.id} conversationId={selected.id} />
 
                   <form
                     onSubmit={sendMessage}
