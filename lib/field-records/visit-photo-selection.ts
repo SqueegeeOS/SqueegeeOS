@@ -3,7 +3,6 @@ import {
   MAX_VISIT_PHOTO_BYTES,
   isVisitPhotoMimeType,
   type VisitPhotoMimeType,
-  VISIT_PHOTO_MIME_TYPES,
 } from "@/lib/field-records/visit-field-record";
 
 const MIME_BY_EXTENSION: Record<string, VisitPhotoMimeType> = {
@@ -15,12 +14,8 @@ const MIME_BY_EXTENSION: Record<string, VisitPhotoMimeType> = {
   heif: "image/heif",
 };
 
-// Extensions help phone photo providers which do not supply a MIME type.
-// These are picker hints, not a replacement for the server's validation.
-export const VISIT_PHOTO_ACCEPT = [
-  ...VISIT_PHOTO_MIME_TYPES,
-  ...Object.keys(MIME_BY_EXTENSION).map((extension) => `.${extension}`),
-].join(",");
+// image/* opens Android's native photo picker. Validation below remains strict.
+export const VISIT_PHOTO_ACCEPT = "image/*";
 
 export function resolveVisitPhotoMimeType(
   file: Pick<File, "type" | "name">,
@@ -37,6 +32,7 @@ export function resolveVisitPhotoMimeType(
 export function selectVisitPhotos<T extends Pick<File, "type" | "name" | "size">>(
   files: readonly T[],
   selectedCount: number,
+  maxBytes = MAX_VISIT_PHOTO_BYTES,
 ): { accepted: Array<{ file: T; mimeType: VisitPhotoMimeType }>; errors: string[] } {
   const accepted: Array<{ file: T; mimeType: VisitPhotoMimeType }> = [];
   const errors: string[] = [];
@@ -44,8 +40,8 @@ export function selectVisitPhotos<T extends Pick<File, "type" | "name" | "size">
     const mimeType = resolveVisitPhotoMimeType(file);
     if (!mimeType) {
       errors.push(`${file.name}: choose a JPG, PNG, WebP, HEIC, or HEIF photo.`);
-    } else if (file.size < 1 || file.size > MAX_VISIT_PHOTO_BYTES) {
-      errors.push(`${file.name}: choose a photo between 1 byte and 15 MB.`);
+    } else if (file.size < 1 || file.size > maxBytes) {
+      errors.push(`${file.name}: choose a photo between 1 byte and ${Math.round(maxBytes / 1024 / 1024)} MB.`);
     } else if (selectedCount + accepted.length >= MAX_VISIT_PHOTOS) {
       errors.push(`${file.name}: this record can hold ${MAX_VISIT_PHOTOS} photos. Save these, then add another update.`);
     } else {

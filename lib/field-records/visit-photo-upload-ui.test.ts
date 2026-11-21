@@ -18,6 +18,7 @@ let commits: Array<{ photos: VisitPhotoDescriptor[] }>;
 beforeEach(() => {
   Object.defineProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT", { configurable: true, value: true });
   localStorage.clear();
+  Object.defineProperty(File.prototype, "arrayBuffer", { configurable: true, value: async function () { return new ArrayBuffer(this.size); } });
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://photo-test.invalid");
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "fake-test-key");
   vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: vi.fn(() => "blob:test"), revokeObjectURL: vi.fn() }));
@@ -45,6 +46,7 @@ beforeEach(() => {
 afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
+  delete (File.prototype as unknown as { arrayBuffer?: unknown }).arrayBuffer;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
@@ -61,7 +63,7 @@ async function renderCapture() {
 
 function file(name: string, type = "image/jpeg") {
   const value = new File(["test image bytes"], name, { type });
-  Object.defineProperty(value, "arrayBuffer", { value: async () => new ArrayBuffer(16) });
+  Object.defineProperty(value, "arrayBuffer", { configurable: true, value: async () => new ArrayBuffer(16) });
   return value;
 }
 
@@ -110,6 +112,78 @@ describe("photo upload interaction (all storage and HTTP mocked)", () => {
     expect(requests.map((photos) => photos.length)).toEqual([2, 1]);
     expect(upload).toHaveBeenCalledTimes(3);
     expect(commits[0].photos.map((photo) => photo.captureType)).toEqual(["after", "before"]);
+  });
+
+  it("provides separate native library and camera inputs for each photo type", async () => {
+    await renderCapture();
+    const inputs = Array.from(container.querySelectorAll<HTMLInputElement>('input[type="file"]'));
+    expect(inputs).toHaveLength(6);
+    expect(inputs.every((input) => input.accept === "image/*")).toBe(true);
+    expect(inputs.filter((input) => input.multiple).every((input) => !input.hasAttribute("capture"))).toBe(true);
+    expect(inputs.filter((input) => input.getAttribute("capture") === "environment")).toHaveLength(3);
+  });
+
+  it("copies provider bytes during selection, not after provider access expires", async () => {
+    await renderCapture();
+    const original = file("provider.jpg");
+    let reads = 0;
+    Object.defineProperty(original, "arrayBuffer", { configurable: true, value: async () => {
+      if (++reads > 1) throw new Error("Provider access expired");
+      return new ArrayBuffer(original.size);
+    } });
+    await choose([original]);
+    expect(reads).toBe(1);
+    await save();
+    expect(reads).toBe(1);
+    expect(commits).toHaveLength(1);
+  });
+
+  it("keeps readable selections when one provider photo cannot be read", async () => {
+    await renderCapture();
+    const broken = file("cloud.jpg");
+    Object.defineProperty(broken, "arrayBuffer", { configurable: true, value: async () => { throw new Error("provider failed"); } });
+    await choose([broken, file("local.jpg")]);
+    expect(container.textContent).toContain("Download it to this device");
+    expect(container.textContent).toContain("1 before");
+    await save();
+    expect(commits[0].photos).toHaveLength(1);
+  });
+
+  it("prevents saving while a provider photo is being read", async () => {
+    await renderCapture();
+    let finishRead!: (value: ArrayBuffer) => void;
+    const delayed = file("delayed.jpg");
+    Object.defineProperty(delayed, "arrayBuffer", { configurable: true, value: () => new Promise<ArrayBuffer>((resolve) => { finishRead = resolve; }) });
+    await choose([delayed]);
+    expect(container.textContent).toContain("Preparing photos");
+    await save();
+    expect(requests).toHaveLength(0);
+    await act(async () => finishRead(new ArrayBuffer(delayed.size)));
+    await save();
+    expect(commits).toHaveLength(1);
+  });
+
+  it("creates no preview URLs if preparation finishes after unmount", async () => {
+    await renderCapture();
+    let finishRead!: (value: ArrayBuffer) => void;
+    const delayed = file("delayed.jpg");
+    Object.defineProperty(delayed, "arrayBuffer", { configurable: true, value: () => new Promise<ArrayBuffer>((resolve) => { finishRead = resolve; }) });
+    await choose([delayed]);
+    await act(async () => root.unmount());
+    await act(async () => finishRead(new ArrayBuffer(delayed.size)));
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+    expect(requests).toHaveLength(0);
+  });
+
+  it("shows provider guidance and no selected photos when the whole batch fails", async () => {
+    await renderCapture();
+    const broken = file("cloud.jpg");
+    Object.defineProperty(broken, "arrayBuffer", { configurable: true, value: async () => { throw new Error("provider failed"); } });
+    await choose([broken]);
+    expect(container.textContent).toContain("Download it to this device");
+    expect(container.textContent).toContain("0/8");
+    expect(container.querySelector("fieldset")!.disabled).toBe(false);
+    expect(upload).not.toHaveBeenCalled();
   });
 
   it("locks editing during upload and ignores repeated Save clicks", async () => {

@@ -19,7 +19,7 @@ describe("technician visit photo picker", () => {
     expect(capture).toContain("Choose from Photos");
     expect(capture).toContain("straight from the camera roll");
     expect(capture).toContain("multiple");
-    expect(capture).not.toContain('capture="environment"');
+    expect(capture).toContain('aria-label={`Take ${option.label.toLowerCase()} photo`}');
   });
 
   it("offers Before, After, and General without changing the durable detail enum", () => {
