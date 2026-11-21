@@ -34,6 +34,11 @@ vi.mock("./google-business-reviews", () => ({
   fetchAllGoogleBusinessReviews: mocks.full,
 }));
 
+// Keep source-selection tests offline; this metadata lookup is not under test.
+vi.mock("./google-business-profile", () => ({
+  fetchGoogleBusinessLocationMapsUrl: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("./google-places", () => ({
   fetchGooglePlaceReviewsWithCredentials: mocks.places,
 }));

@@ -37,6 +37,6 @@ describe("phone photo selection", () => {
   it("accepts the exact size boundary and leaves cancellation empty", () => {
     expect(selectVisitPhotos([photo("photo.jpg", "image/jpeg", MAX_VISIT_PHOTO_BYTES)], 0).accepted).toHaveLength(1);
     expect(selectVisitPhotos([], 2)).toEqual({ accepted: [], errors: [] });
-    expect(VISIT_PHOTO_ACCEPT).toContain(".heic");
+    expect(VISIT_PHOTO_ACCEPT).toBe("image/*");
   });
 });

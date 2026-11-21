@@ -26,6 +26,8 @@ import {
 
 import { selectVisitPhotos, VISIT_PHOTO_ACCEPT } from "@/lib/field-records/visit-photo-selection";
 
+import { prepareVisitPhoto, MAX_VISIT_PHOTO_SOURCE_BYTES } from "@/lib/field-records/prepare-visit-photo";
+
 const TECHNICIAN_NAME_KEY = "squeegeeos-tech-name";
 
 interface PhotoDraft {
@@ -188,6 +190,8 @@ export function VisitFieldCapture({
     () => initialDraft?.selectedPhotoCount ?? 0,
   );
   const [draftNoticeDismissed, setDraftNoticeDismissed] = useState(false);
+  const [preparingPhotos, setPreparingPhotos] = useState(false);
+  const prepareInFlight = useRef(false);
   const [saving, setSaving] = useState(false);
   const [selectionErrors, setSelectionErrors] = useState<string[]>([]);
   const [progress, setProgress] = useState<string | null>(null);
@@ -202,6 +206,7 @@ export function VisitFieldCapture({
     customerSummaryVisible: boolean;
     followUpOpened: boolean;
   } | null>(null);
+  const mounted = useRef(true);
   const previewUrls = useRef(new Set<string>());
   const completedUploads = useRef(new Map<string, UploadedVisitPhoto>());
   const saveInFlight = useRef(false);
@@ -227,8 +232,10 @@ export function VisitFieldCapture({
     scopeException.trim().length > 0;
 
   useEffect(() => {
+    mounted.current = true;
     const currentUrls = previewUrls.current;
     return () => {
+      mounted.current = false;
       for (const url of currentUrls) URL.revokeObjectURL(url);
       currentUrls.clear();
     };
@@ -294,26 +301,44 @@ export function VisitFieldCapture({
     visitDate,
   ]);
 
-  function addPhotos(captureType: VisitPhotoCaptureType, files: FileList | null) {
-    if (saveInFlight.current || !files?.length) return;
+  async function addPhotos(captureType: VisitPhotoCaptureType, files: FileList | null) {
+    if (saveInFlight.current || prepareInFlight.current || !files?.length) return;
+    // Copy the FileList before clearing the native input. Prepare sequentially to bound mobile memory.
+    const selection = selectVisitPhotos(Array.from(files), photos.length, MAX_VISIT_PHOTO_SOURCE_BYTES);
+    prepareInFlight.current = true;
+    setPreparingPhotos(true);
     setError(null);
-    const selection = selectVisitPhotos(Array.from(files), photos.length);
-    setSelectionErrors(selection.errors);
-    const accepted = selection.accepted.map(({ file, mimeType }): PhotoDraft => {
-      const previewUrl = URL.createObjectURL(file);
-      previewUrls.current.add(previewUrl);
-      return {
-        clientId: newClientId(),
-        file,
-        mimeType,
-        captureType,
-        customerVisible: !fieldAssignmentId,
-        previewUrl,
-      };
-    });
-    if (accepted.length) {
-      setRestoredPhotoCount(0);
-      setPhotos((current) => [...current, ...accepted]);
+    const errors = [...selection.errors];
+    const accepted: PhotoDraft[] = [];
+    try {
+      for (const selected of selection.accepted) {
+        if (!mounted.current) return;
+        try {
+          const file = await prepareVisitPhoto(selected.file, selected.mimeType);
+          if (!mounted.current) return;
+          const previewUrl = URL.createObjectURL(file);
+          previewUrls.current.add(previewUrl);
+          accepted.push({
+            clientId: newClientId(),
+            file,
+            mimeType: file.type as VisitPhotoMimeType,
+            captureType,
+            customerVisible: !fieldAssignmentId,
+            previewUrl,
+          });
+        } catch (cause) {
+          errors.push(cause instanceof Error ? cause.message : "Could not read this photo. Select it again.");
+        }
+      }
+      if (!mounted.current) return;
+      if (accepted.length) {
+        setRestoredPhotoCount(0);
+        setPhotos((current) => [...current, ...accepted]);
+      }
+      setSelectionErrors(errors);
+    } finally {
+      prepareInFlight.current = false;
+      if (mounted.current) setPreparingPhotos(false);
     }
   }
 
@@ -356,7 +381,7 @@ export function VisitFieldCapture({
 
   async function saveRecord(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saveInFlight.current) return;
+    if (saveInFlight.current || prepareInFlight.current) return;
     if (!technicianName.trim()) {
       setError("Enter who is documenting this visit.");
       return;
@@ -447,7 +472,7 @@ export function VisitFieldCapture({
           try {
             // iOS Photos files can fail when storage-js wraps the File in
             // multipart FormData. A raw body avoids that Safari-specific path
-            // and keeps the original image bytes and quality intact.
+            // using the stable local photo prepared at selection time.
             uploadBody = await draft.file.arrayBuffer();
           } catch {
             throw new Error(
@@ -697,8 +722,8 @@ export function VisitFieldCapture({
   }
 
   return (
-    <form onSubmit={saveRecord} aria-busy={saving}>
-      <fieldset disabled={saving} className="min-w-0 space-y-5">
+    <form onSubmit={saveRecord} aria-busy={saving || preparingPhotos}>
+      <fieldset disabled={saving || preparingPhotos} className="min-w-0 space-y-5">
       <div>
         <p className="text-[10px] uppercase tracking-[0.18em] text-accent">
           Field record · {clientName}
@@ -762,33 +787,44 @@ export function VisitFieldCapture({
         </div>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {CAPTURE_OPTIONS.map((option) => (
-            <label
-              key={option.type}
-              className="flex min-h-28 cursor-pointer flex-col justify-center rounded-2xl border border-accent/25 bg-accent/[0.05] px-2 py-4 text-center transition focus-within:ring-2 focus-within:ring-accent active:scale-[0.98] active:border-accent/50"
-            >
-              <span className="text-base font-semibold text-foreground">{option.label}</span>
-              <span className="mt-2 text-[11px] leading-tight text-accent">
-                Choose from Photos
-              </span>
-              <span className="mt-1 text-[10px] leading-tight text-muted">
-                {option.detail}
-              </span>
-              <input
-                type="file"
-                accept={VISIT_PHOTO_ACCEPT}
-                aria-label={`Choose ${option.label.toLowerCase()} photos from camera roll`}
-                multiple
-                className="sr-only"
-                onChange={(event) => {
-                  addPhotos(option.type, event.currentTarget.files);
-                  event.currentTarget.value = "";
-                }}
-              />
-            </label>
+            <div key={option.type}>
+              <label
+                className="flex min-h-28 cursor-pointer flex-col justify-center rounded-2xl border border-accent/25 bg-accent/[0.05] px-2 py-4 text-center transition focus-within:ring-2 focus-within:ring-accent active:scale-[0.98] active:border-accent/50"
+              >
+                <span className="text-base font-semibold text-foreground">{option.label}</span>
+                <span className="mt-2 text-[11px] leading-tight text-accent">
+                  Choose from Photos
+                </span>
+                <span className="mt-1 text-[10px] leading-tight text-muted">
+                  {option.detail}
+                </span>
+                <input
+                  type="file"
+                  accept={VISIT_PHOTO_ACCEPT}
+                  aria-label={`Choose ${option.label.toLowerCase()} photos from camera roll`}
+                  multiple
+                  className="sr-only"
+                  onChange={(event) => {
+                    void addPhotos(option.type, event.currentTarget.files);
+                    event.currentTarget.value = "";
+                  }}
+                />
+              </label>
+              <label className="mt-2 flex min-h-11 cursor-pointer items-center justify-center rounded-xl border border-border px-2 text-xs text-foreground focus-within:ring-2 focus-within:ring-accent">
+                Take photo
+                <input type="file" accept="image/*" capture="environment"
+                  aria-label={`Take ${option.label.toLowerCase()} photo`}
+                  className="sr-only" onChange={(event) => {
+                    void addPhotos(option.type, event.currentTarget.files);
+                    event.currentTarget.value = "";
+                  }} />
+              </label>
+            </div>
           ))}
         </div>
       </div>
 
+      {preparingPhotos ? <p role="status" className="text-xs text-accent">Preparing photos on this phone… Large photos are resized for a faster upload.</p> : null}
       {selectionErrors.length > 0 ? (
         <div role="alert" className="rounded-xl border border-amber-300/25 bg-amber-300/[0.07] p-3 text-xs text-amber-100">
           <p className="font-medium">Some photos were not added. Your other selections are still here.</p>
@@ -812,7 +848,7 @@ export function VisitFieldCapture({
               <div className="relative aspect-[4/3] bg-black/30">
                 {photo.previewUnavailable ? (
                   <div className="flex h-full items-center justify-center px-4 text-center text-xs text-muted">
-                    Preview unavailable on this phone. Your original photo is still selected.
+                    Preview unavailable on this phone. Your photo is still selected.
                   </div>
                 ) : <Image
                   src={photo.previewUrl}
