@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { JobValue } from "./job-value";
+import { JobCustomerContact } from "./job-customer-contact";
 import { StatusNotice } from "@/components/craft/status-notice";
 import type { FieldUpcomingVisit } from "@/lib/field-operations/field-upcoming";
 import { jobDirectionsHref } from "@/lib/care-operations/jobber-visit-address";
@@ -129,6 +130,7 @@ export function TechnicianUpcoming({
                     <p className="mt-1 break-words text-sm leading-relaxed text-muted">{visit.service}</p>
                     {visit.address ? <p className="mt-3 text-sm leading-relaxed text-foreground/70">{visit.address}</p> : null}
                     <JobValue value={visit.jobValue} />
+                    {visit.customerPhones ? <JobCustomerContact phones={visit.customerPhones} /> : null}
                     {directions ? (
                       <a
                         href={directions}

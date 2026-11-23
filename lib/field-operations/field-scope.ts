@@ -72,6 +72,7 @@ export function scopeTodayBoardToTechnician(
     .map((visit) => ({
       ...visit,
       jobValue: canTechnicianViewJobValue(jobberUserId) ? visit.jobValue : undefined,
+      customerPhones: undefined,
       // Portal paths contain bearer access and HQ follow-up records can contain
       // private owner notes. Neither belongs in a technician DTO.
       jobberPropertyWebUri: null,

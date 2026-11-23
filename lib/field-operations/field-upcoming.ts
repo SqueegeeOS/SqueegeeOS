@@ -2,6 +2,7 @@ import type { JobberTodayVisit } from "@/lib/care-operations/jobber-today-types"
 
 export interface FieldUpcomingVisit {
   jobValue?: JobberTodayVisit["jobValue"];
+  customerPhones?: JobberTodayVisit["customerPhones"];
   id: string;
   clientName: string;
   service: string;
@@ -17,5 +18,6 @@ export function fieldUpcomingVisits(visits: JobberTodayVisit[], tomorrow: Date):
     .sort((a, b) => Date.parse(a.scheduledStart) - Date.parse(b.scheduledStart))
     .map(visit => ({ id: visit.projectionId, clientName: visit.clientName, jobValue: visit.jobValue,
       service: visit.title || "Scheduled service", scheduledStart: visit.scheduledStart,
-      scheduledEnd: visit.scheduledEnd, address: visit.propertyAddress ?? null }));
+      scheduledEnd: visit.scheduledEnd, address: visit.propertyAddress ?? null,
+      customerPhones: visit.customerPhones }));
 }

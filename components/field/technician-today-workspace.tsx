@@ -7,6 +7,7 @@ import { AmbientStage } from "@/components/craft/ambient-stage";
 import { StatePanel } from "@/components/craft/state-panel";
 import { StatusNotice } from "@/components/craft/status-notice";
 import { TechnicianUpcoming } from "@/components/field/technician-upcoming";
+import { JobCustomerContact } from "@/components/field/job-customer-contact";
 import { TechnicianJobAddons } from "@/components/field/technician-job-addons";
 import { JobValue } from "@/components/field/job-value";
 import { fieldJobTarget } from "@/lib/field-operations/field-job-target";
@@ -506,6 +507,8 @@ function TechnicianVisitCard({
         {visit.propertyAddress && visit.propertyAddress !== visit.propertyLabel ? (
           <p className="mt-1 text-sm text-muted">{visit.propertyAddress}</p>
         ) : null}
+
+        {technicianSession && visit.customerPhones ? <JobCustomerContact phones={visit.customerPhones} /> : null}
 
         <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-foreground/10 bg-foreground/[0.025] px-4 py-3 text-xs">
           <span className="uppercase tracking-[0.15em] text-muted">Crew</span>

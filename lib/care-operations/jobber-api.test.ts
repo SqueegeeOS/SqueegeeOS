@@ -1,9 +1,35 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { exchangeJobberAuthorizationCode } from "./jobber-api";
+import { exchangeJobberAuthorizationCode, fetchJobberClientPage } from "./jobber-api";
 
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
+});
+
+describe("Jobber client phone synchronization", () => {
+  const phone = "5305550101";
+  const phones = [{ number: phone, primary: true }, { number: "5305550102", primary: false }];
+  const page = { nodes: [{ id: "client-1", phone, phones }], pageInfo: { endCursor: null, hasNextPage: false } };
+  const query = (call: unknown[]) => JSON.parse((call[1] as RequestInit).body as string).query;
+
+  it("reads primary and additional phone numbers without changing client/property identity", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(Response.json({ data: { clients: page } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchJobberClientPage("test-token", { addressFields: ["street"] })).resolves.toEqual(page);
+    expect(query(fetchMock.mock.calls[0])).toContain("phones { number primary }");
+    expect(query(fetchMock.mock.calls[0])).toContain("address { street }");
+  });
+
+  it("falls back to the legacy primary scalar if the provider hides the optional phone list", async () => {
+    const legacy = { ...page, nodes: [{ id: "client-1", phone }] };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(Response.json({ errors: [{ message: "Field 'phones' doesn't exist on type 'Client'" }] }))
+      .mockResolvedValueOnce(Response.json({ data: { clients: legacy } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchJobberClientPage("test-token")).resolves.toEqual({ ...legacy, additionalPhonesUnavailable: true });
+    expect(query(fetchMock.mock.calls[1])).not.toContain("phones {");
+    expect(query(fetchMock.mock.calls[1])).toContain("phone");
+  });
 });
 
 describe("Jobber OAuth token errors", () => {
