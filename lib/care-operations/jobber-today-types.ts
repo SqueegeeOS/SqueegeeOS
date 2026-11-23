@@ -3,6 +3,7 @@ import type { TechnicianVisitStage } from "@/lib/field-operations/technician-vis
 import type { TechnicianJobClockSnapshot } from "@/lib/field-operations/technician-job-clock";
 import type { FieldIndependenceReview } from "@/lib/field-operations/independence-review";
 import type { FieldJobValue } from "@/lib/field-operations/field-job-value";
+import type { FieldCustomerPhone } from "@/lib/field-operations/field-customer-phone";
 
 export type JobberTodayVisitMoment =
   | "complete"
@@ -139,6 +140,8 @@ export function readJobberTodayVisitScope(value: unknown): Pick<
 }
 
 export interface JobberTodayVisit {
+  /** Added only to Tyler’s assigned, authenticated Field Pass job responses. */
+  customerPhones?: FieldCustomerPhone[];
   /** Returned only to HQ and technicians explicitly allowed to see job pricing. */
   jobValue?: FieldJobValue;
   projectionId: string;

@@ -62,6 +62,21 @@ function button(text: string) {
 async function click(text: string) { await act(async () => button(text).click()); }
 
 describe("technician workspace interruptions (all HTTP mocked)", () => {
+  it("shows assigned Jobber phones as separate tap-to-call links without placing a call", async () => {
+    fetchMock.mockResolvedValue(Response.json(today([visit({ customerPhones: [
+      { number: "+15305550101", primary: true },
+      { number: "+15305550102", primary: false },
+    ] })])));
+    await renderWorkspace();
+    const contact = container.querySelector('[aria-label="Customer phone"]');
+    expect(contact?.textContent).toContain("Primary");
+    expect(contact?.textContent).toContain("Additional");
+    expect([...contact!.querySelectorAll("a")].map((link) => link.getAttribute("href"))).toEqual([
+      "tel:+15305550101", "tel:+15305550102",
+    ]);
+    expect(fetchMock.mock.calls.every(([, options]) => options?.method !== "POST")).toBe(true);
+  });
+
   it.each(["start", "finish"] as const)("keeps confirmed %s visible when the next read fails", async (action) => {
     fetchMock.mockResolvedValueOnce(Response.json(today([visit(action === "finish" ? { homeAtlasJobClock: running, homeAtlasFieldRecordCount: 1 } : {})])))
       .mockResolvedValueOnce(Response.json({ clock: action === "start" ? running : finished, fieldStage: action === "start" ? "service_started" : "departed" }))

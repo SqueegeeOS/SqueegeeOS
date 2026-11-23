@@ -97,6 +97,7 @@ export interface JobberClientNode {
   companyName: string | null;
   email: string | null;
   phone: string | null;
+  phones?: Array<{ number: string; primary: boolean }>;
   jobberWebUri: string;
   isArchived: boolean;
   clientProperties: {
@@ -107,6 +108,7 @@ export interface JobberClientNode {
 }
 
 export interface JobberClientPage {
+  additionalPhonesUnavailable?: true;
   nodes: JobberClientNode[];
   pageInfo: { endCursor: string | null; hasNextPage: boolean };
   totalCount?: number;
@@ -852,20 +854,33 @@ export async function fetchJobberClientPage(
     first?: number;
     after?: string | null;
     addressFields?: string[];
+    includeAdditionalPhones?: boolean;
   } = {},
 ): Promise<JobberClientPage> {
   const first = options.first ?? JOBBER_CLIENT_PAGE_SIZE;
   validatePageSize(first);
-  const data = await fetchJobberGraphql<{ clients?: JobberClientPage }>(
-    accessToken,
-    buildJobberClientsQuery(options.addressFields ?? []),
-    { first, after: options.after ?? null },
-    "client",
-  );
+  const query = buildJobberClientsQuery(options.addressFields ?? []);
+  const variables = { first, after: options.after ?? null };
+  const queryWithPhones = query.replace("        phone\n", "        phone\n        phones { number primary }\n");
+  const includeAdditionalPhones = options.includeAdditionalPhones ?? true;
+  let additionalPhonesUnavailable = false;
+  let data: { clients?: JobberClientPage };
+  try {
+    data = await fetchJobberGraphql(accessToken, includeAdditionalPhones ? queryWithPhones : query, variables, "client");
+  } catch (error) {
+    // Older schemas or account permissions may hide the additional list. Keep
+    // the existing client sync and its primary scalar working in that case.
+    const message = error instanceof Error ? error.message : "";
+    const optionalFieldUnavailable = /\b(?:phones|clientphonenumber)\b/i.test(message) &&
+      /not defined|does(?: not|n't) exist|cannot query|unknown field|permission|access denied/i.test(message);
+    if (!includeAdditionalPhones || (!optionalFieldUnavailable && !(error instanceof JobberApiError && error.status === 400))) throw error;
+    data = await fetchJobberGraphql(accessToken, query, variables, "client");
+    additionalPhonesUnavailable = true;
+  }
   if (!data.clients) {
     throw new Error("Jobber client query returned no client connection");
   }
-  return data.clients;
+  return additionalPhonesUnavailable ? { ...data.clients, additionalPhonesUnavailable: true } : data.clients;
 }
 
 export async function fetchJobberPropertyAddressFields(
@@ -968,6 +983,12 @@ export async function fetchAllJobberClients(
   accessToken: string,
 ): Promise<JobberClientPaginatedResult> {
   let addressFields: string[] = [];
+  let includeAdditionalPhones = true;
+  const fetchPage = async (after: string | null, fields: string[]) => {
+    const page = await fetchJobberClientPage(accessToken, { after, addressFields: fields, includeAdditionalPhones });
+    if (page.additionalPhonesUnavailable) includeAdditionalPhones = false;
+    return page;
+  };
   try {
     addressFields = await fetchJobberPropertyAddressFields(accessToken);
   } catch (error) {
@@ -979,7 +1000,7 @@ export async function fetchAllJobberClients(
 
   try {
     const result = await fetchAllJobberPages((after) =>
-      fetchJobberClientPage(accessToken, { after, addressFields }),
+      fetchPage(after, addressFields),
     );
     return {
       ...result,
@@ -993,7 +1014,7 @@ export async function fetchAllJobberClients(
       { reason: error instanceof Error ? error.message : "unknown" },
     );
     const result = await fetchAllJobberPages((after) =>
-      fetchJobberClientPage(accessToken, { after, addressFields: [] }),
+      fetchPage(after, []),
     );
     return {
       ...result,

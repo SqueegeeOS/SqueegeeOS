@@ -4,6 +4,7 @@ import { scopeTodayBoardToTechnician } from "@/lib/field-operations/field-scope"
 import { loadJobberTodayBoard } from "@/lib/care-operations/jobber-today";
 import { getBusinessCalendarDayUtcBounds, COMPANY_BUSINESS_TIMEZONE } from "@/lib/admin/company-business-timezone";
 import { fieldUpcomingVisits } from "@/lib/field-operations/field-upcoming";
+import { addFieldCustomerPhones } from "@/lib/field-operations/field-customer-contact-server";
 
 export const runtime = "nodejs";
 const headers = { "Cache-Control": "private, no-store" };
@@ -15,7 +16,8 @@ export async function GET(request: Request) {
     const board = await loadJobberTodayBoard(now, new Date(now.getTime() + 45 * 86400000));
     const scoped = actor.kind === "technician" ? scopeTodayBoardToTechnician(board, actor.jobberUserId) : board;
     const { endUtc } = getBusinessCalendarDayUtcBounds(now, COMPANY_BUSINESS_TIMEZONE);
-    return NextResponse.json({ visits: fieldUpcomingVisits(scoped.visits, endUtc), timezone: COMPANY_BUSINESS_TIMEZONE }, { headers });
+    const visits = await addFieldCustomerPhones(actor, scoped.visits);
+    return NextResponse.json({ visits: fieldUpcomingVisits(visits, endUtc), timezone: COMPANY_BUSINESS_TIMEZONE }, { headers });
   } catch {
     return NextResponse.json({ error: "Could not load upcoming jobs. Try again." }, { status: 503, headers });
   }
